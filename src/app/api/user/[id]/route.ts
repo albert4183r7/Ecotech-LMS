@@ -1,0 +1,100 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { db } from '@/lib/db';
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+
+    const user = await db.user.findUnique({
+      where: { id },
+      include: {
+        _count: {
+          select: {
+            enrollments: true,
+            favorites: true,
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: 'User not found' },
+        { status: 404 }
+      );
+    }
+
+    // Calculate learning stats
+    const enrollments = await db.enrollment.findMany({
+      where: { userId: id },
+      include: {
+        progresses: true,
+        course: {
+          include: {
+            _count: {
+              select: { sections: true },
+            },
+          },
+        },
+      },
+    });
+
+    const totalCourses = enrollments.length;
+    const inProgress = enrollments.filter(
+      (e) => e.status === 'in_progress'
+    ).length;
+    const completed = enrollments.filter(
+      (e) => e.status === 'completed'
+    ).length;
+
+    // Calculate average progress across all enrollments
+    let totalProgress = 0;
+    let enrollmentCount = 0;
+
+    for (const enrollment of enrollments) {
+      const totalSections = enrollment.course._count.sections;
+      if (totalSections > 0) {
+        const completedSections = enrollment.progresses.filter(
+          (p) => p.completed
+        ).length;
+        totalProgress += (completedSections / totalSections) * 100;
+        enrollmentCount++;
+      }
+    }
+
+    const avgProgress =
+      enrollmentCount > 0
+        ? Math.round(totalProgress / enrollmentCount)
+        : 0;
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        avatar: user.avatar,
+        role: user.role,
+        department: user.department,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+        stats: {
+          totalCourses,
+          inProgress,
+          completed,
+          avgProgress,
+          favoritesCount: user._count.favorites,
+        },
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching user profile:', error);
+    return NextResponse.json(
+      { success: false, error: 'Failed to fetch user profile' },
+      { status: 500 }
+    );
+  }
+}

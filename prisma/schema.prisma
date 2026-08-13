@@ -1,0 +1,136 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// User model for LMS
+// ============================================
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String?
+  avatar       String?
+  role         String   @default("employee") // employee, admin, instructor
+  department   String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  enrollments  Enrollment[]
+  favorites    Favorite[]
+  createdCourses Course[] @relation("CourseCreator")
+}
+
+// ============================================
+// Course categories for organization
+// ============================================
+model Category {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  color       String?  // Hex color code
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  courses     Course[]
+}
+
+// ============================================
+// Course model - main learning content unit
+// ============================================
+model Course {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  coverImage  String?  // URL to cover image
+  rating      Float    @default(0)
+  studentCount Int     @default(0)
+  status      String   @default("published") // draft, published, archived
+  language    String   @default("english")  // english, chinese
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  categoryId  String?
+  category    Category? @relation(fields: [categoryId], references: [id])
+  creatorId   String?
+  creator     User?     @relation("CourseCreator", fields: [creatorId], references: [id])
+  sections    Section[]
+  enrollments Enrollment[]
+  favorites    Favorite[]
+}
+
+// ============================================
+// Section model - chapters/lessons within a course
+// ============================================
+model Section {
+  id          String   @id @default(cuid())
+  title       String
+  content     String?  // JSON string for slide content
+  order       Int      @default(0)
+  totalPages  Int      @default(0) // Number of slides/pages
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  courseId    String
+  course      Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  progresses  Progress[]
+}
+
+// ============================================
+// Enrollment - tracks user enrollment in courses
+// ============================================
+model Enrollment {
+  id          String   @id @default(cuid())
+  status      String   @default("in_progress") // in_progress, completed, dropped
+  enrolledAt  DateTime @default(now())
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courseId    String
+  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  progresses  Progress[]
+
+  @@unique([userId, courseId])
+}
+
+// ============================================
+// Progress - tracks user progress per section
+// ============================================
+model Progress {
+  id          String   @id @default(cuid())
+  completed   Boolean  @default(false)
+  currentPage Int      @default(1)
+  lastAccessedAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  enrollmentId String
+  enrollment   Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  sectionId    String
+  section      Section    @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+
+  @@unique([enrollmentId, sectionId])
+}
+
+// ============================================
+// Favorite - user bookmarked courses
+// ============================================
+model Favorite {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courseId    String
+  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, courseId])
+}
