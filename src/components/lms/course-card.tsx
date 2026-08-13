@@ -13,6 +13,9 @@ interface CourseCardProps {
   showFavorite?: boolean;
   isFavorited?: boolean;
   onToggleFavorite?: (courseId: string) => void;
+  enrollmentProgress?: number;  // 0-100
+  estimatedMinutes?: number;   // e.g., 45
+  difficulty?: "beginner" | "intermediate" | "advanced";
 }
 
 /** Gradient palette for course cover fallbacks */
@@ -28,12 +31,21 @@ const GRADIENT_PALETTE = [
 ];
 
 /** Reusable course card component for grid displays */
+const DIFFICULTY_CONFIG = {
+  beginner: { label: "Beginner", bg: "bg-emerald-500/90 text-white", border: "border-emerald-400/30" },
+  intermediate: { label: "Intermediate", bg: "bg-amber-500/90 text-white", border: "border-amber-400/30" },
+  advanced: { label: "Advanced", bg: "bg-rose-500/90 text-white", border: "border-rose-400/30" },
+} as const;
+
 export function CourseCard({
   course,
   index = 0,
   showFavorite = false,
   isFavorited = false,
   onToggleFavorite,
+  enrollmentProgress,
+  estimatedMinutes,
+  difficulty,
 }: CourseCardProps) {
   const { openCourseDetail } = useNavigationStore();
   const [imgError, setImgError] = useState(false);
@@ -56,7 +68,7 @@ export function CourseCard({
 
   return (
     <Card
-      className="lms-card-hover group cursor-pointer overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm transition-all duration-300 hover:shadow-lg hover:border-primary/20"
+      className="lms-card-hover card-shine hover-scale group cursor-pointer overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm transition-all duration-300 hover:shadow-lg hover:border-primary/20"
       onClick={() => openCourseDetail(course.id)}
       onKeyDown={handleKeyDown}
       role="button"
@@ -70,7 +82,7 @@ export function CourseCard({
           <img
             src={course.coverImage}
             alt={course.title}
-            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+            className="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-110"
             onError={() => setImgError(true)}
             loading="lazy"
           />
@@ -106,6 +118,15 @@ export function CourseCard({
 
         {/* Quick-view shimmer on hover */}
         <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-primary/0 via-primary/60 to-primary/0 scale-x-0 origin-left transition-transform duration-500 group-hover:scale-x-100" />
+
+        {/* Difficulty Badge */}
+        {difficulty && (
+          <Badge
+            className={`absolute top-2.5 ${showFavorite ? "right-12" : "right-2.5"} border-0 ${DIFFICULTY_CONFIG[difficulty].bg} text-[10px] font-semibold shadow-sm backdrop-blur-sm`}
+          >
+            {DIFFICULTY_CONFIG[difficulty].label}
+          </Badge>
+        )}
 
         {/* Favorite Button */}
         {showFavorite && (
@@ -165,15 +186,33 @@ export function CourseCard({
             </span>
           </div>
 
-          {/* Student Count */}
-          <div className="flex items-center gap-1 text-muted-foreground">
-            <Users className="h-3 w-3" />
-            <span className="text-xs font-medium tabular-nums">
-              {course.studentCount.toLocaleString()}
-            </span>
+          {/* Student Count & Estimated Duration */}
+          <div className="flex items-center gap-2.5 text-muted-foreground">
+            {estimatedMinutes != null && estimatedMinutes > 0 && (
+              <span className="inline-flex items-center gap-0.5 text-[11px] font-medium">
+                <Clock className="h-3 w-3" />
+                ~{estimatedMinutes} min
+              </span>
+            )}
+            <div className="flex items-center gap-1">
+              <Users className="h-3 w-3" />
+              <span className="text-xs font-medium tabular-nums">
+                {course.studentCount.toLocaleString()}
+              </span>
+            </div>
           </div>
         </div>
       </CardContent>
+
+      {/* Progress Bar Overlay */}
+      {enrollmentProgress != null && enrollmentProgress > 0 && (
+        <div className="h-[3px] w-full bg-muted/40">
+          <div
+            className="h-full w-full bg-gradient-to-r from-primary to-accent progress-fill-animate rounded-full"
+            style={{ width: `${Math.min(100, Math.max(0, enrollmentProgress))}%` }}
+          />
+        </div>
+      )}
     </Card>
   );
 }

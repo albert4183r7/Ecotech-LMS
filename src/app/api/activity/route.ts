@@ -15,6 +15,7 @@ interface ActivityResponse {
   success: boolean;
   data: {
     weeklyData: DayEntry[];
+    dailyData: DayEntry[];
     streak: { current: number; longest: number };
     totalMinutes: number;
   };
@@ -214,6 +215,7 @@ export async function GET(request: NextRequest) {
       success: true,
       data: {
         weeklyData,
+        dailyData,
         streak,
         totalMinutes,
       },

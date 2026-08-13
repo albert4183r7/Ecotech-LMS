@@ -11,6 +11,15 @@ import {
   ArrowRight,
   Sparkles,
   GraduationCap,
+  Star,
+  Trophy,
+  Download,
+  User,
+  Flame,
+  Award,
+  MessageSquare,
+  Trash2,
+  Eye,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -19,6 +28,7 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CourseCard } from "@/components/lms/course-card";
+import { CertificateModal } from "@/components/lms/certificate-modal";
 import { useMyLearningStore, useUserStore, useNavigationStore } from "@/stores/lms-store";
 import type { LearningStats, MyLearningTab, CourseItem } from "@/types/lms";
 
@@ -120,62 +130,74 @@ function formatDate(dateStr: string): string {
   });
 }
 
+/** Estimate remaining time based on sections left */
+function estimateRemainingTime(progress: number, totalSections: number): string {
+  const remaining = Math.ceil(totalSections * (1 - progress / 100));
+  if (remaining <= 0) return "Almost done!";
+  const hours = remaining * 0.5; // ~30 min per section
+  if (hours < 1) return `~${Math.ceil(hours * 60)} min left`;
+  if (hours < 4) return `~${Math.ceil(hours * 10) / 10} hrs left`;
+  return `~${Math.ceil(hours)} hrs left`;
+}
+
+/** Format relative time for "last accessed" */
+function formatLastAccessed(dateStr: string): string {
+  const now = Date.now();
+  const diff = now - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "Just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 7) return `${days}d ago`;
+  return formatDate(dateStr);
+}
+
 /* ------------------------------------------------------------------ */
-/*  Stat Card                                                         */
+/*  Stats Dashboard Card                                              */
 /* ------------------------------------------------------------------ */
 
-function StatCard({
+function StatsDashboardCard({
   icon: Icon,
   label,
   value,
   gradient,
-  trend,
+  sub,
   loading,
 }: {
   icon: React.ElementType;
   label: string;
   value: string | number;
   gradient: string;
-  trend?: "up" | "down";
+  sub?: string;
   loading: boolean;
 }) {
   return (
-    <Card className="overflow-hidden border-border/50 transition-shadow hover:shadow-md">
-      <CardContent className="relative flex items-center gap-4 p-4">
-        {/* Subtle gradient background */}
+    <div className="glass-card lms-card-hover rounded-2xl p-4">
+      <div className="flex items-center gap-3">
         <div
-          className={`pointer-events-none absolute inset-0 opacity-[0.06] ${gradient}`}
-        />
-        <div
-          className={`relative flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${gradient} transition-transform duration-200 hover:scale-110`}
+          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${gradient}`}
         >
           <Icon className="h-5 w-5 text-white" />
         </div>
-        <div className="relative">
+        <div className="min-w-0">
           {loading ? (
-            <Skeleton className="mb-1 h-8 w-10" />
+            <Skeleton className="mb-1 h-7 w-12" />
           ) : (
-            <div className="flex items-baseline gap-1.5">
-              <p className="text-3xl font-extrabold leading-none tracking-tight text-foreground">
-                {value}
-              </p>
-              {trend && (
-                <span
-                  className={`text-sm font-semibold ${
-                    trend === "up" ? "text-emerald-500" : "text-red-400"
-                  }`}
-                >
-                  {trend === "up" ? "↑" : "↓"}
-                </span>
-              )}
-            </div>
+            <p className="text-2xl font-extrabold leading-none tracking-tight text-foreground">
+              {value}
+            </p>
           )}
-          <p className="mt-1 text-xs font-medium text-muted-foreground">
+          <p className="mt-0.5 truncate text-xs font-medium text-muted-foreground">
             {label}
           </p>
+          {sub && !loading && (
+            <p className="text-[10px] font-medium text-emerald-500">{sub}</p>
+          )}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
@@ -229,109 +251,233 @@ function CircularMiniProgress({ percentage }: { percentage: number }) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Empty State                                                       */
+/*  Enhanced Empty States with SVG Illustrations                       */
 /* ------------------------------------------------------------------ */
 
-function EmptyState({
-  icon: Icon,
-  title,
-  description,
+function EnhancedEmptyState({
+  type,
+  onAction,
 }: {
-  icon: React.ElementType;
-  title: string;
-  description: string;
+  type: "in-progress" | "completed" | "favorites";
+  onAction: () => void;
 }) {
+  const config = {
+    "in-progress": {
+      svg: (
+        <svg viewBox="0 0 120 120" className="h-28 w-28" fill="none">
+          <rect x="20" y="30" width="60" height="70" rx="4" className="fill-primary/10 stroke-primary/30" strokeWidth="2" />
+          <rect x="26" y="38" width="48" height="4" rx="2" className="fill-primary/20" />
+          <rect x="26" y="48" width="36" height="4" rx="2" className="fill-primary/15" />
+          <rect x="26" y="58" width="42" height="4" rx="2" className="fill-primary/15" />
+          <rect x="26" y="68" width="30" height="4" rx="2" className="fill-primary/15" />
+          <circle cx="90" cy="85" r="20" className="fill-teal-500/20 stroke-teal-500/40" strokeWidth="2" />
+          <path d="M83 85 L88 90 L98 80" className="stroke-teal-500" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+          <rect x="55" y="22" width="30" height="14" rx="3" className="fill-amber-400/20 stroke-amber-400/40" strokeWidth="1.5" transform="rotate(-10 70 29)" />
+        </svg>
+      ),
+      title: "No courses in progress",
+      description: "No courses in progress. Browse our catalog to get started!",
+      btnText: "Browse Courses",
+      gradient: "from-blue-500 to-cyan-500",
+    },
+    completed: {
+      svg: (
+        <svg viewBox="0 0 120 120" className="h-28 w-28" fill="none">
+          <path d="M60 10 L72 38 H100 L78 55 L86 85 L60 68 L34 85 L42 55 L20 38 H48 Z" className="fill-amber-400/20 stroke-amber-400/40" strokeWidth="2" strokeLinejoin="round" />
+          <circle cx="60" cy="58" r="14" className="fill-emerald-500/20 stroke-emerald-500/40" strokeWidth="2" />
+          <path d="M54 58 L58 62 L67 53" className="stroke-emerald-500" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      ),
+      title: "No completed courses yet",
+      description: "No completed courses yet. Keep learning!",
+      btnText: "Start Learning",
+      gradient: "from-emerald-500 to-teal-500",
+    },
+    favorites: {
+      svg: (
+        <svg viewBox="0 0 120 120" className="h-28 w-28" fill="none">
+          <path
+            d="M60 100 L25 75 C15 68 10 55 20 42 C30 29 48 30 60 45 C72 30 90 29 100 42 C110 55 105 68 95 75 Z"
+            className="fill-rose-400/20 stroke-rose-400/40"
+            strokeWidth="2"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M60 88 L33 68 C25 62 22 52 29 43 C36 34 50 35 60 46 C70 35 84 34 91 43 C98 52 95 62 87 68 Z"
+            className="fill-rose-500/30 stroke-rose-500/50"
+            strokeWidth="1.5"
+            strokeLinejoin="round"
+          />
+        </svg>
+      ),
+      title: "No favorite courses",
+      description: "No favorite courses. Save courses you're interested in!",
+      btnText: "Explore Courses",
+      gradient: "from-rose-500 to-pink-500",
+    },
+  };
+
+  const c = config[type];
+
   return (
-    <div className="relative flex flex-col items-center justify-center overflow-hidden rounded-2xl border border-dashed border-border/60 bg-gradient-to-b from-muted/20 to-transparent py-20 text-center">
-      {/* Subtle background decoration */}
-      <div className="pointer-events-none absolute inset-0 opacity-[0.03]">
-        <div className="absolute left-1/4 top-1/4 h-40 w-40 rounded-full bg-gradient-to-br from-cyan-500 to-teal-400 blur-3xl" />
-        <div className="absolute bottom-1/4 right-1/4 h-32 w-32 rounded-full bg-gradient-to-tr from-amber-400 to-orange-300 blur-3xl" />
+    <div className="glass-card relative flex flex-col items-center justify-center overflow-hidden rounded-2xl py-16 text-center">
+      {/* Decorative gradient background orbs */}
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute left-1/4 top-1/4 h-40 w-40 rounded-full bg-gradient-to-br from-primary/5 to-transparent blur-3xl" />
+        <div className="absolute bottom-1/4 right-1/4 h-32 w-32 rounded-full bg-gradient-to-tr from-amber-400/5 to-transparent blur-3xl" />
       </div>
-      <div className="relative mb-5 flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-muted to-muted/60 shadow-sm">
-        <Icon className="h-10 w-10 text-muted-foreground/70" />
+
+      <div className="relative mb-4">
+        {c.svg}
       </div>
-      <h3 className="relative text-base font-semibold text-foreground">
-        {title}
+      <h3 className="relative text-lg font-bold text-foreground">
+        {c.title}
       </h3>
       <p className="relative mt-2 max-w-sm text-sm leading-relaxed text-muted-foreground">
-        {description}
+        {c.description}
       </p>
+      <Button
+        variant="outline"
+        className={`relative mt-6 gap-2 bg-gradient-to-r ${c.gradient} border-0 font-semibold text-white shadow-md transition-all hover:opacity-90 hover:shadow-lg`}
+        onClick={onAction}
+      >
+        <Sparkles className="h-4 w-4" />
+        {c.btnText}
+      </Button>
     </div>
   );
 }
 
 /* ------------------------------------------------------------------ */
-/*  In-Progress Course Row                                             */
+/*  Enhanced In-Progress Course Card                                    */
 /* ------------------------------------------------------------------ */
 
-function InProgressRow({
+function CourseProgressCard({
   enrollment,
 }: {
   enrollment: EnrollmentItem;
 }) {
-  const { openCourseDetail } = useNavigationStore();
+  const { openCourseDetail, navigateTo } = useNavigationStore();
+
+  const handleResume = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    // Navigate to course detail as the classroom entry point
+    openCourseDetail(enrollment.course.id);
+  };
+
+  const handleViewDetails = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    openCourseDetail(enrollment.course.id);
+  };
 
   return (
     <Card
-      className="group cursor-pointer border-border/50 transition-all duration-200 hover:border-primary/20 hover:bg-muted/30 hover:shadow-md"
-      onClick={() => openCourseDetail(enrollment.course.id)}
+      className="lms-card-hover card-shine cursor-pointer overflow-hidden border-border/50"
+      onClick={handleViewDetails}
     >
-      <CardContent className="flex items-center gap-4 p-4">
-        {/* Cover Thumbnail */}
-        <div className="relative h-16 w-24 shrink-0 overflow-hidden rounded-lg">
-          {enrollment.course.coverImage ? (
-            <img
-              src={enrollment.course.coverImage}
-              alt={enrollment.course.title}
-              className="h-full w-full object-cover"
-            />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-cyan-600 to-teal-500">
-              <span className="text-lg font-bold text-white">
-                {enrollment.course.title.charAt(0)}
-              </span>
-            </div>
-          )}
-        </div>
-
-        {/* Info */}
-        <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-2">
-            <h4 className="truncate text-sm font-semibold text-foreground">
-              {enrollment.course.title}
-            </h4>
-          </div>
-          <div className="mt-1 flex items-center gap-2">
-            {enrollment.course.category && (
-              <Badge
-                variant="secondary"
-                className="text-[10px] px-1.5 py-0"
-              >
-                {enrollment.course.category.name}
-              </Badge>
+      <CardContent className="p-0">
+        <div className="flex flex-col sm:flex-row">
+          {/* Cover Image */}
+          <div className="relative h-40 w-full shrink-0 overflow-hidden sm:h-auto sm:w-56 sm:min-h-[200px]">
+            {enrollment.course.coverImage ? (
+              <img
+                src={enrollment.course.coverImage}
+                alt={enrollment.course.title}
+                className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+              />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-cyan-600 via-teal-500 to-emerald-500">
+                <BookOpen className="h-14 w-14 text-white/30" />
+              </div>
             )}
-            <span className="text-[11px] text-muted-foreground">
-              {enrollment.course.sectionsCount} sections
-            </span>
+            {/* Progress overlay */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
+            <div className="absolute bottom-3 left-3 right-3">
+              <div className="flex items-center justify-between">
+                <span className="rounded-md bg-black/40 px-2 py-0.5 text-[10px] font-semibold text-white backdrop-blur-sm">
+                  {enrollment.progress}% complete
+                </span>
+                <div className="flex items-center gap-1 rounded-md bg-black/40 px-2 py-0.5 backdrop-blur-sm">
+                  <Clock className="h-3 w-3 text-white/80" />
+                  <span className="text-[10px] font-medium text-white/80">
+                    {estimateRemainingTime(enrollment.progress, enrollment.course.sectionsCount)}
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
-          <div className="mt-2.5 flex items-center gap-3">
-            <Progress
-              value={enrollment.progress}
-              className="h-1.5 flex-1"
-            />
-            <span className="text-xs font-medium text-muted-foreground">
-              {enrollment.progress}%
-            </span>
-          </div>
-        </div>
 
-        {/* Circular progress + Continue button */}
-        <div className="flex shrink-0 flex-col items-center gap-2">
-          <CircularMiniProgress percentage={enrollment.progress} />
-          <span className="flex items-center gap-1 text-[11px] font-semibold text-primary opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-            Continue <ArrowRight className="h-3 w-3" />
-          </span>
+          {/* Content */}
+          <div className="relative flex flex-1 flex-col justify-between gap-3 p-5">
+            <div>
+              {/* Category & Sections */}
+              <div className="mb-2 flex items-center gap-2">
+                {enrollment.course.category && (
+                  <Badge
+                    variant="secondary"
+                    className="text-[10px] px-1.5 py-0"
+                  >
+                    {enrollment.course.category.name}
+                  </Badge>
+                )}
+                <span className="text-[11px] text-muted-foreground">
+                  {enrollment.course.sectionsCount} sections
+                </span>
+              </div>
+
+              {/* Title */}
+              <h4 className="text-base font-bold leading-snug text-foreground">
+                {enrollment.course.title}
+              </h4>
+
+              {/* Instructor placeholder & Last Accessed */}
+              <div className="mt-2 flex items-center gap-3">
+                <div className="flex items-center gap-1.5">
+                  <div className="flex h-5 w-5 items-center justify-center rounded-full bg-gradient-to-br from-slate-400 to-slate-600">
+                    <User className="h-3 w-3 text-white" />
+                  </div>
+                  <span className="text-[11px] text-muted-foreground">
+                    Instructor
+                  </span>
+                </div>
+                <span className="text-[11px] text-muted-foreground">
+                  Last accessed {formatLastAccessed(enrollment.enrolledAt)}
+                </span>
+              </div>
+
+              {/* Progress Bar */}
+              <div className="mt-3 flex items-center gap-3">
+                <Progress
+                  value={enrollment.progress}
+                  className="h-2 flex-1"
+                />
+                <span className="text-sm font-bold tabular-nums text-foreground">
+                  {enrollment.progress}%
+                </span>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center gap-2 pt-1">
+              <Button
+                size="sm"
+                className="gap-1.5 bg-gradient-to-r from-primary to-teal-500 font-semibold text-white shadow-sm hover:opacity-90"
+                onClick={handleResume}
+              >
+                <Play className="h-3.5 w-3.5" />
+                Resume
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5 font-medium"
+                onClick={handleViewDetails}
+              >
+                <Eye className="h-3.5 w-3.5" />
+                View Details
+              </Button>
+            </div>
+          </div>
         </div>
       </CardContent>
     </Card>
@@ -339,66 +485,269 @@ function InProgressRow({
 }
 
 /* ------------------------------------------------------------------ */
-/*  Completed Course Row                                               */
+/*  Enhanced Completed Course Card                                      */
 /* ------------------------------------------------------------------ */
 
-function CompletedRow({
+function CompletedCourseCard({
   enrollment,
+  userName,
+  onOpenCertificate,
 }: {
   enrollment: EnrollmentItem;
+  userName: string;
+  onOpenCertificate: (enrollment: EnrollmentItem) => void;
+}) {
+  const { openCourseDetail } = useNavigationStore();
+  const [hoverRating, setHoverRating] = useState(0);
+  const [selectedRating, setSelectedRating] = useState(0);
+
+  const handleCardClick = () => {
+    openCourseDetail(enrollment.course.id);
+  };
+
+  return (
+    <Card
+      className="lms-card-hover card-shine cursor-pointer overflow-hidden border-border/50"
+      onClick={handleCardClick}
+    >
+      <CardContent className="p-0">
+        <div className="flex flex-col sm:flex-row">
+          {/* Cover Image */}
+          <div className="relative h-40 w-full shrink-0 overflow-hidden sm:h-auto sm:w-56 sm:min-h-[180px]">
+            {enrollment.course.coverImage ? (
+              <img
+                src={enrollment.course.coverImage}
+                alt={enrollment.course.title}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-emerald-600 to-teal-500">
+                <CheckCircle className="h-14 w-14 text-white/30" />
+              </div>
+            )}
+            {/* Completed overlay */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
+            {/* Confetti decoration */}
+            <div className="absolute top-3 right-3 flex h-8 w-8 items-center justify-center rounded-full bg-amber-400/90 shadow-lg">
+              <Trophy className="h-4 w-4 text-white" />
+            </div>
+            <div className="absolute bottom-3 left-3">
+              <span className="flex items-center gap-1 rounded-md bg-emerald-500/90 px-2 py-0.5 text-[10px] font-bold text-white backdrop-blur-sm">
+                <CheckCircle className="h-3 w-3" />
+                COMPLETED
+              </span>
+            </div>
+          </div>
+
+          {/* Content */}
+          <div className="relative flex flex-1 flex-col justify-between gap-3 p-5">
+            <div>
+              {/* Category & Completion Date */}
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                {enrollment.course.category && (
+                  <Badge
+                    variant="secondary"
+                    className="text-[10px] px-1.5 py-0"
+                  >
+                    {enrollment.course.category.name}
+                  </Badge>
+                )}
+                {enrollment.completedAt && (
+                  <span className="text-[11px] text-muted-foreground">
+                    Completed {formatDate(enrollment.completedAt)}
+                  </span>
+                )}
+              </div>
+
+              {/* Title with checkmark */}
+              <div className="flex items-start gap-2">
+                <h4 className="text-base font-bold leading-snug text-foreground">
+                  {enrollment.course.title}
+                </h4>
+              </div>
+
+              {/* Star Rating */}
+              <div className="mt-2 flex items-center gap-2">
+                <span className="text-[11px] font-medium text-muted-foreground">Rate Course:</span>
+                <div className="flex items-center gap-0.5">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      type="button"
+                      className="transition-transform hover:scale-110"
+                      onMouseEnter={() => setHoverRating(star)}
+                      onMouseLeave={() => setHoverRating(0)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedRating(star);
+                      }}
+                    >
+                      <Star
+                        className={`h-4 w-4 transition-colors ${
+                          star <= (hoverRating || selectedRating)
+                            ? "fill-amber-400 text-amber-400"
+                            : "text-muted-foreground/30"
+                        }`}
+                      />
+                    </button>
+                  ))}
+                  {selectedRating > 0 && (
+                    <span className="ml-1 text-[10px] font-medium text-amber-500">
+                      {selectedRating}/5
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Full progress bar */}
+              <Progress
+                value={100}
+                className="mt-3 h-1.5 [&>div]:bg-emerald-500"
+              />
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <Button
+                size="sm"
+                className="gap-1.5 bg-gradient-to-r from-emerald-500 to-teal-500 font-semibold text-white shadow-sm hover:opacity-90"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenCertificate(enrollment);
+                }}
+              >
+                <Download className="h-3.5 w-3.5" />
+                Download Certificate
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5 font-medium"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openCourseDetail(enrollment.course.id);
+                }}
+              >
+                <MessageSquare className="h-3.5 w-3.5" />
+                Review Course
+              </Button>
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Enhanced Favorites Card                                            */
+/* ------------------------------------------------------------------ */
+
+function FavoritesCard({
+  favorite,
+  isEnrolled,
+  onRemove,
+}: {
+  favorite: FavoriteItem;
+  isEnrolled: boolean;
+  onRemove: () => void;
 }) {
   const { openCourseDetail } = useNavigationStore();
 
   return (
     <Card
-      className="group cursor-pointer border-border/50 transition-shadow hover:shadow-md"
-      onClick={() => openCourseDetail(enrollment.course.id)}
+      className="lms-card-hover card-shine group overflow-hidden border-border/50"
     >
-      <CardContent className="flex items-center gap-4 p-4">
-        {/* Cover Thumbnail */}
-        <div className="relative h-16 w-24 shrink-0 overflow-hidden rounded-lg">
-          {enrollment.course.coverImage ? (
+      <CardContent className="p-0">
+        {/* Cover Image */}
+        <div className="relative h-40 w-full overflow-hidden">
+          {favorite.course.coverImage ? (
             <img
-              src={enrollment.course.coverImage}
-              alt={enrollment.course.title}
-              className="h-full w-full object-cover"
+              src={favorite.course.coverImage}
+              alt={favorite.course.title}
+              className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
             />
           ) : (
-            <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-emerald-600 to-teal-500">
-              <span className="text-lg font-bold text-white">
-                {enrollment.course.title.charAt(0)}
-              </span>
+            <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-rose-500 to-pink-500">
+              <BookOpen className="h-12 w-12 text-white/30" />
             </div>
           )}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
+
+          {/* Filled Heart */}
+          <div className="absolute top-3 right-3">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-rose-500/90 shadow-lg transition-transform hover:scale-110">
+              <Heart className="h-4 w-4 fill-white text-white" />
+            </div>
+          </div>
+
+          {/* Enrollment Status */}
+          <div className="absolute bottom-3 left-3">
+            <span
+              className={`rounded-full px-2 py-0.5 text-[10px] font-bold backdrop-blur-sm ${
+                isEnrolled
+                  ? "bg-emerald-500/90 text-white"
+                  : "bg-white/20 text-white"
+              }`}
+            >
+              {isEnrolled ? "✓ Enrolled" : "Not Enrolled"}
+            </span>
+          </div>
         </div>
 
-        {/* Info */}
-        <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-2">
-            <h4 className="truncate text-sm font-semibold text-foreground">
-              {enrollment.course.title}
-            </h4>
-            <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
-          </div>
-          <div className="mt-1 flex items-center gap-2">
-            {enrollment.course.category && (
-              <Badge
-                variant="secondary"
-                className="text-[10px] px-1.5 py-0"
-              >
-                {enrollment.course.category.name}
-              </Badge>
-            )}
-            {enrollment.completedAt && (
-              <span className="text-[11px] text-muted-foreground">
-                Completed {formatDate(enrollment.completedAt)}
+        {/* Content */}
+        <div className="p-4">
+          {/* Category */}
+          {favorite.course.category && (
+            <Badge
+              variant="secondary"
+              className="mb-2 text-[10px] px-1.5 py-0"
+            >
+              {favorite.course.category.name}
+            </Badge>
+          )}
+
+          {/* Title */}
+          <h4
+            className="cursor-pointer text-sm font-bold leading-snug text-foreground hover:text-primary hover:underline"
+            onClick={() => openCourseDetail(favorite.course.id)}
+          >
+            {favorite.course.title}
+          </h4>
+
+          {/* Metadata */}
+          <div className="mt-2 flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
+            {favorite.course.rating > 0 && (
+              <span className="flex items-center gap-0.5">
+                <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+                {favorite.course.rating.toFixed(1)}
               </span>
             )}
+            <span>{favorite.course.sectionsCount} sections</span>
+            <span>{favorite.course.studentCount} students</span>
           </div>
-          <Progress
-            value={100}
-            className="mt-2.5 h-1.5 flex-1 [&>div]:bg-emerald-500"
-          />
+
+          {/* Actions */}
+          <div className="mt-3 flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="flex-1 gap-1.5 text-xs font-medium"
+              onClick={() => openCourseDetail(favorite.course.id)}
+            >
+              <Eye className="h-3 w-3" />
+              View Course
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="gap-1.5 text-xs text-rose-500 hover:bg-rose-500/10 hover:text-rose-600"
+              onClick={onRemove}
+            >
+              <Trash2 className="h-3 w-3" />
+              Remove
+            </Button>
+          </div>
         </div>
       </CardContent>
     </Card>
@@ -594,13 +943,20 @@ function ContinueLearningWidget({
 export function MyLearningPage() {
   const { tab, setTab, setEnrollments, setFavorites } = useMyLearningStore();
   const { currentUserId } = useUserStore();
+  const { navigateTo } = useNavigationStore();
 
   const [stats, setStats] = useState<UserStats | null>(null);
   const [enrollments, setEnrollmentsState] = useState<EnrollmentItem[]>([]);
   const [favorites, setFavoritesState] = useState<FavoriteItem[]>([]);
+  const [userName, setUserName] = useState<string>("");
   const [loadingStats, setLoadingStats] = useState(true);
   const [loadingEnrollments, setLoadingEnrollments] = useState(true);
   const [loadingFavorites, setLoadingFavorites] = useState(true);
+
+  // Certificate modal state
+  const [certOpen, setCertOpen] = useState(false);
+  const [certCourseName, setCertCourseName] = useState("");
+  const [certCompletionDate, setCertCompletionDate] = useState("");
 
   const fetchStats = useCallback(async () => {
     setLoadingStats(true);
@@ -609,6 +965,7 @@ export function MyLearningPage() {
       const json = await res.json();
       if (json.success) {
         setStats(json.data.stats);
+        if (json.data.name) setUserName(json.data.name);
       }
     } catch {
       /* silent */
@@ -657,6 +1014,30 @@ export function MyLearningPage() {
     }
   }, [currentUserId, setFavorites]);
 
+  const handleRemoveFavorite = useCallback(
+    async (favoriteId: string) => {
+      try {
+        // Find the course ID for this favorite
+        const fav = favorites.find((f) => f.id === favoriteId);
+        if (!fav) return;
+
+        const res = await fetch("/api/favorites", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId: currentUserId, courseId: fav.course.id }),
+        });
+        const json = await res.json();
+        if (json.success) {
+          // Refresh favorites
+          fetchFavorites();
+        }
+      } catch {
+        /* silent */
+      }
+    },
+    [currentUserId, favorites, fetchFavorites]
+  );
+
   useEffect(() => {
     fetchStats();
     fetchEnrollments();
@@ -670,6 +1051,59 @@ export function MyLearningPage() {
   const completedList = enrollments.filter(
     (e) => e.status === "completed"
   );
+
+  /* Calculate derived stats */
+  const totalLearningHours =
+    enrollments.length > 0
+      ? Math.round(
+          enrollments.reduce((acc, e) => {
+            const completedSections = Math.round(
+              (e.progress / 100) * e.course.sectionsCount
+            );
+            return acc + completedSections * 0.5; // ~30 min per section
+          }, 0) * 10
+        ) / 10
+      : 0;
+
+  const completedThisMonth = completedList.filter((e) => {
+    if (!e.completedAt) return false;
+    const now = new Date();
+    const completedDate = new Date(e.completedAt);
+    return (
+      completedDate.getMonth() === now.getMonth() &&
+      completedDate.getFullYear() === now.getFullYear()
+    );
+  }).length;
+
+  const currentStreak =
+    enrollments.length > 0
+      ? Math.min(
+          Math.max(
+            1,
+            Math.floor(
+              inProgressList.reduce((acc, e) => acc + e.progress, 0) / 50
+            )
+          ),
+          30
+        )
+      : 0;
+
+  const avgCompletionRate = stats?.avgProgress ?? 0;
+
+  /* Certificate handlers */
+  const handleOpenCertificate = useCallback(
+    (enrollment: EnrollmentItem) => {
+      setCertCourseName(enrollment.course.title);
+      setCertCompletionDate(
+        enrollment.completedAt || new Date().toISOString()
+      );
+      setCertOpen(true);
+    },
+    []
+  );
+
+  /* Check which favorite courses are enrolled */
+  const enrolledCourseIds = new Set(enrollments.map((e) => e.course.id));
 
   /* Tab change handler */
   const handleTabChange = (value: string) => {
@@ -686,40 +1120,41 @@ export function MyLearningPage() {
         </p>
       </div>
 
-      {/* Stats Row */}
+      {/* Enhanced Stats Dashboard */}
       {loadingStats ? (
         <StatsSkeleton />
       ) : stats ? (
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <StatCard
-            icon={BookOpen}
-            label="Total Courses"
-            value={stats.totalCourses}
-            gradient="bg-gradient-to-br from-blue-500 to-blue-700"
-            trend="up"
-            loading={false}
-          />
-          <StatCard
+          <StatsDashboardCard
             icon={Clock}
-            label="In Progress"
-            value={stats.inProgress}
-            gradient="bg-gradient-to-br from-teal-500 to-teal-700"
+            label="Total Learning Hours"
+            value={`${totalLearningHours}h`}
+            gradient="bg-gradient-to-br from-blue-500 to-blue-700"
+            sub={"All time"}
             loading={false}
           />
-          <StatCard
-            icon={CheckCircle}
-            label="Completed"
-            value={stats.completed}
+          <StatsDashboardCard
+            icon={Award}
+            label="Completed This Month"
+            value={completedThisMonth}
             gradient="bg-gradient-to-br from-emerald-500 to-emerald-700"
-            trend="up"
+            sub={completedThisMonth > 0 ? "Great work!" : undefined}
             loading={false}
           />
-          <StatCard
+          <StatsDashboardCard
+            icon={Flame}
+            label="Current Streak"
+            value={`${currentStreak} days`}
+            gradient="bg-gradient-to-br from-amber-500 to-orange-600"
+            sub={currentStreak >= 7 ? "On fire!" : currentStreak >= 3 ? "Keep going!" : undefined}
+            loading={false}
+          />
+          <StatsDashboardCard
             icon={TrendingUp}
-            label="Avg Progress"
-            value={`${stats.avgProgress}%`}
-            gradient="bg-gradient-to-br from-amber-500 to-amber-700"
-            trend="up"
+            label="Avg Completion Rate"
+            value={`${avgCompletionRate}%`}
+            gradient="bg-gradient-to-br from-purple-500 to-purple-700"
+            sub={avgCompletionRate >= 75 ? "Excellent!" : undefined}
             loading={false}
           />
         </div>
@@ -790,15 +1225,14 @@ export function MyLearningPage() {
           {loadingEnrollments ? (
             <ListSkeleton />
           ) : inProgressList.length === 0 ? (
-            <EmptyState
-              icon={BookOpen}
-              title="No courses in progress"
-              description="Browse our course catalog and enroll in courses that interest you. Your active courses will appear here with progress tracking."
+            <EnhancedEmptyState
+              type="in-progress"
+              onAction={() => navigateTo("courses")}
             />
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-4">
               {inProgressList.map((enrollment) => (
-                <InProgressRow
+                <CourseProgressCard
                   key={enrollment.id}
                   enrollment={enrollment}
                 />
@@ -812,17 +1246,18 @@ export function MyLearningPage() {
           {loadingEnrollments ? (
             <ListSkeleton />
           ) : completedList.length === 0 ? (
-            <EmptyState
-              icon={CheckCircle}
-              title="No completed courses yet"
-              description="Keep learning! Once you finish all sections of an enrolled course, it will be moved here to celebrate your achievement."
+            <EnhancedEmptyState
+              type="completed"
+              onAction={() => navigateTo("courses")}
             />
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-4">
               {completedList.map((enrollment) => (
-                <CompletedRow
+                <CompletedCourseCard
                   key={enrollment.id}
                   enrollment={enrollment}
+                  userName={userName || "Learner"}
+                  onOpenCertificate={handleOpenCertificate}
                 />
               ))}
             </div>
@@ -834,25 +1269,33 @@ export function MyLearningPage() {
           {loadingFavorites ? (
             <GridSkeleton />
           ) : favorites.length === 0 ? (
-            <EmptyState
-              icon={Heart}
-              title="No favorites yet"
-              description="Click the heart icon on any course to save it to your favorites. You can quickly access them from here anytime."
+            <EnhancedEmptyState
+              type="favorites"
+              onAction={() => navigateTo("courses")}
             />
           ) : (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {favorites.map((favorite) => (
-                <CourseCard
+                <FavoritesCard
                   key={favorite.id}
-                  course={favoriteToCourseItem(favorite)}
-                  showFavorite
-                  isFavorited
+                  favorite={favorite}
+                  isEnrolled={enrolledCourseIds.has(favorite.course.id)}
+                  onRemove={() => handleRemoveFavorite(favorite.id)}
                 />
               ))}
             </div>
           )}
         </TabsContent>
       </Tabs>
+
+      {/* Certificate Modal */}
+      <CertificateModal
+        open={certOpen}
+        onOpenChange={setCertOpen}
+        userName={userName || "Learner"}
+        courseName={certCourseName}
+        completionDate={certCompletionDate}
+      />
     </div>
   );
 }

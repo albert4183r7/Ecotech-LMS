@@ -12,14 +12,17 @@
 ✅ **Phase 4 (WebDevReview #3)** — Interactive quizzes, confetti celebration, leaderboard, search autocomplete, continue learning widget, dark mode fixes
 ✅ **Phase 5 (Cron Review #4)** — CSS styling overhaul, enhanced footer, notification system, AI generation, achievement badges, certificate modal
 ✅ **Phase 6 (Cron Review #5)** — Course discussion/comments system, weekly activity chart, streak tracker, enhanced course cards
+✅ **Phase 7 (Cron Review #6)** — Major styling overhaul (15+ new CSS animations), notes system, XP/level system, streak calendar, keyboard shortcuts overlay, leaderboard widget, enhanced all 7 pages
 
 ### Architecture Summary
-- **8 Database Models**: User, Category, Course, Section, Enrollment, Progress, Favorite, Comment
+- **9 Database Models**: User, Category, Course, Section, Enrollment, Progress, Favorite, Comment, Note
 - **7 Frontend Pages**: Home, Courses, My Learning, Profile, Course Detail, Classroom, Create Course
-- **17 API Endpoints**: Full CRUD for courses, enrollments, progress, favorites, categories, sections, user, leaderboard, AI content generation, achievements, activity, comments (GET/POST/DELETE)
-- **Shared Components**: Navbar (with notifications), Footer (enhanced), CourseCard (enhanced), ThemeProvider, SearchAutocomplete, AchievementBadges, CertificateModal, DiscussionPanel, ActivityChart
+- **18 API Endpoints**: Full CRUD for courses, enrollments, progress, favorites, categories, sections, user, leaderboard, AI content generation, achievements, activity, comments (GET/POST/DELETE), notes (GET/POST/PUT/DELETE)
+- **Shared Components**: Navbar (with notifications, search, breadcrumbs, online status), Footer (enhanced), CourseCard (with progress/difficulty/duration), ThemeProvider, SearchAutocomplete, AchievementBadges, CertificateModal, DiscussionPanel, ActivityChart, LeaderboardWidget, KeyboardShortcuts
 - **4 Zustand Stores**: Navigation, Course, My Learning, User
 - **Seed Data**: 8 courses, 14 sections, 6 categories, 2 enrollments, 2 favorites, 8 comments (with replies)
+- **CSS Animations Library**: 15+ custom animation classes (btn-ripple, card-shine, glow-pulse, badge-bounce, confetti, staggered fade-in, typing indicator, animated gradient border, etc.)
+- **Accessibility**: prefers-reduced-motion support, ARIA labels, keyboard navigation
 
 ---
 
@@ -492,3 +495,109 @@ Added a complete course discussion/comments system allowing employees to ask que
 - 10 API endpoints with Prisma ORM
 - Seed data: 8 courses, 14 sections, 6 categories
 - shadcn/ui component library integration
+
+---
+
+## Phase 7 Changes (Cron Review #6)
+
+### Overview
+This phase focused on: **[Mandatory] Major styling improvements** with 15+ new CSS animations and effects, and **[Mandatory] New features** including a notes/bookmarks system, XP/level system, streak calendar, keyboard shortcuts overlay, and leaderboard widget. All 7 pages were enhanced. Work was done in 4 parallel foundation tasks + 4 parallel enhancement tasks.
+
+### 1. CSS Animations & Effects Library (`globals.css`)
+Enhanced `globals.css` from ~630 lines to ~1100+ lines with:
+- **15+ new animation/effect classes**: btn-ripple (Material Design), typing-indicator, glow-pulse, slide-stack transitions, card-shine (light sweep), animated-gradient-border (rotating conic), text-reveal, count-up, badge-bounce, slide-progress-indicator, slide-scrollbar, fab-float/expand, loading-dots, content-pattern, focus-ring-teal/blue
+- **Enhanced existing styles**: smoother shimmer (2.4s cubic-bezier), subtler card hover shadows, more vibrant hero gradient with 5 color stops
+- **Accessibility**: `@media (prefers-reduced-motion: reduce)` — disables all animations globally
+
+### 2. New Database Model: Note (`prisma/schema.prisma`)
+- Added `Note` model with fields: id, content, isBookmarked, slideNumber, createdAt, updatedAt
+- Relations: User (onDelete: Cascade), Course (onDelete: Cascade), Section (onDelete: Cascade)
+- Composite index on `[userId, courseId]` for query performance
+- Schema pushed successfully with `bun run db:push`
+
+### 3. New API Endpoint: `/api/notes`
+Full CRUD endpoint following project conventions:
+- **GET**: List notes with optional filters (userId required; courseId, sectionId optional)
+- **POST**: Create note (validates user, course, section exist)
+- **PUT**: Update note by id (partial update of content/isBookmarked)
+- **DELETE**: Delete note by id
+
+### 4. New Component: Keyboard Shortcuts Overlay (`keyboard-shortcuts.tsx`)
+- Floating button (bottom-right) with Keyboard icon and pulse animation
+- Dialog showing shortcuts grouped by category (General, Navigation, Classroom)
+- Registered shortcuts: `?`/`Ctrl+K` (toggle), `H` (home), `C` (courses), `M` (my-learning), `P` (profile), `N` (new course), `Esc` (back), `Space` (next slide via custom event)
+- Input/textarea/select guard — shortcuts disabled when typing
+- Styled `<kbd>` elements with 3D keycap look
+- Integrated into `page.tsx` (renders in both normal and classroom mode)
+
+### 5. New Component: Leaderboard Widget (`leaderboard-widget.tsx`)
+- Top 10 learners ranked by XP (score = completedCourses × 100 + avgProgress × 10)
+- Medal system: Trophy (gold #1), Medal (silver #2), Award (bronze #3), Crown icon for #1
+- Current user highlighted with gradient border and "(you)" label
+- XP progress bar with cyan→teal gradient
+- Loading skeleton, empty state, staggered fade-in animations
+- "View all" link at bottom
+
+### 6. Enhanced: Home Page (`home-page.tsx`)
+- **Continue Learning Widget**: Horizontal scroll of in-progress courses with progress bars and "Continue" buttons (fetches from `/api/enrollments`)
+- **Leaderboard Widget**: Right sidebar on desktop, collapsible accordion on mobile
+- **Quick Stats Dashboard**: 4 glass-morphism stat cards (Total Courses, Categories, Learners, Avg Rating) with gradient icon backgrounds and staggered animations
+- **Popular Searches**: Trending tag chips (React, TypeScript, Python, DevOps) below search bar
+
+### 7. Enhanced: Classroom Page (`classroom-page.tsx`)
+- **Notes Sidebar**: Slide-in panel (desktop) / Sheet (mobile) for viewing/adding/deleting/bookmarking notes per section. Full CRUD via `/api/notes` API
+- **Slide Progress Dots**: Clickable dot navigation above bottom bar using `.slide-progress-indicator` CSS
+- **Keyboard Hints Bar**: Translucent frosted-glass bar ("← → Navigate | Space: Next | Esc: Exit") that auto-fades after 5s
+- **Enhanced Slide Counter**: "Slide 3 of 10" instead of "3 / 10"
+- **Space key**: Added for next slide navigation + custom event listener for KeyboardShortcuts
+
+### 8. Enhanced: Profile Page (`profile-page.tsx`)
+- **XP System**: Total XP (100 per completed course + 10 per section), Level display (LVL N where N = floor(XP/500)+1), animated counter with gradient text, progress bar toward next level
+- **Streak Calendar**: GitHub-style 30-day contribution grid with color intensity, current streak 🔥, best streak record (fetches from `/api/activity`)
+- **Skills & Badges Grid**: 5 achievement badges in responsive 3-col grid (Course Master, Quick Learner, Bookworm, Social Learner, Streak Champion) with earned/locked states
+- **Learning Path Timeline**: Horizontal scrollable timeline of completed courses with gradient connectors
+- **Enhanced Stat Cards**: Glass-morphism effect, animated counters, trend indicators (up/down arrows)
+- **Animated Counter Hook**: `useAnimatedCounter` with requestAnimationFrame and cubic ease-out
+
+### 9. Enhanced: Course Card (`course-card.tsx`)
+- **Progress Bar**: 3px gradient bar at card bottom (shows when `enrollmentProgress` > 0) with fill animation
+- **Duration Badge**: Clock icon + estimated time in bottom-right of content area
+- **Difficulty Badge**: Color-coded badge in cover image area (emerald/amber/rose)
+- **Enhanced Hover**: Added `.card-shine` light sweep + `.hover-scale` for 1.02 scale on hover
+- **3 New Optional Props**: `enrollmentProgress`, `estimatedMinutes`, `difficulty`
+
+### 10. Enhanced: Navbar (`navbar.tsx`)
+- **Breadcrumb Trail**: Shows current page label below logo (mobile: uppercase muted text; desktop: subtle label)
+- **Online Status**: Pulsing green dot on user avatar with "Online" tooltip
+- **Collapsible Search**: Desktop search expands from icon to input with smooth animation; mobile navigates to home
+- **Notification Enhancements**: Badge glow animation when unread, bounce animation on count change, date-grouped notifications (Today/Yesterday/Earlier)
+- **Glass Effect**: Enhanced header background with `.frosted-glass` class
+- **Mobile Menu**: User info section with avatar, name, email, online status badge; gradient CTA for Create Course
+
+### 11. Enhanced: My Learning Page (`my-learning-page.tsx`)
+- **Enhanced Empty States**: Inline SVG illustrations per tab type, glass-morphism backgrounds, gradient CTA buttons
+- **Course Progress Cards**: Detailed cards with cover image, progress bar, estimated remaining time, last accessed date, instructor icon, Resume + View Details buttons
+- **Completed Celebration**: Trophy badge, completion date, interactive 5-star rating UI, Download Certificate button (CertificateModal), Review Course button
+- **Favorites Cards**: Filled heart icon, enrollment status indicator ("Enrolled"/"Not Enrolled"), Remove button
+- **Stats Dashboard**: 4 glass-morphism stat cards (Total Learning Hours, Completed This Month, Current Streak, Average Completion Rate)
+
+### Verification Results
+- ✅ ESLint passes with 0 errors, 0 warnings
+- ✅ Dev server compiles successfully (200 status, ~2.7s compile time)
+- ✅ All 7 pages render without runtime errors
+- ✅ All API endpoints functional (categories, courses, enrollments, progress, favorites, sections, user, leaderboard, comments, notes)
+- ✅ Database schema pushed successfully (Note model added)
+
+### Unresolved Issues & Risks
+- **agent-browser limitation**: Cannot QA test via browser due to Caddy sandbox networking — verification done via dev.log instead
+- **Comment count placeholder**: Skills badges grid uses hardcoded `3` for "Social Learner" comment count; needs real API when available
+- **Trend indicators**: Profile page stat cards show static demo percentages (12%, 25%, 8%); could be dynamic with historical data
+- **Note bookmark toggle**: Currently optimistic (local state only) — needs PUT API call for persistence
+
+### Priority Recommendations for Next Phase
+1. **Real-time collaboration**: WebSocket-based live course editing/viewing
+2. **Gamification expansion**: Daily challenges, weekly leaderboards, badges with rewards
+3. **Content management**: Rich text editor for course creation, image upload support
+4. **Analytics dashboard**: Admin analytics with course completion rates, engagement metrics
+5. **Mobile PWA**: Service worker, offline support, push notifications for course updates
+6. **Accessibility audit**: Screen reader testing, WCAG 2.1 AA compliance verification

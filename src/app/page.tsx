@@ -10,6 +10,7 @@ import { ProfilePage } from "@/components/lms/pages/profile-page";
 import { CourseDetailPage } from "@/components/lms/pages/course-detail-page";
 import { ClassroomPage } from "@/components/lms/pages/classroom-page";
 import { CreateCoursePage } from "@/components/lms/pages/create-course-page";
+import { KeyboardShortcuts } from "@/components/lms/keyboard-shortcuts";
 
 /**
  * Root page component that acts as the SPA router.
@@ -45,7 +46,12 @@ export default function AppPage() {
   };
 
   if (isFullView) {
-    return <ClassroomPage />;
+    return (
+      <>
+        <ClassroomPage />
+        <KeyboardShortcuts />
+      </>
+    );
   }
 
   return (
@@ -53,6 +59,7 @@ export default function AppPage() {
       <Navbar />
       <main className="flex-1 page-transition">{renderView()}</main>
       <Footer />
+      <KeyboardShortcuts />
     </div>
   );
 }

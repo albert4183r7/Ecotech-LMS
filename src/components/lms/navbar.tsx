@@ -12,15 +12,14 @@ import {
   Sun,
   Moon,
   Bell,
-  Check,
   CheckCheck,
   Sparkles,
   BookMarked,
   Trophy,
+  Search,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -47,6 +46,20 @@ const NAV_ITEMS: NavItem[] = [
   { label: "My Learning", icon: <GraduationCap className="h-4 w-4" />, view: "my-learning" },
   { label: "Profile", icon: <User className="h-4 w-4" />, view: "profile" },
 ];
+
+/** Get human-readable label for any view including detail views */
+function getViewLabel(view: ViewName): string {
+  switch (view) {
+    case "home": return "Home";
+    case "courses": return "Courses";
+    case "my-learning": return "My Learning";
+    case "profile": return "Profile";
+    case "course-detail": return "Course Details";
+    case "classroom": return "Classroom";
+    case "create-course": return "Create Course";
+    default: return "";
+  }
+}
 
 /** Notification item shape */
 interface NotificationItem {
@@ -105,6 +118,26 @@ function getMockNotifications(): NotificationItem[] {
   ];
 }
 
+/** Group notifications by date category: Today, Yesterday, Earlier */
+function groupNotificationsByDate(items: NotificationItem[]) {
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const yesterdayStart = todayStart - 86400000;
+
+  const today: NotificationItem[] = [];
+  const yesterday: NotificationItem[] = [];
+  const earlier: NotificationItem[] = [];
+
+  for (const item of items) {
+    const t = new Date(item.createdAt).getTime();
+    if (t >= todayStart) today.push(item);
+    else if (t >= yesterdayStart) yesterday.push(item);
+    else earlier.push(item);
+  }
+
+  return { today, yesterday, earlier };
+}
+
 /** Notification type icon */
 function NotificationIcon({ type }: { type: NotificationItem["type"] }) {
   switch (type) {
@@ -135,17 +168,109 @@ function formatRelativeTime(dateStr: string): string {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
+/** Notification group with date header */
+function NotificationGroup({
+  label,
+  items,
+  onMarkRead,
+}: {
+  label: string;
+  items: NotificationItem[];
+  onMarkRead: (id: string) => void;
+}) {
+  return (
+    <div>
+      <p className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+        {label}
+      </p>
+      {items.map((notif) => (
+        <button
+          key={notif.id}
+          type="button"
+          onClick={() => onMarkRead(notif.id)}
+          className={cn(
+            "group flex w-full items-start gap-3 rounded-lg px-3 py-3 text-left transition-colors",
+            notif.read
+              ? "hover:bg-muted/50"
+              : "bg-primary/5 hover:bg-primary/8"
+          )}
+        >
+          <div className={cn(
+            "mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors",
+            notif.read
+              ? "bg-muted/60"
+              : "bg-primary/10"
+          )}>
+            <NotificationIcon type={notif.type} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-start justify-between gap-2">
+              <p className={cn(
+                "text-sm leading-snug",
+                notif.read
+                  ? "text-muted-foreground font-medium"
+                  : "text-foreground font-semibold"
+              )}>
+                {notif.title}
+              </p>
+              {!notif.read && (
+                <div className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-primary" />
+              )}
+            </div>
+            <p className="mt-0.5 text-xs text-muted-foreground leading-relaxed line-clamp-2">
+              {notif.message}
+            </p>
+            <p className="mt-1 text-[10px] text-muted-foreground/60">
+              {formatRelativeTime(notif.createdAt)}
+            </p>
+          </div>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function Navbar() {
   const { currentView, navigateTo } = useNavigationStore();
   const userName = useUserStore((s) => s.currentUserId);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { theme, setTheme } = useTheme();
 
+  // Search bar state
+  const [searchExpanded, setSearchExpanded] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
   // Notification state (initialized with mock data)
   const [notifications, setNotifications] = useState<NotificationItem[]>(getMockNotifications);
   const [showNotifications, setShowNotifications] = useState(false);
   const [bellAnimating, setBellAnimating] = useState(false);
+  const [badgeKey, setBadgeKey] = useState(0);
   const notifRef = useRef<HTMLDivElement>(null);
+
+  // Breadcrumb: derive current page label
+  const currentPageLabel = getViewLabel(currentView);
+
+  // Close mobile menu and search on view change
+  useEffect(() => {
+    // Intentional: reset UI state when user navigates to a different page
+    const handleViewCleanup = () => {
+      setMobileMenuOpen(false);
+      setSearchExpanded(false);
+    };
+    handleViewCleanup();
+  }, [currentView]);
+
+  // Collapse search when clicking outside
+  useEffect(() => {
+    if (!searchExpanded) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (searchInputRef.current && !searchInputRef.current.parentElement?.contains(e.target as Node)) {
+        setSearchExpanded(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [searchExpanded]);
 
   // Close notification panel on outside click
   useEffect(() => {
@@ -181,6 +306,33 @@ export function Navbar() {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
   }, []);
 
+  const unreadCount = notifications.filter((n) => !n.read).length;
+  const groupedNotifications = groupNotificationsByDate(notifications);
+
+  // Bounce badge when unread count changes
+  const prevUnreadRef = useRef(unreadCount);
+  useEffect(() => {
+    if (unreadCount !== prevUnreadRef.current) {
+      // Trigger badge re-render with new key for bounce animation
+      const handleBadgeUpdate = () => {
+        setBadgeKey((k) => k + 1);
+      };
+      handleBadgeUpdate();
+      prevUnreadRef.current = unreadCount;
+    }
+  }, [unreadCount]);
+
+  /** Handle search icon click: navigate to home on mobile, expand on desktop */
+  const handleSearchClick = useCallback(() => {
+    if (window.innerWidth < 768) {
+      navigateTo("home");
+      setMobileMenuOpen(false);
+    } else {
+      setSearchExpanded(true);
+      setTimeout(() => searchInputRef.current?.focus(), 50);
+    }
+  }, [navigateTo]);
+
   /** Get initials from user name for avatar */
   const getInitials = (name: string) => {
     if (name.includes("_")) {
@@ -194,25 +346,56 @@ export function Navbar() {
     return name.slice(0, 2).toUpperCase();
   };
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  /** Format user id to display name */
+  const displayName = userName.includes("_")
+    ? userName.split("_").filter((p) => !/^\d+$/.test(p) && p.length > 0).map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join(" ")
+    : userName.charAt(0).toUpperCase() + userName.slice(1);
+
+  const handleSearchKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      navigateTo("home");
+    }
+    if (e.key === "Escape") {
+      setSearchExpanded(false);
+    }
+  }, [navigateTo]);
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-border/60 bg-card/95 backdrop-blur-lg supports-[backdrop-filter]:bg-card/60">
+    <header className="sticky top-0 z-50 w-full border-b border-border/60 frosted-glass">
       <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-        {/* Logo */}
-        <button
-          type="button"
-          className="flex items-center gap-2 hover:opacity-80 transition-opacity"
-          onClick={() => navigateTo("home")}
-          aria-label="Go to homepage"
-        >
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary shadow-sm">
-            <GraduationCap className="h-5 w-5 text-primary-foreground" />
-          </div>
-          <span className="text-lg font-bold tracking-tight text-primary hidden sm:inline">
-            OpenClass
-          </span>
-        </button>
+        {/* Logo + Breadcrumb */}
+        <div className="flex flex-col gap-0">
+          <button
+            type="button"
+            className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+            onClick={() => navigateTo("home")}
+            aria-label="Go to homepage"
+          >
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary shadow-sm">
+              <GraduationCap className="h-5 w-5 text-primary-foreground" />
+            </div>
+            <span className="text-lg font-bold tracking-tight text-primary hidden sm:inline">
+              OpenClass
+            </span>
+          </button>
+          {/* Breadcrumb: subtle page indicator */}
+          {currentView !== "home" && (
+            <span className={cn(
+              "text-[10px] font-medium leading-none tracking-wide uppercase",
+              "text-muted-foreground/60 sm:hidden"
+            )}>
+              {currentPageLabel}
+            </span>
+          )}
+          {currentView !== "home" && (
+            <span className={cn(
+              "hidden sm:block text-[10px] font-medium leading-none tracking-wide",
+              "text-muted-foreground/50 pl-10"
+            )}>
+              {currentPageLabel}
+            </span>
+          )}
+        </div>
 
         {/* Desktop Navigation */}
         <nav className="hidden md:flex items-center gap-1" aria-label="Main navigation">
@@ -237,6 +420,45 @@ export function Navbar() {
 
         {/* Right Actions */}
         <div className="flex items-center gap-1.5">
+          {/* Search Bar (desktop) */}
+          <div className="relative hidden sm:flex items-center">
+            <div
+              className={cn(
+                "flex items-center rounded-lg border border-border/60 bg-muted/40 transition-all duration-300 overflow-hidden",
+                searchExpanded ? "w-56 h-9" : "w-9 h-9"
+              )}
+            >
+              <button
+                type="button"
+                onClick={handleSearchClick}
+                className="flex h-9 w-9 shrink-0 items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+                aria-label="Search"
+              >
+                <Search className="h-4 w-4" />
+              </button>
+              {searchExpanded && (
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  placeholder="Search courses..."
+                  className="h-full flex-1 bg-transparent px-0 pr-3 text-sm outline-none placeholder:text-muted-foreground/50"
+                  onKeyDown={handleSearchKeyDown}
+                />
+              )}
+            </div>
+          </div>
+
+          {/* Mobile search button */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="sm:hidden h-9 w-9 rounded-lg"
+            onClick={handleSearchClick}
+            aria-label="Search"
+          >
+            <Search className="h-4 w-4" />
+          </Button>
+
           {/* Dark Mode Toggle */}
           <Tooltip>
             <TooltipTrigger asChild>
@@ -263,13 +485,19 @@ export function Navbar() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="relative h-9 w-9 rounded-lg"
+                  className={cn(
+                    "relative h-9 w-9 rounded-lg transition-all duration-300",
+                    unreadCount > 0 && "badge-glow"
+                  )}
                   onClick={toggleNotifications}
                   aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ""}`}
                 >
                   <Bell className={cn("h-4 w-4 transition-colors", bellAnimating && "bell-ring")} />
                   {unreadCount > 0 && (
-                    <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground shadow-sm">
+                    <span
+                      key={badgeKey}
+                      className="badge-bounce absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground shadow-sm"
+                    >
                       {unreadCount > 9 ? "9+" : unreadCount}
                     </span>
                   )}
@@ -298,7 +526,7 @@ export function Navbar() {
                   )}
                 </div>
                 <Separator />
-                {/* Notification List */}
+                {/* Notification List (grouped by date) */}
                 <ScrollArea className="max-h-[360px]">
                   <div className="p-1">
                     {notifications.length === 0 ? (
@@ -307,51 +535,17 @@ export function Navbar() {
                         <p className="text-sm text-muted-foreground">No notifications</p>
                       </div>
                     ) : (
-                      notifications.map((notif) => (
-                        <button
-                          key={notif.id}
-                          type="button"
-                          onClick={() => markAsRead(notif.id)}
-                          className={cn(
-                            "group flex w-full items-start gap-3 rounded-lg px-3 py-3 text-left transition-colors",
-                            notif.read
-                              ? "hover:bg-muted/50"
-                              : "bg-primary/5 hover:bg-primary/8"
-                          )}
-                        >
-                          {/* Icon */}
-                          <div className={cn(
-                            "mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors",
-                            notif.read
-                              ? "bg-muted/60"
-                              : "bg-primary/10"
-                          )}>
-                            <NotificationIcon type={notif.type} />
-                          </div>
-                          {/* Content */}
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-start justify-between gap-2">
-                              <p className={cn(
-                                "text-sm leading-snug",
-                                notif.read
-                                  ? "text-muted-foreground font-medium"
-                                  : "text-foreground font-semibold"
-                              )}>
-                                {notif.title}
-                              </p>
-                              {!notif.read && (
-                                <div className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-primary" />
-                              )}
-                            </div>
-                            <p className="mt-0.5 text-xs text-muted-foreground leading-relaxed line-clamp-2">
-                              {notif.message}
-                            </p>
-                            <p className="mt-1 text-[10px] text-muted-foreground/60">
-                              {formatRelativeTime(notif.createdAt)}
-                            </p>
-                          </div>
-                        </button>
-                      ))
+                      <>
+                        {groupedNotifications.today.length > 0 && (
+                          <NotificationGroup label="Today" items={groupedNotifications.today} onMarkRead={markAsRead} />
+                        )}
+                        {groupedNotifications.yesterday.length > 0 && (
+                          <NotificationGroup label="Yesterday" items={groupedNotifications.yesterday} onMarkRead={markAsRead} />
+                        )}
+                        {groupedNotifications.earlier.length > 0 && (
+                          <NotificationGroup label="Earlier" items={groupedNotifications.earlier} onMarkRead={markAsRead} />
+                        )}
+                      </>
                     )}
                   </div>
                 </ScrollArea>
@@ -382,7 +576,7 @@ export function Navbar() {
             Create Course
           </Button>
 
-          {/* User Avatar */}
+          {/* User Avatar with Online Status Indicator */}
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
@@ -392,14 +586,25 @@ export function Navbar() {
                 onClick={() => navigateTo("profile")}
                 aria-label="User profile"
               >
-                <Avatar className="h-7 w-7 border-2 border-primary/20">
-                  <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
-                    {getInitials(userName)}
-                  </AvatarFallback>
-                </Avatar>
+                <span className="relative">
+                  <Avatar className="h-7 w-7 border-2 border-primary/20">
+                    <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
+                      {getInitials(userName)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span
+                    className="pulse-dot absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-card bg-emerald-500"
+                    aria-hidden="true"
+                  />
+                </span>
               </Button>
             </TooltipTrigger>
-            <TooltipContent>Profile</TooltipContent>
+            <TooltipContent>
+              <span className="flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                Online &middot; Profile
+              </span>
+            </TooltipContent>
           </Tooltip>
 
           {/* Mobile Menu Toggle */}
@@ -441,10 +646,11 @@ export function Navbar() {
               {item.label}
             </Button>
           ))}
+          {/* Gradient Create Course CTA */}
           <div className="pt-2 border-t border-border/60 mt-2">
             <Button
               size="sm"
-              className="w-full gap-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg"
+              className="w-full gap-2 rounded-lg text-white font-semibold shadow-md transition-all duration-200 hover:shadow-lg bg-gradient-to-r from-primary to-primary/70 hover:from-primary/90 hover:to-primary/60"
               onClick={() => {
                 navigateTo("create-course");
                 setMobileMenuOpen(false);
@@ -453,6 +659,28 @@ export function Navbar() {
               <PlusCircle className="h-4 w-4" />
               Create Course
             </Button>
+          </div>
+          {/* User Info Section at Bottom */}
+          <div className="flex items-center gap-3 rounded-lg bg-muted/40 px-3 py-2.5 mt-2">
+            <span className="relative">
+              <Avatar className="h-9 w-9 border-2 border-primary/20">
+                <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
+                  {getInitials(userName)}
+                </AvatarFallback>
+              </Avatar>
+              <span
+                className="pulse-dot absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-card bg-emerald-500"
+                aria-hidden="true"
+              />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium text-foreground truncate">{displayName}</p>
+              <p className="text-xs text-muted-foreground truncate">{userName.replace(/_/g, ".")}@openclass.com</p>
+            </div>
+            <span className="flex items-center gap-1 text-[10px] font-medium text-emerald-500">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              Online
+            </span>
           </div>
         </nav>
       )}

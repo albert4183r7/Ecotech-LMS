@@ -149,19 +149,23 @@
 .shimmer {
   background-image: linear-gradient(
     90deg,
-    oklch(0.92 0.01 200) 25%,
+    oklch(0.92 0.01 200) 0%,
+    oklch(0.92 0.01 200) 35%,
     oklch(0.96 0.005 200) 50%,
-    oklch(0.92 0.01 200) 75%
+    oklch(0.92 0.01 200) 65%,
+    oklch(0.92 0.01 200) 100%
   );
-  background-size: 200% 100%;
-  animation: shimmer 1.8s ease-in-out infinite;
+  background-size: 400% 100%;
+  animation: shimmer 2.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
 .dark .shimmer {
   background-image: linear-gradient(
     90deg,
-    oklch(0.22 0.02 250) 25%,
-    oklch(0.26 0.025 250) 50%,
-    oklch(0.22 0.02 250) 75%
+    oklch(0.22 0.02 250) 0%,
+    oklch(0.22 0.02 250) 35%,
+    oklch(0.27 0.03 250) 50%,
+    oklch(0.22 0.02 250) 65%,
+    oklch(0.22 0.02 250) 100%
   );
 }
 
@@ -175,12 +179,73 @@
 }
 .lms-card-hover:hover {
   transform: translateY(-3px);
-  box-shadow: 0 12px 28px -8px oklch(0.45 0.12 250 / 0.18), 0 4px 10px -4px oklch(0.45 0.12 250 / 0.08);
+  box-shadow: 0 8px 24px -6px oklch(0.45 0.12 250 / 0.10), 0 2px 8px -2px oklch(0.45 0.12 250 / 0.06);
+}
+
+/** Card shine / light-sweep effect on hover */
+.card-shine {
+  position: relative;
+  overflow: hidden;
+}
+.card-shine::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(
+    105deg,
+    transparent 20%,
+    oklch(1 0 0 / 0.04) 45%,
+    oklch(1 0 0 / 0.08) 50%,
+    oklch(1 0 0 / 0.04) 55%,
+    transparent 80%
+  );
+  transition: left 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+  z-index: 10;
+}
+.card-shine:hover::after {
+  left: 120%;
+}
+.dark .card-shine::after {
+  background: linear-gradient(
+    105deg,
+    transparent 20%,
+    oklch(1 0 0 / 0.03) 45%,
+    oklch(1 0 0 / 0.06) 50%,
+    oklch(1 0 0 / 0.03) 55%,
+    transparent 80%
+  );
+}
+
+/** Subtle scale on hover — uses `scale` property to avoid conflicting with `transform` */
+.hover-scale {
+  transition: scale 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.hover-scale:hover {
+  scale: 1.02;
+}
+
+/** Progress bar fill animation */
+@keyframes progressFill {
+  0% {
+    transform: scaleX(0);
+  }
+  100% {
+    transform: scaleX(1);
+  }
+}
+.progress-fill-animate {
+  transform-origin: left;
+  animation: progressFill 0.8s cubic-bezier(0.4, 0, 0.2, 1) both;
+  animation-delay: 0.3s;
 }
 
 /** Hero section gradient (blue → teal) */
 .hero-gradient {
-  background: linear-gradient(135deg, oklch(0.35 0.15 250) 0%, oklch(0.38 0.15 220) 40%, oklch(0.42 0.16 185) 70%, oklch(0.45 0.18 175) 100%);
+  background: linear-gradient(135deg, oklch(0.30 0.20 260) 0%, oklch(0.33 0.22 240) 25%, oklch(0.38 0.20 210) 50%, oklch(0.42 0.22 185) 75%, oklch(0.45 0.24 170) 100%);
   position: relative;
   overflow: hidden;
 }
@@ -188,8 +253,9 @@
   content: "";
   position: absolute;
   inset: 0;
-  background: radial-gradient(ellipse at 70% 20%, oklch(1 0 0 / 0.08) 0%, transparent 60%),
-              radial-gradient(ellipse at 20% 80%, oklch(0.45 0.18 175 / 0.12) 0%, transparent 50%);
+  background: radial-gradient(ellipse at 70% 20%, oklch(1 0 0 / 0.10) 0%, transparent 60%),
+              radial-gradient(ellipse at 20% 80%, oklch(0.50 0.22 175 / 0.18) 0%, transparent 50%),
+              radial-gradient(ellipse at 90% 70%, oklch(0.40 0.24 260 / 0.10) 0%, transparent 40%);
   pointer-events: none;
 }
 
@@ -625,4 +691,503 @@
 }
 .hover-scale:active {
   transform: scale(0.98);
+}
+
+/* ============================================ */
+/* 1. Material Design Ripple Effect               */
+/* ============================================ */
+.btn-ripple {
+  position: relative;
+  overflow: hidden;
+}
+.btn-ripple::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: oklch(1 0 0 / 0.25);
+  transform: translate(-50%, -50%);
+  transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1), height 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.5s ease;
+  opacity: 0;
+  pointer-events: none;
+}
+.btn-ripple:active::after {
+  width: 300%;
+  height: 300%;
+  opacity: 1;
+  transition: width 0s, height 0s, opacity 0s;
+}
+.dark .btn-ripple::after {
+  background: oklch(1 0 0 / 0.15);
+}
+
+/* ============================================ */
+/* 2. Typing Indicator with Bouncing Dots          */
+/* ============================================ */
+@keyframes typingBounce {
+  0%, 60%, 100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  30% {
+    transform: translateY(-6px);
+    opacity: 1;
+  }
+}
+.typing-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 14px;
+  border-radius: 18px;
+  background: oklch(0.95 0.01 200);
+}
+.typing-indicator span {
+  display: block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: oklch(0.50 0.02 250);
+  animation: typingBounce 1.4s ease-in-out infinite;
+}
+.typing-indicator span:nth-child(2) {
+  animation-delay: 0.16s;
+}
+.typing-indicator span:nth-child(3) {
+  animation-delay: 0.32s;
+}
+.dark .typing-indicator {
+  background: oklch(0.24 0.02 250);
+}
+.dark .typing-indicator span {
+  background: oklch(0.65 0.02 200);
+}
+
+/* ============================================ */
+/* 3. Glow Pulse for Important CTAs                */
+/* ============================================ */
+@keyframes glowPulse {
+  0%, 100% {
+    box-shadow: 0 0 6px 0 oklch(0.50 0.18 175 / 0.30),
+                0 0 20px -4px oklch(0.50 0.18 175 / 0.20);
+  }
+  50% {
+    box-shadow: 0 0 10px 2px oklch(0.50 0.18 175 / 0.45),
+                0 0 32px -2px oklch(0.50 0.18 175 / 0.30);
+  }
+}
+.glow-pulse {
+  animation: glowPulse 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+.dark .glow-pulse {
+  animation-name: glowPulseDark;
+}
+@keyframes glowPulseDark {
+  0%, 100% {
+    box-shadow: 0 0 6px 0 oklch(0.55 0.15 175 / 0.25),
+                0 0 20px -4px oklch(0.55 0.15 175 / 0.15);
+  }
+  50% {
+    box-shadow: 0 0 10px 2px oklch(0.55 0.15 175 / 0.40),
+                0 0 32px -2px oklch(0.55 0.15 175 / 0.25);
+  }
+}
+
+/* ============================================ */
+/* 4. Slide Stack Transition Effect                 */
+/* ============================================ */
+@keyframes slideStackNext {
+  0% {
+    opacity: 0;
+    transform: translateX(40px) scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+@keyframes slideStackPrev {
+  0% {
+    opacity: 0;
+    transform: translateX(-40px) scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+.slide-stack-next {
+  animation: slideStackNext 0.4s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+.slide-stack-prev {
+  animation: slideStackPrev 0.4s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+/* ============================================ */
+/* 5. Card Shine Effect on Hover                   */
+/* ============================================ */
+.card-shine {
+  position: relative;
+  overflow: hidden;
+}
+.card-shine::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 60%;
+  height: 100%;
+  background: linear-gradient(
+    105deg,
+    transparent 20%,
+    oklch(1 0 0 / 0.06) 45%,
+    oklch(1 0 0 / 0.12) 50%,
+    oklch(1 0 0 / 0.06) 55%,
+    transparent 80%
+  );
+  transform: skewX(-15deg);
+  transition: left 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+  z-index: 1;
+}
+.card-shine:hover::before {
+  left: 130%;
+}
+.dark .card-shine::before {
+  background: linear-gradient(
+    105deg,
+    transparent 20%,
+    oklch(1 0 0 / 0.03) 45%,
+    oklch(1 0 0 / 0.07) 50%,
+    oklch(1 0 0 / 0.03) 55%,
+    transparent 80%
+  );
+}
+
+/* ============================================ */
+/* 6. Animated Gradient Border                     */
+/* ============================================ */
+@keyframes gradientBorderRotate {
+  0% { --border-angle: 0deg; }
+  100% { --border-angle: 360deg; }
+}
+@property --border-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+.animated-gradient-border {
+  position: relative;
+  border-radius: var(--radius);
+  background: var(--card, oklch(1 0 0));
+}
+.animated-gradient-border::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  background: conic-gradient(
+    from var(--border-angle),
+    oklch(0.45 0.18 250),
+    oklch(0.50 0.15 200),
+    oklch(0.45 0.18 175),
+    oklch(0.55 0.15 230),
+    oklch(0.45 0.18 250)
+  );
+  z-index: -1;
+  animation: gradientBorderRotate 4s linear infinite;
+}
+.animated-gradient-border::after {
+  content: "";
+  position: absolute;
+  inset: 1.5px;
+  border-radius: inherit;
+  background: var(--card, oklch(1 0 0));
+  z-index: -1;
+}
+.dark .animated-gradient-border::before {
+  background: conic-gradient(
+    from var(--border-angle),
+    oklch(0.55 0.15 230),
+    oklch(0.50 0.12 200),
+    oklch(0.45 0.14 175),
+    oklch(0.60 0.15 250),
+    oklch(0.55 0.15 230)
+  );
+}
+.dark .animated-gradient-border::after {
+  background: var(--card, oklch(0.18 0.02 250));
+}
+
+/* ============================================ */
+/* 7. Text Reveal Animation (word-by-word)         */
+/* ============================================ */
+@keyframes textReveal {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+    filter: blur(4px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+.text-reveal {
+  overflow: hidden;
+}
+.text-reveal > * {
+  display: inline-block;
+  opacity: 0;
+  animation: textReveal 0.5s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+.text-reveal > *:nth-child(1)  { animation-delay: 0.05s; }
+.text-reveal > *:nth-child(2)  { animation-delay: 0.10s; }
+.text-reveal > *:nth-child(3)  { animation-delay: 0.15s; }
+.text-reveal > *:nth-child(4)  { animation-delay: 0.20s; }
+.text-reveal > *:nth-child(5)  { animation-delay: 0.25s; }
+.text-reveal > *:nth-child(6)  { animation-delay: 0.30s; }
+.text-reveal > *:nth-child(7)  { animation-delay: 0.35s; }
+.text-reveal > *:nth-child(8)  { animation-delay: 0.40s; }
+.text-reveal > *:nth-child(9)  { animation-delay: 0.45s; }
+.text-reveal > *:nth-child(10) { animation-delay: 0.50s; }
+.text-reveal > *:nth-child(n+11) { animation-delay: 0.55s; }
+
+/* ============================================ */
+/* 8. Count-Up Number Animation Trigger             */
+/* ============================================ */
+@keyframes countUpFadeIn {
+  0% {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.count-up {
+  display: inline-block;
+  font-variant-numeric: tabular-nums;
+  animation: countUpFadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+/* ============================================ */
+/* 9. Notification Badge Bounce                     */
+/* ============================================ */
+@keyframes badgeBounce {
+  0% { transform: scale(1); }
+  20% { transform: scale(1.35); }
+  40% { transform: scale(0.9); }
+  60% { transform: scale(1.1); }
+  80% { transform: scale(0.97); }
+  100% { transform: scale(1); }
+}
+.badge-bounce {
+  animation: badgeBounce 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ============================================ */
+/* 10. Slide Progress Indicator Dots               */
+/* ============================================ */
+.slide-progress-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.slide-progress-indicator .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: oklch(0.80 0.03 200);
+  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.slide-progress-indicator .dot.active {
+  width: 24px;
+  border-radius: 4px;
+  background: oklch(0.45 0.18 250);
+}
+.slide-progress-indicator .dot.completed {
+  background: oklch(0.50 0.12 175);
+}
+.dark .slide-progress-indicator .dot {
+  background: oklch(0.40 0.03 250);
+}
+.dark .slide-progress-indicator .dot.active {
+  background: oklch(0.60 0.18 230);
+}
+.dark .slide-progress-indicator .dot.completed {
+  background: oklch(0.50 0.10 175);
+}
+
+/* ============================================ */
+/* 11. Smooth Scrollbar for Slide Area              */
+/* ============================================ */
+.slide-scrollbar {
+  overflow-y: auto;
+  scroll-behavior: smooth;
+  scrollbar-width: thin;
+  scrollbar-color: oklch(0.75 0.04 200) transparent;
+}
+.slide-scrollbar::-webkit-scrollbar {
+  width: 5px;
+}
+.slide-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.slide-scrollbar::-webkit-scrollbar-thumb {
+  background: oklch(0.75 0.04 200);
+  border-radius: 10px;
+}
+.slide-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: oklch(0.60 0.08 200);
+}
+.dark .slide-scrollbar {
+  scrollbar-color: oklch(0.40 0.04 250) transparent;
+}
+.dark .slide-scrollbar::-webkit-scrollbar-thumb {
+  background: oklch(0.40 0.04 250);
+}
+.dark .slide-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: oklch(0.50 0.06 250);
+}
+
+/* ============================================ */
+/* 12. Floating Action Button Animations            */
+/* ============================================ */
+@keyframes fabFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+.fab-float {
+  animation: fabFloat 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  box-shadow: 0 6px 20px -4px oklch(0.45 0.12 250 / 0.25),
+              0 2px 6px -2px oklch(0.45 0.12 250 / 0.12);
+  transition: box-shadow 0.25s ease, transform 0.25s ease;
+}
+.fab-float:hover {
+  animation-play-state: paused;
+  transform: translateY(-2px) scale(1.05);
+  box-shadow: 0 10px 28px -4px oklch(0.45 0.12 250 / 0.32),
+              0 4px 10px -2px oklch(0.45 0.12 250 / 0.18);
+}
+.fab-expand {
+  position: relative;
+}
+.fab-expand .fab-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transform: scale(0.5) translateY(8px);
+  transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+              transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+}
+.fab-expand.open .fab-action {
+  opacity: 1;
+  transform: scale(1) translateY(0);
+  pointer-events: auto;
+}
+.fab-expand.open .fab-action:nth-child(2) { transition-delay: 0.04s; }
+.fab-expand.open .fab-action:nth-child(3) { transition-delay: 0.08s; }
+.fab-expand.open .fab-action:nth-child(4) { transition-delay: 0.12s; }
+.dark .fab-float {
+  box-shadow: 0 6px 20px -4px oklch(0 0 0 / 0.40),
+              0 2px 6px -2px oklch(0 0 0 / 0.25);
+}
+.dark .fab-float:hover {
+  box-shadow: 0 10px 28px -4px oklch(0 0 0 / 0.50),
+              0 4px 10px -2px oklch(0 0 0 / 0.30);
+}
+
+/* ============================================ */
+/* 13. Loading Dots with Staggered Animation        */
+/* ============================================ */
+@keyframes loadingDotPulse {
+  0%, 80%, 100% {
+    opacity: 0.3;
+    transform: scale(0.8);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.loading-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.loading-dots span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: oklch(0.50 0.15 230);
+  animation: loadingDotPulse 1.2s ease-in-out infinite;
+}
+.loading-dots span:nth-child(1) { animation-delay: 0s; }
+.loading-dots span:nth-child(2) { animation-delay: 0.15s; }
+.loading-dots span:nth-child(3) { animation-delay: 0.30s; }
+.loading-dots span:nth-child(4) { animation-delay: 0.45s; }
+.dark .loading-dots span {
+  background: oklch(0.65 0.12 210);
+}
+
+/* ============================================ */
+/* 14. Subtle Background Pattern for Content        */
+/* ============================================ */
+.content-pattern {
+  background-image:
+    radial-gradient(oklch(0.45 0.18 250 / 0.025) 1px, transparent 1px),
+    radial-gradient(oklch(0.50 0.15 200 / 0.015) 1px, transparent 1px);
+  background-size: 24px 24px, 24px 24px;
+  background-position: 0 0, 12px 12px;
+}
+.dark .content-pattern {
+  background-image:
+    radial-gradient(oklch(0.97 0.005 200 / 0.03) 1px, transparent 1px),
+    radial-gradient(oklch(0.60 0.10 175 / 0.02) 1px, transparent 1px);
+  background-size: 24px 24px, 24px 24px;
+  background-position: 0 0, 12px 12px;
+}
+
+/* ============================================ */
+/* 15. Enhanced Focus Ring Styles                   */
+/* ============================================ */
+.focus-ring-teal:focus-visible {
+  outline: 2px solid oklch(0.55 0.16 175);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px oklch(0.55 0.16 175 / 0.20);
+}
+.focus-ring-blue:focus-visible {
+  outline: 2px solid oklch(0.50 0.18 250);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px oklch(0.50 0.18 250 / 0.20);
+}
+.dark .focus-ring-teal:focus-visible {
+  outline-color: oklch(0.60 0.14 175);
+  box-shadow: 0 0 0 4px oklch(0.60 0.14 175 / 0.25);
+}
+.dark .focus-ring-blue:focus-visible {
+  outline-color: oklch(0.60 0.16 230);
+  box-shadow: 0 0 0 4px oklch(0.60 0.16 230 / 0.25);
+}
+
+/* ============================================ */
+/* Reduced Motion Accessibility                    */
+/* ============================================ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

@@ -1,0 +1,964 @@
+   170→}
+   171→
+   172→/* ============================================ */
+   173→/* LMS-specific utility classes                 */
+   174→/* ============================================ */
+   175→
+   176→/** Card hover lift effect */
+   177→.lms-card-hover {
+   178→  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+   179→}
+   180→.lms-card-hover:hover {
+   181→  transform: translateY(-3px);
+   182→  box-shadow: 0 8px 24px -6px oklch(0.45 0.12 250 / 0.10), 0 2px 8px -2px oklch(0.45 0.12 250 / 0.06);
+   183→}
+   184→
+   185→/** Hero section gradient (blue → teal) */
+   186→.hero-gradient {
+   187→  background: linear-gradient(135deg, oklch(0.30 0.20 260) 0%, oklch(0.33 0.22 240) 25%, oklch(0.38 0.20 210) 50%, oklch(0.42 0.22 185) 75%, oklch(0.45 0.24 170) 100%);
+   188→  position: relative;
+   189→  overflow: hidden;
+   190→}
+   191→.hero-gradient::before {
+   192→  content: "";
+   193→  position: absolute;
+   194→  inset: 0;
+   195→  background: radial-gradient(ellipse at 70% 20%, oklch(1 0 0 / 0.10) 0%, transparent 60%),
+   196→              radial-gradient(ellipse at 20% 80%, oklch(0.50 0.22 175 / 0.18) 0%, transparent 50%),
+   197→              radial-gradient(ellipse at 90% 70%, oklch(0.40 0.24 260 / 0.10) 0%, transparent 40%);
+   198→  pointer-events: none;
+   199→}
+   200→
+   201→/** Teal accent gradient */
+   202→.teal-gradient {
+   203→  background: linear-gradient(135deg, oklch(0.50 0.12 175) 0%, oklch(0.55 0.15 200) 100%);
+   204→}
+   205→
+   206→/** Subtle glass morphism for cards */
+   207→.glass-card {
+   208→  background: oklch(1 0 0 / 0.7);
+   209→  backdrop-filter: blur(12px);
+   210→  border: 1px solid oklch(1 0 0 / 0.3);
+   211→}
+   212→
+   213→.dark .glass-card {
+   214→  background: oklch(0.18 0.02 250 / 0.7);
+   215→  border: 1px solid oklch(1 0 0 / 0.08);
+   216→}
+   217→
+   218→/** Smooth page transition */
+   219→.page-transition {
+   220→  animation: fadeIn 0.2s ease-out;
+   221→}
+   222→@keyframes fadeIn {
+   223→  from {
+   224→    opacity: 0;
+   225→    transform: translateY(4px);
+   226→  }
+   227→  to {
+   228→    opacity: 1;
+   229→    transform: translateY(0);
+   230→  }
+   231→}
+   232→
+   233→/** Pulsing dot for active indicators */
+   234→@keyframes pulse-dot {
+   235→  0%, 100% {
+   236→    opacity: 1;
+   237→    transform: scale(1);
+   238→  }
+   239→  50% {
+   240→    opacity: 0.6;
+   241→    transform: scale(1.2);
+   242→  }
+   243→}
+   244→.pulse-dot {
+   245→  animation: pulse-dot 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+   246→}
+   247→
+   248→/** Slide-in animation for sidebar */
+   249→@keyframes slideInLeft {
+   250→  from {
+   251→    transform: translateX(-8px);
+   252→    opacity: 0;
+   253→  }
+   254→  to {
+   255→    transform: translateX(0);
+   256→    opacity: 1;
+   257→  }
+   258→}
+   259→.slide-in-left {
+   260→  animation: slideInLeft 0.25s ease-out;
+   261→}
+   262→
+   263→/** Pulse glow for CTA buttons */
+   264→@keyframes pulse-glow {
+   265→  0%, 100% {
+   266→    box-shadow: 0 0 0 0 oklch(0.45 0.18 250 / 0.4);
+   267→  }
+   268→  50% {
+   269→    box-shadow: 0 0 0 8px oklch(0.45 0.18 250 / 0);
+   270→  }
+   271→}
+   272→.pulse-glow {
+   273→  animation: pulse-glow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+   274→}
+   275→
+   276→/** Slide content transition */
+   277→@keyframes slideIn {
+   278→  from {
+   279→    opacity: 0;
+   280→    transform: translateX(12px);
+   281→  }
+   282→  to {
+   283→    opacity: 1;
+   284→    transform: translateX(0);
+   285→  }
+   286→}
+   287→@keyframes slideOut {
+   288→  from {
+   289→    opacity: 1;
+   290→    transform: translateX(0);
+   291→  }
+   292→  to {
+   293→    opacity: 0;
+   294→    transform: translateX(-12px);
+   295→  }
+   296→}
+   297→.slide-enter {
+   298→  animation: slideIn 0.25s ease-out;
+   299→}
+   300→.slide-exit {
+   301→  animation: slideOut 0.15s ease-in;
+   302→}
+   303→
+   304→/** Paper texture for slide area */
+   305→.paper-texture {
+   306→  background-image: radial-gradient(oklch(0.45 0.18 250 / 0.03) 1px, transparent 1px);
+   307→  background-size: 20px 20px;
+   308→}
+   309→.dark .paper-texture {
+   310→  background-image: radial-gradient(oklch(0.97 0.005 200 / 0.04) 1px, transparent 1px);
+   311→}
+   312→
+   313→/** Frosted glass bottom bar */
+   314→.frosted-glass {
+   315→  background: oklch(1 0 0 / 0.75);
+   316→  backdrop-filter: blur(16px) saturate(180%);
+   317→  -webkit-backdrop-filter: blur(16px) saturate(180%);
+   318→}
+   319→.dark .frosted-glass {
+   320→  background: oklch(0.15 0.02 250 / 0.75);
+   321→}
+   322→
+   323→/** Floating dots for hero decoration */
+   324→@keyframes floatDot1 {
+   325→  0%, 100% { transform: translate(0, 0) scale(1); }
+   326→  25% { transform: translate(12px, -18px) scale(1.1); }
+   327→  50% { transform: translate(-8px, -30px) scale(0.95); }
+   328→  75% { transform: translate(15px, -12px) scale(1.05); }
+   329→}
+   330→@keyframes floatDot2 {
+   331→  0%, 100% { transform: translate(0, 0) scale(1); }
+   332→  25% { transform: translate(-15px, 10px) scale(1.08); }
+   333→  50% { transform: translate(10px, 20px) scale(0.92); }
+   334→  75% { transform: translate(-12px, 5px) scale(1.04); }
+   335→}
+   336→@keyframes floatDot3 {
+   337→  0%, 100% { transform: translate(0, 0); }
+   338→  33% { transform: translate(8px, 14px); }
+   339→  66% { transform: translate(-14px, -8px); }
+   340→}
+   341→.hero-dot-1 { animation: floatDot1 8s ease-in-out infinite; }
+   342→.hero-dot-2 { animation: floatDot2 10s ease-in-out infinite; }
+   343→.hero-dot-3 { animation: floatDot3 6s ease-in-out infinite; }
+   344→
+   345→/** Animated tab underline indicator */
+   346→@keyframes underlineSlideIn {
+   347→  from { transform: scaleX(0); }
+   348→  to { transform: scaleX(1); }
+   349→}
+   350→.tab-underline-active::after {
+   351→  content: "";
+   352→  position: absolute;
+   353→  bottom: -2px;
+   354→  left: 50%;
+   355→  width: 60%;
+   356→  height: 2px;
+   357→  background: white;
+   358→  border-radius: 1px;
+   359→  transform: translateX(-50%) scaleX(0);
+   360→  animation: underlineSlideIn 0.25s ease-out forwards;
+   361→}
+   362→
+   363→/** Hero search glow */
+   364→.hero-search-glow {
+   365→  box-shadow: 0 0 0 1px oklch(1 0 0 / 0.15),
+   366→              0 0 20px -4px oklch(0.45 0.18 175 / 0.35),
+   367→              0 0 40px -8px oklch(0.45 0.18 175 / 0.15);
+   368→  background-image: linear-gradient(white, white),
+   369→                    linear-gradient(135deg, oklch(1 0 0 / 0.5), oklch(0.45 0.18 175 / 0.3));
+   370→  background-origin: padding-box, border-box;
+   371→  background-clip: padding-box, border-box;
+   372→  border: 1.5px solid transparent;
+   373→}
+   374→.hero-search-glow:focus-within {
+   375→  box-shadow: 0 0 0 1px oklch(1 0 0 / 0.25),
+   376→              0 0 28px -2px oklch(0.45 0.18 175 / 0.45),
+   377→              0 0 56px -8px oklch(0.45 0.18 175 / 0.2);
+   378→}
+   379→
+   380→/** Category sidebar hover lift */
+   381→.category-item {
+   382→  transition: transform 0.2s ease, background-color 0.2s ease;
+   383→}
+   384→.category-item:hover {
+   385→  transform: translateX(3px);
+   386→}
+   387→
+   388→/* ============================================ */
+   389→/* Confetti Celebration Animation                */
+   390→/* ============================================ */
+   391→
+   392→/** Confetti container */
+   393→.confetti-container {
+   394→  position: fixed;
+   395→  inset: 0;
+   396→  pointer-events: none;
+   397→  z-index: 9999;
+   398→  overflow: hidden;
+   399→}
+   400→
+   401→/** Individual confetti particle */
+   402→.confetti-particle {
+   403→  position: absolute;
+   404→  top: -20px;
+   405→  opacity: 0;
+   406→  animation: confetti-fall var(--fall-duration, 3s) var(--fall-delay, 0s) cubic-bezier(0.25, 0, 0.5, 1) forwards;
+   407→}
+   408→
+   409→/** Confetti circle shape */
+   410→.confetti-circle {
+   411→  border-radius: 50%;
+   412→}
+   413→
+   414→/** Confetti rectangle shape */
+   415→.confetti-rectangle {
+   416→  border-radius: 2px;
+   417→}
+   418→
+   419→/** Confetti triangle shape (using CSS border trick) */
+   420→.confetti-triangle {
+   421→  width: 0 !important;
+   422→  height: 0 !important;
+   423→  background: transparent !important;
+   424→  border-left: var(--tri-size, 6px) solid transparent;
+   425→  border-right: var(--tri-size, 6px) solid transparent;
+   426→  border-bottom: calc(var(--tri-size, 6px) * 1.73) solid var(--confetti-color, #3882f6);
+   427→}
+   428→
+   429→/** Confetti fall animation */
+   430→@keyframes confetti-fall {
+   431→  0% {
+   432→    opacity: 1;
+   433→    transform: translateY(0) translateX(0) rotate(0deg) scale(1);
+   434→  }
+   435→  25% {
+   436→    opacity: 1;
+   437→  }
+   438→  80% {
+   439→    opacity: 0.8;
+   440→  }
+   441→  100% {
+   442→    opacity: 0;
+   443→    transform: translateY(100vh) translateX(var(--drift, 40px)) rotate(var(--spin, 720deg)) scale(0.5);
+   444→  }
+   445→}
+   446→
+   447→/** Confetti sway animation for lateral movement */
+   448→@keyframes confetti-sway {
+   449→  0% { transform: translateX(0); }
+   450→  25% { transform: translateX(var(--sway-amount, 30px)); }
+   451→  75% { transform: translateX(calc(var(--sway-amount, 30px) * -1)); }
+   452→  100% { transform: translateX(0); }
+   453→}
+   454→
+   455→/** Congratulations message overlay */
+   456→.confetti-message {
+   457→  position: fixed;
+   458→  inset: 0;
+   459→  display: flex;
+   460→  align-items: center;
+   461→  justify-content: center;
+   462→  z-index: 10000;
+   463→  pointer-events: none;
+   464→  animation: confetti-message-appear 0.5s ease-out forwards,
+   465→             confetti-message-fade 0.5s ease-in 2.5s forwards;
+   466→}
+   467→
+   468→@keyframes confetti-message-appear {
+   469→  from {
+   470→    opacity: 0;
+   471→    transform: scale(0.5) translateY(20px);
+   472→  }
+   473→  to {
+   474→    opacity: 1;
+   475→    transform: scale(1) translateY(0);
+   476→  }
+   477→}
+   478→
+   479→@keyframes confetti-message-fade {
+   480→  from {
+   481→    opacity: 1;
+   482→    transform: scale(1) translateY(0);
+   483→  }
+   484→  to {
+   485→    opacity: 0;
+   486→    transform: scale(0.9) translateY(-10px);
+   487→  }
+   488→}
+   489→
+   490→/** Dark mode adjustments for confetti */
+   491→.dark .confetti-message-text {
+   492→  text-shadow: 0 2px 20px oklch(0 0 0 / 0.5), 0 0 40px oklch(0 0 0 / 0.3);
+   493→}
+   494→.confetti-message-text {
+   495→  text-shadow: 0 2px 20px oklch(0 0 0 / 0.1), 0 0 40px oklch(0 0 0 / 0.05);
+   496→}
+   497→
+   498→/* ============================================ */
+   499→/* Staggered fade-in for lists                     */
+   500→/* ============================================ */
+   501→@keyframes staggerFadeIn {
+   502→  from {
+   503→    opacity: 0;
+   504→    transform: translateY(8px);
+   505→  }
+   506→  to {
+   507→    opacity: 1;
+   508→    transform: translateY(0);
+   509→  }
+   510→}
+   511→.stagger-fade-in {
+   512→  animation: staggerFadeIn 0.35s ease-out both;
+   513→}
+   514→
+   515→/* ============================================ */
+   516→/* Gradient text utility                           */
+   517→/* ============================================ */
+   518→.gradient-text {
+   519→  background: linear-gradient(135deg, oklch(0.45 0.18 250), oklch(0.50 0.15 175));
+   520→  -webkit-background-clip: text;
+   521→  -webkit-text-fill-color: transparent;
+   522→  background-clip: text;
+   523→}
+   524→.dark .gradient-text {
+   525→  background: linear-gradient(135deg, oklch(0.65 0.15 230), oklch(0.60 0.12 175));
+   526→  -webkit-background-clip: text;
+   527→  -webkit-text-fill-color: transparent;
+   528→  background-clip: text;
+   529→}
+   530→
+   531→/* ============================================ */
+   532→/* Badge glow effects                              */
+   533→/* ============================================ */
+   534→@keyframes badgeGlow {
+   535→  0%, 100% { box-shadow: 0 0 4px oklch(0.45 0.18 175 / 0.3); }
+   536→  50% { box-shadow: 0 0 12px oklch(0.45 0.18 175 / 0.5); }
+   537→}
+   538→.badge-glow {
+   539→  animation: badgeGlow 2s ease-in-out infinite;
+   540→}
+   541→
+   542→/* ============================================ */
+   543→/* Notification bell ring                         */
+   544→/* ============================================ */
+   545→@keyframes bellRing {
+   546→  0% { transform: rotate(0deg); }
+   547→  10% { transform: rotate(14deg); }
+   548→  20% { transform: rotate(-12deg); }
+   549→  30% { transform: rotate(10deg); }
+   550→  40% { transform: rotate(-8deg); }
+   551→  50% { transform: rotate(0deg); }
+   552→  100% { transform: rotate(0deg); }
+   553→}
+   554→.bell-ring {
+   555→  animation: bellRing 0.6s ease-in-out;
+   556→}
+   557→
+   558→/* ============================================ */
+   559→/* Notification panel slide-in                     */
+   560→/* ============================================ */
+   561→@keyframes panelSlideIn {
+   562→  from {
+   563→    opacity: 0;
+   564→    transform: translateY(-8px) scale(0.97);
+   565→  }
+   566→  to {
+   567→    opacity: 1;
+   568→    transform: translateY(0) scale(1);
+   569→  }
+   570→}
+   571→.panel-slide-in {
+   572→  animation: panelSlideIn 0.2s ease-out;
+   573→}
+   574→
+   575→/* ============================================ */
+   576→/* Progress bar fill animation                     */
+   577→/* ============================================ */
+   578→@keyframes progressFill {
+   579→  from { width: 0%; }
+   580→}
+   581→.progress-fill-animate {
+   582→  animation: progressFill 0.8s ease-out;
+   583→}
+   584→
+   585→/* ============================================ */
+   586→/* Tooltip slide-up animation                     */
+   587→/* ============================================ */
+   588→@keyframes tooltipSlideUp {
+   589→  from {
+   590→    opacity: 0;
+   591→    transform: translateY(4px);
+   592→  }
+   593→  to {
+   594→    opacity: 1;
+   595→    transform: translateY(0);
+   596→  }
+   597→}
+   598→.tooltip-animate {
+   599→  animation: tooltipSlideUp 0.15s ease-out;
+   600→}
+   601→
+   602→/* ============================================ */
+   603→/* Card border gradient                            */
+   604→/* ============================================ */
+   605→.gradient-border {
+   606→  position: relative;
+   607→}
+   608→.gradient-border::before {
+   609→  content: "";
+   610→  position: absolute;
+   611→  inset: 0;
+   612→  border-radius: inherit;
+   613→  padding: 1px;
+   614→  background: linear-gradient(135deg, oklch(0.45 0.18 250 / 0.3), oklch(0.50 0.15 175 / 0.3));
+   615→  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+   616→  -webkit-mask-composite: xor;
+   617→  mask-composite: exclude;
+   618→  pointer-events: none;
+   619→}
+   620→
+   621→/* ============================================ */
+   622→/* Smooth hover scale for interactive elements    */
+   623→/* ============================================ */
+   624→.hover-scale {
+   625→  transition: transform 0.2s ease, box-shadow 0.2s ease;
+   626→}
+   627→.hover-scale:hover {
+   628→  transform: scale(1.02);
+   629→  box-shadow: 0 4px 12px -2px oklch(0.45 0.12 250 / 0.15);
+   630→}
+   631→.hover-scale:active {
+   632→  transform: scale(0.98);
+   633→}
+   634→
+   635→/* ============================================ */
+   636→/* 1. Material Design Ripple Effect               */
+   637→/* ============================================ */
+   638→.btn-ripple {
+   639→  position: relative;
+   640→  overflow: hidden;
+   641→}
+   642→.btn-ripple::after {
+   643→  content: "";
+   644→  position: absolute;
+   645→  top: 50%;
+   646→  left: 50%;
+   647→  width: 0;
+   648→  height: 0;
+   649→  border-radius: 50%;
+   650→  background: oklch(1 0 0 / 0.25);
+   651→  transform: translate(-50%, -50%);
+   652→  transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1), height 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.5s ease;
+   653→  opacity: 0;
+   654→  pointer-events: none;
+   655→}
+   656→.btn-ripple:active::after {
+   657→  width: 300%;
+   658→  height: 300%;
+   659→  opacity: 1;
+   660→  transition: width 0s, height 0s, opacity 0s;
+   661→}
+   662→.dark .btn-ripple::after {
+   663→  background: oklch(1 0 0 / 0.15);
+   664→}
+   665→
+   666→/* ============================================ */
+   667→/* 2. Typing Indicator with Bouncing Dots          */
+   668→/* ============================================ */
+   669→@keyframes typingBounce {
+   670→  0%, 60%, 100% {
+   671→    transform: translateY(0);
+   672→    opacity: 0.4;
+   673→  }
+   674→  30% {
+   675→    transform: translateY(-6px);
+   676→    opacity: 1;
+   677→  }
+   678→}
+   679→.typing-indicator {
+   680→  display: inline-flex;
+   681→  align-items: center;
+   682→  gap: 4px;
+   683→  padding: 8px 14px;
+   684→  border-radius: 18px;
+   685→  background: oklch(0.95 0.01 200);
+   686→}
+   687→.typing-indicator span {
+   688→  display: block;
+   689→  width: 7px;
+   690→  height: 7px;
+   691→  border-radius: 50%;
+   692→  background: oklch(0.50 0.02 250);
+   693→  animation: typingBounce 1.4s ease-in-out infinite;
+   694→}
+   695→.typing-indicator span:nth-child(2) {
+   696→  animation-delay: 0.16s;
+   697→}
+   698→.typing-indicator span:nth-child(3) {
+   699→  animation-delay: 0.32s;
+   700→}
+   701→.dark .typing-indicator {
+   702→  background: oklch(0.24 0.02 250);
+   703→}
+   704→.dark .typing-indicator span {
+   705→  background: oklch(0.65 0.02 200);
+   706→}
+   707→
+   708→/* ============================================ */
+   709→/* 3. Glow Pulse for Important CTAs                */
+   710→/* ============================================ */
+   711→@keyframes glowPulse {
+   712→  0%, 100% {
+   713→    box-shadow: 0 0 6px 0 oklch(0.50 0.18 175 / 0.30),
+   714→                0 0 20px -4px oklch(0.50 0.18 175 / 0.20);
+   715→  }
+   716→  50% {
+   717→    box-shadow: 0 0 10px 2px oklch(0.50 0.18 175 / 0.45),
+   718→                0 0 32px -2px oklch(0.50 0.18 175 / 0.30);
+   719→  }
+   720→}
+   721→.glow-pulse {
+   722→  animation: glowPulse 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+   723→}
+   724→.dark .glow-pulse {
+   725→  animation-name: glowPulseDark;
+   726→}
+   727→@keyframes glowPulseDark {
+   728→  0%, 100% {
+   729→    box-shadow: 0 0 6px 0 oklch(0.55 0.15 175 / 0.25),
+   730→                0 0 20px -4px oklch(0.55 0.15 175 / 0.15);
+   731→  }
+   732→  50% {
+   733→    box-shadow: 0 0 10px 2px oklch(0.55 0.15 175 / 0.40),
+   734→                0 0 32px -2px oklch(0.55 0.15 175 / 0.25);
+   735→  }
+   736→}
+   737→
+   738→/* ============================================ */
+   739→/* 4. Slide Stack Transition Effect                 */
+   740→/* ============================================ */
+   741→@keyframes slideStackNext {
+   742→  0% {
+   743→    opacity: 0;
+   744→    transform: translateX(40px) scale(0.95);
+   745→  }
+   746→  100% {
+   747→    opacity: 1;
+   748→    transform: translateX(0) scale(1);
+   749→  }
+   750→}
+   751→@keyframes slideStackPrev {
+   752→  0% {
+   753→    opacity: 0;
+   754→    transform: translateX(-40px) scale(0.95);
+   755→  }
+   756→  100% {
+   757→    opacity: 1;
+   758→    transform: translateX(0) scale(1);
+   759→  }
+   760→}
+   761→.slide-stack-next {
+   762→  animation: slideStackNext 0.4s cubic-bezier(0.4, 0, 0.2, 1) both;
+   763→}
+   764→.slide-stack-prev {
+   765→  animation: slideStackPrev 0.4s cubic-bezier(0.4, 0, 0.2, 1) both;
+   766→}
+   767→
+   768→/* ============================================ */
+   769→/* 5. Card Shine Effect on Hover                   */
+   770→/* ============================================ */
+   771→.card-shine {
+   772→  position: relative;
+   773→  overflow: hidden;
+   774→}
+   775→.card-shine::before {
+   776→  content: "";
+   777→  position: absolute;
+   778→  top: 0;
+   779→  left: -100%;
+   780→  width: 60%;
+   781→  height: 100%;
+   782→  background: linear-gradient(
+   783→    105deg,
+   784→    transparent 20%,
+   785→    oklch(1 0 0 / 0.06) 45%,
+   786→    oklch(1 0 0 / 0.12) 50%,
+   787→    oklch(1 0 0 / 0.06) 55%,
+   788→    transparent 80%
+   789→  );
+   790→  transform: skewX(-15deg);
+   791→  transition: left 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+   792→  pointer-events: none;
+   793→  z-index: 1;
+   794→}
+   795→.card-shine:hover::before {
+   796→  left: 130%;
+   797→}
+   798→.dark .card-shine::before {
+   799→  background: linear-gradient(
+   800→    105deg,
+   801→    transparent 20%,
+   802→    oklch(1 0 0 / 0.03) 45%,
+   803→    oklch(1 0 0 / 0.07) 50%,
+   804→    oklch(1 0 0 / 0.03) 55%,
+   805→    transparent 80%
+   806→  );
+   807→}
+   808→
+   809→/* ============================================ */
+   810→/* 6. Animated Gradient Border                     */
+   811→/* ============================================ */
+   812→@keyframes gradientBorderRotate {
+   813→  0% { --border-angle: 0deg; }
+   814→  100% { --border-angle: 360deg; }
+   815→}
+   816→@property --border-angle {
+   817→  syntax: "<angle>";
+   818→  initial-value: 0deg;
+   819→  inherits: false;
+   820→}
+   821→.animated-gradient-border {
+   822→  position: relative;
+   823→  border-radius: var(--radius);
+   824→  background: var(--card, oklch(1 0 0));
+   825→}
+   826→.animated-gradient-border::before {
+   827→  content: "";
+   828→  position: absolute;
+   829→  inset: -2px;
+   830→  border-radius: inherit;
+   831→  background: conic-gradient(
+   832→    from var(--border-angle),
+   833→    oklch(0.45 0.18 250),
+   834→    oklch(0.50 0.15 200),
+   835→    oklch(0.45 0.18 175),
+   836→    oklch(0.55 0.15 230),
+   837→    oklch(0.45 0.18 250)
+   838→  );
+   839→  z-index: -1;
+   840→  animation: gradientBorderRotate 4s linear infinite;
+   841→}
+   842→.animated-gradient-border::after {
+   843→  content: "";
+   844→  position: absolute;
+   845→  inset: 1.5px;
+   846→  border-radius: inherit;
+   847→  background: var(--card, oklch(1 0 0));
+   848→  z-index: -1;
+   849→}
+   850→.dark .animated-gradient-border::before {
+   851→  background: conic-gradient(
+   852→    from var(--border-angle),
+   853→    oklch(0.55 0.15 230),
+   854→    oklch(0.50 0.12 200),
+   855→    oklch(0.45 0.14 175),
+   856→    oklch(0.60 0.15 250),
+   857→    oklch(0.55 0.15 230)
+   858→  );
+   859→}
+   860→.dark .animated-gradient-border::after {
+   861→  background: var(--card, oklch(0.18 0.02 250));
+   862→}
+   863→
+   864→/* ============================================ */
+   865→/* 7. Text Reveal Animation (word-by-word)         */
+   866→/* ============================================ */
+   867→@keyframes textReveal {
+   868→  0% {
+   869→    opacity: 0;
+   870→    transform: translateY(8px);
+   871→    filter: blur(4px);
+   872→  }
+   873→  100% {
+   874→    opacity: 1;
+   875→    transform: translateY(0);
+   876→    filter: blur(0);
+   877→  }
+   878→}
+   879→.text-reveal {
+   880→  overflow: hidden;
+   881→}
+   882→.text-reveal > * {
+   883→  display: inline-block;
+   884→  opacity: 0;
+   885→  animation: textReveal 0.5s cubic-bezier(0.4, 0, 0.2, 1) both;
+   886→}
+   887→.text-reveal > *:nth-child(1)  { animation-delay: 0.05s; }
+   888→.text-reveal > *:nth-child(2)  { animation-delay: 0.10s; }
+   889→.text-reveal > *:nth-child(3)  { animation-delay: 0.15s; }
+   890→.text-reveal > *:nth-child(4)  { animation-delay: 0.20s; }
+   891→.text-reveal > *:nth-child(5)  { animation-delay: 0.25s; }
+   892→.text-reveal > *:nth-child(6)  { animation-delay: 0.30s; }
+   893→.text-reveal > *:nth-child(7)  { animation-delay: 0.35s; }
+   894→.text-reveal > *:nth-child(8)  { animation-delay: 0.40s; }
+   895→.text-reveal > *:nth-child(9)  { animation-delay: 0.45s; }
+   896→.text-reveal > *:nth-child(10) { animation-delay: 0.50s; }
+   897→.text-reveal > *:nth-child(n+11) { animation-delay: 0.55s; }
+   898→
+   899→/* ============================================ */
+   900→/* 8. Count-Up Number Animation Trigger             */
+   901→/* ============================================ */
+   902→@keyframes countUpFadeIn {
+   903→  0% {
+   904→    opacity: 0;
+   905→    transform: translateY(12px);
+   906→  }
+   907→  100% {
+   908→    opacity: 1;
+   909→    transform: translateY(0);
+   910→  }
+   911→}
+   912→.count-up {
+   913→  display: inline-block;
+   914→  font-variant-numeric: tabular-nums;
+   915→  animation: countUpFadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) both;
+   916→}
+   917→
+   918→/* ============================================ */
+   919→/* 9. Notification Badge Bounce                     */
+   920→/* ============================================ */
+   921→@keyframes badgeBounce {
+   922→  0% { transform: scale(1); }
+   923→  20% { transform: scale(1.35); }
+   924→  40% { transform: scale(0.9); }
+   925→  60% { transform: scale(1.1); }
+   926→  80% { transform: scale(0.97); }
+   927→  100% { transform: scale(1); }
+   928→}
+   929→.badge-bounce {
+   930→  animation: badgeBounce 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+   931→}
+   932→
+   933→/* ============================================ */
+   934→/* 10. Slide Progress Indicator Dots               */
+   935→/* ============================================ */
+   936→.slide-progress-indicator {
+   937→  display: inline-flex;
+   938→  align-items: center;
+   939→  gap: 6px;
+   940→}
+   941→.slide-progress-indicator .dot {
+   942→  width: 8px;
+   943→  height: 8px;
+   944→  border-radius: 50%;
+   945→  background: oklch(0.80 0.03 200);
+   946→  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+   947→}
+   948→.slide-progress-indicator .dot.active {
+   949→  width: 24px;
+   950→  border-radius: 4px;
+   951→  background: oklch(0.45 0.18 250);
+   952→}
+   953→.slide-progress-indicator .dot.completed {
+   954→  background: oklch(0.50 0.12 175);
+   955→}
+   956→.dark .slide-progress-indicator .dot {
+   957→  background: oklch(0.40 0.03 250);
+   958→}
+   959→.dark .slide-progress-indicator .dot.active {
+   960→  background: oklch(0.60 0.18 230);
+   961→}
+   962→.dark .slide-progress-indicator .dot.completed {
+   963→  background: oklch(0.50 0.10 175);
+   964→}
+   965→
+   966→/* ============================================ */
+   967→/* 11. Smooth Scrollbar for Slide Area              */
+   968→/* ============================================ */
+   969→.slide-scrollbar {
+   970→  overflow-y: auto;
+   971→  scroll-behavior: smooth;
+   972→  scrollbar-width: thin;
+   973→  scrollbar-color: oklch(0.75 0.04 200) transparent;
+   974→}
+   975→.slide-scrollbar::-webkit-scrollbar {
+   976→  width: 5px;
+   977→}
+   978→.slide-scrollbar::-webkit-scrollbar-track {
+   979→  background: transparent;
+   980→}
+   981→.slide-scrollbar::-webkit-scrollbar-thumb {
+   982→  background: oklch(0.75 0.04 200);
+   983→  border-radius: 10px;
+   984→}
+   985→.slide-scrollbar::-webkit-scrollbar-thumb:hover {
+   986→  background: oklch(0.60 0.08 200);
+   987→}
+   988→.dark .slide-scrollbar {
+   989→  scrollbar-color: oklch(0.40 0.04 250) transparent;
+   990→}
+   991→.dark .slide-scrollbar::-webkit-scrollbar-thumb {
+   992→  background: oklch(0.40 0.04 250);
+   993→}
+   994→.dark .slide-scrollbar::-webkit-scrollbar-thumb:hover {
+   995→  background: oklch(0.50 0.06 250);
+   996→}
+   997→
+   998→/* ============================================ */
+   999→/* 12. Floating Action Button Animations            */
+  1000→/* ============================================ */
+  1001→@keyframes fabFloat {
+  1002→  0%, 100% { transform: translateY(0); }
+  1003→  50% { transform: translateY(-4px); }
+  1004→}
+  1005→.fab-float {
+  1006→  animation: fabFloat 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  1007→  box-shadow: 0 6px 20px -4px oklch(0.45 0.12 250 / 0.25),
+  1008→              0 2px 6px -2px oklch(0.45 0.12 250 / 0.12);
+  1009→  transition: box-shadow 0.25s ease, transform 0.25s ease;
+  1010→}
+  1011→.fab-float:hover {
+  1012→  animation-play-state: paused;
+  1013→  transform: translateY(-2px) scale(1.05);
+  1014→  box-shadow: 0 10px 28px -4px oklch(0.45 0.12 250 / 0.32),
+  1015→              0 4px 10px -2px oklch(0.45 0.12 250 / 0.18);
+  1016→}
+  1017→.fab-expand {
+  1018→  position: relative;
+  1019→}
+  1020→.fab-expand .fab-action {
+  1021→  display: flex;
+  1022→  align-items: center;
+  1023→  justify-content: center;
+  1024→  opacity: 0;
+  1025→  transform: scale(0.5) translateY(8px);
+  1026→  transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+  1027→              transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  1028→  pointer-events: none;
+  1029→}
+  1030→.fab-expand.open .fab-action {
+  1031→  opacity: 1;
+  1032→  transform: scale(1) translateY(0);
+  1033→  pointer-events: auto;
+  1034→}
+  1035→.fab-expand.open .fab-action:nth-child(2) { transition-delay: 0.04s; }
+  1036→.fab-expand.open .fab-action:nth-child(3) { transition-delay: 0.08s; }
+  1037→.fab-expand.open .fab-action:nth-child(4) { transition-delay: 0.12s; }
+  1038→.dark .fab-float {
+  1039→  box-shadow: 0 6px 20px -4px oklch(0 0 0 / 0.40),
+  1040→              0 2px 6px -2px oklch(0 0 0 / 0.25);
+  1041→}
+  1042→.dark .fab-float:hover {
+  1043→  box-shadow: 0 10px 28px -4px oklch(0 0 0 / 0.50),
+  1044→              0 4px 10px -2px oklch(0 0 0 / 0.30);
+  1045→}
+  1046→
+  1047→/* ============================================ */
+  1048→/* 13. Loading Dots with Staggered Animation        */
+  1049→/* ============================================ */
+  1050→@keyframes loadingDotPulse {
+  1051→  0%, 80%, 100% {
+  1052→    opacity: 0.3;
+  1053→    transform: scale(0.8);
+  1054→  }
+  1055→  40% {
+  1056→    opacity: 1;
+  1057→    transform: scale(1);
+  1058→  }
+  1059→}
+  1060→.loading-dots {
+  1061→  display: inline-flex;
+  1062→  align-items: center;
+  1063→  gap: 5px;
+  1064→}
+  1065→.loading-dots span {
+  1066→  width: 8px;
+  1067→  height: 8px;
+  1068→  border-radius: 50%;
+  1069→  background: oklch(0.50 0.15 230);
+  1070→  animation: loadingDotPulse 1.2s ease-in-out infinite;
+  1071→}
+  1072→.loading-dots span:nth-child(1) { animation-delay: 0s; }
+  1073→.loading-dots span:nth-child(2) { animation-delay: 0.15s; }
+  1074→.loading-dots span:nth-child(3) { animation-delay: 0.30s; }
+  1075→.loading-dots span:nth-child(4) { animation-delay: 0.45s; }
+  1076→.dark .loading-dots span {
+  1077→  background: oklch(0.65 0.12 210);
+  1078→}
+  1079→
+  1080→/* ============================================ */
+  1081→/* 14. Subtle Background Pattern for Content        */
+  1082→/* ============================================ */
+  1083→.content-pattern {
+  1084→  background-image:
+  1085→    radial-gradient(oklch(0.45 0.18 250 / 0.025) 1px, transparent 1px),
+  1086→    radial-gradient(oklch(0.50 0.15 200 / 0.015) 1px, transparent 1px);
+  1087→  background-size: 24px 24px, 24px 24px;
+  1088→  background-position: 0 0, 12px 12px;
+  1089→}
+  1090→.dark .content-pattern {
+  1091→  background-image:
+  1092→    radial-gradient(oklch(0.97 0.005 200 / 0.03) 1px, transparent 1px),
+  1093→    radial-gradient(oklch(0.60 0.10 175 / 0.02) 1px, transparent 1px);
+  1094→  background-size: 24px 24px, 24px 24px;
+  1095→  background-position: 0 0, 12px 12px;
+  1096→}
+  1097→
+  1098→/* ============================================ */
+  1099→/* 15. Enhanced Focus Ring Styles                   */
+  1100→/* ============================================ */
+  1101→.focus-ring-teal:focus-visible {
+  1102→  outline: 2px solid oklch(0.55 0.16 175);
+  1103→  outline-offset: 2px;
+  1104→  box-shadow: 0 0 0 4px oklch(0.55 0.16 175 / 0.20);
+  1105→}
+  1106→.focus-ring-blue:focus-visible {
+  1107→  outline: 2px solid oklch(0.50 0.18 250);
+  1108→  outline-offset: 2px;
+  1109→  box-shadow: 0 0 0 4px oklch(0.50 0.18 250 / 0.20);
+  1110→}
+  1111→.dark .focus-ring-teal:focus-visible {
+  1112→  outline-color: oklch(0.60 0.14 175);
+  1113→  box-shadow: 0 0 0 4px oklch(0.60 0.14 175 / 0.25);
+  1114→}
+  1115→.dark .focus-ring-blue:focus-visible {
+  1116→  outline-color: oklch(0.60 0.16 230);
+  1117→  box-shadow: 0 0 0 4px oklch(0.60 0.16 230 / 0.25);
+  1118→}
+  1119→
+  1120→/* ============================================ */
+  1121→/* Reduced Motion Accessibility                    */
+  1122→/* ============================================ */
+  1123→@media (prefers-reduced-motion: reduce) {
+  1124→  *,
+  1125→  *::before,
+  1126→  *::after {
+  1127→    animation-duration: 0.01ms !important;
+  1128→    animation-iteration-count: 1 !important;
+  1129→    transition-duration: 0.01ms !important;
+  1130→    scroll-behavior: auto !important;
+  1131→  }
+  1132→}
+  1133→

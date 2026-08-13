@@ -11,11 +11,24 @@ import {
   X,
   GraduationCap,
   Loader2,
+  StickyNote,
+  Bookmark,
+  BookmarkCheck,
+  Trash2,
+  Send,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useNavigationStore, useUserStore } from "@/stores/lms-store";
 import type { SlideContent, ClassroomState } from "@/types/lms";
 
@@ -34,6 +47,32 @@ export function ClassroomPage() {
   const hasFetchedRef = useRef(false);
   const confettiShownRef = useRef(false);
   const [showConfetti, setShowConfetti] = useState(false);
+
+  // ─── Notes Sidebar State ──────────────────────
+  interface Note {
+    id: string;
+    content: string;
+    slideNumber: number;
+    bookmarked: boolean;
+    createdAt?: string;
+  }
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [notesSidebarOpen, setNotesSidebarOpen] = useState(false);
+  const [newNoteContent, setNewNoteContent] = useState("");
+  const [savingNote, setSavingNote] = useState(false);
+  const notesEndRef = useRef<HTMLDivElement>(null);
+
+  // ─── Keyboard Hint Fade ────────────────────────
+  const [showKeyboardHint, setShowKeyboardHint] = useState(true);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 1023px)");
+    setIsMobile(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
 
   // Keep a working copy of classroomState so we can mutate currentSlide
   useEffect(() => {
@@ -153,11 +192,25 @@ export function ClassroomPage() {
           e.preventDefault();
           goNext();
           break;
+        case " ":
+          e.preventDefault();
+          goNext();
+          break;
       }
     }
 
     document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
+
+    // Listen for custom event from KeyboardShortcuts component
+    function handleCustomNextSlide() {
+      goNext();
+    }
+    document.addEventListener("lms:next-slide", handleCustomNextSlide);
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("lms:next-slide", handleCustomNextSlide);
+    };
   }, [goBack, goPrev, goNext]);
 
   /** Zoom controls */
@@ -185,6 +238,85 @@ export function ClassroomPage() {
     setShowConfetti(false);
   }, [classroomState?.sectionId]);
 
+  // ─── Keyboard Hint Auto-Fade ────────────────────
+  useEffect(() => {
+    setShowKeyboardHint(true);
+    const timer = setTimeout(() => setShowKeyboardHint(false), 5000);
+    return () => clearTimeout(timer);
+  }, [localState?.sectionId]);
+
+  // ─── Notes CRUD ─────────────────────────────────
+  const fetchNotes = useCallback(async () => {
+    if (!localState || !userId) return;
+    try {
+      const res = await fetch(
+        `/api/notes?userId=${userId}&courseId=${localState.courseId}&sectionId=${localState.sectionId}`
+      );
+      if (!res.ok) return;
+      const json = await res.json();
+      if (json.success && Array.isArray(json.data)) {
+        setNotes(json.data);
+      }
+    } catch {
+      // Silently fail
+    }
+  }, [localState, userId]);
+
+  // Fetch notes when section changes or sidebar opens
+  useEffect(() => {
+    if (notesSidebarOpen) fetchNotes();
+  }, [notesSidebarOpen, fetchNotes, localState?.sectionId]);
+
+  const createNote = useCallback(async () => {
+    if (!localState || !userId || !newNoteContent.trim()) return;
+    setSavingNote(true);
+    try {
+      const res = await fetch("/api/notes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId,
+          courseId: localState.courseId,
+          sectionId: localState.sectionId,
+          content: newNoteContent.trim(),
+          slideNumber: localState.currentSlide + 1,
+        }),
+      });
+      if (!res.ok) return;
+      const json = await res.json();
+      if (json.success && json.data) {
+        setNotes((prev) => [...prev, json.data]);
+        setNewNoteContent("");
+        setTimeout(() => notesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
+      }
+    } catch {
+      toast.error("Failed to save note");
+    } finally {
+      setSavingNote(false);
+    }
+  }, [localState, userId, newNoteContent]);
+
+  const deleteNote = useCallback(async (noteId: string) => {
+    try {
+      const res = await fetch(`/api/notes?id=${noteId}`, { method: "DELETE" });
+      if (!res.ok) return;
+      const json = await res.json();
+      if (json.success) {
+        setNotes((prev) => prev.filter((n) => n.id !== noteId));
+      }
+    } catch {
+      // Silently fail
+    }
+  }, []);
+
+  const toggleBookmark = useCallback((noteId: string) => {
+    setNotes((prev) =>
+      prev.map((n) =>
+        n.id === noteId ? { ...n, bookmarked: !n.bookmarked } : n
+      )
+    );
+  }, []);
+
   // ─── No state guard ─────────────────────────────
   if (!localState) {
     return (
@@ -204,6 +336,31 @@ export function ClassroomPage() {
 
   return (
     <div className="flex h-screen flex-col bg-muted/30 relative">
+      {/* ─── Mobile Notes Sheet ──────────────────── */}
+      <Sheet open={notesSidebarOpen && isMobile} onOpenChange={(open) => { if (!open) setNotesSidebarOpen(false); }}>
+        <SheetContent side="right" className="w-full sm:max-w-sm p-0">
+          <SheetHeader className="px-4 pt-4 pb-0">
+            <SheetTitle className="flex items-center gap-2 text-base">
+              <StickyNote className="h-4 w-4" />
+              Notes
+            </SheetTitle>
+            <SheetDescription>
+              Notes for slide {localState.currentSlide + 1} of {localState.totalPages}
+            </SheetDescription>
+          </SheetHeader>
+          <NotesSidebarContent
+            notes={notes}
+            currentSlide={localState.currentSlide}
+            newNoteContent={newNoteContent}
+            savingNote={savingNote}
+            onContentChange={setNewNoteContent}
+            onCreate={createNote}
+            onDelete={deleteNote}
+            onToggleBookmark={toggleBookmark}
+            endRef={notesEndRef}
+          />
+        </SheetContent>
+      </Sheet>
       {/* ─── Confetti Celebration Overlay ─────── */}
       {showConfetti && <ConfettiCelebration />}
       {/* ─── Top Progress Bar ─────────────────────── */}
@@ -237,16 +394,18 @@ export function ClassroomPage() {
           </div>
         </div>
 
-        {/* Slide Pagination - Pill Badge */}
-        <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-sm font-semibold text-primary tabular-nums">
-          {localState.currentSlide + 1}
-          <span className="text-primary/40 font-normal">/</span>
-          {localState.totalPages}
+        {/* Slide Counter - Enhanced */}
+        <span className="shrink-0 inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-sm text-primary tabular-nums">
+          <span className="font-semibold">Slide {localState.currentSlide + 1}</span>
+          <span className="text-primary/40 font-normal">of</span>
+          <span className="font-semibold">{localState.totalPages}</span>
         </span>
       </header>
 
+      {/* ─── Main Layout: Slide + Desktop Notes Sidebar ── */}
+      <div className="flex flex-1 overflow-hidden">
       {/* ─── Slide Content Area ────────────────────── */}
-      <div className="flex-1 overflow-auto flex items-start justify-center py-8 px-4 sm:px-6">
+      <div className="flex-1 overflow-auto flex flex-col items-center py-8 px-4 sm:px-6">
         <div
           className={`
             bg-card rounded-2xl shadow-lg border w-full max-w-3xl
@@ -277,6 +436,70 @@ export function ClassroomPage() {
             </div>
           )}
         </div>
+
+        {/* ─── Slide Progress Dots ────────────────── */}
+        <div className="slide-progress-indicator mt-6 shrink-0">
+          {Array.from({ length: localState.totalPages }, (_, i) => {
+            const isCompleted = i < localState.currentSlide;
+            const isActive = i === localState.currentSlide;
+            return (
+              <button
+                key={i}
+                className={`dot ${isActive ? "active" : ""} ${isCompleted ? "completed" : ""}`}
+                onClick={() => goToSlide(i)}
+                aria-label={`Go to slide ${i + 1}`}
+              />
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ─── Desktop Notes Sidebar (slide-in panel) ── */}
+      <aside
+        className={`hidden lg:flex flex-col shrink-0 border-l bg-card transition-all duration-300 ease-in-out overflow-hidden ${
+          notesSidebarOpen ? "w-80 opacity-100" : "w-0 opacity-0 border-l-0"
+        }`}
+      >
+        <div className="flex flex-col h-full w-80">
+          {/* Sidebar Header */}
+          <div className="flex items-center justify-between px-4 py-3 border-b">
+            <div className="flex items-center gap-2">
+              <StickyNote className="h-4 w-4 text-primary" />
+              <span className="text-sm font-semibold">Notes</span>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => setNotesSidebarOpen(false)}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+          <NotesSidebarContent
+            notes={notes}
+            currentSlide={localState.currentSlide}
+            newNoteContent={newNoteContent}
+            savingNote={savingNote}
+            onContentChange={setNewNoteContent}
+            onCreate={createNote}
+            onDelete={deleteNote}
+            onToggleBookmark={toggleBookmark}
+            endRef={notesEndRef}
+          />
+        </div>
+      </aside>
+      </div>
+
+      {/* ─── Keyboard Shortcuts Hint (auto-fades) ── */}
+      <div
+        className={`shrink-0 frosted-glass border-t px-4 py-1.5 text-center transition-opacity duration-700 ${
+          showKeyboardHint ? "opacity-100" : "opacity-0 pointer-events-none h-0 py-0 overflow-hidden"
+        }`}
+      >
+        <p className="text-xs text-muted-foreground/70 tracking-wide">
+          ← → Navigate&nbsp;&nbsp;|&nbsp;&nbsp;Space: Next&nbsp;&nbsp;|&nbsp;&nbsp;Esc: Exit
+        </p>
       </div>
 
       {/* ─── Bottom Controls (Frosted Glass) ───────── */}
@@ -374,6 +597,19 @@ export function ClassroomPage() {
 
           {/* Close + Keyboard Hint */}
           <div className="flex items-center gap-3">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant={notesSidebarOpen ? "secondary" : "ghost"}
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setNotesSidebarOpen((v) => !v)}
+                >
+                  <StickyNote className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Notes</TooltipContent>
+            </Tooltip>
             <span className="hidden lg:inline text-xs text-muted-foreground">
               ← → navigate, ESC exit
             </span>
@@ -390,6 +626,125 @@ export function ClassroomPage() {
         </div>
       </footer>
     </div>
+  );
+}
+
+// ============================================
+// Notes Sidebar Content (shared between desktop & mobile)
+// ============================================
+
+interface NotesSidebarContentProps {
+  notes: { id: string; content: string; slideNumber: number; bookmarked: boolean; createdAt?: string }[];
+  currentSlide: number;
+  newNoteContent: string;
+  savingNote: boolean;
+  onContentChange: (v: string) => void;
+  onCreate: () => void;
+  onDelete: (id: string) => void;
+  onToggleBookmark: (id: string) => void;
+  endRef: React.RefObject<HTMLDivElement | null>;
+}
+
+function NotesSidebarContent({
+  notes,
+  currentSlide,
+  newNoteContent,
+  savingNote,
+  onContentChange,
+  onCreate,
+  onDelete,
+  onToggleBookmark,
+  endRef,
+}: NotesSidebarContentProps) {
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      onCreate();
+    }
+  };
+
+  return (
+    <>
+      {/* Notes List */}
+      <ScrollArea className="flex-1">
+        <div className="flex flex-col gap-2 p-3">
+          {notes.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <StickyNote className="h-8 w-8 text-muted-foreground/30 mb-2" />
+              <p className="text-xs text-muted-foreground">No notes yet.</p>
+              <p className="text-xs text-muted-foreground/60">
+                Add a note for slide {currentSlide + 1}.
+              </p>
+            </div>
+          )}
+          {notes.map((note) => (
+            <div
+              key={note.id}
+              className="group relative rounded-lg border bg-background p-3 text-sm transition-colors hover:bg-muted/40"
+            >
+              {/* Slide badge */}
+              <div className="flex items-center justify-between mb-1">
+                <span className="inline-flex items-center rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                  Slide {note.slideNumber}
+                </span>
+                <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    type="button"
+                    className="p-1 rounded hover:bg-muted transition-colors"
+                    onClick={() => onToggleBookmark(note.id)}
+                    aria-label={note.bookmarked ? "Remove bookmark" : "Bookmark note"}
+                  >
+                    {note.bookmarked ? (
+                      <BookmarkCheck className="h-3.5 w-3.5 text-amber-500" />
+                    ) : (
+                      <Bookmark className="h-3.5 w-3.5 text-muted-foreground" />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    className="p-1 rounded hover:bg-destructive/10 transition-colors"
+                    onClick={() => onDelete(note.id)}
+                    aria-label="Delete note"
+                  >
+                    <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
+                  </button>
+                </div>
+              </div>
+              <p className="text-xs text-foreground/80 leading-relaxed whitespace-pre-line">
+                {note.content}
+              </p>
+            </div>
+          ))}
+          <div ref={endRef} />
+        </div>
+      </ScrollArea>
+
+      {/* New Note Input */}
+      <div className="shrink-0 border-t p-3">
+        <div className="flex gap-2">
+          <textarea
+            value={newNoteContent}
+            onChange={(e) => onContentChange(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={`Add a note for slide ${currentSlide + 1}…`}
+            rows={2}
+            className="flex-1 resize-none rounded-lg border bg-background px-3 py-2 text-xs placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/20"
+          />
+          <Button
+            size="icon"
+            className="h-auto w-9 shrink-0 self-end"
+            onClick={onCreate}
+            disabled={savingNote || !newNoteContent.trim()}
+          >
+            {savingNote ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Send className="h-4 w-4" />
+            )}
+          </Button>
+        </div>
+      </div>
+    </>
   );
 }
 

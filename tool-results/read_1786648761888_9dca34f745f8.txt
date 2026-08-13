@@ -1,0 +1,746 @@
+     1→    51→    const fetchSlides = async () => {
+     2→    52→      setLoadingSlides(true);
+     3→    53→      try {
+     4→    54→        const res = await fetch(`/api/sections/${localState.sectionId}`);
+     5→    55→        if (!res.ok) return;
+     6→    56→        const json = await res.json();
+     7→    57→        if (json.success && json.data.content) {
+     8→    58→          const slides: SlideContent[] = Array.isArray(json.data.content)
+     9→    59→            ? json.data.content
+    10→    60→            : [];
+    11→    61→          setLocalState((prev) =>
+    12→    62→            prev
+    13→    63→              ? {
+    14→    64→                  ...prev,
+    15→    65→                  slides,
+    16→    66→                  totalPages: slides.length || prev.totalPages,
+    17→    67→                }
+    18→    68→              : prev
+    19→    69→          );
+    20→    70→        }
+    21→    71→      } catch {
+    22→    72→        // Silently fail
+    23→    73→      } finally {
+    24→    74→        setLoadingSlides(false);
+    25→    75→      }
+    26→    76→    };
+    27→    77→    fetchSlides();
+    28→    78→  }, [localState?.sectionId, localState?.slides.length]);
+    29→    79→
+    30→    80→  /** Navigate slides with transition animation */
+    31→    81→  const goToSlide = useCallback(
+    32→    82→    (index: number) => {
+    33→    83→      if (!localState || isAnimating) return;
+    34→    84→      const next = Math.max(0, Math.min(index, localState.totalPages - 1));
+    35→    85→      if (next === localState.currentSlide) return;
+    36→    86→      setSlideDirection(next > localState.currentSlide ? "forward" : "back");
+    37→    87→      setIsAnimating(true);
+    38→    88→      // Small delay for exit animation, then update slide
+    39→    89→      setTimeout(() => {
+    40→    90→        setLocalState((prev) =>
+    41→    91→          prev ? { ...prev, currentSlide: next } : prev
+    42→    92→        );
+    43→    93→        setIsAnimating(false);
+    44→    94→      }, 150);
+    45→    95→    },
+    46→    96→    [localState, isAnimating]
+    47→    97→  );
+    48→    98→
+    49→    99→  /** Persist progress to API when slide changes */
+    50→   100→  useEffect(() => {
+    51→   101→    if (!localState || !userId) return;
+    52→   102→    const saveProgress = async () => {
+    53→   103→      try {
+    54→   104→        // Get enrollment ID from the API
+    55→   105→        const enrollRes = await fetch(`/api/enrollments?userId=${userId}`);
+    56→   106→        const enrollJson = await enrollRes.json();
+    57→   107→        if (enrollJson.success && Array.isArray(enrollJson.data)) {
+    58→   108→          const enrollment = enrollJson.data.find(
+    59→   109→            (e: Record<string, unknown>) => e.courseId === localState.courseId
+    60→   110→          );
+    61→   111→          if (enrollment) {
+    62→   112→            const completed = localState.currentSlide >= localState.totalPages - 1;
+    63→   113→            await fetch("/api/progress", {
+    64→   114→              method: "POST",
+    65→   115→              headers: { "Content-Type": "application/json" },
+    66→   116→              body: JSON.stringify({
+    67→   117→                enrollmentId: enrollment.id,
+    68→   118→                sectionId: localState.sectionId,
+    69→   119→                currentPage: localState.currentSlide + 1,
+    70→   120→                completed,
+    71→   121→              }),
+    72→   122→            });
+    73→   123→          }
+    74→   124→        }
+    75→   125→      } catch {
+    76→   126→        // Progress saving is best-effort
+    77→   127→      }
+    78→   128→    };
+    79→   129→    // Debounce to avoid excessive API calls
+    80→   130→    const timer = setTimeout(saveProgress, 500);
+    81→   131→    return () => clearTimeout(timer);
+    82→   132→  }, [localState?.currentSlide]);
+    83→   133→
+    84→   134→  const goPrev = () => goToSlide((localState?.currentSlide ?? 0) - 1);
+    85→   135→  const goNext = () => goToSlide((localState?.currentSlide ?? 0) + 1);
+    86→   136→
+    87→   137→  // ─── Keyboard shortcuts ──────────────────────────────────────
+    88→   138→  useEffect(() => {
+    89→   139→    function handleKeyDown(e: KeyboardEvent) {
+    90→   140→      const tag = (e.target as HTMLElement)?.tagName;
+    91→   141→      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+    92→   142→
+    93→   143→      switch (e.key) {
+    94→   144→        case "Escape":
+    95→   145→          e.preventDefault();
+    96→   146→          goBack();
+    97→   147→          break;
+    98→   148→        case "ArrowLeft":
+    99→   149→          e.preventDefault();
+   100→   150→          goPrev();
+   101→   151→          break;
+   102→   152→        case "ArrowRight":
+   103→   153→          e.preventDefault();
+   104→   154→          goNext();
+   105→   155→          break;
+   106→   156→      }
+   107→   157→    }
+   108→   158→
+   109→   159→    document.addEventListener("keydown", handleKeyDown);
+   110→   160→    return () => document.removeEventListener("keydown", handleKeyDown);
+   111→   161→  }, [goBack, goPrev, goNext]);
+   112→   162→
+   113→   163→  /** Zoom controls */
+   114→   164→  const zoomIn = () => setZoom((z) => Math.min(z + ZOOM_STEP, MAX_ZOOM));
+   115→   165→  const zoomOut = () => setZoom((z) => Math.max(z - ZOOM_STEP, MIN_ZOOM));
+   116→   166→  const zoomFit = () => setZoom(100);
+   117→   167→
+   118→   168→  // ─── Confetti on section completion ───────────
+   119→   169→  useEffect(() => {
+   120→   170→    if (!localState) return;
+   121→   171→    const isOnLastSlide = localState.currentSlide === localState.totalPages - 1;
+   122→   172→    if (isOnLastSlide && !confettiShownRef.current) {
+   123→   173→      confettiShownRef.current = true;
+   124→   174→      setShowConfetti(true);
+   125→   175→      toast.success("🎉 You completed the course! Great job!");
+   126→   176→      // Auto-cleanup after 3.5s (animation lasts ~3s + buffer)
+   127→   177→      const timer = setTimeout(() => setShowConfetti(false), 3500);
+   128→   178→      return () => clearTimeout(timer);
+   129→   179→    }
+   130→   180→  }, [localState?.currentSlide]);
+   131→   181→
+   132→   182→  // Reset confetti flag when classroom state changes (new section)
+   133→   183→  useEffect(() => {
+   134→   184→    confettiShownRef.current = false;
+   135→   185→    setShowConfetti(false);
+   136→   186→  }, [classroomState?.sectionId]);
+   137→   187→
+   138→   188→  // ─── No state guard ─────────────────────────────
+   139→   189→  if (!localState) {
+   140→   190→    return (
+   141→   191→      <div className="flex h-screen items-center justify-center bg-muted/30">
+   142→   192→        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+   143→   193→      </div>
+   144→   194→    );
+   145→   195→  }
+   146→   196→
+   147→   197→  const currentSlide =
+   148→   198→    localState.slides[localState.currentSlide] ?? null;
+   149→   199→  const isFirst = localState.currentSlide === 0;
+   150→   200→  const isLast = localState.currentSlide >= localState.totalPages - 1;
+   151→   201→  const progressPercent = localState.totalPages > 1
+   152→   202→    ? Math.round(((localState.currentSlide + 1) / localState.totalPages) * 100)
+   153→   203→    : 100;
+   154→   204→
+   155→   205→  return (
+   156→   206→    <div className="flex h-screen flex-col bg-muted/30 relative">
+   157→   207→      {/* ─── Confetti Celebration Overlay ─────── */}
+   158→   208→      {showConfetti && <ConfettiCelebration />}
+   159→   209→      {/* ─── Top Progress Bar ─────────────────────── */}
+   160→   210→      <div className="shrink-0 h-1 w-full bg-muted overflow-hidden">
+   161→   211→        <div
+   162→   212→          className="h-full bg-gradient-to-r from-primary to-accent transition-all duration-500 ease-out"
+   163→   213→          style={{ width: `${progressPercent}%` }}
+   164→   214→        />
+   165→   215→      </div>
+   166→   216→
+   167→   217→      {/* ─── Top Bar ──────────────────────────────── */}
+   168→   218→      <header className="flex h-14 shrink-0 items-center justify-between border-b bg-card px-4 sm:px-6">
+   169→   219→        {/* Logo, Section Title, Course Title */}
+   170→   220→        <div className="flex items-center gap-3 min-w-0">
+   171→   221→          <div className="flex items-center gap-2 shrink-0">
+   172→   222→            <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary">
+   173→   223→              <GraduationCap className="h-4 w-4 text-primary-foreground" />
+   174→   224→            </div>
+   175→   225→            <span className="hidden sm:inline text-sm font-bold text-primary">
+   176→   226→              OpenClass
+   177→   227→            </span>
+   178→   228→          </div>
+   179→   229→          <Separator orientation="vertical" className="h-5" />
+   180→   230→          <div className="min-w-0">
+   181→   231→            <h2 className="text-sm font-medium text-foreground truncate leading-tight">
+   182→   232→              {localState.sectionTitle}
+   183→   233→            </h2>
+   184→   234→            <p className="text-xs text-muted-foreground truncate leading-tight">
+   185→   235→              {localState.courseTitle}
+   186→   236→            </p>
+   187→   237→          </div>
+   188→   238→        </div>
+   189→   239→
+   190→   240→        {/* Slide Pagination - Pill Badge */}
+   191→   241→        <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-sm font-semibold text-primary tabular-nums">
+   192→   242→          {localState.currentSlide + 1}
+   193→   243→          <span className="text-primary/40 font-normal">/</span>
+   194→   244→          {localState.totalPages}
+   195→   245→        </span>
+   196→   246→      </header>
+   197→   247→
+   198→   248→      {/* ─── Slide Content Area ────────────────────── */}
+   199→   249→      <div className="flex-1 overflow-auto flex items-start justify-center py-8 px-4 sm:px-6">
+   200→   250→        <div
+   201→   251→          className={`
+   202→   252→            bg-card rounded-2xl shadow-lg border w-full max-w-3xl
+   203→   253→            ring-1 ring-black/5
+   204→   254→            dark:ring-white/5
+   205→   255→            paper-texture
+   206→   256→            ${isAnimating
+   207→   257→              ? (slideDirection === "forward" ? "slide-exit" : "opacity-0 -translate-x-2 transition-all duration-150")
+   208→   258→              : "slide-enter"
+   209→   259→            }
+   210→   260→          `}
+   211→   261→          style={{
+   212→   262→            transform: `scale(${zoom / 100})`,
+   213→   263→            transformOrigin: "top center",
+   214→   264→          }}
+   215→   265→        >
+   216→   266→          {loadingSlides ? (
+   217→   267→            <div className="flex items-center justify-center py-32">
+   218→   268→              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+   219→   269→            </div>
+   220→   270→          ) : currentSlide ? (
+   221→   271→            <div className="p-8 sm:p-12 max-w-2xl mx-auto">
+   222→   272→              <SlideRenderer slide={currentSlide} />
+   223→   273→            </div>
+   224→   274→          ) : (
+   225→   275→            <div className="flex items-center justify-center py-32 text-muted-foreground">
+   226→   276→              <p>No slide content available.</p>
+   227→   277→            </div>
+   228→   278→          )}
+   229→   279→        </div>
+   230→   280→      </div>
+   231→   281→
+   232→   282→      {/* ─── Bottom Controls (Frosted Glass) ───────── */}
+   233→   283→      <footer className="shrink-0 border-t frosted-glass">
+   234→   284→        <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-4 sm:px-6">
+   235→   285→          {/* Zoom Controls */}
+   236→   286→          <div className="flex items-center gap-1">
+   237→   287→            <Tooltip>
+   238→   288→              <TooltipTrigger asChild>
+   239→   289→                <Button
+   240→   290→                  variant="ghost"
+   241→   291→                  size="icon"
+   242→   292→                  className="h-8 w-8"
+   243→   293→                  onClick={zoomOut}
+   244→   294→                  disabled={zoom <= MIN_ZOOM}
+   245→   295→                >
+   246→   296→                  <ZoomOut className="h-4 w-4" />
+   247→   297→                </Button>
+   248→   298→              </TooltipTrigger>
+   249→   299→              <TooltipContent>Zoom Out</TooltipContent>
+   250→   300→            </Tooltip>
+   251→   301→
+   252→   302→            <span className="w-12 text-center text-xs font-medium text-muted-foreground tabular-nums">
+   253→   303→              {zoom}%
+   254→   304→            </span>
+   255→   305→
+   256→   306→            <Tooltip>
+   257→   307→              <TooltipTrigger asChild>
+   258→   308→                <Button
+   259→   309→                  variant="ghost"
+   260→   310→                  size="icon"
+   261→   311→                  className="h-8 w-8"
+   262→   312→                  onClick={zoomIn}
+   263→   313→                  disabled={zoom >= MAX_ZOOM}
+   264→   314→                >
+   265→   315→                  <ZoomIn className="h-4 w-4" />
+   266→   316→                </Button>
+   267→   317→              </TooltipTrigger>
+   268→   318→              <TooltipContent>Zoom In</TooltipContent>
+   269→   319→            </Tooltip>
+   270→   320→
+   271→   321→            <Tooltip>
+   272→   322→              <TooltipTrigger asChild>
+   273→   323→                <Button
+   274→   324→                  variant="ghost"
+   275→   325→                  size="icon"
+   276→   326→                  className="h-8 w-8"
+   277→   327→                  onClick={zoomFit}
+   278→   328→                >
+   279→   329→                  <Maximize2 className="h-4 w-4" />
+   280→   330→                </Button>
+   281→   331→              </TooltipTrigger>
+   282→   332→              <TooltipContent>Fit Width</TooltipContent>
+   283→   333→            </Tooltip>
+   284→   334→
+   285→   335→            <Tooltip>
+   286→   336→              <TooltipTrigger asChild>
+   287→   337→                <Button
+   288→   338→                  variant="ghost"
+   289→   339→                  size="icon"
+   290→   340→                  className="h-8 w-8"
+   291→   341→                  onClick={zoomFit}
+   292→   342→                >
+   293→   343→                  <RotateCcw className="h-4 w-4" />
+   294→   344→                </Button>
+   295→   345→              </TooltipTrigger>
+   296→   346→              <TooltipContent>Reset Zoom</TooltipContent>
+   297→   347→            </Tooltip>
+   298→   348→          </div>
+   299→   349→
+   300→   350→          {/* Navigation Buttons with labels on desktop */}
+   301→   351→          <div className="flex items-center gap-2">
+   302→   352→            <Button
+   303→   353→              variant="outline"
+   304→   354→              size="sm"
+   305→   355→              className={`gap-1.5 transition-opacity ${isFirst ? "opacity-40 cursor-not-allowed" : ""}`}
+   306→   356→              onClick={goPrev}
+   307→   357→              disabled={isFirst}
+   308→   358→            >
+   309→   359→              <ChevronLeft className="h-4 w-4" />
+   310→   360→              <span className="hidden sm:inline">Previous</span>
+   311→   361→            </Button>
+   312→   362→
+   313→   363→            <Button
+   314→   364→              variant="outline"
+   315→   365→              size="sm"
+   316→   366→              className={`gap-1.5 transition-opacity ${isLast ? "opacity-40 cursor-not-allowed" : ""}`}
+   317→   367→              onClick={goNext}
+   318→   368→              disabled={isLast}
+   319→   369→            >
+   320→   370→              <span className="hidden sm:inline">Next</span>
+   321→   371→              <ChevronRight className="h-4 w-4" />
+   322→   372→            </Button>
+   323→   373→          </div>
+   324→   374→
+   325→   375→          {/* Close + Keyboard Hint */}
+   326→   376→          <div className="flex items-center gap-3">
+   327→   377→            <span className="hidden lg:inline text-xs text-muted-foreground">
+   328→   378→              ← → navigate, ESC exit
+   329→   379→            </span>
+   330→   380→            <Button
+   331→   381→              variant="ghost"
+   332→   382→              size="sm"
+   333→   383→              className="gap-1.5 text-muted-foreground hover:text-foreground"
+   334→   384→              onClick={goBack}
+   335→   385→            >
+   336→   386→              <X className="h-4 w-4" />
+   337→   387→              <span className="hidden sm:inline">Close</span>
+   338→   388→            </Button>
+   339→   389→          </div>
+   340→   390→        </div>
+   341→   391→      </footer>
+   342→   392→    </div>
+   343→   393→  );
+   344→   394→}
+   345→   395→
+   346→   396→// ============================================
+   347→   397→// Confetti Celebration Component
+   348→   398→// ============================================
+   349→   399→
+   350→   400→/** LMS color palette for confetti particles */
+   351→   401→const CONFETTI_COLORS = [
+   352→   402→  "#3882f6", // blue
+   353→   403→  "#14b8a6", // teal
+   354→   404→  "#22d3ee", // cyan
+   355→   405→  "#10b981", // emerald
+   356→   406→  "#f59e0b", // amber
+   357→   407→  "#6366f1", // indigo accent
+   358→   408→  "#8b5cf6", // violet accent
+   359→   409→  "#ec4899", // pink accent
+   360→   410→];
+   361→   411→
+   362→   412→type ParticleShape = "circle" | "rectangle" | "triangle";
+   363→   413→
+   364→   414→interface ConfettiParticle {
+   365→   415→  id: number;
+   366→   416→  left: number;
+   367→   417→  color: string;
+   368→   418→  shape: ParticleShape;
+   369→   419→  size: number;
+   370→   420→  fallDuration: string;
+   371→   421→  fallDelay: string;
+   372→   422→  drift: string;
+   373→   423→  spin: string;
+   374→   424→}
+   375→   425→
+   376→   426→function ConfettiCelebration() {
+   377→   427→  const particles = useMemo<ConfettiParticle[]>(() => {
+   378→   428→    const result: ConfettiParticle[] = [];
+   379→   429→    const shapes: ParticleShape[] = ["circle", "rectangle", "triangle"];
+   380→   430→    const count = 80;
+   381→   431→
+   382→   432→    for (let i = 0; i < count; i++) {
+   383→   433→      const shape = shapes[i % 3 === 0 ? 0 : i % 3 === 1 ? 1 : 2];
+   384→   434→      result.push({
+   385→   435→        id: i,
+   386→   436→        left: Math.random() * 100,
+   387→   437→        color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+   388→   438→        shape,
+   389→   439→        size: Math.floor(Math.random() * 8) + 6, // 6-14px
+   390→   440→        fallDuration: `${(Math.random() * 1.5 + 2).toFixed(2)}s`, // 2-3.5s
+   391→   441→        fallDelay: `${(Math.random() * 0.8).toFixed(2)}s`, // 0-0.8s
+   392→   442→        drift: `${(Math.random() * 120 - 60).toFixed(0)}px`, // -60 to +60px
+   393→   443→        spin: `${Math.floor(Math.random() * 720 + 360)}deg`, // 360-1080deg
+   394→   444→      });
+   395→   445→    }
+   396→   446→    return result;
+   397→   447→  }, []);
+   398→   448→
+   399→   449→  return (
+   400→   450→    <>
+   401→   451→      {/* Confetti particles layer */}
+   402→   452→      <div className="confetti-container" aria-hidden="true">
+   403→   453→        {particles.map((p) => {
+   404→   454→          if (p.shape === "triangle") {
+   405→   455→            return (
+   406→   456→              <div
+   407→   457→                key={p.id}
+   408→   458→                className="confetti-particle confetti-triangle"
+   409→   459→                style={{
+   410→   460→                  left: `${p.left}%`,
+   411→   461→                  "--confetti-color": p.color,
+   412→   462→                  "--tri-size": `${p.size}px`,
+   413→   463→                  "--fall-duration": p.fallDuration,
+   414→   464→                  "--fall-delay": p.fallDelay,
+   415→   465→                  "--drift": p.drift,
+   416→   466→                  "--spin": p.spin,
+   417→   467→                } as React.CSSProperties}
+   418→   468→              />
+   419→   469→            );
+   420→   470→          }
+   421→   471→          return (
+   422→   472→            <div
+   423→   473→              key={p.id}
+   424→   474→              className={`confetti-particle ${p.shape === "circle" ? "confetti-circle" : "confetti-rectangle"}`}
+   425→   475→              style={{
+   426→   476→                left: `${p.left}%`,
+   427→   477→                width: p.shape === "rectangle" ? `${p.size * 1.4}px` : `${p.size}px`,
+   428→   478→                height: `${p.size}px`,
+   429→   479→                backgroundColor: p.color,
+   430→   480→                "--fall-duration": p.fallDuration,
+   431→   481→                "--fall-delay": p.fallDelay,
+   432→   482→                "--drift": p.drift,
+   433→   483→                "--spin": p.spin,
+   434→   484→              } as React.CSSProperties}
+   435→   485→            />
+   436→   486→          );
+   437→   487→        })}
+   438→   488→      </div>
+   439→   489→
+   440→   490→      {/* Congratulations message */}
+   441→   491→      <div className="confetti-message" role="status" aria-label="Congratulations!">
+   442→   492→        <div className="confetti-message-text flex flex-col items-center gap-3">
+   443→   493→          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/90 dark:bg-zinc-800/90 shadow-lg">
+   444→   494→            <span className="text-4xl">🎉</span>
+   445→   495→          </div>
+   446→   496→          <div className="rounded-2xl bg-white/90 dark:bg-zinc-800/90 px-8 py-5 shadow-xl text-center">
+   447→   497→            <h2 className="text-2xl sm:text-3xl font-bold text-foreground">
+   448→   498→              🎉 Congratulations!
+   449→   499→            </h2>
+   450→   500→            <p className="mt-2 text-sm text-muted-foreground">
+   451→   501→              You&apos;ve completed this section!
+   452→   502→            </p>
+   453→   503→          </div>
+   454→   504→        </div>
+   455→   505→      </div>
+   456→   506→    </>
+   457→   507→  );
+   458→   508→}
+   459→   509→
+   460→   510→// ============================================
+   461→   511→// Slide Content Renderer
+   462→   512→// ============================================
+   463→   513→
+   464→   514→function SlideRenderer({ slide }: { slide: SlideContent }) {
+   465→   515→  switch (slide.type) {
+   466→   516→    case "title":
+   467→   517→      return <TitleSlide slide={slide} />;
+   468→   518→    case "content":
+   469→   519→      return <ContentSlide slide={slide} />;
+   470→   520→    case "table":
+   471→   521→      return <TableSlide slide={slide} />;
+   472→   522→    case "list":
+   473→   523→      return <ListSlide slide={slide} />;
+   474→   524→    case "code":
+   475→   525→      return <CodeSlide slide={slide} />;
+   476→   526→    case "quiz":
+   477→   527→      return <QuizSlide slide={slide} />;
+   478→   528→    default:
+   479→   529→      return <FallbackSlide slide={slide} />;
+   480→   530→  }
+   481→   531→}
+   482→   532→
+   483→   533→// ─── Title Slide ──────────────────────────────────
+   484→   534→function TitleSlide({ slide }: { slide: SlideContent }) {
+   485→   535→  return (
+   486→   536→    <div className="flex min-h-[300px] flex-col items-center justify-center text-center">
+   487→   537→      <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/10 to-accent/10">
+   488→   538→        <GraduationCap className="h-8 w-8 text-primary" />
+   489→   539→      </div>
+   490→   540→      <h1 className="text-3xl sm:text-4xl font-bold text-foreground mb-4 leading-tight">
+   491→   541→        {slide.title}
+   492→   542→      </h1>
+   493→   543→      {slide.subtitle && (
+   494→   544→        <p className="text-lg text-muted-foreground max-w-xl leading-relaxed">
+   495→   545→          {slide.subtitle}
+   496→   546→        </p>
+   497→   547→      )}
+   498→   548→    </div>
+   499→   549→  );
+   500→   550→}
+   501→   551→
+   502→   552→// ─── Content Slide ────────────────────────────────
+   503→   553→function ContentSlide({ slide }: { slide: SlideContent }) {
+   504→   554→  return (
+   505→   555→    <div>
+   506→   556→      <div className="mb-6 flex items-center gap-3">
+   507→   557→        <div className="h-1 w-8 rounded-full bg-gradient-to-r from-primary to-accent" />
+   508→   558→        <h2 className="text-2xl font-bold text-foreground">{slide.title}</h2>
+   509→   559→      </div>
+   510→   560→      {slide.items && slide.items.length > 0 && (
+   511→   561→        <div className="space-y-5">
+   512→   562→          {slide.items.map((item, i) => (
+   513→   563→            <div key={i} className="rounded-lg bg-muted/40 p-4 transition-colors hover:bg-muted/60">
+   514→   564→              {item.heading && (
+   515→   565→                <h3 className="text-base font-semibold text-foreground mb-1.5">
+   516→   566→                  {item.heading}
+   517→   567→                </h3>
+   518→   568→              )}
+   519→   569→              <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
+   520→   570→                {item.text}
+   521→   571→              </p>
+   522→   572→            </div>
+   523→   573→          ))}
+   524→   574→        </div>
+   525→   575→      )}
+   526→   576→    </div>
+   527→   577→  );
+   528→   578→}
+   529→   579→
+   530→   580→// ─── Table Slide ──────────────────────────────────
+   531→   581→function TableSlide({ slide }: { slide: SlideContent }) {
+   532→   582→  if (!slide.tableData) return <FallbackSlide slide={slide} />;
+   533→   583→  const { headers, rows } = slide.tableData;
+   534→   584→
+   535→   585→  return (
+   536→   586→    <div>
+   537→   587→      <div className="mb-6 flex items-center gap-3">
+   538→   588→        <div className="h-1 w-8 rounded-full bg-gradient-to-r from-primary to-accent" />
+   539→   589→        <h2 className="text-2xl font-bold text-foreground">{slide.title}</h2>
+   540→   590→      </div>
+   541→   591→      <div className="overflow-x-auto rounded-lg border border-border">
+   542→   592→        <table className="w-full text-sm">
+   543→   593→          <thead>
+   544→   594→            <tr className="bg-muted/60 border-b border-border">
+   545→   595→              {headers.map((header, i) => (
+   546→   596→                <th
+   547→   597→                  key={i}
+   548→   598→                  className="px-4 py-3 text-left font-semibold text-foreground whitespace-nowrap"
+   549→   599→                >
+   550→   600→                  {header}
+   551→   601→                </th>
+   552→   602→              ))}
+   553→   603→            </tr>
+   554→   604→          </thead>
+   555→   605→          <tbody>
+   556→   606→            {rows.map((row, ri) => (
+   557→   607→              <tr
+   558→   608→                key={ri}
+   559→   609→                className={ri < rows.length - 1 ? "border-b border-border" : ""}
+   560→   610→              >
+   561→   611→                {row.map((cell, ci) => (
+   562→   612→                  <td key={ci} className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+   563→   613→                    {cell}
+   564→   614→                  </td>
+   565→   615→                ))}
+   566→   616→              </tr>
+   567→   617→            ))}
+   568→   618→          </tbody>
+   569→   619→        </table>
+   570→   620→      </div>
+   571→   621→    </div>
+   572→   622→  );
+   573→   623→}
+   574→   624→
+   575→   625→// ─── List Slide ───────────────────────────────────
+   576→   626→function ListSlide({ slide }: { slide: SlideContent }) {
+   577→   627→  return (
+   578→   628→    <div>
+   579→   629→      <div className="mb-6 flex items-center gap-3">
+   580→   630→        <div className="h-1 w-8 rounded-full bg-gradient-to-r from-primary to-accent" />
+   581→   631→        <h2 className="text-2xl font-bold text-foreground">{slide.title}</h2>
+   582→   632→      </div>
+   583→   633→      {slide.items && slide.items.length > 0 && (
+   584→   634→        <ul className="space-y-3">
+   585→   635→          {slide.items.map((item, i) => (
+   586→   636→            <li key={i} className="flex items-start gap-3 rounded-lg bg-muted/40 p-3 transition-colors hover:bg-muted/60">
+   587→   637→              <span className="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+   588→   638→                {i + 1}
+   589→   639→              </span>
+   590→   640→              <div>
+   591→   641→                {item.heading && (
+   592→   642→                  <span className="font-semibold text-foreground text-sm">
+   593→   643→                    {item.heading}{" "}
+   594→   644→                  </span>
+   595→   645→                )}
+   596→   646→                <span className="text-sm text-muted-foreground leading-relaxed">
+   597→   647→                  {item.text}
+   598→   648→                </span>
+   599→   649→              </div>
+   600→   650→            </li>
+   601→   651→          ))}
+   602→   652→        </ul>
+   603→   653→      )}
+   604→   654→    </div>
+   605→   655→  );
+   606→   656→}
+   607→   657→
+   608→   658→// ─── Code Slide ───────────────────────────────────
+   609→   659→function CodeSlide({ slide }: { slide: SlideContent }) {
+   610→   660→  if (!slide.codeBlock) return <FallbackSlide slide={slide} />;
+   611→   661→
+   612→   662→  return (
+   613→   663→    <div>
+   614→   664→      <div className="mb-6 flex items-center gap-3">
+   615→   665→        <div className="h-1 w-8 rounded-full bg-gradient-to-r from-primary to-accent" />
+   616→   666→        <h2 className="text-2xl font-bold text-foreground">{slide.title}</h2>
+   617→   667→      </div>
+   618→   668→      <div className="rounded-lg border border-border bg-zinc-900 overflow-hidden shadow-inner">
+   619→   669→        <div className="flex items-center justify-between border-b border-zinc-700 px-4 py-2">
+   620→   670→          <span className="text-xs font-medium text-zinc-400">
+   621→   671→            {slide.codeBlock.language}
+   622→   672→          </span>
+   623→   673→          <div className="flex gap-1.5">
+   624→   674→            <span className="h-3 w-3 rounded-full bg-red-500/60" />
+   625→   675→            <span className="h-3 w-3 rounded-full bg-yellow-500/60" />
+   626→   676→            <span className="h-3 w-3 rounded-full bg-green-500/60" />
+   627→   677→          </div>
+   628→   678→        </div>
+   629→   679→        <pre className="overflow-x-auto p-4 text-sm leading-relaxed">
+   630→   680→          <code className="text-zinc-100 font-mono">
+   631→   681→            {slide.codeBlock.code}
+   632→   682→          </code>
+   633→   683→        </pre>
+   634→   684→      </div>
+   635→   685→    </div>
+   636→   686→  );
+   637→   687→}
+   638→   688→
+   639→   689→// ─── Quiz Slide (Interactive) ────────────────────
+   640→   690→function QuizSlide({ slide }: { slide: SlideContent }) {
+   641→   691→  const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
+   642→   692→  const hasSubmitted = selectedIdx !== null;
+   643→   693→
+   644→   694→  // Determine correct answer: look for item with icon === "check" or first item
+   645→   695→  const correctIdx = slide.items?.findIndex((item) => item.icon === "check") ?? 0;
+   646→   696→  const isCorrect = selectedIdx === correctIdx;
+   647→   697→
+   648→   698→  return (
+   649→   699→    <div>
+   650→   700→      <div className="mb-6 flex items-center gap-3">
+   651→   701→        <div className="h-1 w-8 rounded-full bg-gradient-to-r from-primary to-accent" />
+   652→   702→        <h2 className="text-2xl font-bold text-foreground">{slide.title}</h2>
+   653→   703→      </div>
+   654→   704→      {slide.items && slide.items.length > 0 && (
+   655→   705→        <div className="space-y-3">
+   656→   706→          {slide.items.map((item, i) => {
+   657→   707→            const letter = String.fromCharCode(65 + i);
+   658→   708→            const isSelected = selectedIdx === i;
+   659→   709→            let borderColor = "border-border hover:border-primary/30 hover:bg-primary/5";
+   660→   710→            if (hasSubmitted) {
+   661→   711→              if (i === correctIdx) borderColor = "border-emerald-500 bg-emerald-500/10";
+   662→   712→              else if (isSelected && !isCorrect) borderColor = "border-red-400 bg-red-400/10";
+   663→   713→              else borderColor = "border-border opacity-60";
+   664→   714→            } else if (isSelected) {
+   665→   715→              borderColor = "border-primary bg-primary/10";
+   666→   716→            }
+   667→   717→
+   668→   718→            return (
+   669→   719→              <button
+   670→   720→                key={i}
+   671→   721→                type="button"
+   672→   722→                className={`w-full rounded-lg border p-4 text-left transition-all duration-200 ${borderColor}`}
+   673→   723→                onClick={() => {
+   674→   724→                  if (!hasSubmitted) setSelectedIdx(i);
+   675→   725→                }}
+   676→   726→                disabled={hasSubmitted}
+   677→   727→              >
+   678→   728→                <div className="flex items-start gap-3">
+   679→   729→                  <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+   680→   730→                    hasSubmitted && i === correctIdx
+   681→   731→                      ? "bg-emerald-500 text-white"
+   682→   732→                      : hasSubmitted && isSelected && !isCorrect
+   683→   733→                        ? "bg-red-400 text-white"
+   684→   734→                        : "bg-primary/10 text-primary"
+   685→   735→                  }`}>
+   686→   736→                    {hasSubmitted && i === correctIdx ? "✓" : hasSubmitted && isSelected && !isCorrect ? "✗" : letter}
+   687→   737→                  </span>
+   688→   738→                  <div className="flex-1">
+   689→   739→                    <p className="text-sm font-medium text-foreground">
+   690→   740→                      {item.heading || item.text}
+   691→   741→                    </p>
+   692→   742→                    {item.heading && item.text !== item.heading && (
+   693→   743→                      <p className="text-xs text-muted-foreground mt-1">{item.text}</p>
+   694→   744→                    )}
+   695→   745→                  </div>
+   696→   746→                </div>
+   697→   747→              </button>
+   698→   748→            );
+   699→   749→          })}
+   700→   750→
+   701→   751→          {/* Feedback after selection */}
+   702→   752→          {hasSubmitted && (
+   703→   753→            <div className={`mt-4 rounded-lg border p-4 ${
+   704→   754→              isCorrect
+   705→   755→                ? "border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/50"
+   706→   756→                : "border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/50"
+   707→   757→            }`}>
+   708→   758→              <p className={`text-sm font-semibold ${
+   709→   759→                isCorrect ? "text-emerald-700 dark:text-emerald-400" : "text-amber-700 dark:text-amber-400"
+   710→   760→              }`}>
+   711→   761→                {isCorrect ? "🎉 Correct! Well done!" : "❌ Not quite right."}
+   712→   762→              </p>
+   713→   763→              {!isCorrect && (
+   714→   764→                <p className="mt-1 text-xs text-muted-foreground">
+   715→   765→                  The correct answer is <strong>{String.fromCharCode(65 + correctIdx)}</strong>.
+   716→   766→                </p>
+   717→   767→              )}
+   718→   768→            </div>
+   719→   769→          )}
+   720→   770→        </div>
+   721→   771→      )}
+   722→   772→    </div>
+   723→   773→  );
+   724→   774→}
+   725→   775→
+   726→   776→// ─── Fallback Slide ───────────────────────────────
+   727→   777→function FallbackSlide({ slide }: { slide: SlideContent }) {
+   728→   778→  return (
+   729→   779→    <div>
+   730→   780→      <div className="mb-6 flex items-center gap-3">
+   731→   781→        <div className="h-1 w-8 rounded-full bg-gradient-to-r from-primary to-accent" />
+   732→   782→        <h2 className="text-2xl font-bold text-foreground">{slide.title}</h2>
+   733→   783→      </div>
+   734→   784→      {slide.subtitle && (
+   735→   785→        <p className="text-muted-foreground mb-4">{slide.subtitle}</p>
+   736→   786→      )}
+   737→   787→      {slide.items?.map((item, i) => (
+   738→   788→        <p key={i} className="text-sm text-muted-foreground mb-2">
+   739→   789→          {item.heading && <span className="font-semibold text-foreground">{item.heading}: </span>}
+   740→   790→          {item.text}
+   741→   791→        </p>
+   742→   792→      ))}
+   743→   793→    </div>
+   744→   794→  );
+   745→   795→}
+   746→   796→

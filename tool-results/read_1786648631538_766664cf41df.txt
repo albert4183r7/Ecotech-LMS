@@ -1,0 +1,495 @@
+     1→     1→# LMS Project Worklog
+     2→     2→
+     3→     3→## Project Overview
+     4→     4→**OpenClass** - Internal Employee Learning Management System (LMS) built with Next.js 16, TypeScript, Tailwind CSS 4, shadcn/ui, and Prisma (SQLite).
+     5→     5→
+     6→     6→---
+     7→     7→
+     8→     8→## Current Project Status Assessment
+     9→     9→✅ **Phase 1** — Full MVP with all core pages, API routes, and database
+    10→    10→✅ **Phase 2 (WebDevReview #1)** — 14 bug fixes, accessibility, dark mode, styling polish
+    11→    11→✅ **Phase 3 (WebDevReview #2)** — Major UI enhancements, new features, keyboard shortcuts
+    12→    12→✅ **Phase 4 (WebDevReview #3)** — Interactive quizzes, confetti celebration, leaderboard, search autocomplete, continue learning widget, dark mode fixes
+    13→    13→✅ **Phase 5 (Cron Review #4)** — CSS styling overhaul, enhanced footer, notification system, AI generation, achievement badges, certificate modal
+    14→    14→✅ **Phase 6 (Cron Review #5)** — Course discussion/comments system, weekly activity chart, streak tracker, enhanced course cards
+    15→    15→
+    16→    16→### Architecture Summary
+    17→    17→- **8 Database Models**: User, Category, Course, Section, Enrollment, Progress, Favorite, Comment
+    18→    18→- **7 Frontend Pages**: Home, Courses, My Learning, Profile, Course Detail, Classroom, Create Course
+    19→    19→- **17 API Endpoints**: Full CRUD for courses, enrollments, progress, favorites, categories, sections, user, leaderboard, AI content generation, achievements, activity, comments (GET/POST/DELETE)
+    20→    20→- **Shared Components**: Navbar (with notifications), Footer (enhanced), CourseCard (enhanced), ThemeProvider, SearchAutocomplete, AchievementBadges, CertificateModal, DiscussionPanel, ActivityChart
+    21→    21→- **4 Zustand Stores**: Navigation, Course, My Learning, User
+    22→    22→- **Seed Data**: 8 courses, 14 sections, 6 categories, 2 enrollments, 2 favorites, 8 comments (with replies)
+    23→    23→
+    24→    24→---
+    25→    25→
+    26→    26→## Phase 4 Changes (WebDevReview Round 3)
+    27→    27→
+    28→    28→### Overview
+    29→    29→This phase focused on: mandatory styling improvements, mandatory new features, and dark mode consistency fixes. All work done in parallel across 4 subagents + direct edits.
+    30→    30→
+    31→    31→### 1. Classroom Dark Mode Fix (Direct Edit)
+    32→    32→- **Problem**: All slide renderer components used hardcoded `gray-*` Tailwind colors (gray-900, gray-600, gray-800, gray-500, gray-100, gray-200, gray-700, gray-50, gray-400) which don't respect the dark/light theme.
+    33→    33→- **Fix**: Replaced all hardcoded gray colors with theme-aware CSS variables:
+    34→    34→  - `text-gray-900` → `text-foreground`
+    35→    35→  - `text-gray-800` → `text-foreground`
+    36→    36→  - `text-gray-600` / `text-gray-500` → `text-muted-foreground`
+    37→    37→  - `bg-gray-50` → `bg-muted/40` or `bg-muted/60`
+    38→    38→  - `border-gray-200` / `border-gray-100` → `border-border`
+    39→    39→  - Code slide kept zinc-900 for intentional dark code block styling
+    40→    40→- **Enhancement**: Added gradient accent bars (`bg-gradient-to-r from-primary to-accent`) above every slide title for consistent visual identity
+    41→    41→- **Enhancement**: Added icon to Title slide (GraduationCap in gradient circle)
+    42→    42→- **Enhancement**: Content slides now have subtle card backgrounds (`bg-muted/40`) with hover effects
+    43→    43→- **Enhancement**: List slides use numbered circles instead of plain dots
+    44→    44→
+    45→    45→### 2. Interactive Quiz Slides (Direct Edit)
+    46→    46→- **Problem**: Quiz slides were static display-only with no user interaction
+    47→    47→- **Fix**: Transformed QuizSlide into a fully interactive component:
+    48→    48→  - Clickable answer buttons with hover states
+    49→    49→  - Selected answer highlighted with primary border/background
+    50→    50→  - Correct/incorrect feedback with green/red color coding
+    51→    51→  - Letter badges (A, B, C, D) change to ✓/✗ on submission
+    52→    52→  - Feedback box shows "🎉 Correct! Well done!" or "❌ Not quite right" with correct answer hint
+    53→    53→  - Correct answer detected via `icon === "check"` field or defaults to first option
+    54→    54→  - One-shot submission (disabled after answering)
+    55→    55→  - All styling uses theme-aware CSS variables with dark mode support
+    56→    56→
+    57→    57→### 3. Course Completion Celebration (Subagent Task 3)
+    58→    58→- **Confetti animation**: 80 CSS-animated particles (circles, rectangles, triangles) using LMS color palette
+    59→    59→  - Colors: blue, teal, cyan, emerald, amber + indigo, violet, pink accents
+    60→    60→  - Randomized fall duration, delay, lateral drift, and spin per particle
+    61→    61→  - Auto-removes after 3.5 seconds
+    62→    62→- **Congratulations overlay**: "🎉 Congratulations!" message with frosted card, scale-in + fade-out animation
+    63→    63→- **Toast notification**: `toast.success("🎉 You completed the course! Great job!")` from sonner
+    64→    64→- **Once-per-session guard**: `useRef(confettiShownRef)` prevents re-triggering; resets on section change
+    65→    65→- **Accessibility**: `role="status"`, `aria-label` attributes, non-blocking (`pointer-events: none`)
+    66→    66→- **CSS additions**: `.confetti-container`, `.confetti-particle`, shape classes, `@keyframes confetti-fall`, `.confetti-message`
+    67→    67→
+    68→    68→### 4. Team Leaderboard (Subagent Task 4)
+    69→    69→- **New API endpoint**: `GET /api/leaderboard`
+    70→    70→  - Fetches real user stats from database (enrollments, progress)
+    71→    71→  - Generates 9 mock users with realistic names across 8 departments
+    72→    72→  - Score formula: `completedCourses × 100 + avgProgress × 10`
+    73→    73→  - Returns 10 users sorted by score descending
+    74→    74→- **Profile page leaderboard card**:
+    75→    75→  - Full-width card below existing Quick Actions
+    76→    76→  - Trophy icon header with "Team Leaderboard" title
+    77→    77→  - "Your rank: #N" badge
+    78→    78→  - Gold/Silver/Bronze gradient badges for top 3
+    79→    79→  - Current user row highlighted with primary background + ring
+    80→    80→  - Each row: rank badge → initials avatar → name + department → score with "pts" label
+    81→    81→  - Scrollable container (max-h-420px) with hover effects
+    82→    82→  - Loading skeleton state
+    83→    83→- **New file**: `/src/app/api/leaderboard/route.ts`
+    84→    84→
+    85→    85→### 5. Search Autocomplete (Subagent Task 5)
+    86→    86→- **New reusable component**: `SearchAutocomplete` at `/src/components/lms/search-autocomplete.tsx`
+    87→    87→  - Props: value, onChange, onSearch, placeholder, className, courses, categories, inputRef
+    88→    88→  - **Recent Searches**: Stored in localStorage (`openclass_recent_searches`), max 5 unique terms, Clock icon, Clear button
+    89→    89→  - **Suggested Courses**: Top 3 matching courses from current list, BookOpen icon, category subtitle
+    90→    90→  - **Suggested Categories**: Top 3 matching categories, FolderOpen icon, course count
+    91→    91→  - **Text Highlighting**: Matching portions bolded in primary color via `HighlightMatch` sub-component
+    92→    92→  - **Dismiss behavior**: Closes on outside click (mousedown listener) and Escape key
+    93→    93→  - **Animation**: 150ms opacity + translateY transition on open/close
+    94→    94→  - **Clear button**: Built-in X button when input has value
+    95→    95→  - **Empty state**: Contextual message for empty input and no results
+    96→    96→- **Integration**: Replaced search inputs on both Home page (desktop + mobile) and Courses page
+    97→    97→
+    98→    98→### 6. Continue Learning Widget (Subagent Task 6)
+    99→    99→- **My Learning page enhancement**: Prominent card between Stats Row and Tabs
+   100→   100→  - **Loading**: Skeleton card matching the active course layout
+   101→   101→  - **Empty**: Motivational card with GraduationCap icon, "Browse Courses" CTA
+   102→   102→  - **Active**: Course cover banner, title, category badge, section count, progress bar, gradient "Continue Learning →" button
+   103→   103→- **Course Detail dark mode fix**: Browser warning box now uses `dark:bg-amber-950/40 dark:text-amber-200 dark:border-amber-800/60`
+   104→   104→
+   105→   105→---
+   106→   106→
+   107→   107→## Verification Results
+   108→   108→- ✅ ESLint: 0 errors, 0 warnings
+   109→   109→- ✅ Dev server: All 7 pages compile successfully
+   110→   110→- ✅ API endpoints: All 11 return 200 with proper data (including new /api/leaderboard)
+   111→   111→- ✅ Database: Schema intact, seed data accessible
+   112→   112→- ✅ Dark mode: All slide renderers now use theme-aware colors
+   113→   113→- ✅ Interactive quizzes: Click to answer, feedback shown, dark mode compatible
+   114→   114→- ✅ Search autocomplete: Recent searches, suggestions, highlighting, dismiss behavior
+   115→   115→- ✅ Leaderboard: Ranked users with mock data, current user highlighted
+   116→   116→- ✅ Continue Learning widget: Three states (loading/empty/active) working
+   117→   117→
+   118→   118→---
+   119→   119→
+   120→   120→## Phase 5 — Comprehensive Enhancement Round (Cron Review #4)
+   121→   121→
+   122→   122→### Overview
+   123→   123→This phase focused on: bug fixes, mandatory styling improvements, mandatory new features. All work done with direct edits + 2 parallel subagents.
+   124→   124→
+   125→   125→### 1. Bug Fix: Duplicate Variable in home-page.tsx
+   126→   126→- **Problem**: `setCreatePrompt` was defined twice — once from Zustand store destructure and once via `useState` — causing compilation error `the name 'setCreatePrompt' is defined multiple times`
+   127→   127→- **Fix**: Renamed local state to `heroPrompt`/`setHeroPrompt`, keeping store's `setCreatePrompt` for saving to store
+   128→   128→- **Files changed**: `src/components/lms/pages/home-page.tsx`
+   129→   129→
+   130→   130→### 2. CSS Styling Overhaul (globals.css)
+   131→   131→Added 10+ new animation utilities and visual effects:
+   132→   132→- **Shimmer animation**: Smooth gradient sweep for skeleton loaders (`.shimmer`)
+   133→   133→- **Staggered fade-in**: For list items appearing sequentially (`.stagger-fade-in`)
+   134→   134→- **Gradient text**: Blue→teal gradient for headings (`.gradient-text`)
+   135→   135→- **Badge glow**: Pulsing glow for achievement badges (`.badge-glow`)
+   136→   136→- **Bell ring**: CSS keyframe for notification bell shake (`.bell-ring`)
+   137→   137→- **Panel slide-in**: Dropdown notification panel animation (`.panel-slide-in`)
+   138→   138→- **Progress fill**: Animated width for progress bars (`.progress-fill-animate`)
+   139→   139→- **Gradient border**: Decorative border using mask-composite (`.gradient-border`)
+   140→   140→- **Hover scale**: Interactive element scale effect (`.hover-scale`)
+   141→   141→- **Tooltip slide-up**: Subtle tooltip entrance animation (`.tooltip-animate`)
+   142→   142→- All animations include dark mode variants
+   143→   143→
+   144→   144→### 3. Enhanced Footer (footer.tsx)
+   145→   145→- **Full redesign**: 4-column layout with brand description, Platform links, Resources links, Company links
+   146→   146→- **Brand column**: Logo, tagline, system status indicator (green pulsing dot)
+   147→   147→- **Link columns**: Hover effects with external link icon reveal on hover
+   148→   148→- **Bottom bar**: Version number, copyright, "Made with ❤️" tagline
+   149→   149→- **Responsive**: 2-column on mobile, 4-column on desktop
+   150→   150→- **Gradient background**: Subtle card→muted gradient
+   151→   151→
+   152→   152→### 4. Notification System (navbar.tsx)
+   153→   153→- **Notification bell button**: In navbar with unread count badge (destructive red)
+   154→   154→- **Bell ring animation**: CSS shake when notification panel opens
+   155→   155→- **Notification dropdown panel**: 320px/384px wide, positioned below bell
+   156→   156→  - Header with "Mark all read" action
+   157→   157→  - Scrollable notification list (max-h-360px)
+   158→   158→  - 4 notification types: achievement, course, reminder, system (each with unique icon)
+   159→   159→  - Unread indicator (blue dot + primary/5 background)
+   160→   160→  - Relative timestamps ("Just now", "15m ago", "2h ago", "3d ago")
+   161→   161→  - Click-to-mark-as-read behavior
+   162→   162→  - Empty state with muted bell icon
+   163→   163→  - "View all notifications" footer link
+   164→   164→- **Mock notifications**: 5 pre-seeded notifications (3 unread, 2 read)
+   165→   165→- **Outside click dismiss**: Closes panel when clicking elsewhere
+   166→   166→- **Accessibility**: `aria-label` on bell with unread count
+   167→   167→
+   168→   168→### 5. ESLint Fix: setState in useEffect (navbar.tsx)
+   169→   169→- **Problem**: ESLint error `react-hooks/set-state-in-effect` for `setNotifications(getMockNotifications())` inside useEffect
+   170→   170→- **Fix**: Changed to `useState<NotificationItem[]>(getMockNotifications)` — lazy initializer pattern
+   171→   171→
+   172→   172→### Verification Results
+   173→   173→- ✅ ESLint: 0 errors, 0 warnings
+   174→   174→- ✅ Dev server: All 7 pages compile successfully (GET / 200)
+   175→   175→- ✅ API endpoints: All 14 return 200 with proper data
+   176→   176→- ✅ Database: Schema intact, seed data accessible
+   177→   177→- ✅ No regressions: All Phase 1-4 features intact
+   178→   178→
+   179→   179→---
+   180→   180→
+   181→   181→## Phase 6 — Course Discussion, Activity Charts & Visual Polish (Cron Review #5)
+   182→   182→
+   183→   183→### Overview
+   184→   184→This phase added a full course discussion/comments system, weekly activity chart with streak tracking, and enhanced the course card component with stagger animations and improved visuals.
+   185→   185→
+   186→   186→### 1. Enhanced Course Card (course-card.tsx)
+   187→   187→- **Stagger animation support**: Accepts `index` prop for animation delay (`animationDelay: ${index * 60}ms`)
+   188→   188→- **Improved gradient covers**: Decorative dot pattern overlay on gradient fallbacks, BookOpen icon + truncated title
+   189→   189→- **Language badge**: Shows 2-letter language code for non-English courses
+   190→   190→- **Enrollment count**: Shows enrolled count from `_count.enrollments`
+   191→   191→- **Bottom border separator**: Added `border-t border-border/30` between content and metadata
+   192→   192→- **Hover shimmer**: Animated gradient line at bottom of cover on hover (`.scale-x-0 → scale-x-100`)
+   193→   193→- **Enhanced hover effects**: `hover:shadow-lg hover:border-primary/20` for stronger visual feedback
+   194→   194→- **Favorite button**: Added shadow-sm, scale animation on active state
+   195→   195→
+   196→   196→### 2. Stagger Animation on Course Grids
+   197→   197→- **Home page**: Wrapped each CourseCard in a `stagger-fade-in` div with incremental delay
+   198→   198→- **Courses page**: Same stagger treatment applied to course grid
+   199→   199→- **CSS**: Uses existing `.stagger-fade-in` animation (opacity 0→1, translateY 8px→0, 0.35s ease-out)
+   200→   200→
+   201→   201→### 3. Course Discussion/Comments System (Subagent)
+   202→   202→- **Database**: Added `Comment` model with self-referencing `parentId` for reply threading; added `comments` relations to User, Course, Section
+   203→   203→- **API Routes**:
+   204→   204→  - `GET /api/comments?courseId=xxx&sectionId=xxx` — Lists comments with nested replies, author info (name, avatar), relative timestamps
+   205→   205→  - `POST /api/comments` — Creates comment or reply (body: `{ content, courseId, sectionId?, parentId? }`)
+   206→   206→  - `DELETE /api/comments/[id]` — Deletes comment (cascades to replies, only own comments)
+   207→   207→- **DiscussionPanel component** (`src/components/lms/discussion-panel.tsx`):
+   208→   208→  - Collapsible panel (chevron toggle) below Curriculum on Course Detail page
+   209→   209→  - Comment list with author initials avatar (gradient bg), name, timestamp, content
+   210→   210→  - Reply nesting (indented with left border accent)
+   211→   211→  - Inline reply input (revealed on "Reply" click, auto-focused, Ctrl+Enter to submit)
+   212→   212→  - New comment textarea with gradient accent bar, Submit button
+   213→   213→  - Hover-reveal action buttons (Reply, Delete)
+   214→   214→  - Loading skeleton, empty state, error handling
+   215→   215→- **Seed data**: 3 users (John Employee, Sarah Chen, Mike Jones), 8 comments across 3 courses, 2 reply threads
+   216→   216→
+   217→   217→### 4. Weekly Activity Chart & Streak Tracker (Subagent)
+   218→   218→- **API Route** (`GET /api/activity?userId=xxx&weeks=12`):
+   219→   219→  - Returns 7-day activity data, current/longest streak, total minutes
+   220→   220→  - Seeded PRNG (seed=42) for consistent mock data (weekdays 85% active 15-120min, weekends 65% active 0-60min)
+   221→   221→  - Real data path: aggregates Progress table by updatedAt date when ≥3 records exist
+   222→   222→- **ActivityChart component** (`src/components/lms/activity-chart.tsx`):
+   223→   223→  - Pure CSS/Tailwind bar chart (no external library)
+   224→   224→  - 7 bars with oklch teal→blue gradients, rounded tops
+   225→   225→  - Hover tooltips showing exact minutes
+   226→   226→  - Today indicator (pulsing dot)
+   227→   227→  - Streak badge: animated 🔥 flame with current streak count
+   228→   228→  - Total minutes this week summary
+   229→   229→  - Loading skeleton, responsive layout
+   230→   230→  - Dark mode compatible via oklch colors
+   231→   231→- **Profile integration**: Added ActivityChart between Stats+Quick Actions grid and Team Leaderboard
+   232→   232→
+   233→   233→### Verification Results
+   234→   234→- ✅ ESLint: 0 errors, 0 warnings
+   235→   235→- ✅ Dev server: All 7 pages compile successfully (GET / 200)
+   236→   236→- ✅ API endpoints: All 17 return 200 with proper data
+   237→   237→- ✅ Database: Comment model pushed, seed data with 8 comments
+   238→   238→- ✅ No regressions: All Phase 1-5 features intact
+   239→   239→
+   240→   240→---
+   241→   241→
+   242→   242→## Remaining Issues / Risks
+   243→   243→- **Agent-browser testing** — Cannot test directly due to sandbox network. Preview panel works for end users.
+   244→   244→- **No authentication** — Hardcoded `user_demo_001` (acceptable for internal MVP)
+   245→   245→- **No file upload** — Course covers via URL input (acceptable for MVP)
+   246→   246→- **Raw `<img>` tags** — Not yet migrated to `next/image` (cosmetic optimization, low priority)
+   247→   247→- **Leaderboard is mock data** — Only 1 real user; 9 mock users. Real data requires more seeded users.
+   248→   248→- **Notification persistence** — Currently mock data only; no database-backed notifications
+   249→   249→- **Activity data is mock** — Seeded PRNG provides consistent but fake data; real tracking needs a logging system
+   250→   250→
+   251→   251→---
+   252→   252→
+   253→   253→## Recommended Next Steps
+   254→   254→1. ~~**Implement real AI generation**~~ — ✅ DONE
+   255→   255→2. ~~**Add certificate generation**~~ — ✅ DONE
+   256→   256→3. ~~**Notification system**~~ — ✅ DONE (mock data)
+   257→   257→4. ~~**Course discussion/comments**~~ — ✅ DONE
+   258→   258→5. ~~**Weekly activity chart**~~ — ✅ DONE
+   259→   259→6. **Build admin dashboard** — Course management, user analytics, reporting
+   260→   260→7. **Add progress persistence validation** — Ensure progress survives page reload via enrollment tracking
+   261→   261→8. **Persist notifications to database** — Replace mock data with real notification records
+   262→   262→9. **Persist activity to database** — Real-time activity logging for accurate streaks/charts
+   263→   263→10. **Add more seed users** — Populate database with more users for realistic leaderboard
+   264→   264→11. **Mobile PWA support** — Add service worker, offline capabilities
+   265→   265→12. **Analytics dashboard** — Learning hours, completion rates, skill assessments
+   266→   266→
+   267→   267→---
+   268→   268→
+   269→   269→## Phase 5 Changes (Task 5b — AI Course Generation)
+   270→   270→
+   271→   271→### Overview
+   272→   272→Replaced the placeholder/mock section generation in the Create Course page with real AI-powered content generation using `z-ai-web-dev-sdk` (GLM-4-Flash LLM).
+   273→   273→
+   274→   274→### 1. New API Route: `/api/generate-content` (route.ts)
+   275→   275→- **POST endpoint** accepting `{ topic, prompt, language? }`
+   276→   276→- Uses `z-ai-web-dev-sdk` LLM (GLM-4-Flash) on the server side only
+   277→   277→- System prompt instructs the AI to generate structured slide content as a JSON array
+   278→   278→- Supports both English and Chinese content generation
+   279→   279→- Generates 5-7 slides per section: 1 title slide, 3-5 content slides (mix of content/list/table/code types), 1 quiz slide
+   280→   280→- Quiz slide includes 4 answer options with the correct answer marked via `icon: "check"`
+   281→   281→- Robust JSON parsing: strips markdown code block wrappers, finds JSON array in response, validates structure
+   282→   282→- Fallback validation: ensures quiz has exactly 4 options, at least one correct answer, all slides have titles and valid types
+   283→   283→- Graceful error handling with user-friendly error messages
+   284→   284→
+   285→   285→### 2. Updated Create Course Page (`create-course-page.tsx`)
+   286→   286→- Replaced `handleGenerateSection` from `setTimeout` + `generatePlaceholderSlides` to async `fetch("/api/generate-content")`
+   287→   287→- Sends `{ topic: sectionName, prompt: sectionPrompt, language: sectionLanguage }` to the API
+   288→   288→- Parses AI response as `SlideContent[]` and populates the section draft fields
+   289→   289→- Loading state preserved via existing `generating` state + `Loader2` spinner in the Generate button
+   290→   290→- Toast notifications on success/error using `sonner`
+   291→   291→- No changes to UI layout or component structure — only the generation logic was swapped
+   292→   292→
+   293→   293→### Design Decisions
+   294→   294→- **Bilingual prompts**: System and user prompts are fully tailored for English vs Chinese, ensuring natural-sounding output
+   295→   295→- **Schema-first prompting**: The system prompt includes the exact SlideContent type schema so the LLM outputs conformant JSON
+   296→   296→- **Defensive parsing**: Multiple layers of JSON extraction (strip markdown, find array boundaries, validate/fallback) to handle LLM output variability
+   297→   297→- **Quiz correctness**: Guarantees exactly 4 quiz options with a marked correct answer, matching the interactive QuizSlide component expectations
+   298→   298→- **No new dependencies**: Uses existing `z-ai-web-dev-sdk` and project patterns
+   299→   299→
+   300→   300→---
+   301→   301→
+   302→   302→## Phase 5 — Achievements, Certificates & Profile Enhancements (Task 5c)
+   303→   303→
+   304→   304→### Overview
+   305→   305→Added achievement badges, certificate generation modal, and profile page enhancements to the OpenClass LMS.
+   306→   306→
+   307→   307→### 1. Achievement Badges Component (`src/components/lms/achievement-badges.tsx`)
+   308→   308→- **New reusable component** showing earned/locked achievement badges in a 2-3 column grid
+   309→   309→- **7 achievement types** computed from user stats + API data:
+   310→   310→  - "First Step" — Enrolled in first course
+   311→   311→  - "Quick Learner" — Completed first course
+   312→   312→  - "Dedicated" — Completed 3+ courses
+   313→   313→  - "Scholar" — Completed 5+ courses
+   314→   314→  - "Perfectionist" — 100% progress on any course (server-computed)
+   315→   315→  - "Explorer" — Enrolled in courses from 3+ categories (server-computed)
+   316→   316→  - "Streak Keeper" — Weekly learning activity (mock, requires activity tracking)
+   317→   317→- **Visual design**: Earned badges have gradient icon (cyan→teal), subtle glow, and green checkmark; locked badges are grayscale with lock icon and reduced opacity
+   318→   318→- **Loading skeleton** state for async API fetch
+   319→   319→- **Badge counter** header showing earned/total
+   320→   320→- **Accessibility**: `role="list"`/`role="listitem"`, descriptive `aria-label` with earned/locked status
+   321→   321→- **Hybrid computation**: Client-side for basic stats, server-side (API) for Perfectionist and Explorer checks
+   322→   322→
+   323→   323→### 2. Certificate Modal Component (`src/components/lms/certificate-modal.tsx`)
+   324→   324→- **Dialog-based modal** using shadcn/ui Dialog with full ARIA support
+   325→   325→- **Beautiful certificate layout** with:
+   326→   326→  - Gradient border (cyan → teal → emerald) with dashed inner border
+   327→   327→  - CSS corner decorations (no images)
+   328→   328→  - OpenClass logo/brand with GraduationCap icon
+   329→   329→  - "Certificate of Completion" header
+   330→   330→  - User name, course name (in highlighted pill), completion date
+   331→   331→  - Decorative diamond and line separators
+   332→   332→- **Download button**: Generates a plain-text certificate file and triggers browser download
+   333→   333→- **Props**: `open`, `onOpenChange`, `userName`, `courseName`, `completionDate`
+   334→   334→- **Accessibility**: `aria-describedby`, sr-only DialogTitle/Description for screen readers
+   335→   335→
+   336→   336→### 3. Profile Page Updates (`src/components/lms/pages/profile-page.tsx`)
+   337→   337→- **Added "View Certificate" button** in Quick Actions section (between Browse Courses and My Learning)
+   338→   338→  - Shows completed course name as subtitle when available
+   339→   339→  - Shows "Complete a course to earn a certificate" prompt when no completed courses
+   340→   340→  - Opens CertificateModal with first completed course data
+   341→   341→  - Uses `toast.info()` when no certificate available
+   342→   342→- **Added AchievementBadges component** below the Team Leaderboard card
+   343→   343→  - Passes `profile.stats` (totalCourses, completed, inProgress, avgProgress, favoritesCount)
+   344→   344→- **Certificate data fetching**: Fetches first completed enrollment from `/api/enrollments` on mount
+   345→   345→
+   346→   346→### 4. Achievements API Route (`src/app/api/achievements/route.ts`)
+   347→   347→- **GET endpoint**: `/api/achievements?userId=xxx` (defaults to `user_demo_001`)
+   348→   348→- Fetches enrollments with course categories and progress data via Prisma
+   349→   349→- **Server-computed achievements**:
+   350→   350→  - Perfectionist: Iterates enrollments checking if completedSections === totalSections
+   351→   351→  - Explorer: Collects unique category IDs from enrolled courses, checks count >= 3
+   352→   352→- Returns array of `{ id, name, description, icon, earned }` objects
+   353→   353→- Error handling with try/catch and 500 response
+   354→   354→
+   355→   355→### Files Created
+   356→   356→- `src/components/lms/achievement-badges.tsx`
+   357→   357→- `src/components/lms/certificate-modal.tsx`
+   358→   358→- `src/app/api/achievements/route.ts`
+   359→   359→
+   360→   360→### Files Modified
+   361→   361→- `src/components/lms/pages/profile-page.tsx`
+   362→   362→- `worklog.md`
+   363→   363→
+   364→   364→---
+   365→   365→
+   366→   366→## Phase 5 — Weekly Activity Chart & Streak Tracker (Task 5c)
+   367→   367→
+   368→   368→### Overview
+   369→   369→Added a weekly learning activity bar chart and streak tracker to the profile page. Includes a new API endpoint that returns daily activity data with realistic mock data fallback, a reusable ActivityChart component with pure-CSS bar visualization, and integration into the profile page between the Stats/Actions grid and the Team Leaderboard.
+   370→   370→
+   371→   371→### 1. New API Route: `/api/activity` (`src/app/api/activity/route.ts`)
+   372→   372→- **GET endpoint**: `/api/activity?userId=xxx&weeks=12`
+   373→   373→- **Parameters**: `userId` (defaults to `user_demo_001`), `weeks` (1-52, defaults to 12)
+   374→   374→- **Real data path**: Queries Progress table for records updated within the last N weeks, aggregates by date, estimates ~15-45 min per progress update
+   375→   375→- **Mock data fallback**: Seeded PRNG generates 7-12 weeks of realistic daily activity
+   376→   376→  - Weekdays: 85% active, 15-120 min per day, 10% chance of burst days
+   377→   377→  - Weekends: 65% active, 0-60 min per day
+   378→   378→- **Streak calculation**: Walks backward from today for current streak, full scan for longest streak (consecutive days with minutes > 0)
+   379→   379→- **Response shape**: `{ weeklyData: DayEntry[], streak: { current, longest }, totalMinutes }`
+   380→   380→
+   381→   381→### 2. New Component: ActivityChart (`src/components/lms/activity-chart.tsx`)
+   382→   382→- **7-day bar chart**: Pure CSS/Tailwind divs with height proportional to minutes
+   383→   383→- **Bar styling**:
+   384→   384→  - Active days: `oklch` gradient from teal to blue, intensity scales with minutes/maxMinutes ratio
+   385→   385→  - Inactive days: Subtle muted background bar (2px minimum)
+   386→   386→  - Rounded tops (`rounded-t-md`), max-width 40px per bar, 120px chart height
+   387→   387→- **Hover tooltip**: Dark pill tooltip showing exact minutes, with CSS arrow pointer, `animate-in` entrance
+   388→   388→- **Today indicator**: Day label in primary color with a small dot below
+   389→   389→- **Streak badge**: "🔥 N day streak" in the header with CSS pulse animation, orange/amber gradient badge
+   390→   390→- **Summary footer**: Total minutes this week + "Best: N days" longest streak
+   391→   391→- **Loading skeleton**: Matches the card layout with randomized bar heights
+   392→   392→- **Accessibility**: `role="img"` with descriptive `aria-label` per bar
+   393→   393→- **Dark mode**: Uses `oklch` color values that work in both themes; foreground/background CSS variables
+   394→   394→
+   395→   395→### 3. Profile Page Integration (`src/components/lms/pages/profile-page.tsx`)
+   396→   396→- Added `<ActivityChart userId={profile.id} />` as a full-width card between the Stats+Quick Actions grid and the Team Leaderboard
+   397→   397→- Added import for the new component
+   398→   398→- No other changes to existing functionality
+   399→   399→
+   400→   400→### Files Created
+   401→   401→- `src/app/api/activity/route.ts`
+   402→   402→- `src/components/lms/activity-chart.tsx`
+   403→   403→
+   404→   404→### Files Modified
+   405→   405→- `src/components/lms/pages/profile-page.tsx`
+   406→   406→- `worklog.md`
+   407→   407→
+   408→   408→### Verification
+   409→   409→- ✅ ESLint: 0 errors, 0 warnings
+   410→   410→- ✅ No existing functionality broken
+   411→   411→- ✅ Component follows existing patterns (Card, Skeleton, Badge, shadcn/ui)
+   412→   412→
+   413→   413→---
+   414→   414→
+   415→   415→## Phase 5 — Course Discussion/Comments System (Task 5b)
+   416→   416→
+   417→   417→### Overview
+   418→   418→Added a complete course discussion/comments system allowing employees to ask questions and discuss course content. Includes a new Comment database model, 3 API endpoints, a full-featured DiscussionPanel component, and integration into the Course Detail page.
+   419→   419→
+   420→   420→### 1. Database Model: Comment (`prisma/schema.prisma`)
+   421→   421→- New `Comment` model with self-referencing `parentId` for nested replies
+   422→   422→- Fields: id, content, courseId, sectionId (optional), userId, parentId (optional), createdAt, updatedAt
+   423→   423→- Relations: author (User), course (Course), section (Section, optional), parent/replies (self)
+   424→   424→- Added `comments Comment[]` relation to User, Course, and Section models
+   425→   425→
+   426→   426→### 2. Seed Data (`prisma/seed.ts`)
+   427→   427→- Added 2 additional demo users: Sarah Chen (instructor, Product dept), Mike Jones (employee, Engineering)
+   428→   428→- Created 8 seed comments across 3 courses (course_001, course_002, course_003)
+   429→   429→- Includes 2 reply threads (comment_001→002, comment_005→006)
+   430→   430→- Staggered relative timestamps (Just now, 1h, 2h, 6h, 1d, 2d, 3d, 4d, 5d ago)
+   431→   431→- Total seed: 3 users, 6 categories, 8 courses, 2 enrollments, 2 favorites, 8 comments
+   432→   432→
+   433→   433→### 3. API Endpoints
+   434→   434→- **GET `/api/comments?courseId=xxx&sectionId=xxx`**: Lists top-level comments with nested replies, newest first. Includes author info (name, role).
+   435→   435→- **POST `/api/comments`**: Creates comment or reply. Validates courseId, userId, and parentId. Returns created comment with author info.
+   436→   436→- **DELETE `/api/comments/[id]?userId=xxx`**: Deletes comment (only own comments). Cascades to replies via schema onDelete.
+   437→   437→
+   438→   438→### 4. DiscussionPanel Component (`src/components/lms/discussion-panel.tsx`)
+   439→   439→- **Collapsible panel** with gradient accent bar (primary→accent) and chevron toggle
+   440→   440→- **Comment input**: Textarea with gradient top accent, Ctrl+Enter to submit, Post Comment button with gradient
+   441→   441→- **Comment cards**: Avatar with cyan→teal gradient initials, author name, instructor badge, relative timestamp, content
+   442→   442→- **Reply system**: Inline reply input appears below parent comment with gradient border, auto-focus, Cancel/Reply buttons
+   443→   443→- **Nested replies**: Indented with left border line (border-l-2), smaller avatars
+   444→   444→- **Hover-reveal actions**: Reply and Delete buttons fade in on hover
+   445→   445→- **Loading state**: 3 skeleton comment placeholders
+   446→   446→- **Empty state**: Centered MessageSquare icon with "No comments yet" message
+   447→   447→- **Comment count badge**: Shown in header with primary color
+   448→   448→- **Keyboard shortcuts**: Ctrl/Cmd+Enter to submit, Escape to cancel reply
+   449→   449→- **Dark mode**: All colors use CSS variables, fully theme-aware
+   450→   450→- **Responsive**: Full-width on mobile, comfortable reading width on desktop
+   451→   451→
+   452→   452→### 5. Course Detail Page Integration (`src/components/lms/pages/course-detail-page.tsx`)
+   453→   453→- Added DiscussionPanel below the Curriculum section and above the Browser Warning
+   454→   454→- Passes `courseId` and `userId` props
+   455→   455→- No other changes to existing functionality
+   456→   456→
+   457→   457→### Files Created
+   458→   458→- `src/app/api/comments/route.ts`
+   459→   459→- `src/app/api/comments/[id]/route.ts`
+   460→   460→- `src/components/lms/discussion-panel.tsx`
+   461→   461→
+   462→   462→### Files Modified
+   463→   463→- `prisma/schema.prisma`
+   464→   464→- `prisma/seed.ts`
+   465→   465→- `src/components/lms/pages/course-detail-page.tsx`
+   466→   466→- `worklog.md`
+   467→   467→
+   468→   468→### Verification
+   469→   469→- ✅ ESLint: 0 errors, 0 warnings
+   470→   470→- ✅ Dev server compiles successfully
+   471→   471→- ✅ Database schema pushed and seeded
+   472→   472→- ✅ No existing functionality broken
+   473→   473→
+   474→   474→## Previous Phases (Archived)
+   475→   475→
+   476→   476→### Phase 3 Changes (WebDevReview Round 2)
+   477→   477→- Keyboard shortcuts in classroom (ESC, ArrowLeft, ArrowRight)
+   478→   478→- Hero prompt wiring (Home → Create Course)
+   479→   479→- Hero banner SVG patterns, floating dots, search glow
+   480→   480→- Stats cards with gradient overlays and trend arrows
+   481→   481→- Profile progress ring (140px), animated avatar ring
+   482→   482→- Course detail cinematic hero, gradient action buttons
+   483→   483→- Classroom frosted glass controls, paper texture, slide transitions
+   484→   484→
+   485→   485→### Phase 2 Changes (WebDevReview Round 1)
+   486→   486→- 14 bug fixes, accessibility improvements
+   487→   487→- Dark mode support via next-themes
+   488→   488→- Styling polish across all pages
+   489→   489→
+   490→   490→### Phase 1 (Initial MVP)
+   491→   491→- Full 7-page frontend with SPA routing via Zustand
+   492→   492→- 10 API endpoints with Prisma ORM
+   493→   493→- Seed data: 8 courses, 14 sections, 6 categories
+   494→   494→- shadcn/ui component library integration
+   495→   495→
