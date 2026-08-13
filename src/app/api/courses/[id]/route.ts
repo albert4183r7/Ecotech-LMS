@@ -82,8 +82,10 @@ export async function GET(
       sections: course.sections.map((section) => ({
         id: section.id,
         title: section.title,
+        content: section.content,
         order: section.order,
         totalPages: section.totalPages,
+        courseId: section.courseId,
         createdAt: section.createdAt,
         updatedAt: section.updatedAt,
       })),

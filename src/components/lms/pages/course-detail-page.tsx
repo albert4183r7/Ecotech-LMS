@@ -31,6 +31,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { toast } from "sonner";
 import { useNavigationStore, useUserStore } from "@/stores/lms-store";
 import type { CourseItem, SectionItem, ClassroomState, SlideContent } from "@/types/lms";
 
@@ -91,10 +92,16 @@ export function CourseDetailPage() {
         body: JSON.stringify({ userId, courseId: selectedCourseId }),
       });
       if (res.ok) {
-        setCourse((prev) => (prev ? { ...prev, isEnrolled: true } : prev));
+        setCourse((prev) =>
+          prev
+            ? { ...prev, isEnrolled: true, studentCount: prev.studentCount + 1 }
+            : prev
+        );
+      } else {
+        toast.error("Failed to enroll. Please try again.");
       }
     } catch {
-      // Silently fail
+      toast.error("Network error. Please try again.");
     } finally {
       setEnrolling(false);
     }
@@ -118,9 +125,11 @@ export function CourseDetailPage() {
             ? { ...prev, isFavorited: json.favorited }
             : prev
         );
+      } else {
+        toast.error("Failed to update favorite.");
       }
     } catch {
-      // Silently fail
+      toast.error("Network error. Please try again.");
     } finally {
       setTogglingFav(false);
     }
@@ -441,7 +450,10 @@ export function CourseDetailPage() {
               >
                 <AccordionTrigger
                   className="hover:no-underline py-4 group"
-                  onClick={() => handleSectionClick(section)}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    handleSectionClick(section);
+                  }}
                 >
                   <div className="flex items-center gap-3 flex-1 min-w-0 text-left">
                     {/* Section Number */}

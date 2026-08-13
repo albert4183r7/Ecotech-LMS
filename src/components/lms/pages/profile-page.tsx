@@ -15,6 +15,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { toast } from "sonner";
 import { useNavigationStore, useUserStore } from "@/stores/lms-store";
 
 /* ------------------------------------------------------------------ */
@@ -342,7 +343,8 @@ export function ProfilePage() {
               variant="destructive"
               className="w-full"
               onClick={() => {
-                /* Logout logic placeholder */
+                toast.success("You have been logged out.");
+                navigateTo("home");
               }}
             >
               <LogOut className="mr-2 h-4 w-4" />

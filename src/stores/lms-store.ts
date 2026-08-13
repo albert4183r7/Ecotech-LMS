@@ -56,7 +56,7 @@ export const useNavigationStore = create<NavigationState>((set) => ({
     set((state) => ({
       currentView: state.previousView || "home",
       previousView: null,
-      selectedCourseId: state.currentView === "course-detail" ? state.selectedCourseId : null,
+      // Preserve selectedCourseId when going back (never clear it)
     })),
 }));
 

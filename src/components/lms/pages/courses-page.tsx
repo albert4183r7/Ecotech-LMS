@@ -235,7 +235,15 @@ export function CoursesPage() {
         const res = await fetch("/api/categories");
         const json = await res.json();
         if (json.success) {
-          setCategories(json.data);
+          setCategories(
+            json.data.map((c: Record<string, unknown>) => ({
+              id: c.id as string,
+              name: c.name as string,
+              description: (c.description as string) ?? null,
+              color: (c.color as string) ?? null,
+              _count: { courses: (c.coursesCount as number) ?? 0 },
+            }))
+          );
         }
       } catch (err) {
         console.error("Failed to fetch categories:", err);
@@ -267,7 +275,28 @@ export function CoursesPage() {
       const res = await fetch(url);
       const json = await res.json();
       if (json.success) {
-        setCourses(json.data as CourseItem[]);
+        setCourses(
+          (json.data as Array<Record<string, unknown>>).map((c) => ({
+            id: c.id as string,
+            title: c.title as string,
+            description: (c.description as string) ?? null,
+            coverImage: (c.coverImage as string) ?? null,
+            rating: (c.rating as number) ?? 0,
+            studentCount: (c.studentCount as number) ?? 0,
+            status: (c.status as string) ?? "published",
+            language: (c.language as string) ?? "english",
+            category: c.category
+              ? {
+                  id: (c.category as Record<string, unknown>).id as string,
+                  name: (c.category as Record<string, unknown>).name as string,
+                  color: ((c.category as Record<string, unknown>).color as string) ?? null,
+                }
+              : null,
+            sections: [],
+            createdAt: (c.createdAt as string) ?? "",
+            updatedAt: (c.updatedAt as string) ?? "",
+          }))
+        );
       }
     } catch (err) {
       console.error("Failed to fetch courses:", err);

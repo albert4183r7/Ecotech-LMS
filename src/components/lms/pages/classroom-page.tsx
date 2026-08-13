@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ZoomIn,
   ZoomOut,
@@ -15,7 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
-import { useNavigationStore } from "@/stores/lms-store";
+import { useNavigationStore, useUserStore } from "@/stores/lms-store";
 import type { SlideContent, ClassroomState } from "@/types/lms";
 
 const MIN_ZOOM = 50;
@@ -23,22 +23,26 @@ const MAX_ZOOM = 200;
 const ZOOM_STEP = 25;
 
 export function ClassroomPage() {
-  const { classroomState, goBack, openClassroom } = useNavigationStore();
+  const { classroomState, goBack } = useNavigationStore();
+  const userId = useUserStore((s) => s.currentUserId);
   const [localState, setLocalState] = useState<ClassroomState | null>(null);
   const [zoom, setZoom] = useState(100);
   const [loadingSlides, setLoadingSlides] = useState(false);
+  const hasFetchedRef = useRef(false);
 
   // Keep a working copy of classroomState so we can mutate currentSlide
   useEffect(() => {
     if (classroomState) {
       setLocalState({ ...classroomState });
       setZoom(100);
+      hasFetchedRef.current = false;
     }
   }, [classroomState]);
 
   // If slides were empty initially, try fetching them
   useEffect(() => {
-    if (!localState || localState.slides.length > 0) return;
+    if (!localState || localState.slides.length > 0 || hasFetchedRef.current) return;
+    hasFetchedRef.current = true;
     const fetchSlides = async () => {
       setLoadingSlides(true);
       try {
@@ -66,7 +70,7 @@ export function ClassroomPage() {
       }
     };
     fetchSlides();
-  }, [localState]);
+  }, [localState?.sectionId, localState?.slides.length]);
 
   /** Navigate slides */
   const goToSlide = useCallback(
@@ -76,11 +80,44 @@ export function ClassroomPage() {
       setLocalState((prev) =>
         prev ? { ...prev, currentSlide: next } : prev
       );
-      // Also sync to store so other components can read it
-      openClassroom({ ...localState, currentSlide: next });
     },
-    [localState, openClassroom]
+    [localState]
   );
+
+  /** Persist progress to API when slide changes */
+  useEffect(() => {
+    if (!localState || !userId) return;
+    const saveProgress = async () => {
+      try {
+        // Get enrollment ID from the API
+        const enrollRes = await fetch(`/api/enrollments?userId=${userId}`);
+        const enrollJson = await enrollRes.json();
+        if (enrollJson.success && Array.isArray(enrollJson.data)) {
+          const enrollment = enrollJson.data.find(
+            (e: Record<string, unknown>) => e.courseId === localState.courseId
+          );
+          if (enrollment) {
+            const completed = localState.currentSlide >= localState.totalPages - 1;
+            await fetch("/api/progress", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                enrollmentId: enrollment.id,
+                sectionId: localState.sectionId,
+                currentPage: localState.currentSlide + 1,
+                completed,
+              }),
+            });
+          }
+        }
+      } catch {
+        // Progress saving is best-effort
+      }
+    };
+    // Debounce to avoid excessive API calls
+    const timer = setTimeout(saveProgress, 500);
+    return () => clearTimeout(timer);
+  }, [localState?.currentSlide]);
 
   const goPrev = () => goToSlide((localState?.currentSlide ?? 0) - 1);
   const goNext = () => goToSlide((localState?.currentSlide ?? 0) + 1);
@@ -89,7 +126,6 @@ export function ClassroomPage() {
   const zoomIn = () => setZoom((z) => Math.min(z + ZOOM_STEP, MAX_ZOOM));
   const zoomOut = () => setZoom((z) => Math.max(z - ZOOM_STEP, MIN_ZOOM));
   const zoomFit = () => setZoom(100);
-  const zoomReset = () => setZoom(100);
 
   // ─── No state guard ─────────────────────────────
   if (!localState) {
@@ -215,7 +251,7 @@ export function ClassroomPage() {
                   variant="ghost"
                   size="icon"
                   className="h-8 w-8"
-                  onClick={zoomReset}
+                  onClick={zoomFit}
                 >
                   <RotateCcw className="h-4 w-4" />
                 </Button>

@@ -2,6 +2,7 @@
 
 import { useNavigationStore } from "@/stores/lms-store";
 import { Navbar } from "@/components/lms/navbar";
+import { Footer } from "@/components/lms/footer";
 import { HomePage } from "@/components/lms/pages/home-page";
 import { CoursesPage } from "@/components/lms/pages/courses-page";
 import { MyLearningPage } from "@/components/lms/pages/my-learning-page";
@@ -18,7 +19,10 @@ import { CreateCoursePage } from "@/components/lms/pages/create-course-page";
 export default function AppPage() {
   const { currentView } = useNavigationStore();
 
-  /** Render the active view based on navigation state */
+  /** Render the active view based on navigation state.
+   *  Classroom uses full-screen mode (no footer). */
+  const isFullView = currentView === "classroom";
+
   const renderView = () => {
     switch (currentView) {
       case "home":
@@ -40,10 +44,15 @@ export default function AppPage() {
     }
   };
 
+  if (isFullView) {
+    return <ClassroomPage />;
+  }
+
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <Navbar />
-      <main className="flex-1">{renderView()}</main>
+      <main className="flex-1 page-transition">{renderView()}</main>
+      <Footer />
     </div>
   );
 }

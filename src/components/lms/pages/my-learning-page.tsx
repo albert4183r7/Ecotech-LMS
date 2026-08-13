@@ -14,8 +14,7 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CourseCard } from "@/components/lms/course-card";
-import { useMyLearningStore, useUserStore } from "@/stores/lms-store";
-import { useNavigationStore } from "@/stores/lms-store";
+import { useMyLearningStore, useUserStore, useNavigationStore } from "@/stores/lms-store";
 import type { LearningStats, MyLearningTab, CourseItem } from "@/types/lms";
 
 /* ------------------------------------------------------------------ */
