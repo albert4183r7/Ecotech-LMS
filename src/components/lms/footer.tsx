@@ -80,7 +80,7 @@ export function Footer() {
                   <li key={link.label}>
                     <button
                       type="button"
-                      className="group flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-primary hover-lift"
+                      className="btn-ripple group flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-primary hover-lift"
                     >
                       {link.label}
                       <ExternalLink className="h-3 w-3 opacity-0 -translate-y-px transition-all group-hover:opacity-40 group-hover:translate-y-0" />

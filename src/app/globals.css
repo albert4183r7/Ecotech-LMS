@@ -1749,3 +1749,256 @@
 .dark .overflow-auto::-webkit-scrollbar-thumb:hover {
   background: oklch(0.45 0.06 200);
 }
+
+/* ============================================ */
+/* 30. Hero Section Enhancements                  */
+/* ============================================ */
+
+/* Floating decorative orbs */
+@keyframes float {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  33% { transform: translateY(-20px) rotate(120deg); }
+  66% { transform: translateY(10px) rotate(240deg); }
+}
+
+.hero-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(40px);
+  opacity: 0.3;
+  animation: float 15s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.hero-orb-1 {
+  width: 200px;
+  height: 200px;
+  background: oklch(0.55 0.18 230);
+  top: -40px;
+  left: -60px;
+  animation-delay: 0s;
+}
+
+.hero-orb-2 {
+  width: 160px;
+  height: 160px;
+  background: oklch(0.50 0.16 175);
+  top: 20%;
+  right: -40px;
+  animation-delay: -5s;
+}
+
+.hero-orb-3 {
+  width: 120px;
+  height: 120px;
+  background: oklch(0.55 0.14 165);
+  bottom: -20px;
+  left: 30%;
+  animation-delay: -10s;
+}
+
+/* Typing cursor animation */
+@keyframes typing-cursor {
+  0%, 100% { border-color: oklch(0.55 0.18 230); }
+  50% { border-color: transparent; }
+}
+
+.typing-cursor {
+  border-right: 2px solid oklch(0.55 0.18 230);
+  animation: typing-cursor 1s step-end infinite;
+  padding-right: 2px;
+}
+
+/* Counter count-up */
+@keyframes countUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.counter-value {
+  animation: countUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Search glow */
+@keyframes searchGlow {
+  0%, 100% { box-shadow: 0 0 0 0 oklch(0.55 0.18 230 / 0); }
+  50% { box-shadow: 0 0 20px 2px oklch(0.55 0.18 230 / 0.15); }
+}
+
+.search-glow:focus-within {
+  animation: searchGlow 2s ease-in-out infinite;
+  border-color: oklch(0.55 0.18 230) !important;
+}
+
+/* Category pill hover */
+.category-pill {
+  transition: all 0.2s ease;
+}
+
+.category-pill:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px oklch(0.55 0.18 230 / 0.15);
+}
+
+/* Hero parallax scroll effect */
+.hero-parallax {
+  transform: translateY(calc(var(--scroll, 0) * 0.3px));
+  will-change: transform;
+}
+
+/* Hero enhanced gradient overlay */
+.hero-enhanced {
+  min-height: 380px;
+  position: relative;
+}
+
+@media (min-width: 640px) {
+  .hero-enhanced {
+    min-height: 440px;
+  }
+}
+
+@media (min-width: 768px) {
+  .hero-enhanced {
+    min-height: 480px;
+  }
+}
+
+/* ============================================ */
+/* 31. Enhanced Empty States                       */
+/* ============================================ */
+
+/* Empty state illustration */
+@keyframes emptyBounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+.empty-illustration {
+  animation: emptyBounce 3s ease-in-out infinite;
+}
+
+/* Empty state fade in */
+@keyframes emptyFadeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.empty-state {
+  animation: emptyFadeIn 0.5s ease-out forwards;
+}
+
+/* ============================================ */
+/* 32. Improved Button Micro-interactions          */
+/* ============================================ */
+
+/* Button ripple effect */
+.btn-ripple {
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-ripple::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: oklch(1 0 0 / 0.15);
+  transform: translate(-50%, -50%);
+  transition: width 0.4s ease, height 0.4s ease;
+}
+
+.btn-ripple:active::after {
+  width: 200%;
+  height: 200%;
+}
+
+/* Button glow on hover */
+.btn-glow {
+  transition: box-shadow 0.3s ease, transform 0.15s ease;
+}
+
+.btn-glow:hover {
+  box-shadow: 0 0 20px oklch(0.55 0.18 230 / 0.2);
+}
+
+.btn-glow:active {
+  transform: scale(0.97);
+}
+
+/* ============================================ */
+/* 33. Card Hover Micro-interactions               */
+/* ============================================ */
+
+/* Card content slide up on hover */
+.card-content-reveal {
+  transition: transform 0.3s ease;
+}
+
+.card-content-reveal:hover {
+  transform: translateY(-2px);
+}
+
+/* Image zoom with overlay on hover */
+.card-img-zoom {
+  overflow: hidden;
+}
+
+.card-img-zoom img {
+  transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.card-img-zoom:hover img {
+  transform: scale(1.08);
+}
+
+/* ============================================ */
+/* 34. Stat Card Animations                        */
+/* ============================================ */
+
+@keyframes statPop {
+  0% { transform: scale(0.8); opacity: 0; }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.stat-pop {
+  animation: statPop 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Stagger delays for stat cards */
+.stat-delay-1 { animation-delay: 0.05s; opacity: 0; }
+.stat-delay-2 { animation-delay: 0.1s; opacity: 0; }
+.stat-delay-3 { animation-delay: 0.15s; opacity: 0; }
+.stat-delay-4 { animation-delay: 0.2s; opacity: 0; }
+
+/* ============================================ */
+/* 35. Notification Appear Animation               */
+/* ============================================ */
+@keyframes notifAppear {
+  0% {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.notif-appear {
+  animation: notifAppear 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Staggered notification appear delays */
+.notif-appear:nth-child(2) { animation-delay: 0.03s; }
+.notif-appear:nth-child(3) { animation-delay: 0.06s; }
+.notif-appear:nth-child(4) { animation-delay: 0.09s; }
+.notif-appear:nth-child(5) { animation-delay: 0.12s; }
+.notif-appear:nth-child(6) { animation-delay: 0.15s; }
+.notif-appear:nth-child(7) { animation-delay: 0.18s; }
+.notif-appear:nth-child(8) { animation-delay: 0.21s; }
+

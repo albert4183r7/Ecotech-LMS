@@ -26,6 +26,7 @@ model User {
   comments     Comment[]
   notes        Note[]
   ratings      Rating[]
+  notifications Notification[]
 }
 
 // ============================================
@@ -199,4 +200,21 @@ model Rating {
   course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
 
   @@unique([userId, courseId])
+}
+
+// ============================================
+// Notification - user notifications
+// ============================================
+model Notification {
+  id        String   @id @default(cuid())
+  title     String
+  message   String
+  type      String   @default("info") // info, success, warning, course, system, achievement
+  read      Boolean  @default(false)
+  link      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

@@ -11,17 +11,22 @@ import {
   X,
   Sun,
   Moon,
+  Monitor,
   Bell,
   CheckCheck,
-  Sparkles,
-  BookMarked,
+  Info,
+  CheckCircle2,
+  AlertTriangle,
   Trophy,
+  Settings,
   Search,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Tooltip,
   TooltipTrigger,
@@ -61,61 +66,78 @@ function getViewLabel(view: ViewName): string {
   }
 }
 
-/** Notification item shape */
+/** Notification item shape (from API) */
 interface NotificationItem {
   id: string;
   title: string;
   message: string;
-  type: "achievement" | "course" | "system" | "reminder";
+  type: string;
   read: boolean;
+  link: string | null;
   createdAt: string;
 }
 
-/** Generate mock notifications (internal MVP) */
-function getMockNotifications(): NotificationItem[] {
+/** Notification type → icon + color mapping */
+function NotificationIcon({ type }: { type: string }) {
+  switch (type) {
+    case "info":
+      return <Info className="h-4 w-4 text-blue-500" />;
+    case "success":
+      return <CheckCircle2 className="h-4 w-4 text-emerald-500" />;
+    case "warning":
+      return <AlertTriangle className="h-4 w-4 text-amber-500" />;
+    case "course":
+      return <BookOpen className="h-4 w-4 text-teal-500" />;
+    case "system":
+      return <Settings className="h-4 w-4 text-gray-500" />;
+    case "achievement":
+      return <Trophy className="h-4 w-4 text-amber-500" />;
+    default:
+      return <Info className="h-4 w-4 text-blue-500" />;
+  }
+}
+
+/** Notification type → icon bg color mapping */
+function NotificationIconBg({ type, read }: { type: string; read: boolean }) {
+  const base = read ? "bg-muted/60" : "bg-primary/10";
+  const colorMap: Record<string, string> = {
+    info: read ? "bg-blue-500/10" : "bg-blue-500/15",
+    success: read ? "bg-emerald-500/10" : "bg-emerald-500/15",
+    warning: read ? "bg-amber-500/10" : "bg-amber-500/15",
+    course: read ? "bg-teal-500/10" : "bg-teal-500/15",
+    system: read ? "bg-gray-500/10" : "bg-gray-500/15",
+    achievement: read ? "bg-amber-500/10" : "bg-amber-500/15",
+  };
+  return colorMap[type] || base;
+}
+
+/** Notification type → left border accent color */
+function NotificationBorderAccent({ type }: { type: string }) {
+  const colorMap: Record<string, string> = {
+    info: "border-l-blue-500",
+    success: "border-l-emerald-500",
+    warning: "border-l-amber-500",
+    course: "border-l-teal-500",
+    system: "border-l-gray-400",
+    achievement: "border-l-amber-500",
+  };
+  return colorMap[type] || "border-l-blue-500";
+}
+
+/** Format relative time for notifications */
+function formatRelativeTime(dateStr: string): string {
   const now = new Date();
-  return [
-    {
-      id: "n1",
-      title: "New Course Available",
-      message: "Advanced TypeScript Patterns has been published. Check it out!",
-      type: "course",
-      read: false,
-      createdAt: new Date(now.getTime() - 15 * 60 * 1000).toISOString(),
-    },
-    {
-      id: "n2",
-      title: "Achievement Unlocked!",
-      message: "You completed your first course. Keep up the great work!",
-      type: "achievement",
-      read: false,
-      createdAt: new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString(),
-    },
-    {
-      id: "n3",
-      title: "Weekly Reminder",
-      message: "You haven't started a course this week. Keep your learning streak going!",
-      type: "reminder",
-      read: false,
-      createdAt: new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString(),
-    },
-    {
-      id: "n4",
-      title: "Course Updated",
-      message: "React Fundamentals has new content in Chapter 3.",
-      type: "course",
-      read: true,
-      createdAt: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-    },
-    {
-      id: "n5",
-      title: "System Update",
-      message: "OpenClass v1.0 is now live with new features and improvements.",
-      type: "system",
-      read: true,
-      createdAt: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-    },
-  ];
+  const date = new Date(dateStr);
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 1) return "Just now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
 /** Group notifications by date category: Today, Yesterday, Earlier */
@@ -138,46 +160,18 @@ function groupNotificationsByDate(items: NotificationItem[]) {
   return { today, yesterday, earlier };
 }
 
-/** Notification type icon */
-function NotificationIcon({ type }: { type: NotificationItem["type"] }) {
-  switch (type) {
-    case "achievement":
-      return <Trophy className="h-4 w-4 text-amber-500" />;
-    case "course":
-      return <BookMarked className="h-4 w-4 text-primary" />;
-    case "reminder":
-      return <Sparkles className="h-4 w-4 text-cyan-500" />;
-    case "system":
-      return <Bell className="h-4 w-4 text-muted-foreground" />;
-  }
-}
-
-/** Format relative time for notifications */
-function formatRelativeTime(dateStr: string): string {
-  const now = new Date();
-  const date = new Date(dateStr);
-  const diffMs = now.getTime() - date.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMs / 3600000);
-  const diffDays = Math.floor(diffMs / 86400000);
-
-  if (diffMins < 1) return "Just now";
-  if (diffMins < 60) return `${diffMins}m ago`;
-  if (diffHours < 24) return `${diffHours}h ago`;
-  if (diffDays < 7) return `${diffDays}d ago`;
-  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
-
 /** Notification group with date header */
 function NotificationGroup({
   label,
   items,
-  onMarkRead,
+  onNotificationClick,
 }: {
   label: string;
   items: NotificationItem[];
-  onMarkRead: (id: string) => void;
+  onNotificationClick: (notif: NotificationItem) => void;
 }) {
+  if (items.length === 0) return null;
+
   return (
     <div>
       <p className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
@@ -187,19 +181,24 @@ function NotificationGroup({
         <button
           key={notif.id}
           type="button"
-          onClick={() => onMarkRead(notif.id)}
+          onClick={() => onNotificationClick(notif)}
           className={cn(
-            "group flex w-full items-start gap-3 rounded-lg px-3 py-3 text-left transition-colors",
+            "group flex w-full items-start gap-3 rounded-lg px-3 py-3 text-left transition-colors notif-appear",
             notif.read
               ? "hover:bg-muted/50"
               : "bg-primary/5 hover:bg-primary/8"
           )}
         >
+          {/* Left border accent for unread */}
+          {!notif.read && (
+            <div className={cn(
+              "absolute left-1 top-3 bottom-3 w-0.5 rounded-full",
+              NotificationBorderAccent({ type: notif.type })
+            )} style={{ position: "absolute" }} />
+          )}
           <div className={cn(
-            "mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors",
-            notif.read
-              ? "bg-muted/60"
-              : "bg-primary/10"
+            "mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors relative",
+            NotificationIconBg({ type: notif.type, read: notif.read })
           )}>
             <NotificationIcon type={notif.type} />
           </div>
@@ -230,29 +229,87 @@ function NotificationGroup({
   );
 }
 
+/** Skeleton loader for notifications */
+function NotificationSkeleton() {
+  return (
+    <div className="space-y-1 p-1">
+      {Array.from({ length: 4 }).map((_, i) => (
+        <div key={i} className="flex items-start gap-3 rounded-lg px-3 py-3">
+          <Skeleton className="h-8 w-8 rounded-lg shrink-0" />
+          <div className="flex-1 space-y-2">
+            <Skeleton className="h-3.5 w-3/4" />
+            <Skeleton className="h-3 w-full" />
+            <Skeleton className="h-2.5 w-16" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Parse link string into view + id for navigation */
+function parseNotificationLink(link: string | null): { view: ViewName; courseId?: string } | null {
+  if (!link) return null;
+  if (link === "profile") return { view: "profile" };
+  if (link.startsWith("course-detail:")) {
+    const courseId = link.replace("course-detail:", "");
+    return { view: "course-detail", courseId };
+  }
+  return null;
+}
+
 export function Navbar() {
-  const { currentView, navigateTo } = useNavigationStore();
-  const userName = useUserStore((s) => s.currentUserId);
+  const { currentView, navigateTo, openCourseDetail } = useNavigationStore();
+  const currentUserId = useUserStore((s) => s.currentUserId);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { theme, setTheme } = useTheme();
+  const { theme, setTheme, resolvedTheme } = useTheme();
 
   // Search bar state
   const [searchExpanded, setSearchExpanded] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Notification state (initialized with mock data)
-  const [notifications, setNotifications] = useState<NotificationItem[]>(getMockNotifications);
+  // Notification state
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [bellAnimating, setBellAnimating] = useState(false);
   const [badgeKey, setBadgeKey] = useState(0);
+  const [notificationsLoading, setNotificationsLoading] = useState(true);
   const notifRef = useRef<HTMLDivElement>(null);
+
+  // Theme toggle state for cycling animation
+  const [themeIconRotating, setThemeIconRotating] = useState(false);
 
   // Breadcrumb: derive current page label
   const currentPageLabel = getViewLabel(currentView);
 
+  // ============================================
+  // Fetch notifications from API
+  // ============================================
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchNotifications() {
+      setNotificationsLoading(true);
+      try {
+        const res = await fetch(`/api/notifications?userId=${encodeURIComponent(currentUserId)}`);
+        if (!res.ok) throw new Error("Failed to fetch");
+        const data = await res.json();
+        if (!cancelled) {
+          setNotifications(data.notifications || []);
+        }
+      } catch {
+        // Silently fail — notifications will just be empty
+      } finally {
+        if (!cancelled) {
+          setNotificationsLoading(false);
+        }
+      }
+    }
+    fetchNotifications();
+    return () => { cancelled = true; };
+  }, [currentUserId]);
+
   // Close mobile menu and search on view change
   useEffect(() => {
-    // Intentional: reset UI state when user navigates to a different page
     const handleViewCleanup = () => {
       setMobileMenuOpen(false);
       setSearchExpanded(false);
@@ -294,30 +351,64 @@ export function Navbar() {
     setShowNotifications((prev) => !prev);
   }, [showNotifications]);
 
-  /** Mark a single notification as read */
-  const markAsRead = useCallback((id: string) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
-    );
-  }, []);
+  /** Mark a single notification as read via API */
+  const handleMarkAsRead = useCallback(async (notif: NotificationItem) => {
+    // Navigate if link is present
+    const parsed = parseNotificationLink(notif.link);
+    if (parsed) {
+      if (parsed.courseId) {
+        openCourseDetail(parsed.courseId);
+      } else {
+        navigateTo(parsed.view);
+      }
+      setShowNotifications(false);
+    }
 
-  /** Mark all notifications as read */
-  const markAllAsRead = useCallback(() => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-  }, []);
+    // Mark as read in API
+    if (!notif.read) {
+      try {
+        await fetch("/api/notifications", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ notificationId: notif.id, read: true }),
+        });
+        setNotifications((prev) =>
+          prev.map((n) => (n.id === notif.id ? { ...n, read: true } : n))
+        );
+      } catch {
+        // Silently fail
+      }
+    }
+  }, [navigateTo, openCourseDetail]);
+
+  /** Mark all notifications as read via API */
+  const markAllAsRead = useCallback(async () => {
+    try {
+      await fetch("/api/notifications", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: currentUserId, readAll: true }),
+      });
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    } catch {
+      // Silently fail
+    }
+  }, [currentUserId]);
+
+  /** Handle "View All" — navigate to profile */
+  const handleViewAll = useCallback(() => {
+    setShowNotifications(false);
+    navigateTo("profile");
+  }, [navigateTo]);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
-  const groupedNotifications = groupNotificationsByDate(notifications);
+  const groupedNotifications = notificationsLoading ? null : groupNotificationsByDate(notifications);
 
   // Bounce badge when unread count changes
   const prevUnreadRef = useRef(unreadCount);
   useEffect(() => {
     if (unreadCount !== prevUnreadRef.current) {
-      // Trigger badge re-render with new key for bounce animation
-      const handleBadgeUpdate = () => {
-        setBadgeKey((k) => k + 1);
-      };
-      handleBadgeUpdate();
+      setBadgeKey((k) => k + 1);
       prevUnreadRef.current = unreadCount;
     }
   }, [unreadCount]);
@@ -347,9 +438,9 @@ export function Navbar() {
   };
 
   /** Format user id to display name */
-  const displayName = userName.includes("_")
-    ? userName.split("_").filter((p) => !/^\d+$/.test(p) && p.length > 0).map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join(" ")
-    : userName.charAt(0).toUpperCase() + userName.slice(1);
+  const displayName = currentUserId.includes("_")
+    ? currentUserId.split("_").filter((p) => !/^\d+$/.test(p) && p.length > 0).map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join(" ")
+    : currentUserId.charAt(0).toUpperCase() + currentUserId.slice(1);
 
   const handleSearchKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
@@ -359,6 +450,38 @@ export function Navbar() {
       setSearchExpanded(false);
     }
   }, [navigateTo]);
+
+  /** Cycle theme: light → dark → system → light */
+  const cycleTheme = useCallback(() => {
+    setThemeIconRotating(true);
+    setTimeout(() => setThemeIconRotating(false), 300);
+    const current = resolvedTheme || "light";
+    if (current === "light") {
+      setTheme("dark");
+    } else if (current === "dark") {
+      setTheme("system");
+    } else {
+      setTheme("light");
+    }
+  }, [resolvedTheme, setTheme]);
+
+  /** Get theme tooltip text */
+  const getThemeTooltip = () => {
+    if (theme === "system") return "System";
+    if (theme === "dark") return "Dark mode";
+    return "Light mode";
+  };
+
+  /** Get theme icon based on current theme setting */
+  const ThemeIcon = () => {
+    const iconClass = cn(
+      "h-4 w-4 transition-all duration-300",
+      themeIconRotating && "rotate-180 scale-75"
+    );
+    if (theme === "system") return <Monitor className={iconClass} />;
+    if (theme === "dark") return <Moon className={iconClass} />;
+    return <Sun className={iconClass} />;
+  };
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/60 frosted-glass glass-card">
@@ -459,22 +582,24 @@ export function Navbar() {
             <Search className="h-4 w-4" />
           </Button>
 
-          {/* Dark Mode Toggle */}
+          {/* Dark Mode Toggle — cycles Light → Dark → System */}
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
                 variant="ghost"
                 size="icon"
                 className="h-9 w-9 rounded-lg"
-                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-                aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+                onClick={cycleTheme}
+                aria-label={`Current: ${getThemeTooltip()}. Click to switch.`}
               >
-                <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-                <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+                <ThemeIcon />
               </Button>
             </TooltipTrigger>
             <TooltipContent>
-              {theme === "dark" ? "Light Mode" : "Dark Mode"}
+              <span className="flex items-center gap-1.5">
+                {getThemeTooltip()}
+                <span className="text-muted-foreground/60 text-[10px]">(click to switch)</span>
+              </span>
             </TooltipContent>
           </Tooltip>
 
@@ -511,10 +636,17 @@ export function Navbar() {
               <div className="panel-slide-in absolute right-0 top-full mt-2 w-80 rounded-xl border border-border/60 bg-card shadow-xl sm:w-96">
                 {/* Header */}
                 <div className="flex items-center justify-between px-4 py-3">
-                  <h3 className="text-sm font-semibold text-foreground">
-                    Notifications
-                  </h3>
-                  {unreadCount > 0 && (
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-semibold text-foreground">
+                      Notifications
+                    </h3>
+                    {!notificationsLoading && unreadCount > 0 && (
+                      <Badge variant="secondary" className="h-5 min-w-5 px-1.5 text-[10px] font-bold">
+                        {unreadCount}
+                      </Badge>
+                    )}
+                  </div>
+                  {!notificationsLoading && unreadCount > 0 && (
                     <button
                       type="button"
                       onClick={markAllAsRead}
@@ -529,23 +661,27 @@ export function Navbar() {
                 {/* Notification List (grouped by date) */}
                 <ScrollArea className="max-h-[360px]">
                   <div className="p-1">
-                    {notifications.length === 0 ? (
+                    {notificationsLoading ? (
+                      <NotificationSkeleton />
+                    ) : notifications.length === 0 ? (
                       <div className="flex flex-col items-center py-8 text-center">
                         <Bell className="h-8 w-8 text-muted-foreground/30 mb-2" />
                         <p className="text-sm text-muted-foreground">No notifications</p>
                       </div>
                     ) : (
-                      <>
-                        {groupedNotifications.today.length > 0 && (
-                          <NotificationGroup label="Today" items={groupedNotifications.today} onMarkRead={markAsRead} />
-                        )}
-                        {groupedNotifications.yesterday.length > 0 && (
-                          <NotificationGroup label="Yesterday" items={groupedNotifications.yesterday} onMarkRead={markAsRead} />
-                        )}
-                        {groupedNotifications.earlier.length > 0 && (
-                          <NotificationGroup label="Earlier" items={groupedNotifications.earlier} onMarkRead={markAsRead} />
-                        )}
-                      </>
+                      groupedNotifications && (
+                        <>
+                          {groupedNotifications.today.length > 0 && (
+                            <NotificationGroup label="Today" items={groupedNotifications.today} onNotificationClick={handleMarkAsRead} />
+                          )}
+                          {groupedNotifications.yesterday.length > 0 && (
+                            <NotificationGroup label="Yesterday" items={groupedNotifications.yesterday} onNotificationClick={handleMarkAsRead} />
+                          )}
+                          {groupedNotifications.earlier.length > 0 && (
+                            <NotificationGroup label="Earlier" items={groupedNotifications.earlier} onNotificationClick={handleMarkAsRead} />
+                          )}
+                        </>
+                      )
                     )}
                   </div>
                 </ScrollArea>
@@ -555,9 +691,7 @@ export function Navbar() {
                   <button
                     type="button"
                     className="w-full text-center text-xs font-medium text-primary hover:text-primary/80 transition-colors"
-                    onClick={() => {
-                      setShowNotifications(false);
-                    }}
+                    onClick={handleViewAll}
                   >
                     View all notifications
                   </button>
@@ -589,7 +723,7 @@ export function Navbar() {
                 <span className="relative">
                   <Avatar className="h-7 w-7 border-2 border-primary/20">
                     <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
-                      {getInitials(userName)}
+                      {getInitials(currentUserId)}
                     </AvatarFallback>
                   </Avatar>
                   <span
@@ -665,7 +799,7 @@ export function Navbar() {
             <span className="relative">
               <Avatar className="h-9 w-9 border-2 border-primary/20">
                 <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
-                  {getInitials(userName)}
+                  {getInitials(currentUserId)}
                 </AvatarFallback>
               </Avatar>
               <span
@@ -675,7 +809,7 @@ export function Navbar() {
             </span>
             <div className="min-w-0 flex-1">
               <p className="text-sm font-medium text-foreground truncate">{displayName}</p>
-              <p className="text-xs text-muted-foreground truncate">{userName.replace(/_/g, ".")}@openclass.com</p>
+              <p className="text-xs text-muted-foreground truncate">{currentUserId.replace(/_/g, ".")}@openclass.com</p>
             </div>
             <span className="flex items-center gap-1 text-[10px] font-medium text-emerald-500">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />

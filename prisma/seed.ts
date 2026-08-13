@@ -6,6 +6,7 @@ async function main() {
   console.log("🌱 Seeding LMS database...\n");
 
   // Clean existing data
+  await prisma.notification.deleteMany();
   await prisma.comment.deleteMany();
   await prisma.favorite.deleteMany();
   await prisma.progress.deleteMany();
@@ -565,9 +566,99 @@ async function main() {
   });
   console.log("💬 Created 8 comments (including 2 replies)");
 
+  // ============================================
+  // Create notifications for demo user
+  // ============================================
+  const now = new Date();
+  await prisma.notification.createMany({
+    data: [
+      {
+        id: "notif_001",
+        userId: "user_demo_001",
+        title: "New Course Available",
+        message: "Advanced TypeScript Patterns has been published. Check it out!",
+        type: "course",
+        read: false,
+        link: "course-detail:course_003",
+        createdAt: new Date(now.getTime() - 15 * 60 * 1000),
+      },
+      {
+        id: "notif_002",
+        userId: "user_demo_001",
+        title: "Achievement Unlocked!",
+        message: "You completed your first course. Keep up the great work!",
+        type: "achievement",
+        read: false,
+        link: null,
+        createdAt: new Date(now.getTime() - 2 * 60 * 60 * 1000),
+      },
+      {
+        id: "notif_003",
+        userId: "user_demo_001",
+        title: "Enrollment Confirmed",
+        message: "You are now enrolled in Critical Thinking Mastery.",
+        type: "success",
+        read: false,
+        link: "course-detail:course_001",
+        createdAt: new Date(now.getTime() - 5 * 60 * 60 * 1000),
+      },
+      {
+        id: "notif_004",
+        userId: "user_demo_001",
+        title: "Weekly Learning Reminder",
+        message: "You haven't started a course this week. Keep your learning streak going!",
+        type: "warning",
+        read: false,
+        link: null,
+        createdAt: new Date(now.getTime() - 24 * 60 * 60 * 1000),
+      },
+      {
+        id: "notif_005",
+        userId: "user_demo_001",
+        title: "Course Updated",
+        message: "React Fundamentals has new content in Chapter 3.",
+        type: "course",
+        read: true,
+        link: "course-detail:course_003",
+        createdAt: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000),
+      },
+      {
+        id: "notif_006",
+        userId: "user_demo_001",
+        title: "System Update",
+        message: "OpenClass v1.0 is now live with new features and improvements.",
+        type: "system",
+        read: true,
+        link: null,
+        createdAt: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000),
+      },
+      {
+        id: "notif_007",
+        userId: "user_demo_001",
+        title: "Streak Milestone",
+        message: "Congratulations! You've maintained a 7-day learning streak.",
+        type: "achievement",
+        read: false,
+        link: "profile",
+        createdAt: new Date(now.getTime() - 8 * 60 * 60 * 1000),
+      },
+      {
+        id: "notif_008",
+        userId: "user_demo_001",
+        title: "New Reply to Your Comment",
+        message: "Sarah Instructor replied to your question in Critical Thinking Mastery.",
+        type: "info",
+        read: true,
+        link: "course-detail:course_001",
+        createdAt: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000),
+      },
+    ],
+  });
+  console.log("🔔 Created 8 sample notifications");
+
   console.log("\n✅ Seed completed successfully!");
   console.log(`   - 3 users, ${categories.length} categories, ${courseSeeds.length} courses`);
-  console.log(`   - 2 enrollments, 2 favorites, 8 comments created\n`);
+  console.log(`   - 2 enrollments, 2 favorites, 8 comments, 8 notifications created\n`);
 }
 
 main()

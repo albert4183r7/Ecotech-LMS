@@ -1,0 +1,617 @@
+    40→
+    41→/** Shape returned by /api/courses */
+    42→interface CourseApiResponse {
+    43→  id: string;
+    44→  title: string;
+    45→  description: string | null;
+    46→  coverImage: string | null;
+    47→  rating: number;
+    48→  studentCount: number;
+    49→  status: string;
+    50→  language: string;
+    51→  createdAt: string;
+    52→  updatedAt: string;
+    53→  category: { id: string; name: string; description?: string | null; color?: string | null } | null;
+    54→  sectionsCount?: number;
+    55→  enrollmentsCount?: number;
+    56→}
+    57→
+    58→/** Map API response to CourseItem for use with CourseCard */
+    59→function mapCourseResponse(c: CourseApiResponse): CourseItem {
+    60→  return {
+    61→    ...c,
+    62→    category: c.category
+    63→      ? { id: c.category.id, name: c.category.name, color: c.category.color ?? null }
+    64→      : null,
+    65→    creator: null,
+    66→    sections: [],
+    67→    _count: {
+    68→      enrollments: c.enrollmentsCount ?? 0,
+    69→      favorites: 0,
+    70→    },
+    71→  };
+    72→}
+    73→
+    74→const TABS: { key: HomeTab; label: string }[] = [
+    75→  { key: "hot", label: "Hot" },
+    76→  { key: "new", label: "New" },
+    77→  { key: "recommended", label: "Recommended" },
+    78→];
+    79→
+    80→/** Quick stat card data */
+    81→const QUICK_STATS = [
+    82→  { key: "courses", label: "Total Courses", icon: BookOpen, gradient: "from-blue-500 to-cyan-500", getValue: (courses: number) => courses },
+    83→  { key: "categories", label: "Categories", icon: FolderOpen, gradient: "from-violet-500 to-purple-500", getValue: (_: number, cats: number) => cats },
+    84→  { key: "learners", label: "Learners", icon: Users, gradient: "from-emerald-500 to-teal-500", getValue: () => "150+" as string },
+    85→  { key: "rating", label: "Avg. Rating", icon: Star, gradient: "from-amber-500 to-orange-500", getValue: () => "4.8" as string },
+    86→];
+    87→
+    88→export function HomePage() {
+    89→  const { navigateTo, openCourseDetail } = useNavigationStore();
+    90→  const { homeTab, categories, courses, setCategories, setCourses, setHomeTab, courseFilters, setCourseFilters, setCreatePrompt } =
+    91→    useCourseStore();
+    92→
+    93→  const [searchInput, setSearchInput] = useState(courseFilters.search);
+    94→  const [loadingCategories, setLoadingCategories] = useState(true);
+    95→  const [loadingCourses, setLoadingCourses] = useState(true);
+    96→  const [heroPrompt, setHeroPrompt] = useState("");
+    97→  const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
+    98→  const [loadingEnrollments, setLoadingEnrollments] = useState(true);
+    99→  const [leaderboardOpen, setLeaderboardOpen] = useState(false);
+   100→
+   101→  // ── Fetch categories ──────────────────────────────────────────────
+   102→  useEffect(() => {
+   103→    let cancelled = false;
+   104→
+   105→    async function fetchCategories() {
+   106→      try {
+   107→        const res = await fetch("/api/categories");
+   108→        const json = await res.json();
+   109→        if (!cancelled && json.success) {
+   110→          const items: CategoryItem[] = json.data.map((c: { id: string; name: string; description?: string | null; color?: string | null; coursesCount: number }) => ({
+   111→            id: c.id,
+   112→            name: c.name,
+   113→            description: c.description ?? null,
+   114→            color: c.color ?? null,
+   115→            _count: { courses: c.coursesCount },
+   116→          }));
+   117→          setCategories(items);
+   118→        }
+   119→      } catch (err) {
+   120→        console.error("Failed to fetch categories", err);
+   121→      } finally {
+   122→        if (!cancelled) setLoadingCategories(false);
+   123→      }
+   124→    }
+   125→
+   126→    fetchCategories();
+   127→    return () => {
+   128→      cancelled = true;
+   129→    };
+   130→  }, [setCategories]);
+   131→
+   132→  // ── Fetch courses based on tab / category / search ─────────────────
+   133→  const fetchCourses = useCallback(async () => {
+   134→    setLoadingCourses(true);
+   135→    try {
+   136→      const params = new URLSearchParams();
+   137→      params.set("tab", homeTab);
+   138→
+   139→      if (courseFilters.category && courseFilters.category !== "all") {
+   140→        params.set("category", courseFilters.category);
+   141→      }
+   142→      if (courseFilters.search) {
+   143→        params.set("search", courseFilters.search);
+   144→      }
+   145→
+   146→      const res = await fetch(`/api/courses?${params.toString()}`);
+   147→      const json = await res.json();
+   148→      if (json.success) {
+   149→        setCourses(json.data.map(mapCourseResponse));
+   150→      }
+   151→    } catch (err) {
+   152→      console.error("Failed to fetch courses", err);
+   153→    } finally {
+   154→      setLoadingCourses(false);
+   155→    }
+   156→  }, [homeTab, courseFilters.category, courseFilters.search, setCourses]);
+   157→
+   158→  useEffect(() => {
+   159→    fetchCourses();
+   160→  }, [fetchCourses]);
+   161→
+   162→  // ── Fetch enrollments for Continue Learning ─────────────────────
+   163→  useEffect(() => {
+   164→    let cancelled = false;
+   165→    async function fetchEnrollments() {
+   166→      try {
+   167→        const res = await fetch("/api/enrollments?userId=user_demo_001");
+   168→        const json = await res.json();
+   169→        if (!cancelled && json.success) {
+   170→          const inProgress = json.data
+   171→            .filter((e: Enrollment) => e.status === "in_progress")
+   172→            .slice(0, 3);
+   173→          setEnrollments(inProgress);
+   174→        }
+   175→      } catch (err) {
+   176→        console.error("Failed to fetch enrollments", err);
+   177→      } finally {
+   178→        if (!cancelled) setLoadingEnrollments(false);
+   179→      }
+   180→    }
+   181→    fetchEnrollments();
+   182→    return () => { cancelled = true; };
+   183→  }, []);
+   184→
+   185→  // ── Handlers ───────────────────────────────────────────────────────
+   186→  function handleTabChange(tab: HomeTab) {
+   187→    setHomeTab(tab);
+   188→  }
+   189→
+   190→  function handleCategorySelect(categoryId: string) {
+   191→    setCourseFilters({ category: categoryId });
+   192→  }
+   193→
+   194→  function handleSearch(term: string) {
+   195→    setCourseFilters({ search: term });
+   196→  }
+   197→
+   198→  function handlePopularSearch(tag: string) {
+   199→    setSearchInput(tag);
+   200→    setCourseFilters({ search: tag });
+   201→  }
+   202→
+   203→  function handleCreateCourse() {
+   204→    if (heroPrompt.trim()) {
+   205→      setCreatePrompt(heroPrompt.trim());
+   206→    }
+   207→    navigateTo("create-course");
+   208→  }
+   209→
+   210→  // ── Render helpers ─────────────────────────────────────────────────
+   211→  const totalCourseCount = categories.reduce((sum, c) => sum + (c._count?.courses ?? 0), 0);
+   212→
+   213→  return (
+   214→    <div className="flex flex-col">
+   215→      {/* ─── Hero Banner ─────────────────────────────────────────── */}
+   216→      <section className="hero-gradient relative px-4 py-10 sm:px-6 sm:py-14 md:px-8 lg:px-12">
+   217→        {/* SVG pattern overlay for visual depth */}
+   218→        <svg className="pointer-events-none absolute inset-0 h-full w-full opacity-[0.06]" xmlns="http://www.w3.org/2000/svg">
+   219→          <defs>
+   220→            <pattern id="heroGrid" width="40" height="40" patternUnits="userSpaceOnUse">
+   221→              <circle cx="1" cy="1" r="1" fill="white" />
+   222→            </pattern>
+   223→          </defs>
+   224→          <rect width="100%" height="100%" fill="url(#heroGrid)" />
+   225→          <circle cx="85%" cy="15%" r="120" fill="none" stroke="white" strokeWidth="0.5" opacity="0.3" />
+   226→          <circle cx="10%" cy="90%" r="80" fill="none" stroke="white" strokeWidth="0.5" opacity="0.2" />
+   227→          <path d="M0 60 Q 200 20 400 60 T 800 60" fill="none" stroke="white" strokeWidth="0.4" opacity="0.15" />
+   228→          <path d="M0 90 Q 150 50 350 90 T 750 90" fill="none" stroke="white" strokeWidth="0.4" opacity="0.1" />
+   229→        </svg>
+   230→
+   231→        {/* Animated decorative dots/circles */}
+   232→        <span className="hero-dot-1 pointer-events-none absolute left-[8%] top-[20%] h-3 w-3 rounded-full bg-white/20" />
+   233→        <span className="hero-dot-2 pointer-events-none absolute right-[12%] top-[25%] h-2 w-2 rounded-full bg-white/15" />
+   234→        <span className="hero-dot-3 pointer-events-none absolute left-[15%] bottom-[30%] h-4 w-4 rounded-full border border-white/15" />
+   235→        <span className="hero-dot-2 pointer-events-none absolute right-[20%] bottom-[25%] h-2.5 w-2.5 rounded-full bg-white/10" />
+   236→        <span className="hero-dot-1 pointer-events-none absolute left-[45%] top-[12%] h-1.5 w-1.5 rounded-full bg-white/25" />
+   237→        <span className="hero-dot-3 pointer-events-none absolute right-[35%] bottom-[40%] h-2 w-2 rounded-full border border-white/20" />
+   238→
+   239→        <div className="relative z-10 mx-auto max-w-4xl text-center">
+   240→          <h1 className="text-2xl font-bold text-white sm:text-3xl md:text-4xl">
+   241→            Create Your Course
+   242→          </h1>
+   243→          <p className="mt-1 text-sm font-medium tracking-wide text-white/90 sm:text-base md:mt-2">
+   244→            Empowering our team through knowledge sharing
+   245→          </p>
+   246→          <p className="mt-2 text-sm text-white/70 sm:text-base md:mt-3">
+   247→            Harness AI to build engaging courses in minutes — generate content, structure, and visuals effortlessly.
+   248→          </p>
+   249→
+   250→          {/* Create prompt input with glow & gradient border */}
+   251→          <div className="mt-6 flex items-center gap-2 sm:mt-8">
+   252→            <div className="hero-search-glow relative flex-1 rounded-xl">
+   253→              <Sparkles className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-primary/60" />
+   254→              <input
+   255→                type="text"
+   256→                placeholder="Describe your course idea..."
+   257→                value={heroPrompt}
+   258→                onChange={(e) => setHeroPrompt(e.target.value)}
+   259→                onKeyDown={(e) => {
+   260→                  if (e.key === "Enter") handleCreateCourse();
+   261→                }}
+   262→                className="h-11 w-full rounded-xl bg-white pl-10 pr-4 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none sm:h-12 sm:text-base"
+   263→              />
+   264→            </div>
+   265→            <Button
+   266→              onClick={handleCreateCourse}
+   267→              className="h-11 shrink-0 rounded-xl bg-white px-5 font-semibold text-primary shadow-md shadow-black/10 transition-all hover:bg-white/90 hover:shadow-lg hover:shadow-black/15 sm:h-12 sm:px-6"
+   268→            >
+   269→              Try Create
+   270→            </Button>
+   271→          </div>
+   272→
+   273→          {/* Tab buttons with animated underline */}
+   274→          <div className="mt-6 flex items-center justify-center gap-1 sm:mt-8">
+   275→            {TABS.map((tab) => (
+   276→              <button
+   277→                key={tab.key}
+   278→                onClick={() => handleTabChange(tab.key)}
+   279→                className={`relative rounded-full px-4 py-1.5 text-sm font-medium transition-colors sm:px-5 sm:py-2 sm:text-base ${
+   280→                  homeTab === tab.key
+   281→                    ? "bg-white text-primary shadow-sm tab-underline-active"
+   282→                    : "bg-white/10 text-white/80 hover:bg-white/20 hover:text-white"
+   283→                }`}
+   284→              >
+   285→                {tab.label}
+   286→              </button>
+   287→            ))}
+   288→          </div>
+   289→
+   290→          {/* Stats row in pill badges */}
+   291→          <div className="mt-5 flex flex-wrap items-center justify-center gap-2 sm:mt-7">
+   292→            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-medium text-white/90 backdrop-blur-sm">
+   293→              <GraduationCap className="h-3 w-3" />
+   294→              {totalCourseCount} Courses
+   295→            </span>
+   296→            <span className="text-white/40">|</span>
+   297→            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-medium text-white/90 backdrop-blur-sm">
+   298→              <FolderOpen className="h-3 w-3" />
+   299→              {categories.length} Categories
+   300→            </span>
+   301→            <span className="text-white/40">|</span>
+   302→            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-medium text-white/90 backdrop-blur-sm">
+   303→              <Users className="h-3 w-3" />
+   304→              150+ Learners
+   305→            </span>
+   306→          </div>
+   307→        </div>
+   308→      </section>
+   309→
+   310→      {/* ─── Quick Stats Dashboard ──────────────────────────────── */}
+   311→      <section className="px-4 py-6 sm:px-6 md:px-8 lg:px-12">
+   312→        <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
+   313→          {QUICK_STATS.map((stat, i) => {
+   314→            const Icon = stat.icon;
+   315→            const value = stat.getValue(totalCourseCount, categories.length);
+   316→            return (
+   317→              <div
+   318→                key={stat.key}
+   319→                className="glass-card stagger-fade-in flex items-center gap-3 rounded-xl p-4"
+   320→                style={{ animationDelay: `${i * 80}ms` }}
+   321→              >
+   322→                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${stat.gradient} shadow-sm`}>
+   323→                  <Icon className="h-5 w-5 text-white" aria-hidden="true" />
+   324→                </div>
+   325→                <div className="min-w-0">
+   326→                  <p className="text-lg font-bold tabular-nums text-foreground">
+   327→                    {value}
+   328→                  </p>
+   329→                  <p className="text-xs text-muted-foreground">
+   330→                    {stat.label}
+   331→                  </p>
+   332→                </div>
+   333→              </div>
+   334→            );
+   335→          })}
+   336→        </div>
+   337→      </section>
+   338→
+   339→      {/* ─── Content Area: Sidebar + Course Grid ──────────────────── */}
+   340→      <section className="flex flex-1 gap-6 px-4 py-6 sm:px-6 md:px-8 lg:px-12">
+   341→        {/* ── Desktop Category Sidebar ─────────────────────────────── */}
+   342→        <aside className="hidden w-56 shrink-0 md:block">
+   343→          <ScrollArea className="h-[calc(100vh-340px)] max-h-[600px]">
+   344→            <nav className="space-y-1 pr-2">
+   345→              {/* All categories option */}
+   346→              <button
+   347→                onClick={() => handleCategorySelect("all")}
+   348→                className={`category-item flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+   349→                  courseFilters.category === "all"
+   350→                    ? "bg-primary/10 text-primary"
+   351→                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+   352→                }`}
+   353→              >
+   354→                <span className="flex items-center gap-2">
+   355→                  <span className="h-2 w-2 rounded-full bg-primary/60" />
+   356→                  All
+   357→                </span>
+   358→                <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-muted px-1.5 text-[11px] font-semibold tabular-nums text-muted-foreground">{totalCourseCount}</span>
+   359→              </button>
+   360→
+   361→              {loadingCategories
+   362→                ? Array.from({ length: 5 }).map((_, i) => (
+   363→                    <div key={i} className="flex items-center justify-between px-3 py-2.5">
+   364→                      <Skeleton className="h-4 w-24" />
+   365→                      <Skeleton className="h-3 w-6" />
+   366→                    </div>
+   367→                  ))
+   368→                : categories.map((cat) => {
+   369→                    const count = cat._count?.courses ?? 0;
+   370→                    const isFeatured = !loadingCategories && categories.length > 0 && count === Math.max(...categories.map((c) => c._count?.courses ?? 0));
+   371→                    return (
+   372→                      <button
+   373→                        key={cat.id}
+   374→                        onClick={() => handleCategorySelect(cat.id)}
+   375→                        className={`category-item flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm transition-colors ${
+   376→                          courseFilters.category === cat.id
+   377→                            ? "bg-primary/10 font-medium text-primary"
+   378→                            : "text-muted-foreground hover:bg-muted hover:text-foreground"
+   379→                        }`}
+   380→                      >
+   381→                        <span className="flex min-w-0 items-center gap-2">
+   382→                          <span
+   383→                            className="h-2 w-2 shrink-0 rounded-full"
+   384→                            style={{ backgroundColor: cat.color ?? "var(--color-primary)" }}
+   385→                          />
+   386→                          <span className="truncate">{cat.name}</span>
+   387→                          {isFeatured && <Star className="h-3 w-3 shrink-0 fill-amber-400 text-amber-400" />}
+   388→                        </span>
+   389→                        <span className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-muted px-1.5 text-[11px] font-semibold tabular-nums text-muted-foreground">{count}</span>
+   390→                      </button>
+   391→                    );
+   392→                  })}
+   393→            </nav>
+   394→          </ScrollArea>
+   395→        </aside>
+   396→
+   397→        {/* ── Mobile Category Chips ────────────────────────────────── */}
+   398→        <div className="mb-2 block md:hidden">
+   399→          <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar">
+   400→            <button
+   401→              onClick={() => handleCategorySelect("all")}
+   402→              className={`shrink-0 rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+   403→                courseFilters.category === "all"
+   404→                  ? "bg-primary text-primary-foreground"
+   405→                  : "border border-border bg-card text-muted-foreground hover:bg-muted"
+   406→              }`}
+   407→            >
+   408→              All ({totalCourseCount})
+   409→            </button>
+   410→            {loadingCategories
+   411→              ? Array.from({ length: 4 }).map((_, i) => (
+   412→                  <Skeleton key={i} className="h-8 w-20 shrink-0 rounded-full" />
+   413→                ))
+   414→              : categories.map((cat) => (
+   415→                  <button
+   416→                    key={cat.id}
+   417→                    onClick={() => handleCategorySelect(cat.id)}
+   418→                    className={`shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-sm transition-colors ${
+   419→                      courseFilters.category === cat.id
+   420→                        ? "inline-flex bg-primary text-primary-foreground"
+   421→                        : "inline-flex border border-border bg-card text-muted-foreground hover:bg-muted"
+   422→                    }`}
+   423→                  >
+   424→                    <span
+   425→                      className="h-2 w-2 shrink-0 rounded-full"
+   426→                      style={{ backgroundColor: cat.color ?? "var(--color-primary)" }}
+   427→                    />
+   428→                    {cat.name}
+   429→                    {cat._count?.courses != null && cat._count.courses > 0 && (
+   430→                      <span className="ml-0.5 text-[11px] opacity-70">({cat._count.courses})</span>
+   431→                    )}
+   432→                  </button>
+   433→                ))}
+   434→          </div>
+   435→        </div>
+   436→
+   437→        {/* ── Main Content Area ────────────────────────────────────── */}
+   438→        <div className="min-w-0 flex-1">
+   439→          {/* Search Bar (Desktop) */}
+   440→          <div className="mb-3 hidden md:block">
+   441→            <SearchAutocomplete
+   442→              value={searchInput}
+   443→              onChange={setSearchInput}
+   444→              onSearch={handleSearch}
+   445→              placeholder="Search courses..."
+   446→              courses={courses}
+   447→              categories={categories}
+   448→            />
+   449→            {/* Popular Searches */}
+   450→            <div className="mt-2 flex items-center gap-2">
+   451→              <TrendingUp className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+   452→              <span className="text-xs text-muted-foreground">Popular:</span>
+   453→              {POPULAR_SEARCHES.map((tag) => (
+   454→                <button
+   455→                  key={tag}
+   456→                  onClick={() => handlePopularSearch(tag)}
+   457→                  className="shrink-0 rounded-full border border-border/60 bg-card px-2.5 py-0.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+   458→                >
+   459→                  {tag}
+   460→                </button>
+   461→              ))}
+   462→            </div>
+   463→          </div>
+   464→
+   465→          {/* Search Bar (Mobile) */}
+   466→          <div className="mb-3 md:hidden">
+   467→            <SearchAutocomplete
+   468→              value={searchInput}
+   469→              onChange={setSearchInput}
+   470→              onSearch={handleSearch}
+   471→              placeholder="Search..."
+   472→              courses={courses}
+   473→              categories={categories}
+   474→              className="[&_input]:h-9 [&_input]:text-sm"
+   475→            />
+   476→            {/* Popular Searches */}
+   477→            <div className="mt-2 flex items-center gap-2 overflow-x-auto">
+   478→              <TrendingUp className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+   479→              <span className="shrink-0 text-xs text-muted-foreground">Popular:</span>
+   480→              {POPULAR_SEARCHES.map((tag) => (
+   481→                <button
+   482→                  key={tag}
+   483→                  onClick={() => handlePopularSearch(tag)}
+   484→                  className="shrink-0 rounded-full border border-border/60 bg-card px-2.5 py-0.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+   485→                >
+   486→                  {tag}
+   487→                </button>
+   488→              ))}
+   489→            </div>
+   490→          </div>
+   491→
+   492→          {/* ── Continue Learning Section ─────────────────────────── */}
+   493→          {!loadingEnrollments && enrollments.length > 0 && (
+   494→            <div className="mb-5">
+   495→              <div className="mb-3 flex items-center gap-2">
+   496→                <BookMarked className="h-4 w-4 text-primary" aria-hidden="true" />
+   497→                <h2 className="text-sm font-semibold text-foreground">Continue Learning</h2>
+   498→              </div>
+   499→              <div className="flex gap-3 overflow-x-auto pb-2 custom-scrollbar">
+   500→                {enrollments.map((enrollment, i) => (
+   501→                  <div
+   502→                    key={enrollment.id}
+   503→                    className="stagger-fade-in w-64 shrink-0 overflow-hidden rounded-xl border border-border/50 bg-card transition-shadow hover:shadow-md"
+   504→                    style={{ animationDelay: `${i * 80}ms` }}
+   505→                  >
+   506→                    <div className="relative aspect-video w-full bg-muted">
+   507→                      {enrollment.course.coverImage ? (
+   508→                        <img
+   509→                          src={enrollment.course.coverImage}
+   510→                          alt={enrollment.course.title}
+   511→                          className="h-full w-full object-cover"
+   512→                        />
+   513→                      ) : (
+   514→                        <div className="flex h-full w-full items-center justify-center">
+   515→                          <BookOpen className="h-8 w-8 text-muted-foreground/40" />
+   516→                        </div>
+   517→                      )}
+   518→                      <div className="absolute bottom-2 left-2">
+   519→                        <Badge variant="secondary" className="bg-background/80 text-[10px] font-medium backdrop-blur-sm">
+   520→                          {enrollment.progress}%
+   521→                        </Badge>
+   522→                      </div>
+   523→                    </div>
+   524→                    <div className="p-3">
+   525→                      <h3 className="line-clamp-1 text-sm font-semibold text-foreground">
+   526→                        {enrollment.course.title}
+   527→                      </h3>
+   528→                      {enrollment.course.category && (
+   529→                        <p className="mt-0.5 text-[11px] text-muted-foreground">
+   530→                          {enrollment.course.category.name}
+   531→                        </p>
+   532→                      )}
+   533→                      <div className="mt-2 flex items-center gap-2">
+   534→                        <Progress
+   535→                          value={enrollment.progress}
+   536→                          className="h-1.5 flex-1 [&_[data-slot=progress-indicator]]:bg-gradient-to-r [&_[data-slot=progress-indicator]]:from-primary/80 [&_[data-slot=progress-indicator]]:to-primary"
+   537→                        />
+   538→                        <Button
+   539→                          size="sm"
+   540→                          className="h-7 shrink-0 gap-1 rounded-lg px-3 text-xs"
+   541→                          onClick={() => openCourseDetail(enrollment.course.id)}
+   542→                        >
+   543→                          <Play className="h-3 w-3" aria-hidden="true" />
+   544→                          Continue
+   545→                        </Button>
+   546→                      </div>
+   547→                    </div>
+   548→                  </div>
+   549→                ))}
+   550→              </div>
+   551→            </div>
+   552→          )}
+   553→
+   554→          {loadingEnrollments && (
+   555→            <div className="mb-5">
+   556→              <div className="mb-3 flex items-center gap-2">
+   557→                <Skeleton className="h-4 w-4 rounded" />
+   558→                <Skeleton className="h-4 w-32" />
+   559→              </div>
+   560→              <div className="flex gap-3 overflow-x-auto pb-2">
+   561→                {Array.from({ length: 2 }).map((_, i) => (
+   562→                  <div key={i} className="w-64 shrink-0 overflow-hidden rounded-xl border border-border/50">
+   563→                    <Skeleton className="aspect-video w-full" />
+   564→                    <div className="p-3">
+   565→                      <Skeleton className="mb-2 h-4 w-full" />
+   566→                      <Skeleton className="h-3 w-16" />
+   567→                    </div>
+   568→                  </div>
+   569→                ))}
+   570→              </div>
+   571→            </div>
+   572→          )}
+   573→
+   574→          {/* Course Grid / Loading / Empty ────────────────────────── */}
+   575→          {loadingCourses ? (
+   576→            <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">
+   577→              {Array.from({ length: 8 }).map((_, i) => (
+   578→                <div key={i} className="overflow-hidden rounded-xl border border-border/50">
+   579→                  <Skeleton className="aspect-video w-full" />
+   580→                  <div className="p-3">
+   581→                    <Skeleton className="mb-2 h-4 w-full" />
+   582→                    <Skeleton className="mb-1 h-3 w-16" />
+   583→                    <Skeleton className="h-3 w-20" />
+   584→                  </div>
+   585→                </div>
+   586→              ))}
+   587→            </div>
+   588→          ) : courses.length === 0 ? (
+   589→            <div className="flex flex-col items-center justify-center py-20 text-center">
+   590→              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+   591→                <BookOpen className="h-7 w-7 text-muted-foreground" />
+   592→              </div>
+   593→              <h3 className="mt-4 text-base font-semibold text-foreground">
+   594→                No courses found
+   595→              </h3>
+   596→              <p className="mt-1 max-w-xs text-sm text-muted-foreground">
+   597→                Try adjusting your search or filters to discover courses that match your interests.
+   598→              </p>
+   599→              {courseFilters.search && (
+   600→                <Button
+   601→                  variant="outline"
+   602→                  className="mt-4"
+   603→                  onClick={() => {
+   604→                    setSearchInput("");
+   605→                    setCourseFilters({ search: "" });
+   606→                  }}
+   607→                >
+   608→                  Clear search
+   609→                </Button>
+   610→              )}
+   611→            </div>
+   612→          ) : (
+   613→            <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">
+   614→              {courses.map((course, i) => (
+   615→                <div key={course.id} className="stagger-fade-in" style={{ animationDelay: `${i * 60}ms` }}>
+   616→                  <CourseCard course={course} index={i} />
+   617→                </div>
+   618→              ))}
+   619→            </div>
+   620→          )}
+   621→        </div>
+   622→
+   623→        {/* ── Desktop Right Sidebar (Leaderboard) ──────────────────── */}
+   624→        <aside className="hidden w-72 shrink-0 lg:block">
+   625→          <div className="sticky top-6">
+   626→            <LeaderboardWidget />
+   627→          </div>
+   628→        </aside>
+   629→      </section>
+   630→
+   631→      {/* ── Mobile Leaderboard (Collapsible) ──────────────────────── */}
+   632→      <section className="px-4 pb-6 md:hidden">
+   633→        <Collapsible open={leaderboardOpen} onOpenChange={setLeaderboardOpen}>
+   634→          <CollapsibleTrigger className="flex w-full items-center justify-between rounded-xl border border-border/50 bg-card p-4 transition-colors hover:bg-muted/50">
+   635→            <div className="flex items-center gap-2">
+   636→              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-cyan-500 to-teal-500">
+   637→                <BarChart3 className="h-4 w-4 text-white" aria-hidden="true" />
+   638→              </div>
+   639→              <span className="text-sm font-semibold text-foreground">Leaderboard</span>
+   640→            </div>
+   641→            <ChevronDown
+   642→              className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${leaderboardOpen ? "rotate-180" : ""}`}
+   643→              aria-hidden="true"
+   644→            />
+   645→          </CollapsibleTrigger>
+   646→          <CollapsibleContent>
+   647→            <div className="mt-3">
+   648→              <LeaderboardWidget />
+   649→            </div>
+   650→          </CollapsibleContent>
+   651→        </Collapsible>
+   652→      </section>
+   653→    </div>
+   654→  );
+   655→}
+   656→

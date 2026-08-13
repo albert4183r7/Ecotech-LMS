@@ -77,7 +77,7 @@ export function CourseCard({
       style={{ animationDelay: `${index * 60}ms` }}
     >
       {/* Cover Image */}
-      <div className="relative aspect-video overflow-hidden">
+      <div className="relative aspect-video card-img-zoom">
         {!imgError && course.coverImage ? (
           <img
             src={course.coverImage}
@@ -157,7 +157,7 @@ export function CourseCard({
       </div>
 
       {/* Card Content */}
-      <CardContent className="p-3.5">
+      <CardContent className="card-content-reveal p-3.5">
         <h3 className="font-semibold text-sm leading-snug line-clamp-2 text-foreground group-hover:text-primary transition-colors duration-200">
           {course.title}
         </h3>

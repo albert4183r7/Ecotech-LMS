@@ -14,15 +14,16 @@
 ✅ **Phase 6 (Cron Review #5)** — Course discussion/comments system, weekly activity chart, streak tracker, enhanced course cards
 ✅ **Phase 7 (Cron Review #6)** — Major styling overhaul (15+ new CSS animations), notes system, XP/level system, streak calendar, keyboard shortcuts overlay, leaderboard widget, enhanced all 7 pages
 ✅ **Phase 8 (Cron Review #7)** — Onboarding tour, announcement banner, course ratings, Pomodoro study timer, extensive CSS enhancements (glassmorphism, mobile touch targets, gradient text, content reveal animations, scrollbar styling)
+✅ **Phase 9 (Cron Review #8)** — Analytics dashboard, course recommendations engine, notification center with persistent DB storage, 3-way dark mode toggle (light/dark/system), home page hero overhaul (floating orbs, typing animation, CSS parallax, animated counters, category pills), empty states polish, button ripple/glow effects, card hover micro-interactions
 
 ### Architecture Summary
-- **10 Database Models**: User, Category, Course, Section, Enrollment, Progress, Favorite, Comment, Note, Rating
-- **7 Frontend Pages**: Home, Courses, My Learning, Profile, Course Detail, Classroom, Create Course
-- **19 API Endpoints**: Full CRUD for courses, enrollments, progress, favorites, categories, sections, user, leaderboard, AI content generation, achievements, activity, comments (GET/POST/DELETE), notes (GET/POST/PUT/DELETE), **ratings (GET/POST)**
-- **Shared Components**: Navbar (with notifications, search, breadcrumbs, online status), Footer (enhanced), CourseCard (with progress/difficulty/duration), ThemeProvider, SearchAutocomplete, AchievementBadges, CertificateModal, DiscussionPanel, ActivityChart, LeaderboardWidget, KeyboardShortcuts, **OnboardingTour**, **AnnouncementBanner**, **StarRating**, **StudyTimer**
+- **11 Database Models**: User, Category, Course, Section, Enrollment, Progress, Favorite, Comment, Note, Rating, Notification
+- **8 Frontend Pages**: Home, Courses, My Learning, Profile, Course Detail, Classroom, Create Course, **Dashboard**
+- **22 API Endpoints**: Full CRUD for courses, enrollments, progress, favorites, categories, sections, user, leaderboard, AI content generation, achievements, activity, comments (GET/POST/DELETE), notes (GET/POST/PUT/DELETE), ratings (GET/POST), **analytics (GET)**, **recommendations (GET)**, **notifications (GET/POST/PUT)**
+- **Shared Components**: Navbar (with real notifications, search, breadcrumbs, online status, 3-way dark mode toggle), Footer (enhanced), CourseCard (with progress/difficulty/duration), ThemeProvider, SearchAutocomplete, AchievementBadges, CertificateModal, DiscussionPanel, ActivityChart, LeaderboardWidget, KeyboardShortcuts, OnboardingTour, AnnouncementBanner, StarRating, StudyTimer, **CourseRecommendations**
 - **4 Zustand Stores**: Navigation, Course, My Learning, User
-- **Seed Data**: 8 courses, 14 sections, 6 categories, 2 enrollments, 2 favorites, 8 comments (with replies)
-- **CSS Animations Library**: 30+ custom animation classes (btn-ripple, card-shine, glow-pulse, badge-bounce, confetti, staggered fade-in, typing indicator, animated gradient border, glassmorphism, hover-lift, hover-glow, press-effect, shimmer-border, page-enter, badge-pulse, badge-shine, toast-enter-bounce, content-reveal, card-border-glow, card-inner-shine, gradient-text, timer animations, onboarding animations, announcement animations, etc.)
+- **Seed Data**: 8 courses, 14 sections, 6 categories, 2 enrollments, 2 favorites, 8 comments (with replies), 8 notifications
+- **CSS Animations Library**: 40+ custom animation classes (btn-ripple, card-shine, glow-pulse, badge-bounce, confetti, staggered fade-in, typing indicator, animated gradient border, glassmorphism, hover-lift, hover-glow, press-effect, shimmer-border, page-enter, badge-pulse, badge-shine, toast-enter-bounce, content-reveal, card-border-glow, card-inner-shine, gradient-text, timer animations, onboarding animations, announcement animations, hero-orb, typing-cursor, search-glow, category-pill, empty-state, btn-glow, card-img-zoom, stat-pop, etc.)
 - **Accessibility**: prefers-reduced-motion support, ARIA labels, keyboard navigation
 
 ---
@@ -859,9 +860,286 @@ Phase 8 focused on adding 4 new interactive features and a comprehensive CSS sty
 2. **Dev server stability**: The `bun run dev` process occasionally terminates when run in background. Using `nohup` helps but may need manual restart.
 3. **Study timer audio**: Web Audio API chime may not work in all browsers (fallback: visual flash only).
 
-### Priority Recommendations for Phase 9
-1. **Data Dashboard / Analytics Page**: Add a dedicated analytics view with charts showing learning trends, popular courses, completion rates
-2. **Course Recommendations Engine**: ML-based or rule-based personalized course suggestions
-3. **Notification Center**: Persist notifications in database, add notification history page
-4. **Mobile PWA Support**: Add service worker for offline learning capability
-5. **Accessibility Audit**: WCAG 2.1 AA compliance review and fixes
+### Priority Recommendations for Phase 10
+1. **Course Progress Visualization**: Add a detailed progress view per course with timeline visualization
+2. **Peer Learning / Social Features**: Add study groups, peer reviews, collaborative notes
+3. **Mobile PWA Support**: Add service worker for offline learning capability
+4. **Accessibility Audit**: WCAG 2.1 AA compliance review and fixes
+5. **Performance Optimization**: Code splitting, lazy loading, image optimization
+
+---
+## Phase 9 Changes (Cron Review #8)
+
+### Overview
+Phase 9 focused on data analytics, intelligent recommendations, persistent notifications, and a major home page hero overhaul with rich CSS animations. All 3 subagent tasks completed. One runtime error was fixed (variable initialization order in home-page.tsx). Lint passes clean.
+
+### Bug Fix: home-page.tsx Variable Initialization
+- `totalCourseCount` was referenced before declaration (line 271 vs 304)
+- Moved declaration above its first usage
+- Verified fix with successful 200 response
+
+### 1. Analytics Dashboard Page (Subagent 3-a)
+**Files**: `src/components/lms/pages/dashboard-page.tsx`, `src/app/api/analytics/route.ts`
+- **8 views** now (added "dashboard" to ViewName type)
+- **Dashboard nav item** with BarChart3 icon added to navbar between Home and Courses
+- **4 stat cards**: Courses Enrolled, Hours of Study, Courses Completed, Current Streak (with glass-card, stat-pop animations)
+- **Learning Progress Chart**: CSS-based horizontal bars per course (teal for complete, amber for in-progress)
+- **Category Distribution**: Horizontal bars with category colors
+- **Recent Activity Feed**: 7 items with type-specific icons and relative timestamps
+- **Top Rated Courses**: Gold/silver/bronze badges with star ratings
+- **API**: Aggregates enrollments, progress, ratings from database; generates mock recent activity
+
+### 2. Course Recommendations Engine (Subagent 3-a)
+**Files**: `src/components/lms/course-recommendations.tsx`, `src/app/api/recommendations/route.ts`
+- **Rule-based algorithm** with 3 strategies:
+  1. Same-category courses as enrolled
+  2. "Next step" courses for completed categories
+  3. Highest-rated courses for new users
+- Returns top 4 courses with personalized reason text
+- **UI**: Horizontal scroll card layout with gradient covers, reason subtitles, ratings
+- **Integrated** into Home page below course grid sections
+
+### 3. Notification Center with Persistent Storage (Subagent 3-b)
+**Files**: `src/app/api/notifications/route.ts`, `prisma/schema.prisma`, `src/components/lms/navbar.tsx`
+- **Database**: New `Notification` model with type, read, link fields; added to User model
+- **API**: GET (list, paginated), POST (create), PUT (mark read / mark all read)
+- **8 seed notifications**: enrollment confirmations, achievement unlocks, course updates, system messages
+- **Enhanced Navbar**: Real API fetch replacing hardcoded data, unread count badge with pulse animation, type-specific icons (6 types), unread accent border, clickable navigation via link field, "Mark all as read" button, staggered appear animation
+
+### 4. Dark Mode Toggle Enhancement (Subagent 3-b)
+- **3-way cycle**: Light → Dark → System → Light
+- **Icons**: Sun (light), Moon (dark), Monitor (system)
+- **Animated rotation** (180° + scale) on toggle
+- **Tooltip** shows current mode with switching hint
+
+### 5. Home Page Hero Overhaul (Subagent 3-c)
+**File**: `src/components/lms/pages/home-page.tsx`
+- **Floating gradient orbs**: 3 animated background orbs with parallax scroll effect (CSS custom property `--scroll`)
+- **Typing animation**: Cycles through "Learn. Grow. Excel. Achieve. Thrive. Innovate." with blinking cursor
+- **Animated counters**: IntersectionObserver-triggered count-up for stats (courses, categories, learners, completion rate)
+- **Search glow**: Pulsing glow effect on search bar focus
+- **"Get Started" CTA**: New button next to search bar
+- **Category quick-access pills**: 6 categories with emoji icons, clicking navigates to courses filtered by category
+- **SVG pattern overlay**: Dotted grid + circle decorations for visual depth
+
+### 6. CSS Enhancements (Subagent 3-c + manual)
+**File**: `src/app/globals.css` (now ~1900+ lines)
+- **§30 Hero Enhancements**: `hero-orb`, `hero-orb-1/2/3`, `typing-cursor`, `counter-value`, `search-glow`, `category-pill`, `hero-parallax`, `hero-enhanced`
+- **§31 Empty States**: `emptyBounce`, `emptyFadeIn`, `empty-state`, `empty-illustration`
+- **§32 Button Micro-interactions**: `btn-ripple` (expanding circle on active), `btn-glow` (shadow + scale)
+- **§33 Card Hover**: `card-content-reveal` (slide up), `card-img-zoom` (1.08x scale)
+- **§34 Stat Cards**: `statPop` (scale bounce-in), stagger delays
+
+### 7. Component Styling Updates (manual)
+- **Course cards**: Applied `card-img-zoom` to image container, `card-content-reveal` to content
+- **Footer links**: Applied `btn-ripple` to all footer link buttons
+- **Courses page empty state**: Enhanced with `empty-state`, `empty-illustration`, gradient icon background
+- **Dashboard stat cards**: Applied `stat-pop` animation, larger icon containers, uppercase tracking labels, gradient-text title
+
+### Verification Results
+- ✅ `bun run lint` — 0 errors, 0 warnings
+- ✅ `GET /` — 200 OK
+- ✅ `GET /api/analytics?userId=user_demo_001` — Returns stats, progress, activity, top courses
+- ✅ `GET /api/recommendations?userId=user_demo_001` — Returns 4 recommended courses with reasons
+- ✅ `GET /api/notifications?userId=user_demo_001` — Returns 8 notifications
+- ✅ Database schema synced with `db:push`
+
+### Unresolved Issues / Risks
+1. **agent-browser connectivity**: Known sandbox limitation (port 3000 not reachable from browser automation). Used curl and dev.log for QA.
+2. **Dev server stability**: Background `bun run dev` process intermittently terminates. Requires manual restart. Consider using `--keepAlive` flag or process manager.
+3. **Variable initialization order**: Found and fixed in home-page.tsx — a common pitfall with hooks referencing computed values declared later.
+
+### Priority Recommendations for Phase 10
+1. **Course Progress Visualization**: Add a detailed progress view per course with timeline visualization
+2. **Peer Learning / Social Features**: Add study groups, peer reviews, collaborative notes
+3. **Mobile PWA Support**: Add service worker for offline learning capability
+4. **Accessibility Audit**: WCAG 2.1 AA compliance review and fixes
+5. **Performance Optimization**: Code splitting, lazy loading, image optimization
+
+---
+
+## Phase 9 (Task 3-a) — Analytics Dashboard + Course Recommendations
+
+**Date**: 2025-01-XX
+**Assignee**: Agent 3-a
+**Scope**: Two new features — Analytics Dashboard page and Course Recommendation widget
+
+### Changes Summary
+
+#### Feature 1: Analytics Dashboard
+
+1. **Type Update** (`src/types/lms.ts`):
+   - Added `"dashboard"` to `ViewName` union type (now 8 views total)
+
+2. **Navigation** (`src/components/lms/navbar.tsx`):
+   - Added `BarChart3` icon import from lucide-react
+   - Added "Dashboard" nav item with BarChart3 icon between "Home" and "Courses" in `NAV_ITEMS`
+   - Added `case "dashboard"` to `getViewLabel()` function
+
+3. **Page Router** (`src/app/page.tsx`):
+   - Imported `DashboardPage` component
+   - Added `case "dashboard": return <DashboardPage />;` to renderView switch
+
+4. **Analytics API** (`src/app/api/analytics/route.ts`):
+   - New GET endpoint with `?userId=xxx` parameter
+   - Queries database for enrollments, progresses, ratings, courses
+   - Returns aggregated stats: total enrolled, hours studied, completed count, current streak
+   - Computes per-course progress percentages
+   - Calculates category distribution across enrolled courses
+   - Generates recent activity feed (enrollments, completions, ratings)
+   - Returns top 3 rated courses with student counts
+   - Calculates streak from last 30 days of progress updates
+
+5. **Dashboard Page** (`src/components/lms/pages/dashboard-page.tsx`):
+   - **Top Stats Row**: 4 gradient cards (Courses Enrolled, Hours of Study, Courses Completed, Current Streak)
+   - **Learning Progress Chart**: CSS-based horizontal bars per course with teal/emerald for completed, amber/orange for in-progress
+   - **Category Distribution**: Horizontal bars with category colors and course counts
+   - **Recent Activity Feed**: Icon + description + relative timestamp list (up to 7 items)
+   - **Top Rated Courses**: Top 3 with rank badges (gold/silver/bronze), star ratings, student counts
+   - Full loading skeleton with shimmer states
+   - Error state with retry button
+   - Uses glass-card, content-reveal, stagger-fade-in CSS classes
+
+#### Feature 2: Course Recommendation Widget
+
+1. **Recommendations API** (`src/app/api/recommendations/route.ts`):
+   - New GET endpoint with `?userId=xxx` parameter
+   - **Strategy 1**: Finds courses in same categories as user's enrolled courses
+   - **Strategy 2**: For completed courses, recommends "Next step" courses in same category
+   - **Strategy 3**: For users with no enrollments, returns highest-rated courses
+   - Each recommendation includes a `reason` field (e.g., "Because you enrolled in React Fundamentals", "Highly rated by learners")
+   - Returns top 4 deduplicated recommendations
+
+2. **Recommendations Component** (`src/components/lms/course-recommendations.tsx`):
+   - Compact horizontal scroll card layout (4 cards, 264px wide each)
+   - Each card: gradient cover, category badge, course title, reason subtitle, rating, student count, "View Course" button
+   - Info tooltip ("Based on your enrolled courses and learning history")
+   - Shimmer skeleton loading state (4 placeholder cards)
+   - Auto-hides when no recommendations available
+
+3. **Home Page Integration** (`src/components/lms/pages/home-page.tsx`):
+   - Imported `CourseRecommendations` component
+   - Placed after the course grid section, before the desktop sidebar
+
+### Files Created (5)
+- `src/app/api/analytics/route.ts`
+- `src/app/api/recommendations/route.ts`
+- `src/components/lms/pages/dashboard-page.tsx`
+- `src/components/lms/course-recommendations.tsx`
+
+### Files Modified (4)
+- `src/types/lms.ts` (added "dashboard" to ViewName)
+- `src/components/lms/navbar.tsx` (nav item + icon + label)
+- `src/app/page.tsx` (dashboard route case)
+- `src/components/lms/pages/home-page.tsx` (recommendations widget)
+
+### Quality Checks
+- ✅ `bun run lint` — passed with no errors
+- ✅ Dev server compiled successfully
+- ✅ All existing views/routes preserved
+
+---
+
+## Task 3-c: Home Page Hero Enhancement + Global Styling Polish
+
+### Summary
+Significantly enhanced the home page hero section with animated floating gradient orbs, typing animation subtitle, CSS parallax scroll effect, animated count-up stat cards with intersection observer, category quick-access pills, and a larger search bar with glowing border. Added a "Get Started" CTA button alongside the search bar. Appended 5 new CSS sections (30-34) to globals.css covering hero enhancements, empty states, button micro-interactions, card hover effects, and stat card animations. Applied new CSS classes to course-card.tsx (image zoom, content reveal) and footer.tsx (button ripple).
+
+### Files Modified (3)
+- `src/app/globals.css` (appended CSS sections 30-34: hero orbs, typing cursor, counter, search glow, category pill, parallax, empty states, button ripple/glow, card img-zoom/content-reveal, stat pop/delays)
+- `src/components/lms/pages/home-page.tsx` (floating orbs, typing animation hook, count-up hook, parallax scroll, category pills, enhanced search bar, Get Started CTA, stat card animations, empty state classes)
+- `src/components/lms/course-card.tsx` (applied `card-img-zoom`, `card-content-reveal`)
+- `src/components/lms/footer.tsx` (applied `btn-ripple` to footer link buttons)
+
+### New Features
+- **Hero floating orbs**: 3 gradient blurred circles with CSS `float` animation and parallax scroll offset
+- **Typing animation**: Cycles through "Learn. Grow. Excel. Achieve. Thrive. Innovate." with cursor blink
+- **Animated counters**: Count-up animation triggered by IntersectionObserver on stat cards (Total Courses, Categories, Learners, Completion Rate)
+- **Category quick-access pills**: Shows first 6 categories with emoji icons below the hero search
+- **Enhanced search bar**: Larger (h-12/h-14), glowing border on focus, transparent background with border
+- **Get Started CTA**: Outline button with ArrowRight icon, navigates to courses view
+- **CSS parallax**: CSS-only parallax using `--scroll` custom property bound to window scrollY
+- **Empty state animations**: Bounce + fade-in for empty course list
+- **Button micro-interactions**: Ripple effect on active, glow on hover for hero buttons
+- **Card hover**: Image zoom (1.08x) on hover, content slide-up reveal
+
+### Quality Checks
+- ✅ `bun run lint` — passed with no errors
+- ✅ Dev server compiled successfully
+- ✅ All existing views/routes preserved
+- ✅ CSS appended (no existing content overwritten)
+
+---
+
+## Phase 3-b: Enhanced Notification Center & Dark Mode Toggle
+
+### Changes Overview
+**Task**: Replace hardcoded notification bell with database-backed notification center + enhance dark mode toggle to support 3-way cycling (Light → Dark → System).
+
+### Database Changes
+- **New Model**: `Notification` added to `prisma/schema.prisma`
+  - Fields: id, title, message, type (info/success/warning/course/system/achievement), read, link (optional), createdAt, updatedAt
+  - Relation: belongs to User with cascade delete
+  - Added `notifications Notification[]` to User model
+- **Schema pushed**: `bun run db:push` — successful
+- **Model count**: 10 → 11
+
+### API Routes
+- **New endpoint**: `src/app/api/notifications/route.ts`
+  - `GET /api/notifications?userId=xxx` — Returns up to 20 notifications ordered by createdAt desc
+  - `POST /api/notifications` — Creates a new notification (userId, title, message, type?, link?)
+  - `PUT /api/notifications` — Mark single as read (`{notificationId, read: true}`) or all as read (`{userId, readAll: true}`)
+
+### Seed Data
+- **8 sample notifications** added to `prisma/seed.ts` for `user_demo_001`:
+  - New Course Available (course type, unread, links to course_003)
+  - Achievement Unlocked! (achievement type, unread)
+  - Enrollment Confirmed (success type, unread, links to course_001)
+  - Weekly Learning Reminder (warning type, unread)
+  - Course Updated (course type, read, links to course_003)
+  - System Update (system type, read)
+  - Streak Milestone (achievement type, unread, links to profile)
+  - New Reply to Your Comment (info type, read, links to course_001)
+
+### Navbar Enhancements — Notification Center
+- **Replaced** hardcoded `getMockNotifications()` with real API fetch on mount
+- **Loading state**: Skeleton loader (4 skeleton items) shown during initial fetch
+- **Unread count badge**: `badge-bounce` animation on count change, `badge-glow` on bell icon
+- **Notification type icons** with color-coded backgrounds:
+  - info → `Info` icon, blue
+  - success → `CheckCircle2` icon, emerald/green
+  - warning → `AlertTriangle` icon, amber
+  - course → `BookOpen` icon, teal
+  - system → `Settings` icon, gray
+  - achievement → `Trophy` icon, amber
+- **Unread notification styling**: Left border accent (color-matched to type), bolder font, dot indicator
+- **"Mark all as read"** button: Calls PUT API to persist, with `CheckCheck` icon
+- **Notification click**: Navigates to linked view (parses `link` field: `course-detail:courseId` or `profile`) and marks as read via API
+- **"View all notifications"** footer link: Navigates to profile page
+- **Notification header badge**: Shows unread count in a `Badge` component
+- **Animations**: `notif-appear` staggered fade-in for notification items
+
+### Navbar Enhancements — Dark Mode Toggle
+- **3-way cycle**: Light → Dark → System → Light (using `resolvedTheme` for cycle logic)
+- **Icons**: Sun (light), Moon (dark), Monitor (system)
+- **Animation**: Subtle rotation (180°) + scale transition on theme change
+- **Tooltip**: Shows current mode label ("Light mode" / "Dark mode" / "System") with "(click to switch)" hint
+- **Uses `next-themes`**: `useTheme()` hook with `theme`, `setTheme`, `resolvedTheme`
+
+### CSS Additions (`src/app/globals.css`)
+- **Section 35 — Notification Appear Animation**: `@keyframes notifAppear` with `notif-appear` class and staggered delays (0.03s increments for 8 items)
+
+### Files Modified
+- `prisma/schema.prisma` — Added Notification model, added relation to User
+- `prisma/seed.ts` — Added notification cleanup, 8 seed notifications
+- `src/app/api/notifications/route.ts` — New file (GET/POST/PUT)
+- `src/components/lms/navbar.tsx` — Full rewrite of notification center + dark mode toggle
+- `src/app/globals.css` — Added Section 35 (notification appear animation)
+
+### Quality Checks
+- ✅ `bun run lint` — passed with no errors
+- ✅ `bun run db:push` — schema synced successfully
+- ✅ `bun run prisma/seed.ts` — 8 notifications seeded
+- ✅ Dev server compiled successfully
+- ✅ All existing views/routes preserved
+- ✅ Imports cleaned up: removed unused `Sparkles`, `BookMarked`; added `Monitor`, `Info`, `CheckCircle2`, `AlertTriangle`, `Settings`, `Badge`, `Skeleton`

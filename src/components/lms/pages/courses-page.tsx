@@ -470,14 +470,14 @@ export function CoursesPage() {
           {isLoading ? (
             <CourseGridSkeleton />
           ) : courses.length === 0 ? (
-            <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-16">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-                <Search className="h-6 w-6 text-muted-foreground" />
+            <div className="empty-state flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-16">
+              <div className="empty-illustration flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/10 to-accent/10">
+                <Search className="h-7 w-7 text-primary" />
               </div>
-              <h3 className="mt-4 text-lg font-semibold text-foreground">
+              <h3 className="mt-5 text-lg font-semibold text-foreground">
                 No courses found
               </h3>
-              <p className="mt-1 max-w-sm text-center text-sm text-muted-foreground">
+              <p className="mt-1.5 max-w-sm text-center text-sm text-muted-foreground leading-relaxed">
                 Try adjusting your filters or search terms to find what you&apos;re looking for.
               </p>
               <Button

@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { Sparkles, BookOpen, Star, GraduationCap, FolderOpen, Users, Play, ChevronDown, TrendingUp, BarChart3, BookMarked } from "lucide-react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { Sparkles, BookOpen, Star, GraduationCap, FolderOpen, Users, Play, ChevronDown, TrendingUp, BarChart3, BookMarked, ArrowRight, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -11,6 +11,7 @@ import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/component
 import { CourseCard } from "@/components/lms/course-card";
 import { SearchAutocomplete } from "@/components/lms/search-autocomplete";
 import { LeaderboardWidget } from "@/components/lms/leaderboard-widget";
+import { CourseRecommendations } from "@/components/lms/course-recommendations";
 import { useNavigationStore, useCourseStore } from "@/stores/lms-store";
 import type { CourseItem, CategoryItem, HomeTab } from "@/types/lms";
 
@@ -37,6 +38,45 @@ interface Enrollment {
 
 /** Popular search tags */
 const POPULAR_SEARCHES = ["React", "TypeScript", "Python", "DevOps"];
+
+/** Typing animation words */
+const TYPING_WORDS = ["Learn.", "Grow.", "Excel.", "Achieve.", "Thrive.", "Innovate."];
+
+/** Category icons mapping */
+const CATEGORY_ICONS: Record<string, string> = {
+  "Web Development": "💻",
+  "Data Science": "📊",
+  "Mobile Dev": "📱",
+  "DevOps": "⚙️",
+  "Design": "🎨",
+  "AI/ML": "🤖",
+  "Security": "🔒",
+  "Cloud": "☁️",
+};
+
+/** Count-up animation hook */
+function useCountUp(target: number, duration = 1200, enabled = true) {
+  const [value, setValue] = useState(0);
+  const ref = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!enabled) return;
+    const start = performance.now();
+    const animate = (now: number) => {
+      const elapsed = now - start;
+      const progress = Math.min(elapsed / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setValue(Math.round(eased * target));
+      if (progress < 1) ref.current = requestAnimationFrame(animate);
+    };
+    ref.current = requestAnimationFrame(animate);
+    return () => {
+      if (ref.current) cancelAnimationFrame(ref.current);
+    };
+  }, [target, duration, enabled]);
+
+  return value;
+}
 
 /** Shape returned by /api/courses */
 interface CourseApiResponse {
@@ -79,10 +119,10 @@ const TABS: { key: HomeTab; label: string }[] = [
 
 /** Quick stat card data */
 const QUICK_STATS = [
-  { key: "courses", label: "Total Courses", icon: BookOpen, gradient: "from-blue-500 to-cyan-500", getValue: (courses: number) => courses },
-  { key: "categories", label: "Categories", icon: FolderOpen, gradient: "from-violet-500 to-purple-500", getValue: (_: number, cats: number) => cats },
-  { key: "learners", label: "Learners", icon: Users, gradient: "from-emerald-500 to-teal-500", getValue: () => "150+" as string },
-  { key: "rating", label: "Avg. Rating", icon: Star, gradient: "from-amber-500 to-orange-500", getValue: () => "4.8" as string },
+  { key: "courses", label: "Total Courses", icon: BookOpen, gradient: "from-blue-500 to-cyan-500", getValue: (courses: number) => courses, animated: true },
+  { key: "categories", label: "Categories", icon: FolderOpen, gradient: "from-violet-500 to-purple-500", getValue: (_: number, cats: number) => cats, animated: true },
+  { key: "learners", label: "Learners", icon: Users, gradient: "from-emerald-500 to-teal-500", getValue: () => 150, animated: true },
+  { key: "completion", label: "Completion Rate", icon: Zap, gradient: "from-amber-500 to-orange-500", getValue: () => 92, animated: true, suffix: "%" },
 ];
 
 export function HomePage() {
@@ -97,6 +137,12 @@ export function HomePage() {
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [loadingEnrollments, setLoadingEnrollments] = useState(true);
   const [leaderboardOpen, setLeaderboardOpen] = useState(false);
+  const [typingIndex, setTypingIndex] = useState(0);
+  const [typingCharIndex, setTypingCharIndex] = useState(0);
+  const [typingDeleting, setTypingDeleting] = useState(false);
+  const [scrollY, setScrollY] = useState(0);
+  const [statsVisible, setStatsVisible] = useState(false);
+  const statsRef = useRef<HTMLDivElement>(null);
 
   // ── Fetch categories ──────────────────────────────────────────────
   useEffect(() => {
@@ -182,6 +228,54 @@ export function HomePage() {
     return () => { cancelled = true; };
   }, []);
 
+  // ── Typing animation ──────────────────────────────────────────────
+  useEffect(() => {
+    const word = TYPING_WORDS[typingIndex];
+    if (!typingDeleting && typingCharIndex < word.length) {
+      const timer = setTimeout(() => setTypingCharIndex((c) => c + 1), 80);
+      return () => clearTimeout(timer);
+    } else if (!typingDeleting && typingCharIndex === word.length) {
+      const timer = setTimeout(() => setTypingDeleting(true), 1800);
+      return () => clearTimeout(timer);
+    } else if (typingDeleting && typingCharIndex > 0) {
+      const timer = setTimeout(() => setTypingCharIndex((c) => c - 1), 40);
+      return () => clearTimeout(timer);
+    } else if (typingDeleting && typingCharIndex === 0) {
+      setTypingDeleting(false);
+      setTypingIndex((prev) => (prev + 1) % TYPING_WORDS.length);
+    }
+  }, [typingIndex, typingCharIndex, typingDeleting]);
+
+  // ── Parallax scroll effect ─────────────────────────────────────────
+  useEffect(() => {
+    function handleScroll() {
+      setScrollY(window.scrollY);
+    }
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  // ── Intersection observer for stats animation ──────────────────────
+  useEffect(() => {
+    const el = statsRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) setStatsVisible(true); },
+      { threshold: 0.3 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  // ── Animated counter values ────────────────────────────────────────
+  const totalCourseCount = categories.reduce((sum, c) => sum + (c._count?.courses ?? 0), 0);
+  const countCourses = useCountUp(totalCourseCount, 1200, statsVisible);
+  const countCategories = useCountUp(categories.length, 800, statsVisible);
+  const countLearners = useCountUp(150, 1400, statsVisible);
+  const countCompletion = useCountUp(92, 1600, statsVisible);
+
+  const counterValues = [countCourses, countCategories, countLearners, countCompletion];
+
   // ── Handlers ───────────────────────────────────────────────────────
   function handleTabChange(tab: HomeTab) {
     setHomeTab(tab);
@@ -208,12 +302,19 @@ export function HomePage() {
   }
 
   // ── Render helpers ─────────────────────────────────────────────────
-  const totalCourseCount = categories.reduce((sum, c) => sum + (c._count?.courses ?? 0), 0);
 
   return (
     <div className="flex flex-col">
       {/* ─── Hero Banner ─────────────────────────────────────────── */}
-      <section className="hero-gradient relative px-4 py-10 sm:px-6 sm:py-14 md:px-8 lg:px-12">
+      <section
+        className="hero-gradient hero-enhanced relative px-4 py-10 sm:px-6 sm:py-14 md:px-8 lg:px-12"
+        style={{ '--scroll': scrollY } as React.CSSProperties}
+      >
+        {/* Floating gradient orbs */}
+        <div className="hero-orb hero-orb-1 hero-parallax" style={{ '--scroll': scrollY * 0.2 } as React.CSSProperties} />
+        <div className="hero-orb hero-orb-2 hero-parallax" style={{ '--scroll': scrollY * 0.15 } as React.CSSProperties} />
+        <div className="hero-orb hero-orb-3 hero-parallax" style={{ '--scroll': scrollY * 0.25 } as React.CSSProperties} />
+
         {/* SVG pattern overlay for visual depth */}
         <svg className="pointer-events-none absolute inset-0 h-full w-full opacity-[0.06]" xmlns="http://www.w3.org/2000/svg">
           <defs>
@@ -236,21 +337,30 @@ export function HomePage() {
         <span className="hero-dot-1 pointer-events-none absolute left-[45%] top-[12%] h-1.5 w-1.5 rounded-full bg-white/25" />
         <span className="hero-dot-3 pointer-events-none absolute right-[35%] bottom-[40%] h-2 w-2 rounded-full border border-white/20" />
 
+        {/* Gradient overlay for depth */}
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/10" />
+
         <div className="relative z-10 mx-auto max-w-4xl text-center">
-          <h1 className="text-2xl font-bold text-white sm:text-3xl md:text-4xl">
+          <h1 className="text-2xl font-bold text-white sm:text-3xl md:text-4xl lg:text-5xl">
             Create Your Course
           </h1>
-          <p className="mt-1 text-sm font-medium tracking-wide text-white/90 sm:text-base md:mt-2">
+          <p className="mt-2 text-sm font-medium tracking-wide text-white/90 sm:text-base md:mt-3 md:text-lg">
             Empowering our team through knowledge sharing
           </p>
-          <p className="mt-2 text-sm text-white/70 sm:text-base md:mt-3">
+          {/* Typing animation subtitle */}
+          <p className="mt-3 inline-flex items-center text-base font-semibold text-white sm:text-lg md:mt-4 md:text-xl">
+            <span className="typing-cursor">
+              {TYPING_WORDS[typingIndex].slice(0, typingCharIndex)}
+            </span>
+          </p>
+          <p className="mt-2 text-sm text-white/60 sm:text-base md:mt-3">
             Harness AI to build engaging courses in minutes — generate content, structure, and visuals effortlessly.
           </p>
 
           {/* Create prompt input with glow & gradient border */}
-          <div className="mt-6 flex items-center gap-2 sm:mt-8">
-            <div className="hero-search-glow relative flex-1 rounded-xl">
-              <Sparkles className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-primary/60" />
+          <div className="search-glow mt-6 flex items-center gap-2 rounded-xl border-2 border-white/10 sm:mt-8">
+            <div className="relative flex-1">
+              <Sparkles className="absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-primary/60" />
               <input
                 type="text"
                 placeholder="Describe your course idea..."
@@ -259,19 +369,41 @@ export function HomePage() {
                 onKeyDown={(e) => {
                   if (e.key === "Enter") handleCreateCourse();
                 }}
-                className="h-11 w-full rounded-xl bg-white pl-10 pr-4 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none sm:h-12 sm:text-base"
+                className="h-12 w-full bg-transparent pl-11 pr-4 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none sm:h-14 sm:text-base"
               />
             </div>
             <Button
               onClick={handleCreateCourse}
-              className="h-11 shrink-0 rounded-xl bg-white px-5 font-semibold text-primary shadow-md shadow-black/10 transition-all hover:bg-white/90 hover:shadow-lg hover:shadow-black/15 sm:h-12 sm:px-6"
+              className="btn-glow h-12 shrink-0 rounded-xl bg-white px-6 font-semibold text-primary shadow-md shadow-black/10 transition-all hover:bg-white/90 hover:shadow-lg hover:shadow-black/15 sm:h-14 sm:px-8"
             >
               Try Create
             </Button>
+            <Button
+              onClick={() => navigateTo("courses")}
+              className="btn-glow h-12 shrink-0 rounded-xl border-2 border-white/30 bg-transparent px-5 font-semibold text-white transition-all hover:border-white/50 hover:bg-white/10 sm:h-14 sm:px-6"
+            >
+              Get Started
+              <ArrowRight className="ml-1.5 h-4 w-4" />
+            </Button>
+          </div>
+
+          {/* Category quick-access pills */}
+          <div className="mt-5 flex flex-wrap items-center justify-center gap-2 sm:mt-6">
+            <span className="text-xs font-medium text-white/50">Explore:</span>
+            {categories.slice(0, 6).map((cat) => (
+              <button
+                key={cat.id}
+                onClick={() => handleCategorySelect(cat.id)}
+                className="category-pill inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-medium text-white/90 backdrop-blur-sm transition-colors hover:bg-white/20 hover:text-white"
+              >
+                <span>{CATEGORY_ICONS[cat.name] ?? "📚"}</span>
+                {cat.name}
+              </button>
+            ))}
           </div>
 
           {/* Tab buttons with animated underline */}
-          <div className="mt-6 flex items-center justify-center gap-1 sm:mt-8">
+          <div className="mt-5 flex items-center justify-center gap-1 sm:mt-6">
             {TABS.map((tab) => (
               <button
                 key={tab.key}
@@ -288,7 +420,7 @@ export function HomePage() {
           </div>
 
           {/* Stats row in pill badges */}
-          <div className="mt-5 flex flex-wrap items-center justify-center gap-2 sm:mt-7">
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-2 sm:mt-5">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-medium text-white/90 backdrop-blur-sm">
               <GraduationCap className="h-3 w-3" />
               {totalCourseCount} Courses
@@ -308,23 +440,25 @@ export function HomePage() {
       </section>
 
       {/* ─── Quick Stats Dashboard ──────────────────────────────── */}
-      <section className="px-4 py-6 sm:px-6 md:px-8 lg:px-12">
+      <section className="px-4 py-6 sm:px-6 md:px-8 lg:px-12" ref={statsRef}>
         <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
           {QUICK_STATS.map((stat, i) => {
             const Icon = stat.icon;
-            const value = stat.getValue(totalCourseCount, categories.length);
+            const animatedValue = statsVisible ? counterValues[i] : 0;
+            const suffix = 'suffix' in stat && stat.suffix ? stat.suffix : '';
             return (
               <div
                 key={stat.key}
-                className="glass-card stagger-fade-in flex items-center gap-3 rounded-xl p-4"
-                style={{ animationDelay: `${i * 80}ms` }}
+                className={`glass-card stat-pop stat-delay-${i + 1} flex items-center gap-3 rounded-xl p-4`}
               >
                 <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${stat.gradient} shadow-sm`}>
                   <Icon className="h-5 w-5 text-white" aria-hidden="true" />
                 </div>
                 <div className="min-w-0">
                   <p className="text-lg font-bold tabular-nums text-foreground">
-                    {value}
+                    <span className={statsVisible ? 'counter-value' : ''}>
+                      {stat.animated ? `${animatedValue}${suffix}` : stat.getValue(totalCourseCount, categories.length)}
+                    </span>
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {stat.label}
@@ -586,8 +720,8 @@ export function HomePage() {
               ))}
             </div>
           ) : courses.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 text-center">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+            <div className="empty-state flex flex-col items-center justify-center py-20 text-center">
+              <div className="empty-illustration flex h-16 w-16 items-center justify-center rounded-full bg-muted">
                 <BookOpen className="h-7 w-7 text-muted-foreground" />
               </div>
               <h3 className="mt-4 text-base font-semibold text-foreground">
@@ -618,6 +752,9 @@ export function HomePage() {
               ))}
             </div>
           )}
+
+          {/* ── Course Recommendations ─────────────────────────────── */}
+          <CourseRecommendations />
         </div>
 
         {/* ── Desktop Right Sidebar (Leaderboard) ──────────────────── */}

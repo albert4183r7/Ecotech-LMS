@@ -12,6 +12,7 @@ import { ProfilePage } from "@/components/lms/pages/profile-page";
 import { CourseDetailPage } from "@/components/lms/pages/course-detail-page";
 import { ClassroomPage } from "@/components/lms/pages/classroom-page";
 import { CreateCoursePage } from "@/components/lms/pages/create-course-page";
+import { DashboardPage } from "@/components/lms/pages/dashboard-page";
 import { KeyboardShortcuts } from "@/components/lms/keyboard-shortcuts";
 
 /**
@@ -30,6 +31,8 @@ export default function AppPage() {
     switch (currentView) {
       case "home":
         return <HomePage />;
+      case "dashboard":
+        return <DashboardPage />;
       case "courses":
         return <CoursesPage />;
       case "my-learning":
