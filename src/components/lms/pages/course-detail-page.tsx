@@ -12,6 +12,9 @@ import {
   AlertTriangle,
   FileText,
   Loader2,
+  CheckCircle2,
+  Clock,
+  PlayCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -31,9 +34,16 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { useNavigationStore, useUserStore } from "@/stores/lms-store";
 import type { CourseItem, SectionItem, ClassroomState, SlideContent } from "@/types/lms";
+
+type SectionProgress = {
+  sectionId: string;
+  currentPage: number;
+  completed: boolean;
+};
 
 type CourseDetailData = CourseItem & {
   isEnrolled: boolean;
@@ -53,6 +63,7 @@ export function CourseDetailPage() {
   const [enrolling, setEnrolling] = useState(false);
   const [togglingFav, setTogglingFav] = useState(false);
   const [imgError, setImgError] = useState(false);
+  const [sectionProgress, setSectionProgress] = useState<SectionProgress[]>([]);
 
   /** Fetch course detail from API */
   const fetchCourse = useCallback(async () => {
@@ -81,6 +92,38 @@ export function CourseDetailPage() {
     fetchCourse();
   }, [fetchCourse]);
 
+  /** Fetch section progress if enrolled */
+  const fetchSectionProgress = useCallback(async () => {
+    if (!userId || !course?.isEnrolled) return;
+    try {
+      const enrollRes = await fetch(`/api/enrollments?userId=${userId}`);
+      const enrollJson = await enrollRes.json();
+      if (enrollJson.success && Array.isArray(enrollJson.data)) {
+        const enrollment = enrollJson.data.find(
+          (e: Record<string, unknown>) => e.courseId === selectedCourseId
+        );
+        if (enrollment) {
+          const progRes = await fetch(`/api/progress?enrollmentId=${enrollment.id}`);
+          const progJson = await progRes.json();
+          if (progJson.success && Array.isArray(progJson.data)) {
+            const mapped: SectionProgress[] = progJson.data.map((p: Record<string, unknown>) => ({
+              sectionId: (p.section as Record<string, unknown>)?.id ?? p.sectionId,
+              currentPage: (p.currentPage as number) || 0,
+              completed: (p.completed as boolean) || false,
+            }));
+            setSectionProgress(mapped);
+          }
+        }
+      }
+    } catch {
+      // Progress fetch is best-effort
+    }
+  }, [userId, course?.isEnrolled, selectedCourseId]);
+
+  useEffect(() => {
+    fetchSectionProgress();
+  }, [fetchSectionProgress]);
+
   /** Handle enrollment */
   const handleEnroll = async () => {
     if (!selectedCourseId || enrolling) return;
@@ -97,6 +140,7 @@ export function CourseDetailPage() {
             ? { ...prev, isEnrolled: true, studentCount: prev.studentCount + 1 }
             : prev
         );
+        toast.success("You're enrolled! Let's start learning.");
       } else {
         toast.error("Failed to enroll. Please try again.");
       }
@@ -221,35 +265,27 @@ export function CourseDetailPage() {
   if (loading) {
     return (
       <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 lg:px-8">
-        {/* Breadcrumb skeleton */}
-        <div className="flex items-center gap-2 mb-6">
-          <Skeleton className="h-4 w-12" />
-          <Skeleton className="h-4 w-4" />
-          <Skeleton className="h-4 w-20" />
-          <Skeleton className="h-4 w-4" />
-          <Skeleton className="h-4 w-40" />
+        {/* Hero skeleton (full-width banner) */}
+        <Skeleton className="w-full aspect-[21/9] sm:aspect-[3/1] rounded-2xl mb-6" />
+
+        {/* Description skeleton */}
+        <div className="flex items-start gap-3 mb-4">
+          <Skeleton className="h-5 w-16 rounded-full" />
+          <Skeleton className="h-4 w-2/3" />
         </div>
 
-        {/* Hero skeleton */}
-        <div className="flex flex-col md:flex-row gap-6 mb-8">
-          <Skeleton className="w-full md:w-[480px] aspect-video rounded-xl" />
-          <div className="flex-1 space-y-4">
-            <Skeleton className="h-8 w-3/4" />
-            <Skeleton className="h-4 w-1/2" />
-            <Skeleton className="h-4 w-1/3" />
-            <div className="flex gap-4 pt-2">
-              <Skeleton className="h-10 w-10 rounded-full" />
-              <Skeleton className="h-10 w-10 rounded-full" />
-              <Skeleton className="h-10 w-36" />
-            </div>
-          </div>
+        {/* Action bar skeleton */}
+        <div className="flex items-center gap-3 mb-8">
+          <Skeleton className="h-10 w-10 rounded-lg" />
+          <Skeleton className="h-10 w-10 rounded-lg" />
+          <Skeleton className="ml-auto h-12 w-44 rounded-lg" />
         </div>
 
         {/* Curriculum skeleton */}
         <Skeleton className="h-6 w-32 mb-4" />
         <div className="space-y-3">
           {[1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-14 w-full rounded-lg" />
+            <Skeleton key={i} className="h-16 w-full rounded-lg" />
           ))}
         </div>
       </div>
@@ -270,146 +306,184 @@ export function CourseDetailPage() {
   }
 
   const totalLessons = course.sections.reduce((sum, s) => sum + s.totalPages, 0);
+  const estimatedMinutes = Math.max(5, Math.round(totalLessons * 1.5));
+
+  /** Get progress info for a section */
+  const getSectionProgress = (sectionId: string) => {
+    return sectionProgress.find((p) => p.sectionId === sectionId);
+  };
+
+  /** Get section status badge */
+  const getSectionStatus = (section: SectionItem) => {
+    if (!course.isEnrolled) return null;
+    const prog = getSectionProgress(section.id);
+    if (!prog) return "not-started";
+    if (prog.completed) return "completed";
+    return "in-progress";
+  };
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 lg:px-8">
-      {/* ─── Breadcrumbs ──────────────────────────── */}
-      <Breadcrumb className="mb-6">
-        <BreadcrumbList>
-          <BreadcrumbItem>
-            <BreadcrumbLink
-              className="cursor-pointer"
-              onClick={() => navigateTo("home")}
-            >
-              Home
-            </BreadcrumbLink>
-          </BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>
-            <BreadcrumbLink
-              className="cursor-pointer"
-              onClick={() => navigateTo("courses")}
-            >
-              All Courses
-            </BreadcrumbLink>
-          </BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>
-            <BreadcrumbPage className="font-medium truncate max-w-[200px] sm:max-w-[300px]">
-              {course.title}
-            </BreadcrumbPage>
-          </BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
-
-      {/* ─── Course Hero ──────────────────────────── */}
-      <div className="flex flex-col md:flex-row gap-6 mb-6">
-        {/* Cover Image */}
-        <div className="w-full md:w-[480px] shrink-0">
-          <div className="aspect-video overflow-hidden rounded-xl border border-border/50 bg-muted">
-            {!imgError && course.coverImage ? (
-              <img
-                src={course.coverImage}
-                alt={course.title}
-                className="h-full w-full object-cover"
-                onError={() => setImgError(true)}
-              />
-            ) : (
-              <div
-                className="flex h-full w-full items-center justify-center"
-                style={getGradientStyle()}
-              >
-                <span className="text-4xl font-bold text-white/90">
-                  {course.title.charAt(0)}
-                </span>
-              </div>
-            )}
-          </div>
+      {/* ─── Course Hero (Full-Width Image + Overlay) ── */}
+      <div className="relative w-full aspect-[21/9] sm:aspect-[3/1] rounded-2xl overflow-hidden mb-6">
+        {/* Cover Image / Gradient Fallback */}
+        <div className="absolute inset-0">
+          {!imgError && course.coverImage ? (
+            <img
+              src={course.coverImage}
+              alt={course.title}
+              className="h-full w-full object-cover"
+              onError={() => setImgError(true)}
+            />
+          ) : (
+            <div
+              className="h-full w-full"
+              style={getGradientStyle()}
+            />
+          )}
         </div>
 
-        {/* Course Info */}
-        <div className="flex-1 min-w-0">
-          <h1 className="text-2xl sm:text-3xl font-bold text-foreground leading-tight mb-3">
+        {/* Gradient Overlay (bottom → transparent) */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent" />
+
+        {/* Content overlayed on image */}
+        <div className="relative h-full flex flex-col justify-end p-5 sm:p-8">
+          {/* Breadcrumb overlayed on image */}
+          <Breadcrumb className="mb-3 [&_ol]:flex-nowrap">
+            <BreadcrumbList className="text-white/80">
+              <BreadcrumbItem>
+                <BreadcrumbLink
+                  className="cursor-pointer hover:text-white transition-colors text-white/80 hover:text-white"
+                  onClick={() => navigateTo("home")}
+                >
+                  Home
+                </BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator className="text-white/50" />
+              <BreadcrumbItem>
+                <BreadcrumbLink
+                  className="cursor-pointer hover:text-white transition-colors text-white/80 hover:text-white"
+                  onClick={() => navigateTo("courses")}
+                >
+                  All Courses
+                </BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator className="text-white/50" />
+              <BreadcrumbItem>
+                <BreadcrumbPage className="font-medium truncate max-w-[180px] sm:max-w-[280px] text-white">
+                  {course.title}
+                </BreadcrumbPage>
+              </BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
+
+          {/* Title on image */}
+          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white leading-tight mb-3 [text-shadow:0_2px_8px_rgba(0,0,0,0.3)]">
             {course.title}
           </h1>
 
-          {/* Rating */}
-          <div className="flex items-center gap-2 mb-3">
-            <div className="flex items-center gap-0.5">
-              {renderStars(course.rating)}
+          {/* Rating + Stats on image */}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-white/90">
+            {/* Rating with prominent number */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-xl sm:text-2xl font-bold text-white [text-shadow:0_1px_4px_rgba(0,0,0,0.3)]">
+                {course.rating.toFixed(1)}
+              </span>
+              <div className="flex items-center gap-0.5">
+                {renderStars(course.rating)}
+              </div>
             </div>
-            <span className="text-sm font-medium text-foreground">
-              {course.rating.toFixed(1)}
-            </span>
-          </div>
 
-          {/* Meta Info */}
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground mb-4">
-            <span className="inline-flex items-center gap-1.5">
-              <FileText className="h-4 w-4" />
-              {course.sections.length} Chapters
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <BookOpen className="h-4 w-4" />
-              {totalLessons} Lessons
-            </span>
-            <span className="inline-flex items-center gap-1.5">
+            <span className="w-px h-4 bg-white/30" />
+
+            {/* Students count */}
+            <span className="inline-flex items-center gap-1.5 [text-shadow:0_1px_4px_rgba(0,0,0,0.3)]">
               <Users className="h-4 w-4" />
-              {course.studentCount.toLocaleString()} Students
+              <span className="font-medium">{course.studentCount.toLocaleString()}</span>
+              <span className="text-white/70">students</span>
             </span>
-            <span className="inline-flex items-center gap-1.5">
+
+            <span className="w-px h-4 bg-white/30" />
+
+            {/* Lesson count */}
+            <span className="inline-flex items-center gap-1.5 [text-shadow:0_1px_4px_rgba(0,0,0,0.3)]">
+              <BookOpen className="h-4 w-4" />
+              <span className="font-medium">{totalLessons}</span>
+              <span className="text-white/70">lessons</span>
+            </span>
+
+            <span className="w-px h-4 bg-white/30" />
+
+            {/* Estimated duration */}
+            <span className="inline-flex items-center gap-1.5 [text-shadow:0_1px_4px_rgba(0,0,0,0.3)]">
+              <Clock className="h-4 w-4" />
+              <span className="font-medium">~{estimatedMinutes} min</span>
+              <span className="text-white/70">estimated</span>
+            </span>
+
+            {/* Updated date */}
+            <span className="inline-flex items-center gap-1.5 text-white/70 [text-shadow:0_1px_4px_rgba(0,0,0,0.3)]">
               <Calendar className="h-4 w-4" />
-              Updated {formatDate(course.updatedAt)}
+              {formatDate(course.updatedAt)}
             </span>
           </div>
-
-          {/* Language Badge */}
-          {course.language && (
-            <Badge variant="secondary" className="mb-4">
-              {course.language}
-            </Badge>
-          )}
-
-          {/* Description */}
-          {course.description && (
-            <p className="text-sm text-muted-foreground leading-relaxed line-clamp-3">
-              {course.description}
-            </p>
-          )}
         </div>
+      </div>
+
+      {/* ─── Description + Language ─────────────────── */}
+      <div className="flex items-start gap-3 mb-4">
+        {course.language && (
+          <Badge variant="secondary" className="shrink-0 mt-0.5">
+            {course.language}
+          </Badge>
+        )}
+        {course.description && (
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            {course.description}
+          </p>
+        )}
       </div>
 
       {/* ─── Action Bar ──────────────────────────── */}
       <Separator className="my-4" />
       <div className="flex flex-wrap items-center gap-3 mb-8">
-        {/* Favorite Button */}
-        <Button
-          variant="outline"
-          size="default"
-          className="gap-2"
-          onClick={handleToggleFavorite}
-          disabled={togglingFav}
-        >
-          <Heart
-            className={`h-4 w-4 transition-colors ${
-              course.isFavorited
-                ? "fill-red-500 text-red-500"
-                : "text-muted-foreground"
-            }`}
-          />
-          {course.isFavorited ? "Favorited" : "Favorite"}
-        </Button>
+        {/* Grouped: Favorite + Share */}
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-10 w-10"
+            onClick={handleToggleFavorite}
+            disabled={togglingFav}
+            aria-label={course.isFavorited ? "Remove from favorites" : "Add to favorites"}
+          >
+            <Heart
+              className={`h-4 w-4 transition-colors ${
+                course.isFavorited
+                  ? "fill-red-500 text-red-500"
+                  : "text-muted-foreground"
+              }`}
+            />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-10 w-10"
+            onClick={handleShare}
+            aria-label="Share course"
+          >
+            <Share2 className="h-4 w-4 text-muted-foreground" />
+          </Button>
+        </div>
 
-        {/* Share Button */}
-        <Button variant="outline" size="default" className="gap-2" onClick={handleShare}>
-          <Share2 className="h-4 w-4" />
-          Share
-        </Button>
-
-        {/* Start Learning Button */}
+        {/* Start / Continue Learning Button - Prominent */}
         <Button
-          size="default"
-          className="ml-auto gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
+          size="lg"
+          className={`ml-auto gap-2.5 font-semibold text-base px-8 py-6 ${
+            course.isEnrolled
+              ? "bg-primary hover:bg-primary/90 text-primary-foreground"
+              : "bg-gradient-to-r from-primary to-accent hover:opacity-90 text-primary-foreground pulse-glow"
+          }`}
           onClick={
             course.isEnrolled
               ? () => {
@@ -422,11 +496,11 @@ export function CourseDetailPage() {
           disabled={enrolling}
         >
           {enrolling ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <Loader2 className="h-5 w-5 animate-spin" />
           ) : course.isEnrolled ? (
-            <BookOpen className="h-4 w-4" />
+            <PlayCircle className="h-5 w-5" />
           ) : (
-            <BookOpen className="h-4 w-4" />
+            <BookOpen className="h-5 w-5" />
           )}
           {course.isEnrolled ? "Continue Learning" : "Start Learning"}
         </Button>
@@ -441,44 +515,94 @@ export function CourseDetailPage() {
             No chapters available yet.
           </p>
         ) : (
-          <Accordion type="multiple" className="w-full border rounded-xl bg-card">
-            {course.sections.map((section, index) => (
-              <AccordionItem
-                key={section.id}
-                value={section.id}
-                className="px-4 border-b-0 last:border-b-0"
-              >
-                <AccordionTrigger
-                  className="hover:no-underline py-4 group"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    handleSectionClick(section);
-                  }}
-                >
-                  <div className="flex items-center gap-3 flex-1 min-w-0 text-left">
-                    {/* Section Number */}
-                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-bold">
-                      {index + 1}
-                    </span>
+          <Accordion type="multiple" className="w-full border rounded-xl bg-card overflow-hidden">
+            {course.sections.map((section, index) => {
+              const status = getSectionStatus(section);
+              const prog = getSectionProgress(section.id);
+              const completedPages = prog ? prog.currentPage : 0;
+              const totalP = section.totalPages;
+              const progressPct = totalP > 0 ? Math.round((completedPages / totalP) * 100) : 0;
 
-                    {/* Title & Page Count */}
-                    <div className="flex-1 min-w-0">
-                      <span className="font-semibold text-sm text-foreground block truncate">
-                        {section.title}
+              return (
+                <AccordionItem
+                  key={section.id}
+                  value={section.id}
+                  className="px-4 border-b last:border-b-0 transition-colors hover:bg-muted/50"
+                >
+                  <AccordionTrigger
+                    className="hover:no-underline py-4 group"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      handleSectionClick(section);
+                    }}
+                  >
+                    <div className="flex items-center gap-3 flex-1 min-w-0 text-left">
+                      {/* Section Number - Gradient Circle */}
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-accent text-primary-foreground text-xs font-bold shadow-sm">
+                        {status === "completed" ? (
+                          <CheckCircle2 className="h-4 w-4" />
+                        ) : (
+                          index + 1
+                        )}
                       </span>
-                      <span className="text-xs text-muted-foreground">
-                        {section.totalPages} pages
-                      </span>
+
+                      {/* Title, Page Count, Progress */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <span className="font-semibold text-sm text-foreground block truncate">
+                            {section.title}
+                          </span>
+                          {/* Status Badge */}
+                          {status === "completed" && (
+                            <Badge className="bg-emerald-500/10 text-emerald-600 border-0 text-[10px] px-1.5 py-0">
+                              Completed
+                            </Badge>
+                          )}
+                          {status === "in-progress" && (
+                            <Badge className="bg-amber-500/10 text-amber-600 border-0 text-[10px] px-1.5 py-0">
+                              In Progress
+                            </Badge>
+                          )}
+                          {status === "not-started" && (
+                            <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                              Not started
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-xs text-muted-foreground">
+                            {totalP} pages
+                          </span>
+                          {/* Progress indicator if enrolled */}
+                          {course.isEnrolled && status && status !== "not-started" && (
+                            <span className="text-xs text-muted-foreground">
+                              ✓ {completedPages}/{totalP} pages
+                            </span>
+                          )}
+                          {course.isEnrolled && status === "not-started" && (
+                            <span className="text-xs text-muted-foreground">
+                              0/{totalP} pages
+                            </span>
+                          )}
+                        </div>
+                        {/* Mini progress bar if enrolled */}
+                        {course.isEnrolled && (
+                          <Progress
+                            value={progressPct}
+                            className="mt-1.5 h-1"
+                          />
+                        )}
+                      </div>
                     </div>
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent className="pb-4">
-                  <p className="text-sm text-muted-foreground pl-10">
-                    Click &quot;{section.title}&quot; to open the lesson viewer and start learning.
-                  </p>
-                </AccordionContent>
-              </AccordionItem>
-            ))}
+                  </AccordionTrigger>
+                  <AccordionContent className="pb-4">
+                    <p className="text-sm text-muted-foreground pl-11">
+                      Click &quot;{section.title}&quot; to open the lesson viewer and start learning.
+                    </p>
+                  </AccordionContent>
+                </AccordionItem>
+              );
+            })}
           </Accordion>
         )}
       </section>

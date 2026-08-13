@@ -7,6 +7,8 @@ import {
   CheckCircle,
   TrendingUp,
   Play,
+  Heart,
+  ArrowRight,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -123,35 +125,103 @@ function StatCard({
   icon: Icon,
   label,
   value,
-  color,
+  gradient,
+  trend,
   loading,
 }: {
   icon: React.ElementType;
   label: string;
-  value: number;
-  color: string;
+  value: string | number;
+  gradient: string;
+  trend?: "up" | "down";
   loading: boolean;
 }) {
   return (
-    <Card className="border-border/50">
-      <CardContent className="flex items-center gap-4 p-4">
+    <Card className="overflow-hidden border-border/50 transition-shadow hover:shadow-md">
+      <CardContent className="relative flex items-center gap-4 p-4">
+        {/* Subtle gradient background */}
         <div
-          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg ${color}`}
+          className={`pointer-events-none absolute inset-0 opacity-[0.06] ${gradient}`}
+        />
+        <div
+          className={`relative flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${gradient} transition-transform duration-200 hover:scale-110`}
         >
           <Icon className="h-5 w-5 text-white" />
         </div>
-        <div>
+        <div className="relative">
           {loading ? (
-            <Skeleton className="mb-1 h-6 w-8" />
+            <Skeleton className="mb-1 h-8 w-10" />
           ) : (
-            <p className="text-2xl font-bold leading-none text-foreground">
-              {value}
-            </p>
+            <div className="flex items-baseline gap-1.5">
+              <p className="text-3xl font-extrabold leading-none tracking-tight text-foreground">
+                {value}
+              </p>
+              {trend && (
+                <span
+                  className={`text-sm font-semibold ${
+                    trend === "up" ? "text-emerald-500" : "text-red-400"
+                  }`}
+                >
+                  {trend === "up" ? "↑" : "↓"}
+                </span>
+              )}
+            </div>
           )}
-          <p className="mt-1 text-xs text-muted-foreground">{label}</p>
+          <p className="mt-1 text-xs font-medium text-muted-foreground">
+            {label}
+          </p>
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Circular Mini Progress (for course rows)                           */
+/* ------------------------------------------------------------------ */
+
+function CircularMiniProgress({ percentage }: { percentage: number }) {
+  const size = 40;
+  const stroke = 3.5;
+  const r = (size - stroke) / 2;
+  const circ = r * 2 * Math.PI;
+  const offset = circ - (percentage / 100) * circ;
+
+  return (
+    <div className="relative inline-flex shrink-0 items-center justify-center">
+      <svg width={size} height={size} className="-rotate-90">
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={stroke}
+          className="text-muted/30"
+        />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="none"
+          stroke="url(#mini-grad)"
+          strokeWidth={stroke}
+          strokeLinecap="round"
+          strokeDasharray={circ}
+          strokeDashoffset={offset}
+          className="transition-all duration-500 ease-out"
+        />
+        <defs>
+          <linearGradient id="mini-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#0891b2" />
+            <stop offset="100%" stopColor="#14b8a6" />
+          </linearGradient>
+        </defs>
+      </svg>
+      <span className="absolute text-[9px] font-bold text-foreground">
+        {percentage}%
+      </span>
+    </div>
   );
 }
 
@@ -169,12 +239,19 @@ function EmptyState({
   description: string;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center py-16 text-center">
-      <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-muted">
-        <Icon className="h-8 w-8 text-muted-foreground" />
+    <div className="relative flex flex-col items-center justify-center overflow-hidden rounded-2xl border border-dashed border-border/60 bg-gradient-to-b from-muted/20 to-transparent py-20 text-center">
+      {/* Subtle background decoration */}
+      <div className="pointer-events-none absolute inset-0 opacity-[0.03]">
+        <div className="absolute left-1/4 top-1/4 h-40 w-40 rounded-full bg-gradient-to-br from-cyan-500 to-teal-400 blur-3xl" />
+        <div className="absolute bottom-1/4 right-1/4 h-32 w-32 rounded-full bg-gradient-to-tr from-amber-400 to-orange-300 blur-3xl" />
       </div>
-      <h3 className="text-base font-semibold text-foreground">{title}</h3>
-      <p className="mt-1 max-w-xs text-sm text-muted-foreground">
+      <div className="relative mb-5 flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-muted to-muted/60 shadow-sm">
+        <Icon className="h-10 w-10 text-muted-foreground/70" />
+      </div>
+      <h3 className="relative text-base font-semibold text-foreground">
+        {title}
+      </h3>
+      <p className="relative mt-2 max-w-sm text-sm leading-relaxed text-muted-foreground">
         {description}
       </p>
     </div>
@@ -194,7 +271,7 @@ function InProgressRow({
 
   return (
     <Card
-      className="group cursor-pointer border-border/50 transition-shadow hover:shadow-md"
+      className="group cursor-pointer border-border/50 transition-all duration-200 hover:border-primary/20 hover:bg-muted/30 hover:shadow-md"
       onClick={() => openCourseDetail(enrollment.course.id)}
     >
       <CardContent className="flex items-center gap-4 p-4">
@@ -221,7 +298,6 @@ function InProgressRow({
             <h4 className="truncate text-sm font-semibold text-foreground">
               {enrollment.course.title}
             </h4>
-            <Play className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground transition-colors group-hover:text-primary" />
           </div>
           <div className="mt-1 flex items-center gap-2">
             {enrollment.course.category && (
@@ -245,6 +321,14 @@ function InProgressRow({
               {enrollment.progress}%
             </span>
           </div>
+        </div>
+
+        {/* Circular progress + Continue button */}
+        <div className="flex shrink-0 flex-col items-center gap-2">
+          <CircularMiniProgress percentage={enrollment.progress} />
+          <span className="flex items-center gap-1 text-[11px] font-semibold text-primary opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+            Continue <ArrowRight className="h-3 w-3" />
+          </span>
         </div>
       </CardContent>
     </Card>
@@ -483,28 +567,31 @@ export function MyLearningPage() {
             icon={BookOpen}
             label="Total Courses"
             value={stats.totalCourses}
-            color="bg-cyan-600"
+            gradient="bg-gradient-to-br from-blue-500 to-blue-700"
+            trend="up"
             loading={false}
           />
           <StatCard
             icon={Clock}
             label="In Progress"
             value={stats.inProgress}
-            color="bg-blue-600"
+            gradient="bg-gradient-to-br from-teal-500 to-teal-700"
             loading={false}
           />
           <StatCard
             icon={CheckCircle}
             label="Completed"
             value={stats.completed}
-            color="bg-teal-600"
+            gradient="bg-gradient-to-br from-emerald-500 to-emerald-700"
+            trend="up"
             loading={false}
           />
           <StatCard
             icon={TrendingUp}
             label="Avg Progress"
-            value={`${stats.avgProgress}%` as unknown as number}
-            color="bg-sky-600"
+            value={`${stats.avgProgress}%`}
+            gradient="bg-gradient-to-br from-amber-500 to-amber-700"
+            trend="up"
             loading={false}
           />
         </div>
@@ -516,49 +603,46 @@ export function MyLearningPage() {
         onValueChange={handleTabChange}
         className="w-full"
       >
-        {/* Underline-style tab list */}
-        <TabsList className="h-auto w-full justify-start gap-6 rounded-none border-b border-border bg-transparent p-0">
+        {/* Underline-style tab list with animated indicator */}
+        <TabsList className="relative h-auto w-full justify-start gap-6 rounded-none border-b border-border bg-transparent p-0">
           <TabsTrigger
             value="in-progress"
-            className="rounded-none border-b-2 border-transparent px-1 pb-3 pt-1 text-sm font-medium data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+            className="rounded-none border-b-2 border-transparent px-1 pb-3 pt-1 text-sm font-medium text-muted-foreground transition-all duration-300 data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:font-semibold data-[state=active]:shadow-none data-[state=active]:text-foreground"
           >
-            In Progress
-            {!loadingEnrollments && inProgressList.length > 0 && (
-              <Badge
-                variant="secondary"
-                className="ml-1.5 h-5 min-w-5 px-1.5 text-[10px]"
-              >
-                {inProgressList.length}
-              </Badge>
-            )}
+            <span className="flex items-center gap-1.5">
+              In Progress
+              {!loadingEnrollments && inProgressList.length > 0 && (
+                <Badge className="ml-0.5 h-5 min-w-5 rounded-full bg-primary/10 px-1.5 text-[10px] font-bold text-primary">
+                  {inProgressList.length}
+                </Badge>
+              )}
+            </span>
           </TabsTrigger>
           <TabsTrigger
             value="completed"
-            className="rounded-none border-b-2 border-transparent px-1 pb-3 pt-1 text-sm font-medium data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+            className="rounded-none border-b-2 border-transparent px-1 pb-3 pt-1 text-sm font-medium text-muted-foreground transition-all duration-300 data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:font-semibold data-[state=active]:shadow-none data-[state=active]:text-foreground"
           >
-            Completed
-            {!loadingEnrollments && completedList.length > 0 && (
-              <Badge
-                variant="secondary"
-                className="ml-1.5 h-5 min-w-5 px-1.5 text-[10px]"
-              >
-                {completedList.length}
-              </Badge>
-            )}
+            <span className="flex items-center gap-1.5">
+              Completed
+              {!loadingEnrollments && completedList.length > 0 && (
+                <Badge className="ml-0.5 h-5 min-w-5 rounded-full bg-primary/10 px-1.5 text-[10px] font-bold text-primary">
+                  {completedList.length}
+                </Badge>
+              )}
+            </span>
           </TabsTrigger>
           <TabsTrigger
             value="favorites"
-            className="rounded-none border-b-2 border-transparent px-1 pb-3 pt-1 text-sm font-medium data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+            className="rounded-none border-b-2 border-transparent px-1 pb-3 pt-1 text-sm font-medium text-muted-foreground transition-all duration-300 data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:font-semibold data-[state=active]:shadow-none data-[state=active]:text-foreground"
           >
-            Favorites
-            {!loadingFavorites && favorites.length > 0 && (
-              <Badge
-                variant="secondary"
-                className="ml-1.5 h-5 min-w-5 px-1.5 text-[10px]"
-              >
-                {favorites.length}
-              </Badge>
-            )}
+            <span className="flex items-center gap-1.5">
+              Favorites
+              {!loadingFavorites && favorites.length > 0 && (
+                <Badge className="ml-0.5 h-5 min-w-5 rounded-full bg-primary/10 px-1.5 text-[10px] font-bold text-primary">
+                  {favorites.length}
+                </Badge>
+              )}
+            </span>
           </TabsTrigger>
         </TabsList>
 
@@ -570,7 +654,7 @@ export function MyLearningPage() {
             <EmptyState
               icon={BookOpen}
               title="No courses in progress"
-              description="Start learning by enrolling in a course from the catalog"
+              description="Browse our course catalog and enroll in courses that interest you. Your active courses will appear here with progress tracking."
             />
           ) : (
             <div className="space-y-3">
@@ -591,8 +675,8 @@ export function MyLearningPage() {
           ) : completedList.length === 0 ? (
             <EmptyState
               icon={CheckCircle}
-              title="No completed courses"
-              description="Complete your enrolled courses to see them here"
+              title="No completed courses yet"
+              description="Keep learning! Once you finish all sections of an enrolled course, it will be moved here to celebrate your achievement."
             />
           ) : (
             <div className="space-y-3">
@@ -612,9 +696,9 @@ export function MyLearningPage() {
             <GridSkeleton />
           ) : favorites.length === 0 ? (
             <EmptyState
-              icon={BookOpen}
+              icon={Heart}
               title="No favorites yet"
-              description="Click the heart icon on any course to save it to your favorites"
+              description="Click the heart icon on any course to save it to your favorites. You can quickly access them from here anytime."
             />
           ) : (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">

@@ -8,6 +8,10 @@ import {
   LogOut,
   Plus,
   GraduationCap,
+  Shield,
+  Building2,
+  ArrowRight,
+  LayoutGrid,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -46,8 +50,8 @@ interface UserProfile {
 /* ------------------------------------------------------------------ */
 
 function CircularProgress({ percentage }: { percentage: number }) {
-  const radius = 54;
-  const stroke = 8;
+  const radius = 70;
+  const stroke = 10;
   const normalizedRadius = radius - stroke / 2;
   const circumference = normalizedRadius * 2 * Math.PI;
   const strokeDashoffset =
@@ -68,9 +72,9 @@ function CircularProgress({ percentage }: { percentage: number }) {
           fill="none"
           stroke="currentColor"
           strokeWidth={stroke}
-          className="text-muted/40"
+          className="text-muted/30"
         />
-        {/* Progress arc */}
+        {/* Progress arc with gradient stroke */}
         <circle
           cx={radius}
           cy={radius}
@@ -89,18 +93,19 @@ function CircularProgress({ percentage }: { percentage: number }) {
             x1="0%"
             y1="0%"
             x2="100%"
-            y2="0%"
+            y2="100%"
           >
-            <stop offset="0%" stopColor="#0891b2" />
+            <stop offset="0%" stopColor="#06b6d4" />
+            <stop offset="50%" stopColor="#0891b2" />
             <stop offset="100%" stopColor="#0d9488" />
           </linearGradient>
         </defs>
       </svg>
       <div className="absolute flex flex-col items-center justify-center">
-        <span className="text-2xl font-bold text-foreground">
+        <span className="text-3xl font-extrabold tracking-tight text-foreground">
           {percentage}%
         </span>
-        <span className="text-[10px] text-muted-foreground">
+        <span className="mt-0.5 text-[11px] font-medium text-muted-foreground">
           completed
         </span>
       </div>
@@ -116,18 +121,24 @@ function StatMini({
   icon: Icon,
   label,
   value,
+  color,
 }: {
   icon: React.ElementType;
   label: string;
   value: number;
+  color: string;
 }) {
   return (
-    <div className="flex flex-col items-center gap-1.5 rounded-lg border border-border/50 bg-muted/30 px-4 py-3">
-      <Icon className="h-4 w-4 text-cyan-600" />
-      <span className="text-lg font-bold leading-none text-foreground">
+    <div className="group flex flex-col items-center gap-2 rounded-xl border border-border/50 bg-gradient-to-b from-muted/40 to-transparent px-4 py-4 transition-all duration-200 hover:border-primary/20 hover:shadow-sm">
+      <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${color} transition-transform duration-200 group-hover:scale-110`}>
+        <Icon className="h-4 w-4 text-white" />
+      </div>
+      <span className="text-xl font-extrabold leading-none text-foreground">
         {value}
       </span>
-      <span className="text-[10px] text-muted-foreground">{label}</span>
+      <span className="text-[10px] font-medium text-muted-foreground">
+        {label}
+      </span>
     </div>
   );
 }
@@ -227,31 +238,54 @@ export function ProfilePage() {
 
       {/* Profile Banner */}
       <div className="relative overflow-hidden rounded-2xl">
-        {/* Gradient background */}
-        <div className="bg-gradient-to-r from-blue-600 via-cyan-600 to-teal-500 px-6 pb-16 pt-8 sm:px-8 sm:pb-20 sm:pt-10">
-          {/* Decorative circles */}
+        {/* Gradient background with decorative patterns */}
+        <div className="relative bg-gradient-to-r from-blue-600 via-cyan-600 to-teal-500 px-6 pb-20 pt-8 sm:px-8 sm:pb-24 sm:pt-10">
+          {/* Decorative geometric shapes */}
           <div className="absolute -top-12 -right-12 h-48 w-48 rounded-full bg-white/10" />
           <div className="absolute -bottom-8 -left-8 h-32 w-32 rounded-full bg-white/10" />
           <div className="absolute top-6 right-1/4 h-20 w-20 rounded-full bg-white/5" />
+          {/* Diamond shape */}
+          <div className="absolute top-4 left-1/3 h-16 w-16 rotate-45 rounded-sm border border-white/10" />
+          {/* Small circle */}
+          <div className="absolute bottom-8 right-12 h-6 w-6 rounded-full bg-white/10" />
+          {/* Dots pattern */}
+          <div className="absolute top-1/2 left-8 grid grid-cols-3 gap-2 opacity-20">
+            {Array.from({ length: 9 }).map((_, i) => (
+              <div key={i} className="h-1.5 w-1.5 rounded-full bg-white" />
+            ))}
+          </div>
+          {/* Triangle hint */}
+          <div className="absolute right-16 bottom-4 h-0 w-0 border-l-[12px] border-r-[12px] border-b-[20px] border-l-transparent border-r-transparent border-b-white/10" />
         </div>
 
         {/* Profile info overlapping the banner */}
-        <div className="relative mx-4 -mt-10 sm:mx-6">
+        <div className="relative mx-4 -mt-12 sm:mx-6">
           <div className="flex flex-col gap-4 rounded-xl border border-border/50 bg-card p-5 shadow-sm sm:flex-row sm:items-center sm:gap-5 sm:p-6">
-            {/* Avatar */}
+            {/* Avatar with animated ring */}
             <div className="flex items-start sm:items-center">
-              <Avatar className="h-16 w-16 border-4 border-card shadow-md">
-                <AvatarFallback className="bg-gradient-to-br from-cyan-600 to-teal-500 text-xl font-bold text-white">
-                  {initials}
-                </AvatarFallback>
-              </Avatar>
+              <div className="relative">
+                {/* Animated ring */}
+                <div className="absolute -inset-1 rounded-full bg-gradient-to-r from-cyan-500 via-teal-400 to-emerald-400 opacity-60 blur-[2px] animate-[pulse_3s_ease-in-out_infinite]" />
+                <Avatar className="relative h-20 w-20 border-4 border-card shadow-lg">
+                  <AvatarFallback className="bg-gradient-to-br from-cyan-600 to-teal-500 text-2xl font-bold text-white">
+                    {initials}
+                  </AvatarFallback>
+                </Avatar>
+              </div>
             </div>
 
             {/* Info */}
-            <div className="flex-1 space-y-1">
-              <h2 className="text-lg font-bold text-foreground">
-                {profile.name || "Unnamed User"}
-              </h2>
+            <div className="flex-1 space-y-1.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-xl font-bold text-foreground">
+                  {profile.name || "Unnamed User"}
+                </h2>
+                {/* Role badge */}
+                <Badge className="gap-1 bg-gradient-to-r from-cyan-600 to-teal-500 text-[10px] font-semibold text-white hover:from-cyan-700 hover:to-teal-600">
+                  <Shield className="h-3 w-3" />
+                  {profile.role}
+                </Badge>
+              </div>
               <p className="text-sm text-muted-foreground">
                 {profile.email}
               </p>
@@ -259,8 +293,9 @@ export function ProfilePage() {
                 {profile.department && (
                   <Badge
                     variant="secondary"
-                    className="text-xs"
+                    className="gap-1 text-xs"
                   >
+                    <Building2 className="h-3 w-3" />
                     {profile.department}
                   </Badge>
                 )}
@@ -294,16 +329,19 @@ export function ProfilePage() {
                 icon={BookOpen}
                 label="Total Courses"
                 value={profile.stats.totalCourses}
+                color="bg-gradient-to-br from-blue-500 to-blue-700"
               />
               <StatMini
                 icon={CheckCircle}
                 label="Completed"
                 value={profile.stats.completed}
+                color="bg-gradient-to-br from-emerald-500 to-emerald-700"
               />
               <StatMini
                 icon={Clock}
                 label="In Progress"
                 value={profile.stats.inProgress}
+                color="bg-gradient-to-br from-amber-500 to-amber-700"
               />
             </div>
           </CardContent>
@@ -316,25 +354,63 @@ export function ProfilePage() {
               Quick Actions
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-3">
             {/* Create Course */}
-            <Button
-              className="w-full bg-gradient-to-r from-cyan-600 to-teal-500 text-white hover:from-cyan-700 hover:to-teal-600"
+            <button
+              className="group flex w-full items-center gap-4 rounded-xl border border-border/50 bg-gradient-to-r from-cyan-600/5 to-teal-500/5 p-4 text-left transition-all duration-200 hover:border-cyan-500/30 hover:bg-gradient-to-r hover:from-cyan-600/10 hover:to-teal-500/10 hover:shadow-sm"
               onClick={() => navigateTo("create-course")}
             >
-              <Plus className="mr-2 h-4 w-4" />
-              Create Course
-            </Button>
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-600 to-teal-500 text-white shadow-sm transition-transform duration-200 group-hover:scale-110">
+                <Plus className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-foreground">
+                  Create Course
+                </p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Build and publish a new learning course
+                </p>
+              </div>
+              <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-primary" />
+            </button>
 
-            {/* Learning Courses */}
-            <Button
-              variant="outline"
-              className="w-full"
+            {/* Browse Courses */}
+            <button
+              className="group flex w-full items-center gap-4 rounded-xl border border-border/50 bg-gradient-to-r from-emerald-600/5 to-cyan-500/5 p-4 text-left transition-all duration-200 hover:border-emerald-500/30 hover:bg-gradient-to-r hover:from-emerald-600/10 hover:to-cyan-500/10 hover:shadow-sm"
+              onClick={() => navigateTo("courses")}
+            >
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-600 to-cyan-500 text-white shadow-sm transition-transform duration-200 group-hover:scale-110">
+                <LayoutGrid className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-foreground">
+                  Browse Courses
+                </p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Explore the full course catalog
+                </p>
+              </div>
+              <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-primary" />
+            </button>
+
+            {/* My Learning */}
+            <button
+              className="group flex w-full items-center gap-4 rounded-xl border border-border/50 bg-gradient-to-r from-amber-600/5 to-orange-500/5 p-4 text-left transition-all duration-200 hover:border-amber-500/30 hover:bg-gradient-to-r hover:from-amber-600/10 hover:to-orange-500/10 hover:shadow-sm"
               onClick={() => navigateTo("my-learning")}
             >
-              <GraduationCap className="mr-2 h-4 w-4" />
-              Learning Courses
-            </Button>
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 text-white shadow-sm transition-transform duration-200 group-hover:scale-110">
+                <GraduationCap className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-foreground">
+                  My Learning
+                </p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Track your progress and enrolled courses
+                </p>
+              </div>
+              <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-primary" />
+            </button>
 
             <Separator className="my-2" />
 

@@ -68,12 +68,14 @@ interface CourseState {
   categories: CategoryItem[];
   homeTab: HomeTab;
   courseFilters: CourseFilters;
+  createPrompt: string;
 
   setCourses: (courses: CourseItem[]) => void;
   setCategories: (categories: CategoryItem[]) => void;
   setHomeTab: (tab: HomeTab) => void;
   setCourseFilters: (filters: Partial<CourseFilters>) => void;
   resetCourseFilters: () => void;
+  setCreatePrompt: (prompt: string) => void;
 }
 
 const defaultFilters: CourseFilters = {
@@ -88,6 +90,7 @@ export const useCourseStore = create<CourseState>((set) => ({
   categories: [],
   homeTab: "hot",
   courseFilters: defaultFilters,
+  createPrompt: "",
 
   setCourses: (courses) => set({ courses }),
   setCategories: (categories) => set({ categories }),
@@ -97,6 +100,7 @@ export const useCourseStore = create<CourseState>((set) => ({
       courseFilters: { ...state.courseFilters, ...filters },
     })),
   resetCourseFilters: () => set({ courseFilters: defaultFilters }),
+  setCreatePrompt: (prompt) => set({ createPrompt: prompt }),
 }));
 
 // ============================================

@@ -38,7 +38,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { useNavigationStore, useUserStore } from "@/stores/lms-store";
+import { useNavigationStore, useUserStore, useCourseStore } from "@/stores/lms-store";
 import type { CategoryItem, SlideContent } from "@/types/lms";
 import { toast } from "sonner";
 
@@ -258,6 +258,7 @@ const MAX_COURSE_DESC_LENGTH = 500;
 export function CreateCoursePage() {
   const { goBack } = useNavigationStore();
   const { currentUserId } = useUserStore();
+  const { createPrompt, setCreatePrompt } = useCourseStore();
 
   // ---- Form state ----
   const [title, setTitle] = useState("");
@@ -282,6 +283,14 @@ export function CreateCoursePage() {
   const [sectionPrompt, setSectionPrompt] = useState("");
   const [sectionLanguage, setSectionLanguage] = useState("english");
   const [sectionPdfName, setSectionPdfName] = useState("");
+
+  // ---- Pre-fill title from hero prompt ----
+  useEffect(() => {
+    if (createPrompt) {
+      setTitle(createPrompt);
+      setCreatePrompt("");
+    }
+  }, [createPrompt, setCreatePrompt]);
 
   // ---- Refs ----
   const fileInputRef = useRef<HTMLInputElement>(null);

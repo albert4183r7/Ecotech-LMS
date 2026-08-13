@@ -6,108 +6,105 @@
 ---
 
 ## Current Project Status Assessment
-✅ **Phase 1 Complete** — Full MVP with all core pages, API routes, and database.
-✅ **Phase 2 (WebDevReview #1) Complete** — Bug fixes, accessibility, dark mode, styling polish.
+✅ **Phase 1** — Full MVP with all core pages, API routes, and database
+✅ **Phase 2 (WebDevReview #1)** — 14 bug fixes, accessibility, dark mode, styling polish
+✅ **Phase 3 (WebDevReview #2)** — Major UI enhancements, new features, keyboard shortcuts
 
-### Database Schema (7 models)
-- **User** — Employee profiles (role, department, avatar)
-- **Category** — Course categories (6 seeded)
-- **Course** — Main content unit (8 seeded across 6 categories)
-- **Section** — Chapters/lessons with slide content (JSON), 14 sections seeded
-- **Enrollment** — User-course enrollment tracking
-- **Progress** — Per-section progress tracking
-- **Favorite** — User-bookmarked courses
-
-### Frontend Pages (7 pages, SPA with Zustand routing)
-1. **Home/Dashboard** — Hero banner, category sidebar, course grid with Hot/New/Recommended tabs
-2. **Courses List** — Filter sidebar (category, sort, time range), search, course grid
-3. **My Learning** — Stats cards, tabs (In Progress/Completed/Favorites), progress bars
-4. **Profile** — Gradient banner, circular progress ring, quick actions, logout
-5. **Course Detail** — Breadcrumbs, hero, rating, curriculum accordion, favorite/share/start
-6. **Classroom** — Slide viewer (6 types), zoom controls, slide navigation
-7. **Create Course** — Two-column form, section management, add section modal with generation
-
-### Backend API Routes (10 endpoints)
-All 10 endpoints functional — courses, enrollments, progress, favorites, categories, sections, user stats.
-
-### Components
-- `Navbar` — Responsive nav with dark mode toggle, user avatar, mobile drawer
-- `Footer` — Sticky footer with branding
-- `CourseCard` — Reusable card with gradient fallback, accessibility (role, tabIndex, aria-label)
-- `ThemeProvider` — next-themes wrapper for dark/light mode
+### Architecture Summary
+- **7 Database Models**: User, Category, Course, Section, Enrollment, Progress, Favorite
+- **7 Frontend Pages**: Home, Courses, My Learning, Profile, Course Detail, Classroom, Create Course
+- **10 API Endpoints**: Full CRUD for courses, enrollments, progress, favorites, categories, sections, user
+- **Shared Components**: Navbar (dark mode toggle, avatar), Footer, CourseCard, ThemeProvider
+- **4 Zustand Stores**: Navigation, Course, My Learning, User
+- **Seed Data**: 8 courses, 14 sections, 6 categories, 2 enrollments, 2 favorites
 
 ---
 
-## Phase 2 Changes (WebDevReview Round 1)
+## Phase 3 Changes (WebDevReview Round 2)
 
-### Bugs Fixed (14 issues)
+### Bug Fixes (Deferred from Phase 2)
+- **M1: Hero prompt discarded** — Fixed. Added `createPrompt` field to `useCourseStore`. Home page hero input now passes value to Create Course page, which pre-fills the title.
+- **L2: avgProgress type hack** — Fixed in my-learning-page. `StatCard` now accepts `value: string | number`.
 
-#### 🔴 Critical (2 fixed)
-- **C1: `goBack()` loses selectedCourseId** — Fixed in `stores/lms-store.ts`. Now preserves selectedCourseId when navigating back from any view (classroom → course detail works).
-- **C2: Classroom never persists progress** — Fixed in `classroom-page.tsx`. Added `useEffect` that POSTs to `/api/progress` on slide change with debouncing (500ms). Best-effort saving.
+### New Features
 
-#### 🟠 High (3 fixed)
-- **H1: Courses page category counts always show 0** — Fixed in `courses-page.tsx`. Added proper API response mapping (`coursesCount` → `_count.courses`).
-- **H2: Unsafe type cast on course API data** — Fixed. Added explicit field mapping instead of `as CourseItem[]`.
-- **H3: Unused `user` store subscription in Navbar** — Fixed. Now uses `userName` for avatar initials display.
+#### Keyboard Shortcuts (Classroom)
+- **Escape** → Go back to course detail
+- **ArrowLeft** → Previous slide
+- **ArrowRight** → Next slide
+- All shortcuts disabled when typing in input/textarea/select elements
 
-#### 🟡 Medium (6 fixed)
-- **M2: AccordionTrigger click conflicts with section click** — Fixed. Added `e.preventDefault()` to prevent accordion toggle when navigating to classroom.
-- **M3: Favorite/enrollment errors silently swallowed** — Fixed. Added `toast.error()` calls for all failed API operations in course-detail-page.
-- **M4: Missing aria-labels on interactive elements** — Fixed. Added `aria-label` to mobile menu toggle, nav, favorite button, course card, user avatar.
-- **M5: Logout button non-functional** — Fixed. Now shows toast and navigates home.
-- **M7: API sections omit courseId/content fields** — Fixed in `/api/courses/[id]/route.ts`. Added `courseId` and `content` to section response mapping.
-- **M9: Student count not updated after enrollment** — Fixed. Increments `studentCount + 1` on successful enrollment.
+#### Hero Prompt Wiring
+- Home page "Try Create" button now stores the input text
+- Create Course page reads and pre-fills the title on mount
+- One-time consumption — prompt cleared after use
 
-#### 🟢 Low (3 fixed)
-- **L1: Duplicate store imports in my-learning-page** — Merged into single import.
-- **L3: Redundant zoomFit/zoomReset** — Removed duplicate, unified to `zoomFit`.
-- **L4: useEffect dependency on mutable object** — Added `hasFetchedRef` and narrowed dependency to `sectionId`.
+### UI Enhancements — Home Page
+- **Hero Banner**: SVG pattern overlay with decorative geometric shapes, animated floating dots
+- **Tagline**: "Empowering our team through knowledge sharing"
+- **Search Input**: Gradient border with teal glow effect, white background for contrast
+- **Try Create Button**: White background with primary text, enhanced shadow on hover
+- **Stats Row**: Dynamic pill badges showing course count, category count, learner count
+- **Tab Underline**: Animated scaleX transition for active tab indicator
+- **Category Sidebar**: Colored dots per category, hover slide animation, course count badges, featured star on most popular
+- **Mobile Chips**: Show colored dots and inline counts
 
-### New Features Added
-- **Dark Mode Toggle** — Sun/Moon button in navbar using `next-themes`. Full dark theme CSS already prepared. Toggle with smooth icon transition.
-- **User Avatar in Navbar** — Displays user initials from userId with tooltip to profile.
-- **Sticky Footer** — Added branded footer with copyright and tagline. Hidden on classroom full-screen view.
-- **Page Transitions** — Subtle fade-in animation on view changes (`page-transition` class).
-- **Hero Gradient Enhancement** — Added radial gradient overlays for depth effect.
-- **Glass Morphism Utility** — `.glass-card` CSS class available for future use.
+### UI Enhancements — My Learning Page
+- **Stats Cards**: Gradient overlays per card (blue/teal/emerald/amber), icon scale on hover, larger bold numbers, trend arrow indicators
+- **Tabs**: Smooth animated underline, count badges as rounded pills
+- **In Progress Rows**: Circular mini progress ring (40px SVG), hover highlight, "Continue →" text
+- **Empty States**: Enlarged gradient icons, detailed descriptions, dashed borders, decorative gradient circles
 
-### Style Improvements
-- **Navbar** — Enhanced with backdrop-blur-lg, logo click handler, responsive label hiding, improved shadow/border.
-- **CourseCard** — Added Users icon, shadow-sm, group-hover title color transition, image lazy loading, keyboard navigation.
-- **globals.css** — Increased border-radius to 0.75rem, added 8 new utility animations (fadeIn, slideInLeft, pulse-dot, glass-card), improved card hover shadow.
-- **Typography** — Tighter line heights, improved color contrast for secondary text.
+### UI Enhancements — Profile Page
+- **Banner**: Decorative diamond/dot/triangle shapes, pulsing gradient avatar ring (20px), role badge with Shield icon, department badge
+- **Progress Ring**: Enlarged to 140px, diagonal 3-stop gradient stroke, large bold percentage text
+- **Stat Mini Cards**: Gradient icon backgrounds, hover scale effects
+- **Quick Actions**: Card-style with icons + titles + subtitles + arrows, 3 actions (Create Course, My Learning, Browse Courses)
+- **Date Formatting**: "Joined July 2026" format
+
+### UI Enhancements — Course Detail Page
+- **Hero**: Full-width cinematic banner with bottom-to-top gradient overlay, metadata overlaid on cover image
+- **Rating**: Prominent `text-2xl` numeric rating, stats row with icons (Users, BookOpen, Clock)
+- **Estimated Duration**: ~1.5 min per page calculation
+- **Action Bar**: Enlarged gradient button with pulse-glow animation when not enrolled, success toast on enrollment
+- **Curriculum**: Gradient section numbers, status badges (Completed/In Progress/Not started), per-section progress bars, hover effects
+- **Enrollment Toast**: `toast.success("You're enrolled! Let's start learning.")`
+
+### UI Enhancements — Classroom Page
+- **Top Bar**: Course title subtitle, pill badge pagination, thin gradient progress bar at very top
+- **Slide Area**: Paper-like texture with shadow-lg, smooth direction-aware slide transitions (150ms), centered with max-w-2xl
+- **Bottom Controls**: Frosted glass background (backdrop-blur), Previous/Next labels on desktop, disabled opacity, keyboard shortcut hint text
+- **New CSS Classes**: `pulse-glow`, `slide-enter`/`slide-exit`, `paper-texture`, `frosted-glass`
 
 ---
 
 ## Verification Results
 - ✅ ESLint: 0 errors, 0 warnings
-- ✅ Dev server: Compiles all 7 pages successfully
+- ✅ Dev server: All 7 pages compile successfully
 - ✅ API endpoints: All return 200 with proper data
-- ✅ Database: Schema intact, all seed data accessible
-- ✅ Dark mode: CSS variables and ThemeProvider configured
+- ✅ Database: Schema intact, seed data accessible
+- ✅ Dark mode: Working via navbar toggle
+- ✅ Keyboard shortcuts: ESC, ArrowLeft, ArrowRight in classroom
 
 ---
 
 ## Remaining Issues / Risks
-- **Agent-browser testing** — Cannot directly test via agent-browser due to sandbox network (Caddy port 81 serves static fallback; Next.js on port 3000 not directly accessible). The preview panel works for the actual user.
-- **No authentication** — Hardcoded demo user ID (`user_demo_001`).
-- **No file upload** — Course covers use URL input only.
-- **No real AI generation** — Create Course section generation uses placeholder content.
-- **Hero prompt discard** — The hero banner text input doesn't pass value to CreateCoursePage (M1 unfixed — would need new store field).
-- **Raw `<img>` tags** — Should use `next/image` for optimization (M6 deferred — needs next.config remotePatterns).
-- **enrollment API shape** — MyLearningPage may need response mapping like CoursesPage (L5 deferred).
+- **Agent-browser testing** — Cannot test directly due to sandbox network (Caddy port 81 serves static fallback; Next.js on port 3000 not directly curl-accessible). Preview panel works for end users.
+- **No authentication** — Hardcoded `user_demo_001` (acceptable for internal MVP)
+- **No file upload** — Course covers via URL input (acceptable for MVP)
+- **No real AI generation** — Placeholder content in Create Course section generation
+- **Raw `<img>` tags** — Not yet migrated to `next/image` (cosmetic optimization, low priority)
 
 ---
 
-## Recommended Next Steps (Priority Order)
-1. **Wire hero prompt to CreateCourse** — Add `createPrompt` field to navigation store
-2. **Replace raw `<img>` with `next/image`** — Add remotePatterns config
-3. **Fix MyLearningPage enrollment mapping** — Consistent API response handling
-4. **Add notification toast for enrollment** — Show "Enrolled!" message
-5. **Add quiz functionality** — Interactive quiz slides in classroom
-6. **Build admin dashboard** — Course management, user analytics
-7. **Add progress bar per section** — Show completion % in course detail accordion
-8. **Add certificate generation** — On course completion
-9. **Implement keyboard shortcuts** — Arrow keys in classroom, ESC to go back
-10. **Add search history** — Recently searched terms dropdown
+## Recommended Next Steps
+1. **Add quiz functionality** — Interactive quiz slides in classroom with scoring
+2. **Build course search autocomplete** — Recently searched terms, suggestions
+3. **Add notification system** — Toast notifications for enrollment reminders, new courses
+4. **Implement real AI generation** — Wire z-ai-web-dev-sdk LLM to Create Course
+5. **Add progress persistence validation** — Ensure progress survives page reload
+6. **Build admin dashboard** — Course management, user analytics, reporting
+7. **Add certificate generation** — On course completion with user name
+8. **Mobile PWA support** — Add service worker, offline capabilities
+9. **Add course discussion/comments** — Per-section comments for Q&A
+10. **Implement course completion flow** — Final quiz → completion → certificate

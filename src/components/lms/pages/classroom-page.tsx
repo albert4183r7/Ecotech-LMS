@@ -28,6 +28,8 @@ export function ClassroomPage() {
   const [localState, setLocalState] = useState<ClassroomState | null>(null);
   const [zoom, setZoom] = useState(100);
   const [loadingSlides, setLoadingSlides] = useState(false);
+  const [slideDirection, setSlideDirection] = useState<"forward" | "back">("forward");
+  const [isAnimating, setIsAnimating] = useState(false);
   const hasFetchedRef = useRef(false);
 
   // Keep a working copy of classroomState so we can mutate currentSlide
@@ -72,16 +74,23 @@ export function ClassroomPage() {
     fetchSlides();
   }, [localState?.sectionId, localState?.slides.length]);
 
-  /** Navigate slides */
+  /** Navigate slides with transition animation */
   const goToSlide = useCallback(
     (index: number) => {
-      if (!localState) return;
+      if (!localState || isAnimating) return;
       const next = Math.max(0, Math.min(index, localState.totalPages - 1));
-      setLocalState((prev) =>
-        prev ? { ...prev, currentSlide: next } : prev
-      );
+      if (next === localState.currentSlide) return;
+      setSlideDirection(next > localState.currentSlide ? "forward" : "back");
+      setIsAnimating(true);
+      // Small delay for exit animation, then update slide
+      setTimeout(() => {
+        setLocalState((prev) =>
+          prev ? { ...prev, currentSlide: next } : prev
+        );
+        setIsAnimating(false);
+      }, 150);
     },
-    [localState]
+    [localState, isAnimating]
   );
 
   /** Persist progress to API when slide changes */
@@ -122,6 +131,32 @@ export function ClassroomPage() {
   const goPrev = () => goToSlide((localState?.currentSlide ?? 0) - 1);
   const goNext = () => goToSlide((localState?.currentSlide ?? 0) + 1);
 
+  // ─── Keyboard shortcuts ──────────────────────────────────────
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+
+      switch (e.key) {
+        case "Escape":
+          e.preventDefault();
+          goBack();
+          break;
+        case "ArrowLeft":
+          e.preventDefault();
+          goPrev();
+          break;
+        case "ArrowRight":
+          e.preventDefault();
+          goNext();
+          break;
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [goBack, goPrev, goNext]);
+
   /** Zoom controls */
   const zoomIn = () => setZoom((z) => Math.min(z + ZOOM_STEP, MAX_ZOOM));
   const zoomOut = () => setZoom((z) => Math.max(z - ZOOM_STEP, MIN_ZOOM));
@@ -140,12 +175,23 @@ export function ClassroomPage() {
     localState.slides[localState.currentSlide] ?? null;
   const isFirst = localState.currentSlide === 0;
   const isLast = localState.currentSlide >= localState.totalPages - 1;
+  const progressPercent = localState.totalPages > 1
+    ? Math.round(((localState.currentSlide + 1) / localState.totalPages) * 100)
+    : 100;
 
   return (
     <div className="flex h-screen flex-col bg-muted/30">
+      {/* ─── Top Progress Bar ─────────────────────── */}
+      <div className="shrink-0 h-1 w-full bg-muted overflow-hidden">
+        <div
+          className="h-full bg-gradient-to-r from-primary to-accent transition-all duration-500 ease-out"
+          style={{ width: `${progressPercent}%` }}
+        />
+      </div>
+
       {/* ─── Top Bar ──────────────────────────────── */}
-      <header className="flex h-12 shrink-0 items-center justify-between border-b bg-card px-4 sm:px-6">
-        {/* Logo & Section Title */}
+      <header className="flex h-14 shrink-0 items-center justify-between border-b bg-card px-4 sm:px-6">
+        {/* Logo, Section Title, Course Title */}
         <div className="flex items-center gap-3 min-w-0">
           <div className="flex items-center gap-2 shrink-0">
             <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary">
@@ -156,21 +202,37 @@ export function ClassroomPage() {
             </span>
           </div>
           <Separator orientation="vertical" className="h-5" />
-          <h2 className="text-sm font-medium text-foreground truncate">
-            {localState.sectionTitle}
-          </h2>
+          <div className="min-w-0">
+            <h2 className="text-sm font-medium text-foreground truncate leading-tight">
+              {localState.sectionTitle}
+            </h2>
+            <p className="text-xs text-muted-foreground truncate leading-tight">
+              {localState.courseTitle}
+            </p>
+          </div>
         </div>
 
-        {/* Slide Pagination */}
-        <span className="shrink-0 text-sm font-medium text-muted-foreground">
-          {localState.currentSlide + 1} / {localState.totalPages}
+        {/* Slide Pagination - Pill Badge */}
+        <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-sm font-semibold text-primary tabular-nums">
+          {localState.currentSlide + 1}
+          <span className="text-primary/40 font-normal">/</span>
+          {localState.totalPages}
         </span>
       </header>
 
       {/* ─── Slide Content Area ────────────────────── */}
-      <div className="flex-1 overflow-auto flex items-start justify-center py-6 px-4 sm:px-6">
+      <div className="flex-1 overflow-auto flex items-start justify-center py-8 px-4 sm:px-6">
         <div
-          className="bg-white rounded-xl shadow-sm border w-full max-w-3xl"
+          className={`
+            bg-card rounded-2xl shadow-lg border w-full max-w-3xl
+            ring-1 ring-black/5
+            dark:ring-white/5
+            paper-texture
+            ${isAnimating
+              ? (slideDirection === "forward" ? "slide-exit" : "opacity-0 -translate-x-2 transition-all duration-150")
+              : "slide-enter"
+            }
+          `}
           style={{
             transform: `scale(${zoom / 100})`,
             transformOrigin: "top center",
@@ -181,7 +243,7 @@ export function ClassroomPage() {
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
           ) : currentSlide ? (
-            <div className="p-6 sm:p-10">
+            <div className="p-8 sm:p-12 max-w-2xl mx-auto">
               <SlideRenderer slide={currentSlide} />
             </div>
           ) : (
@@ -192,9 +254,9 @@ export function ClassroomPage() {
         </div>
       </div>
 
-      {/* ─── Bottom Controls ──────────────────────── */}
-      <footer className="shrink-0 border-t bg-card">
-        <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4 sm:px-6">
+      {/* ─── Bottom Controls (Frosted Glass) ───────── */}
+      <footer className="shrink-0 border-t frosted-glass">
+        <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-4 sm:px-6">
           {/* Zoom Controls */}
           <div className="flex items-center gap-1">
             <Tooltip>
@@ -260,12 +322,12 @@ export function ClassroomPage() {
             </Tooltip>
           </div>
 
-          {/* Navigation Buttons */}
+          {/* Navigation Buttons with labels on desktop */}
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
               size="sm"
-              className="gap-1.5"
+              className={`gap-1.5 transition-opacity ${isFirst ? "opacity-40 cursor-not-allowed" : ""}`}
               onClick={goPrev}
               disabled={isFirst}
             >
@@ -276,7 +338,7 @@ export function ClassroomPage() {
             <Button
               variant="outline"
               size="sm"
-              className="gap-1.5"
+              className={`gap-1.5 transition-opacity ${isLast ? "opacity-40 cursor-not-allowed" : ""}`}
               onClick={goNext}
               disabled={isLast}
             >
@@ -285,16 +347,21 @@ export function ClassroomPage() {
             </Button>
           </div>
 
-          {/* Close Button */}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="gap-1.5 text-muted-foreground hover:text-foreground"
-            onClick={goBack}
-          >
-            <X className="h-4 w-4" />
-            <span className="hidden sm:inline">Close</span>
-          </Button>
+          {/* Close + Keyboard Hint */}
+          <div className="flex items-center gap-3">
+            <span className="hidden lg:inline text-xs text-muted-foreground">
+              ← → navigate, ESC exit
+            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-1.5 text-muted-foreground hover:text-foreground"
+              onClick={goBack}
+            >
+              <X className="h-4 w-4" />
+              <span className="hidden sm:inline">Close</span>
+            </Button>
+          </div>
         </div>
       </footer>
     </div>

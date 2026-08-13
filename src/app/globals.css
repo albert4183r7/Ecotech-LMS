@@ -228,3 +228,128 @@
 .slide-in-left {
   animation: slideInLeft 0.25s ease-out;
 }
+
+/** Pulse glow for CTA buttons */
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 oklch(0.45 0.18 250 / 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 8px oklch(0.45 0.18 250 / 0);
+  }
+}
+.pulse-glow {
+  animation: pulse-glow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/** Slide content transition */
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+@keyframes slideOut {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+}
+.slide-enter {
+  animation: slideIn 0.25s ease-out;
+}
+.slide-exit {
+  animation: slideOut 0.15s ease-in;
+}
+
+/** Paper texture for slide area */
+.paper-texture {
+  background-image: radial-gradient(oklch(0.45 0.18 250 / 0.03) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+.dark .paper-texture {
+  background-image: radial-gradient(oklch(0.97 0.005 200 / 0.04) 1px, transparent 1px);
+}
+
+/** Frosted glass bottom bar */
+.frosted-glass {
+  background: oklch(1 0 0 / 0.75);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+}
+.dark .frosted-glass {
+  background: oklch(0.15 0.02 250 / 0.75);
+}
+
+/** Floating dots for hero decoration */
+@keyframes floatDot1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25% { transform: translate(12px, -18px) scale(1.1); }
+  50% { transform: translate(-8px, -30px) scale(0.95); }
+  75% { transform: translate(15px, -12px) scale(1.05); }
+}
+@keyframes floatDot2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25% { transform: translate(-15px, 10px) scale(1.08); }
+  50% { transform: translate(10px, 20px) scale(0.92); }
+  75% { transform: translate(-12px, 5px) scale(1.04); }
+}
+@keyframes floatDot3 {
+  0%, 100% { transform: translate(0, 0); }
+  33% { transform: translate(8px, 14px); }
+  66% { transform: translate(-14px, -8px); }
+}
+.hero-dot-1 { animation: floatDot1 8s ease-in-out infinite; }
+.hero-dot-2 { animation: floatDot2 10s ease-in-out infinite; }
+.hero-dot-3 { animation: floatDot3 6s ease-in-out infinite; }
+
+/** Animated tab underline indicator */
+@keyframes underlineSlideIn {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+.tab-underline-active::after {
+  content: "";
+  position: absolute;
+  bottom: -2px;
+  left: 50%;
+  width: 60%;
+  height: 2px;
+  background: white;
+  border-radius: 1px;
+  transform: translateX(-50%) scaleX(0);
+  animation: underlineSlideIn 0.25s ease-out forwards;
+}
+
+/** Hero search glow */
+.hero-search-glow {
+  box-shadow: 0 0 0 1px oklch(1 0 0 / 0.15),
+              0 0 20px -4px oklch(0.45 0.18 175 / 0.35),
+              0 0 40px -8px oklch(0.45 0.18 175 / 0.15);
+  background-image: linear-gradient(white, white),
+                    linear-gradient(135deg, oklch(1 0 0 / 0.5), oklch(0.45 0.18 175 / 0.3));
+  background-origin: padding-box, border-box;
+  background-clip: padding-box, border-box;
+  border: 1.5px solid transparent;
+}
+.hero-search-glow:focus-within {
+  box-shadow: 0 0 0 1px oklch(1 0 0 / 0.25),
+              0 0 28px -2px oklch(0.45 0.18 175 / 0.45),
+              0 0 56px -8px oklch(0.45 0.18 175 / 0.2);
+}
+
+/** Category sidebar hover lift */
+.category-item {
+  transition: transform 0.2s ease, background-color 0.2s ease;
+}
+.category-item:hover {
+  transform: translateX(3px);
+}
