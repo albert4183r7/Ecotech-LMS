@@ -57,7 +57,7 @@ export function HomePage() {
   const [searchInput, setSearchInput] = useState(courseFilters.search);
   const [loadingCategories, setLoadingCategories] = useState(true);
   const [loadingCourses, setLoadingCourses] = useState(true);
-  const [createPrompt, setCreatePrompt] = useState("");
+  const [heroPrompt, setHeroPrompt] = useState("");
 
   // ── Fetch categories ──────────────────────────────────────────────
   useEffect(() => {
@@ -134,8 +134,8 @@ export function HomePage() {
   }
 
   function handleCreateCourse() {
-    if (createPrompt.trim()) {
-      setCreatePrompt(createPrompt.trim());
+    if (heroPrompt.trim()) {
+      setCreatePrompt(heroPrompt.trim());
     }
     navigateTo("create-course");
   }
@@ -187,8 +187,8 @@ export function HomePage() {
               <input
                 type="text"
                 placeholder="Describe your course idea..."
-                value={createPrompt}
-                onChange={(e) => setCreatePrompt(e.target.value)}
+                value={heroPrompt}
+                onChange={(e) => setHeroPrompt(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") handleCreateCourse();
                 }}

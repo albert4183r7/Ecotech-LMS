@@ -344,7 +344,7 @@ export function CreateCoursePage() {
     setModalOpen(true);
   };
 
-  const handleGenerateSection = useCallback(() => {
+  const handleGenerateSection = useCallback(async () => {
     if (!sectionName.trim()) {
       toast.error("Section name is required");
       return;
@@ -360,12 +360,26 @@ export function CreateCoursePage() {
 
     setGenerating(true);
 
-    // Simulate generation delay
-    setTimeout(() => {
-      const slides = generatePlaceholderSlides(
-        sectionName.trim(),
-        sectionLanguage
-      );
+    try {
+      const res = await fetch("/api/generate-content", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          topic: sectionName.trim(),
+          prompt: sectionPrompt.trim(),
+          language: sectionLanguage,
+        }),
+      });
+
+      const json = await res.json();
+
+      if (!json.success) {
+        toast.error(json.error || "Failed to generate section content");
+        setGenerating(false);
+        return;
+      }
+
+      const slides: SlideContent[] = json.data;
       const newSection: SectionDraft = {
         id: `sec_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
         title: sectionName.trim(),
@@ -375,10 +389,13 @@ export function CreateCoursePage() {
       };
 
       setSections((prev) => [...prev, newSection]);
-      setGenerating(false);
       setModalOpen(false);
       toast.success(`Section "${sectionName.trim()}" generated successfully`);
-    }, 1200);
+    } catch {
+      toast.error("Failed to generate section. Please try again.");
+    } finally {
+      setGenerating(false);
+    }
   }, [sectionName, sectionPrompt, sectionLanguage, sections.length]);
 
   const handleDeleteSection = (id: string) => {
