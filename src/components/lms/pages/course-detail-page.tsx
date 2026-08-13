@@ -608,8 +608,8 @@ export function CourseDetailPage() {
       </section>
 
       {/* ─── Browser Warning ─────────────────────── */}
-      <div className="mt-8 flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-        <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0 text-amber-600" />
+      <div className="mt-8 flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-200">
+        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
         <p>
           For the best learning experience, we recommend using the{" "}
           <span className="font-semibold">Google Chrome</span> browser.

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ZoomIn,
   ZoomOut,
@@ -12,6 +12,7 @@ import {
   GraduationCap,
   Loader2,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
@@ -31,6 +32,8 @@ export function ClassroomPage() {
   const [slideDirection, setSlideDirection] = useState<"forward" | "back">("forward");
   const [isAnimating, setIsAnimating] = useState(false);
   const hasFetchedRef = useRef(false);
+  const confettiShownRef = useRef(false);
+  const [showConfetti, setShowConfetti] = useState(false);
 
   // Keep a working copy of classroomState so we can mutate currentSlide
   useEffect(() => {
@@ -162,6 +165,26 @@ export function ClassroomPage() {
   const zoomOut = () => setZoom((z) => Math.max(z - ZOOM_STEP, MIN_ZOOM));
   const zoomFit = () => setZoom(100);
 
+  // ─── Confetti on section completion ───────────
+  useEffect(() => {
+    if (!localState) return;
+    const isOnLastSlide = localState.currentSlide === localState.totalPages - 1;
+    if (isOnLastSlide && !confettiShownRef.current) {
+      confettiShownRef.current = true;
+      setShowConfetti(true);
+      toast.success("🎉 You completed the course! Great job!");
+      // Auto-cleanup after 3.5s (animation lasts ~3s + buffer)
+      const timer = setTimeout(() => setShowConfetti(false), 3500);
+      return () => clearTimeout(timer);
+    }
+  }, [localState?.currentSlide]);
+
+  // Reset confetti flag when classroom state changes (new section)
+  useEffect(() => {
+    confettiShownRef.current = false;
+    setShowConfetti(false);
+  }, [classroomState?.sectionId]);
+
   // ─── No state guard ─────────────────────────────
   if (!localState) {
     return (
@@ -180,7 +203,9 @@ export function ClassroomPage() {
     : 100;
 
   return (
-    <div className="flex h-screen flex-col bg-muted/30">
+    <div className="flex h-screen flex-col bg-muted/30 relative">
+      {/* ─── Confetti Celebration Overlay ─────── */}
+      {showConfetti && <ConfettiCelebration />}
       {/* ─── Top Progress Bar ─────────────────────── */}
       <div className="shrink-0 h-1 w-full bg-muted overflow-hidden">
         <div
@@ -369,6 +394,120 @@ export function ClassroomPage() {
 }
 
 // ============================================
+// Confetti Celebration Component
+// ============================================
+
+/** LMS color palette for confetti particles */
+const CONFETTI_COLORS = [
+  "#3882f6", // blue
+  "#14b8a6", // teal
+  "#22d3ee", // cyan
+  "#10b981", // emerald
+  "#f59e0b", // amber
+  "#6366f1", // indigo accent
+  "#8b5cf6", // violet accent
+  "#ec4899", // pink accent
+];
+
+type ParticleShape = "circle" | "rectangle" | "triangle";
+
+interface ConfettiParticle {
+  id: number;
+  left: number;
+  color: string;
+  shape: ParticleShape;
+  size: number;
+  fallDuration: string;
+  fallDelay: string;
+  drift: string;
+  spin: string;
+}
+
+function ConfettiCelebration() {
+  const particles = useMemo<ConfettiParticle[]>(() => {
+    const result: ConfettiParticle[] = [];
+    const shapes: ParticleShape[] = ["circle", "rectangle", "triangle"];
+    const count = 80;
+
+    for (let i = 0; i < count; i++) {
+      const shape = shapes[i % 3 === 0 ? 0 : i % 3 === 1 ? 1 : 2];
+      result.push({
+        id: i,
+        left: Math.random() * 100,
+        color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+        shape,
+        size: Math.floor(Math.random() * 8) + 6, // 6-14px
+        fallDuration: `${(Math.random() * 1.5 + 2).toFixed(2)}s`, // 2-3.5s
+        fallDelay: `${(Math.random() * 0.8).toFixed(2)}s`, // 0-0.8s
+        drift: `${(Math.random() * 120 - 60).toFixed(0)}px`, // -60 to +60px
+        spin: `${Math.floor(Math.random() * 720 + 360)}deg`, // 360-1080deg
+      });
+    }
+    return result;
+  }, []);
+
+  return (
+    <>
+      {/* Confetti particles layer */}
+      <div className="confetti-container" aria-hidden="true">
+        {particles.map((p) => {
+          if (p.shape === "triangle") {
+            return (
+              <div
+                key={p.id}
+                className="confetti-particle confetti-triangle"
+                style={{
+                  left: `${p.left}%`,
+                  "--confetti-color": p.color,
+                  "--tri-size": `${p.size}px`,
+                  "--fall-duration": p.fallDuration,
+                  "--fall-delay": p.fallDelay,
+                  "--drift": p.drift,
+                  "--spin": p.spin,
+                } as React.CSSProperties}
+              />
+            );
+          }
+          return (
+            <div
+              key={p.id}
+              className={`confetti-particle ${p.shape === "circle" ? "confetti-circle" : "confetti-rectangle"}`}
+              style={{
+                left: `${p.left}%`,
+                width: p.shape === "rectangle" ? `${p.size * 1.4}px` : `${p.size}px`,
+                height: `${p.size}px`,
+                backgroundColor: p.color,
+                "--fall-duration": p.fallDuration,
+                "--fall-delay": p.fallDelay,
+                "--drift": p.drift,
+                "--spin": p.spin,
+              } as React.CSSProperties}
+            />
+          );
+        })}
+      </div>
+
+      {/* Congratulations message */}
+      <div className="confetti-message" role="status" aria-label="Congratulations!">
+        <div className="confetti-message-text flex flex-col items-center gap-3">
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/90 dark:bg-zinc-800/90 shadow-lg">
+            <span className="text-4xl">🎉</span>
+          </div>
+          <div className="rounded-2xl bg-white/90 dark:bg-zinc-800/90 px-8 py-5 shadow-xl text-center">
+            <h2 className="text-2xl sm:text-3xl font-bold text-foreground">
+              🎉 Congratulations!
+            </h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              You&apos;ve completed this section!
+            </p>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ============================================
 // Slide Content Renderer
 // ============================================
 
@@ -395,11 +534,14 @@ function SlideRenderer({ slide }: { slide: SlideContent }) {
 function TitleSlide({ slide }: { slide: SlideContent }) {
   return (
     <div className="flex min-h-[300px] flex-col items-center justify-center text-center">
-      <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4 leading-tight">
+      <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/10 to-accent/10">
+        <GraduationCap className="h-8 w-8 text-primary" />
+      </div>
+      <h1 className="text-3xl sm:text-4xl font-bold text-foreground mb-4 leading-tight">
         {slide.title}
       </h1>
       {slide.subtitle && (
-        <p className="text-lg text-gray-500 max-w-xl leading-relaxed">
+        <p className="text-lg text-muted-foreground max-w-xl leading-relaxed">
           {slide.subtitle}
         </p>
       )}
@@ -411,17 +553,20 @@ function TitleSlide({ slide }: { slide: SlideContent }) {
 function ContentSlide({ slide }: { slide: SlideContent }) {
   return (
     <div>
-      <h2 className="text-2xl font-bold text-gray-900 mb-6">{slide.title}</h2>
+      <div className="mb-6 flex items-center gap-3">
+        <div className="h-1 w-8 rounded-full bg-gradient-to-r from-primary to-accent" />
+        <h2 className="text-2xl font-bold text-foreground">{slide.title}</h2>
+      </div>
       {slide.items && slide.items.length > 0 && (
         <div className="space-y-5">
           {slide.items.map((item, i) => (
-            <div key={i}>
+            <div key={i} className="rounded-lg bg-muted/40 p-4 transition-colors hover:bg-muted/60">
               {item.heading && (
-                <h3 className="text-base font-semibold text-gray-800 mb-1.5">
+                <h3 className="text-base font-semibold text-foreground mb-1.5">
                   {item.heading}
                 </h3>
               )}
-              <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-line">
+              <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
                 {item.text}
               </p>
             </div>
@@ -439,15 +584,18 @@ function TableSlide({ slide }: { slide: SlideContent }) {
 
   return (
     <div>
-      <h2 className="text-2xl font-bold text-gray-900 mb-6">{slide.title}</h2>
-      <div className="overflow-x-auto rounded-lg border border-gray-200">
+      <div className="mb-6 flex items-center gap-3">
+        <div className="h-1 w-8 rounded-full bg-gradient-to-r from-primary to-accent" />
+        <h2 className="text-2xl font-bold text-foreground">{slide.title}</h2>
+      </div>
+      <div className="overflow-x-auto rounded-lg border border-border">
         <table className="w-full text-sm">
           <thead>
-            <tr className="bg-gray-50 border-b border-gray-200">
+            <tr className="bg-muted/60 border-b border-border">
               {headers.map((header, i) => (
                 <th
                   key={i}
-                  className="px-4 py-3 text-left font-semibold text-gray-700 whitespace-nowrap"
+                  className="px-4 py-3 text-left font-semibold text-foreground whitespace-nowrap"
                 >
                   {header}
                 </th>
@@ -458,10 +606,10 @@ function TableSlide({ slide }: { slide: SlideContent }) {
             {rows.map((row, ri) => (
               <tr
                 key={ri}
-                className={ri < rows.length - 1 ? "border-b border-gray-100" : ""}
+                className={ri < rows.length - 1 ? "border-b border-border" : ""}
               >
                 {row.map((cell, ci) => (
-                  <td key={ci} className="px-4 py-3 text-gray-600 whitespace-nowrap">
+                  <td key={ci} className="px-4 py-3 text-muted-foreground whitespace-nowrap">
                     {cell}
                   </td>
                 ))}
@@ -478,19 +626,24 @@ function TableSlide({ slide }: { slide: SlideContent }) {
 function ListSlide({ slide }: { slide: SlideContent }) {
   return (
     <div>
-      <h2 className="text-2xl font-bold text-gray-900 mb-6">{slide.title}</h2>
+      <div className="mb-6 flex items-center gap-3">
+        <div className="h-1 w-8 rounded-full bg-gradient-to-r from-primary to-accent" />
+        <h2 className="text-2xl font-bold text-foreground">{slide.title}</h2>
+      </div>
       {slide.items && slide.items.length > 0 && (
         <ul className="space-y-3">
           {slide.items.map((item, i) => (
-            <li key={i} className="flex items-start gap-3">
-              <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-primary" />
+            <li key={i} className="flex items-start gap-3 rounded-lg bg-muted/40 p-3 transition-colors hover:bg-muted/60">
+              <span className="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+                {i + 1}
+              </span>
               <div>
                 {item.heading && (
-                  <span className="font-semibold text-gray-800 text-sm">
+                  <span className="font-semibold text-foreground text-sm">
                     {item.heading}{" "}
                   </span>
                 )}
-                <span className="text-sm text-gray-600 leading-relaxed">
+                <span className="text-sm text-muted-foreground leading-relaxed">
                   {item.text}
                 </span>
               </div>
@@ -508,10 +661,13 @@ function CodeSlide({ slide }: { slide: SlideContent }) {
 
   return (
     <div>
-      <h2 className="text-2xl font-bold text-gray-900 mb-6">{slide.title}</h2>
-      <div className="rounded-lg border border-gray-200 bg-gray-900 overflow-hidden">
-        <div className="flex items-center justify-between border-b border-gray-700 px-4 py-2">
-          <span className="text-xs font-medium text-gray-400">
+      <div className="mb-6 flex items-center gap-3">
+        <div className="h-1 w-8 rounded-full bg-gradient-to-r from-primary to-accent" />
+        <h2 className="text-2xl font-bold text-foreground">{slide.title}</h2>
+      </div>
+      <div className="rounded-lg border border-border bg-zinc-900 overflow-hidden shadow-inner">
+        <div className="flex items-center justify-between border-b border-zinc-700 px-4 py-2">
+          <span className="text-xs font-medium text-zinc-400">
             {slide.codeBlock.language}
           </span>
           <div className="flex gap-1.5">
@@ -521,7 +677,7 @@ function CodeSlide({ slide }: { slide: SlideContent }) {
           </div>
         </div>
         <pre className="overflow-x-auto p-4 text-sm leading-relaxed">
-          <code className="text-gray-100 font-mono">
+          <code className="text-zinc-100 font-mono">
             {slide.codeBlock.code}
           </code>
         </pre>
@@ -530,33 +686,87 @@ function CodeSlide({ slide }: { slide: SlideContent }) {
   );
 }
 
-// ─── Quiz Slide ───────────────────────────────────
+// ─── Quiz Slide (Interactive) ────────────────────
 function QuizSlide({ slide }: { slide: SlideContent }) {
+  const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
+  const hasSubmitted = selectedIdx !== null;
+
+  // Determine correct answer: look for item with icon === "check" or first item
+  const correctIdx = slide.items?.findIndex((item) => item.icon === "check") ?? 0;
+  const isCorrect = selectedIdx === correctIdx;
+
   return (
     <div>
-      <h2 className="text-2xl font-bold text-gray-900 mb-6">{slide.title}</h2>
+      <div className="mb-6 flex items-center gap-3">
+        <div className="h-1 w-8 rounded-full bg-gradient-to-r from-primary to-accent" />
+        <h2 className="text-2xl font-bold text-foreground">{slide.title}</h2>
+      </div>
       {slide.items && slide.items.length > 0 && (
-        <div className="space-y-4">
-          {slide.items.map((item, i) => (
-            <div
-              key={i}
-              className="rounded-lg border border-gray-200 p-4 transition-colors hover:border-primary/30 hover:bg-primary/5"
-            >
-              <div className="flex items-start gap-3">
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-bold">
-                  {String.fromCharCode(65 + i)}
-                </span>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-gray-800">
-                    {item.heading || item.text}
-                  </p>
-                  {item.heading && item.text !== item.heading && (
-                    <p className="text-xs text-gray-500 mt-1">{item.text}</p>
-                  )}
+        <div className="space-y-3">
+          {slide.items.map((item, i) => {
+            const letter = String.fromCharCode(65 + i);
+            const isSelected = selectedIdx === i;
+            let borderColor = "border-border hover:border-primary/30 hover:bg-primary/5";
+            if (hasSubmitted) {
+              if (i === correctIdx) borderColor = "border-emerald-500 bg-emerald-500/10";
+              else if (isSelected && !isCorrect) borderColor = "border-red-400 bg-red-400/10";
+              else borderColor = "border-border opacity-60";
+            } else if (isSelected) {
+              borderColor = "border-primary bg-primary/10";
+            }
+
+            return (
+              <button
+                key={i}
+                type="button"
+                className={`w-full rounded-lg border p-4 text-left transition-all duration-200 ${borderColor}`}
+                onClick={() => {
+                  if (!hasSubmitted) setSelectedIdx(i);
+                }}
+                disabled={hasSubmitted}
+              >
+                <div className="flex items-start gap-3">
+                  <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                    hasSubmitted && i === correctIdx
+                      ? "bg-emerald-500 text-white"
+                      : hasSubmitted && isSelected && !isCorrect
+                        ? "bg-red-400 text-white"
+                        : "bg-primary/10 text-primary"
+                  }`}>
+                    {hasSubmitted && i === correctIdx ? "✓" : hasSubmitted && isSelected && !isCorrect ? "✗" : letter}
+                  </span>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-foreground">
+                      {item.heading || item.text}
+                    </p>
+                    {item.heading && item.text !== item.heading && (
+                      <p className="text-xs text-muted-foreground mt-1">{item.text}</p>
+                    )}
+                  </div>
                 </div>
-              </div>
+              </button>
+            );
+          })}
+
+          {/* Feedback after selection */}
+          {hasSubmitted && (
+            <div className={`mt-4 rounded-lg border p-4 ${
+              isCorrect
+                ? "border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/50"
+                : "border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/50"
+            }`}>
+              <p className={`text-sm font-semibold ${
+                isCorrect ? "text-emerald-700 dark:text-emerald-400" : "text-amber-700 dark:text-amber-400"
+              }`}>
+                {isCorrect ? "🎉 Correct! Well done!" : "❌ Not quite right."}
+              </p>
+              {!isCorrect && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  The correct answer is <strong>{String.fromCharCode(65 + correctIdx)}</strong>.
+                </p>
+              )}
             </div>
-          ))}
+          )}
         </div>
       )}
     </div>
@@ -567,13 +777,16 @@ function QuizSlide({ slide }: { slide: SlideContent }) {
 function FallbackSlide({ slide }: { slide: SlideContent }) {
   return (
     <div>
-      <h2 className="text-2xl font-bold text-gray-900 mb-6">{slide.title}</h2>
+      <div className="mb-6 flex items-center gap-3">
+        <div className="h-1 w-8 rounded-full bg-gradient-to-r from-primary to-accent" />
+        <h2 className="text-2xl font-bold text-foreground">{slide.title}</h2>
+      </div>
       {slide.subtitle && (
-        <p className="text-gray-500 mb-4">{slide.subtitle}</p>
+        <p className="text-muted-foreground mb-4">{slide.subtitle}</p>
       )}
       {slide.items?.map((item, i) => (
-        <p key={i} className="text-sm text-gray-600 mb-2">
-          {item.heading && <span className="font-semibold">{item.heading}: </span>}
+        <p key={i} className="text-sm text-muted-foreground mb-2">
+          {item.heading && <span className="font-semibold text-foreground">{item.heading}: </span>}
           {item.text}
         </p>
       ))}

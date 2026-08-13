@@ -353,3 +353,113 @@
 .category-item:hover {
   transform: translateX(3px);
 }
+
+/* ============================================ */
+/* Confetti Celebration Animation                */
+/* ============================================ */
+
+/** Confetti container */
+.confetti-container {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  overflow: hidden;
+}
+
+/** Individual confetti particle */
+.confetti-particle {
+  position: absolute;
+  top: -20px;
+  opacity: 0;
+  animation: confetti-fall var(--fall-duration, 3s) var(--fall-delay, 0s) cubic-bezier(0.25, 0, 0.5, 1) forwards;
+}
+
+/** Confetti circle shape */
+.confetti-circle {
+  border-radius: 50%;
+}
+
+/** Confetti rectangle shape */
+.confetti-rectangle {
+  border-radius: 2px;
+}
+
+/** Confetti triangle shape (using CSS border trick) */
+.confetti-triangle {
+  width: 0 !important;
+  height: 0 !important;
+  background: transparent !important;
+  border-left: var(--tri-size, 6px) solid transparent;
+  border-right: var(--tri-size, 6px) solid transparent;
+  border-bottom: calc(var(--tri-size, 6px) * 1.73) solid var(--confetti-color, #3882f6);
+}
+
+/** Confetti fall animation */
+@keyframes confetti-fall {
+  0% {
+    opacity: 1;
+    transform: translateY(0) translateX(0) rotate(0deg) scale(1);
+  }
+  25% {
+    opacity: 1;
+  }
+  80% {
+    opacity: 0.8;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(100vh) translateX(var(--drift, 40px)) rotate(var(--spin, 720deg)) scale(0.5);
+  }
+}
+
+/** Confetti sway animation for lateral movement */
+@keyframes confetti-sway {
+  0% { transform: translateX(0); }
+  25% { transform: translateX(var(--sway-amount, 30px)); }
+  75% { transform: translateX(calc(var(--sway-amount, 30px) * -1)); }
+  100% { transform: translateX(0); }
+}
+
+/** Congratulations message overlay */
+.confetti-message {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  pointer-events: none;
+  animation: confetti-message-appear 0.5s ease-out forwards,
+             confetti-message-fade 0.5s ease-in 2.5s forwards;
+}
+
+@keyframes confetti-message-appear {
+  from {
+    opacity: 0;
+    transform: scale(0.5) translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes confetti-message-fade {
+  from {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.9) translateY(-10px);
+  }
+}
+
+/** Dark mode adjustments for confetti */
+.dark .confetti-message-text {
+  text-shadow: 0 2px 20px oklch(0 0 0 / 0.5), 0 0 40px oklch(0 0 0 / 0.3);
+}
+.confetti-message-text {
+  text-shadow: 0 2px 20px oklch(0 0 0 / 0.1), 0 0 40px oklch(0 0 0 / 0.05);
+}

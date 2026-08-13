@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Search, SlidersHorizontal, X } from "lucide-react";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -16,8 +15,9 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { CourseCard } from "@/components/lms/course-card";
+import { SearchAutocomplete } from "@/components/lms/search-autocomplete";
 import { useCourseStore } from "@/stores/lms-store";
-import type { CourseFilters, CourseItem, CategoryItem } from "@/types/lms";
+import type { CourseFilters, CategoryItem } from "@/types/lms";
 import { cn } from "@/lib/utils";
 
 // ============================================
@@ -379,29 +379,16 @@ export function CoursesPage() {
         <main className="min-w-0 flex-1">
           {/* Search Bar & Mobile Filter Toggle */}
           <div className="mb-6 flex items-center gap-3">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                ref={searchInputRef}
-                type="text"
-                placeholder="Search courses..."
-                value={courseFilters.search}
-                onChange={(e) => handleFilterChange({ search: e.target.value })}
-                className="pl-9 h-10"
-              />
-              {courseFilters.search && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    handleFilterChange({ search: "" });
-                    searchInputRef.current?.focus();
-                  }}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              )}
-            </div>
+            <SearchAutocomplete
+              value={courseFilters.search}
+              onChange={(val) => handleFilterChange({ search: val })}
+              onSearch={(val) => handleFilterChange({ search: val })}
+              placeholder="Search courses..."
+              courses={courses}
+              categories={categories}
+              inputRef={searchInputRef}
+              className="flex-1"
+            />
 
             {/* Mobile Filter Button */}
             <Sheet open={isSidebarOpen} onOpenChange={setIsSidebarOpen}>

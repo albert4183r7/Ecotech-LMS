@@ -1,12 +1,12 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Search, Sparkles, BookOpen, Star, GraduationCap, FolderOpen, Users } from "lucide-react";
-import { Input } from "@/components/ui/input";
+import { Sparkles, BookOpen, Star, GraduationCap, FolderOpen, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { CourseCard } from "@/components/lms/course-card";
+import { SearchAutocomplete } from "@/components/lms/search-autocomplete";
 import { useNavigationStore, useCourseStore } from "@/stores/lms-store";
 import type { CourseItem, CategoryItem, HomeTab } from "@/types/lms";
 
@@ -129,14 +129,8 @@ export function HomePage() {
     setCourseFilters({ category: categoryId });
   }
 
-  function handleSearch() {
-    setCourseFilters({ search: searchInput });
-  }
-
-  function handleSearchKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === "Enter") {
-      handleSearch();
-    }
+  function handleSearch(term: string) {
+    setCourseFilters({ search: term });
   }
 
   function handleCreateCourse() {
@@ -346,27 +340,28 @@ export function HomePage() {
 
         {/* ── Main Content Area ────────────────────────────────────── */}
         <div className="min-w-0 flex-1">
-          {/* Search Bar */}
-          <div className="relative mb-4 hidden md:block">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Search courses..."
+          {/* Search Bar (Desktop) */}
+          <div className="mb-4 hidden md:block">
+            <SearchAutocomplete
               value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              onKeyDown={handleSearchKeyDown}
-              className="h-10 pl-9"
+              onChange={setSearchInput}
+              onSearch={handleSearch}
+              placeholder="Search courses..."
+              courses={courses}
+              categories={categories}
             />
           </div>
 
-          {/* Mobile search bar */}
-          <div className="relative mb-4 md:hidden">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Search..."
+          {/* Search Bar (Mobile) */}
+          <div className="mb-4 md:hidden">
+            <SearchAutocomplete
               value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              onKeyDown={handleSearchKeyDown}
-              className="h-9 pl-9 text-sm"
+              onChange={setSearchInput}
+              onSearch={handleSearch}
+              placeholder="Search..."
+              courses={courses}
+              categories={categories}
+              className="[&_input]:h-9 [&_input]:text-sm"
             />
           </div>
 

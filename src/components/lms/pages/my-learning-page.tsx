@@ -9,7 +9,10 @@ import {
   Play,
   Heart,
   ArrowRight,
+  Sparkles,
+  GraduationCap,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
@@ -460,6 +463,131 @@ function GridSkeleton() {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Continue Learning Widget                                           */
+/* ------------------------------------------------------------------ */
+
+function ContinueLearningWidget({
+  enrollment,
+}: {
+  enrollment: EnrollmentItem | null | undefined;
+}) {
+  const { openCourseDetail, navigateTo } = useNavigationStore();
+
+  /* Loading state */
+  if (enrollment === undefined) {
+    return (
+      <Card className="overflow-hidden border-border/50">
+        <CardContent className="flex items-center gap-4 p-4">
+          <Skeleton className="h-28 w-full sm:h-32 sm:w-52 rounded-xl" />
+          <div className="flex-1 space-y-3">
+            <Skeleton className="h-5 w-3/4" />
+            <Skeleton className="h-3 w-1/2" />
+            <Skeleton className="h-2 w-full rounded-full" />
+            <Skeleton className="h-10 w-40 rounded-lg" />
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  /* Empty state - no in-progress courses */
+  if (!enrollment) {
+    return (
+      <Card className="overflow-hidden border-border/50 bg-gradient-to-r from-muted/40 via-muted/20 to-muted/40">
+        <CardContent className="relative flex flex-col items-center justify-center gap-3 px-6 py-10 text-center sm:flex-row sm:text-left">
+          <div className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/10 to-accent/10">
+            <GraduationCap className="h-7 w-7 text-primary" />
+          </div>
+          <div className="relative flex-1">
+            <h3 className="text-base font-semibold text-foreground">
+              Ready to start learning?
+            </h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Browse our course catalog and enroll in a course to track your progress here.
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            className="relative shrink-0 gap-2 font-semibold"
+            onClick={() => navigateTo("courses")}
+          >
+            <Sparkles className="h-4 w-4" />
+            Browse Courses
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  /* Active course - show continue learning card */
+  const { course, progress, enrolledAt } = enrollment;
+
+  return (
+    <Card className="group overflow-hidden border-border/50 transition-shadow hover:shadow-lg">
+      <CardContent className="p-0">
+        <div className="flex flex-col sm:flex-row">
+          {/* Cover Banner */}
+          <div className="relative h-36 w-full shrink-0 overflow-hidden sm:h-auto sm:w-56 sm:min-h-[180px]">
+            {course.coverImage ? (
+              <img
+                src={course.coverImage}
+                alt={course.title}
+                className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+              />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-cyan-600 via-teal-500 to-emerald-500">
+                <BookOpen className="h-12 w-12 text-white/40" />
+              </div>
+            )}
+            {/* Gradient overlay */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent sm:bg-gradient-to-r sm:from-transparent sm:to-card" />
+          </div>
+
+          {/* Content */}
+          <div className="relative flex flex-1 flex-col justify-center gap-3 p-4 sm:p-5">
+            <div className="flex items-center gap-2">
+              <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-semibold text-primary">
+                Continue Learning
+              </span>
+              {course.category && (
+                <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                  {course.category.name}
+                </Badge>
+              )}
+            </div>
+
+            <h3 className="text-lg font-bold leading-snug text-foreground sm:text-xl">
+              {course.title}
+            </h3>
+
+            <p className="text-xs text-muted-foreground">
+              {course.sectionsCount} sections - Enrolled {formatDate(enrolledAt)}
+            </p>
+
+            <div className="flex items-center gap-3">
+              <Progress value={progress} className="h-2 flex-1" />
+              <span className="text-sm font-bold tabular-nums text-foreground">
+                {progress}%
+              </span>
+            </div>
+
+            <Button
+              className="w-fit gap-2 bg-gradient-to-r from-primary to-accent font-semibold text-primary-foreground shadow-md transition-all hover:shadow-lg hover:opacity-90"
+              onClick={() => openCourseDetail(course.id)}
+            >
+              <Play className="h-4 w-4" />
+              Continue Learning
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+
+/* ------------------------------------------------------------------ */
 /*  Main My Learning Page                                              */
 /* ------------------------------------------------------------------ */
 
@@ -596,6 +724,17 @@ export function MyLearningPage() {
           />
         </div>
       ) : null}
+
+      {/* Continue Learning Widget */}
+      <ContinueLearningWidget
+        enrollment={
+          loadingEnrollments
+            ? undefined
+            : inProgressList.length > 0
+              ? inProgressList[0]
+              : null
+        }
+      />
 
       {/* Tabs */}
       <Tabs

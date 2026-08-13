@@ -1,0 +1,870 @@
+     1→"use client";
+     2→
+     3→import { useEffect, useState, useCallback } from "react";
+     4→import {
+     5→  BookOpen,
+     6→  Clock,
+     7→  CheckCircle,
+     8→  TrendingUp,
+     9→  Play,
+    10→  Heart,
+    11→  ArrowRight,
+    12→  Sparkles,
+    13→  GraduationCap,
+    14→} from "lucide-react";
+    15→import { Button } from "@/components/ui/button";
+    16→import { Card, CardContent } from "@/components/ui/card";
+    17→import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+    18→import { Progress } from "@/components/ui/progress";
+    19→import { Badge } from "@/components/ui/badge";
+    20→import { Skeleton } from "@/components/ui/skeleton";
+    21→import { CourseCard } from "@/components/lms/course-card";
+    22→import { useMyLearningStore, useUserStore, useNavigationStore } from "@/stores/lms-store";
+    23→import type { LearningStats, MyLearningTab, CourseItem } from "@/types/lms";
+    24→
+    25→/* ------------------------------------------------------------------ */
+    26→/*  Local types for API response shapes                               */
+    27→/* ------------------------------------------------------------------ */
+    28→
+    29→interface EnrollmentCourse {
+    30→  id: string;
+    31→  title: string;
+    32→  description: string | null;
+    33→  coverImage: string | null;
+    34→  rating: number;
+    35→  language: string;
+    36→  category: { id: string; name: string; color: string | null } | null;
+    37→  sectionsCount: number;
+    38→}
+    39→
+    40→interface EnrollmentItem {
+    41→  id: string;
+    42→  status: string;
+    43→  enrolledAt: string;
+    44→  completedAt: string | null;
+    45→  progress: number;
+    46→  course: EnrollmentCourse;
+    47→}
+    48→
+    49→interface FavoriteCourse {
+    50→  id: string;
+    51→  title: string;
+    52→  description: string | null;
+    53→  coverImage: string | null;
+    54→  rating: number;
+    55→  studentCount: number;
+    56→  language: string;
+    57→  category: { id: string; name: string; color: string | null } | null;
+    58→  sectionsCount: number;
+    59→  enrollmentsCount: number;
+    60→}
+    61→
+    62→interface FavoriteItem {
+    63→  id: string;
+    64→  createdAt: string;
+    65→  course: FavoriteCourse;
+    66→}
+    67→
+    68→interface UserStats extends LearningStats {
+    69→  favoritesCount: number;
+    70→}
+    71→
+    72→/* ------------------------------------------------------------------ */
+    73→/*  Helpers                                                           */
+    74→/* ------------------------------------------------------------------ */
+    75→
+    76→/** Convert enrollment course data to CourseItem shape for CourseCard */
+    77→function enrollmentToCourseItem(e: EnrollmentItem): CourseItem {
+    78→  return {
+    79→    id: e.course.id,
+    80→    title: e.course.title,
+    81→    description: e.course.description,
+    82→    coverImage: e.course.coverImage,
+    83→    rating: e.course.rating,
+    84→    studentCount: 0,
+    85→    status: e.status,
+    86→    language: e.course.language,
+    87→    category: e.course.category,
+    88→    creator: null,
+    89→    sections: [],
+    90→    createdAt: e.enrolledAt,
+    91→    updatedAt: e.enrolledAt,
+    92→  };
+    93→}
+    94→
+    95→/** Convert favorite course data to CourseItem shape for CourseCard */
+    96→function favoriteToCourseItem(f: FavoriteItem): CourseItem {
+    97→  return {
+    98→    id: f.course.id,
+    99→    title: f.course.title,
+   100→    description: f.course.description,
+   101→    coverImage: f.course.coverImage,
+   102→    rating: f.course.rating,
+   103→    studentCount: f.course.studentCount,
+   104→    status: "published",
+   105→    language: f.course.language,
+   106→    category: f.course.category,
+   107→    creator: null,
+   108→    sections: [],
+   109→    createdAt: f.createdAt,
+   110→    updatedAt: f.createdAt,
+   111→  };
+   112→}
+   113→
+   114→/** Format date string to readable format */
+   115→function formatDate(dateStr: string): string {
+   116→  return new Date(dateStr).toLocaleDateString("en-US", {
+   117→    month: "short",
+   118→    day: "numeric",
+   119→    year: "numeric",
+   120→  });
+   121→}
+   122→
+   123→/* ------------------------------------------------------------------ */
+   124→/*  Stat Card                                                         */
+   125→/* ------------------------------------------------------------------ */
+   126→
+   127→function StatCard({
+   128→  icon: Icon,
+   129→  label,
+   130→  value,
+   131→  gradient,
+   132→  trend,
+   133→  loading,
+   134→}: {
+   135→  icon: React.ElementType;
+   136→  label: string;
+   137→  value: string | number;
+   138→  gradient: string;
+   139→  trend?: "up" | "down";
+   140→  loading: boolean;
+   141→}) {
+   142→  return (
+   143→    <Card className="overflow-hidden border-border/50 transition-shadow hover:shadow-md">
+   144→      <CardContent className="relative flex items-center gap-4 p-4">
+   145→        {/* Subtle gradient background */}
+   146→        <div
+   147→          className={`pointer-events-none absolute inset-0 opacity-[0.06] ${gradient}`}
+   148→        />
+   149→        <div
+   150→          className={`relative flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${gradient} transition-transform duration-200 hover:scale-110`}
+   151→        >
+   152→          <Icon className="h-5 w-5 text-white" />
+   153→        </div>
+   154→        <div className="relative">
+   155→          {loading ? (
+   156→            <Skeleton className="mb-1 h-8 w-10" />
+   157→          ) : (
+   158→            <div className="flex items-baseline gap-1.5">
+   159→              <p className="text-3xl font-extrabold leading-none tracking-tight text-foreground">
+   160→                {value}
+   161→              </p>
+   162→              {trend && (
+   163→                <span
+   164→                  className={`text-sm font-semibold ${
+   165→                    trend === "up" ? "text-emerald-500" : "text-red-400"
+   166→                  }`}
+   167→                >
+   168→                  {trend === "up" ? "↑" : "↓"}
+   169→                </span>
+   170→              )}
+   171→            </div>
+   172→          )}
+   173→          <p className="mt-1 text-xs font-medium text-muted-foreground">
+   174→            {label}
+   175→          </p>
+   176→        </div>
+   177→      </CardContent>
+   178→    </Card>
+   179→  );
+   180→}
+   181→
+   182→/* ------------------------------------------------------------------ */
+   183→/*  Circular Mini Progress (for course rows)                           */
+   184→/* ------------------------------------------------------------------ */
+   185→
+   186→function CircularMiniProgress({ percentage }: { percentage: number }) {
+   187→  const size = 40;
+   188→  const stroke = 3.5;
+   189→  const r = (size - stroke) / 2;
+   190→  const circ = r * 2 * Math.PI;
+   191→  const offset = circ - (percentage / 100) * circ;
+   192→
+   193→  return (
+   194→    <div className="relative inline-flex shrink-0 items-center justify-center">
+   195→      <svg width={size} height={size} className="-rotate-90">
+   196→        <circle
+   197→          cx={size / 2}
+   198→          cy={size / 2}
+   199→          r={r}
+   200→          fill="none"
+   201→          stroke="currentColor"
+   202→          strokeWidth={stroke}
+   203→          className="text-muted/30"
+   204→        />
+   205→        <circle
+   206→          cx={size / 2}
+   207→          cy={size / 2}
+   208→          r={r}
+   209→          fill="none"
+   210→          stroke="url(#mini-grad)"
+   211→          strokeWidth={stroke}
+   212→          strokeLinecap="round"
+   213→          strokeDasharray={circ}
+   214→          strokeDashoffset={offset}
+   215→          className="transition-all duration-500 ease-out"
+   216→        />
+   217→        <defs>
+   218→          <linearGradient id="mini-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+   219→            <stop offset="0%" stopColor="#0891b2" />
+   220→            <stop offset="100%" stopColor="#14b8a6" />
+   221→          </linearGradient>
+   222→        </defs>
+   223→      </svg>
+   224→      <span className="absolute text-[9px] font-bold text-foreground">
+   225→        {percentage}%
+   226→      </span>
+   227→    </div>
+   228→  );
+   229→}
+   230→
+   231→/* ------------------------------------------------------------------ */
+   232→/*  Empty State                                                       */
+   233→/* ------------------------------------------------------------------ */
+   234→
+   235→function EmptyState({
+   236→  icon: Icon,
+   237→  title,
+   238→  description,
+   239→}: {
+   240→  icon: React.ElementType;
+   241→  title: string;
+   242→  description: string;
+   243→}) {
+   244→  return (
+   245→    <div className="relative flex flex-col items-center justify-center overflow-hidden rounded-2xl border border-dashed border-border/60 bg-gradient-to-b from-muted/20 to-transparent py-20 text-center">
+   246→      {/* Subtle background decoration */}
+   247→      <div className="pointer-events-none absolute inset-0 opacity-[0.03]">
+   248→        <div className="absolute left-1/4 top-1/4 h-40 w-40 rounded-full bg-gradient-to-br from-cyan-500 to-teal-400 blur-3xl" />
+   249→        <div className="absolute bottom-1/4 right-1/4 h-32 w-32 rounded-full bg-gradient-to-tr from-amber-400 to-orange-300 blur-3xl" />
+   250→      </div>
+   251→      <div className="relative mb-5 flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-muted to-muted/60 shadow-sm">
+   252→        <Icon className="h-10 w-10 text-muted-foreground/70" />
+   253→      </div>
+   254→      <h3 className="relative text-base font-semibold text-foreground">
+   255→        {title}
+   256→      </h3>
+   257→      <p className="relative mt-2 max-w-sm text-sm leading-relaxed text-muted-foreground">
+   258→        {description}
+   259→      </p>
+   260→    </div>
+   261→  );
+   262→}
+   263→
+   264→/* ------------------------------------------------------------------ */
+   265→/*  In-Progress Course Row                                             */
+   266→/* ------------------------------------------------------------------ */
+   267→
+   268→function InProgressRow({
+   269→  enrollment,
+   270→}: {
+   271→  enrollment: EnrollmentItem;
+   272→}) {
+   273→  const { openCourseDetail } = useNavigationStore();
+   274→
+   275→  return (
+   276→    <Card
+   277→      className="group cursor-pointer border-border/50 transition-all duration-200 hover:border-primary/20 hover:bg-muted/30 hover:shadow-md"
+   278→      onClick={() => openCourseDetail(enrollment.course.id)}
+   279→    >
+   280→      <CardContent className="flex items-center gap-4 p-4">
+   281→        {/* Cover Thumbnail */}
+   282→        <div className="relative h-16 w-24 shrink-0 overflow-hidden rounded-lg">
+   283→          {enrollment.course.coverImage ? (
+   284→            <img
+   285→              src={enrollment.course.coverImage}
+   286→              alt={enrollment.course.title}
+   287→              className="h-full w-full object-cover"
+   288→            />
+   289→          ) : (
+   290→            <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-cyan-600 to-teal-500">
+   291→              <span className="text-lg font-bold text-white">
+   292→                {enrollment.course.title.charAt(0)}
+   293→              </span>
+   294→            </div>
+   295→          )}
+   296→        </div>
+   297→
+   298→        {/* Info */}
+   299→        <div className="min-w-0 flex-1">
+   300→          <div className="flex items-start justify-between gap-2">
+   301→            <h4 className="truncate text-sm font-semibold text-foreground">
+   302→              {enrollment.course.title}
+   303→            </h4>
+   304→          </div>
+   305→          <div className="mt-1 flex items-center gap-2">
+   306→            {enrollment.course.category && (
+   307→              <Badge
+   308→                variant="secondary"
+   309→                className="text-[10px] px-1.5 py-0"
+   310→              >
+   311→                {enrollment.course.category.name}
+   312→              </Badge>
+   313→            )}
+   314→            <span className="text-[11px] text-muted-foreground">
+   315→              {enrollment.course.sectionsCount} sections
+   316→            </span>
+   317→          </div>
+   318→          <div className="mt-2.5 flex items-center gap-3">
+   319→            <Progress
+   320→              value={enrollment.progress}
+   321→              className="h-1.5 flex-1"
+   322→            />
+   323→            <span className="text-xs font-medium text-muted-foreground">
+   324→              {enrollment.progress}%
+   325→            </span>
+   326→          </div>
+   327→        </div>
+   328→
+   329→        {/* Circular progress + Continue button */}
+   330→        <div className="flex shrink-0 flex-col items-center gap-2">
+   331→          <CircularMiniProgress percentage={enrollment.progress} />
+   332→          <span className="flex items-center gap-1 text-[11px] font-semibold text-primary opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+   333→            Continue <ArrowRight className="h-3 w-3" />
+   334→          </span>
+   335→        </div>
+   336→      </CardContent>
+   337→    </Card>
+   338→  );
+   339→}
+   340→
+   341→/* ------------------------------------------------------------------ */
+   342→/*  Completed Course Row                                               */
+   343→/* ------------------------------------------------------------------ */
+   344→
+   345→function CompletedRow({
+   346→  enrollment,
+   347→}: {
+   348→  enrollment: EnrollmentItem;
+   349→}) {
+   350→  const { openCourseDetail } = useNavigationStore();
+   351→
+   352→  return (
+   353→    <Card
+   354→      className="group cursor-pointer border-border/50 transition-shadow hover:shadow-md"
+   355→      onClick={() => openCourseDetail(enrollment.course.id)}
+   356→    >
+   357→      <CardContent className="flex items-center gap-4 p-4">
+   358→        {/* Cover Thumbnail */}
+   359→        <div className="relative h-16 w-24 shrink-0 overflow-hidden rounded-lg">
+   360→          {enrollment.course.coverImage ? (
+   361→            <img
+   362→              src={enrollment.course.coverImage}
+   363→              alt={enrollment.course.title}
+   364→              className="h-full w-full object-cover"
+   365→            />
+   366→          ) : (
+   367→            <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-emerald-600 to-teal-500">
+   368→              <span className="text-lg font-bold text-white">
+   369→                {enrollment.course.title.charAt(0)}
+   370→              </span>
+   371→            </div>
+   372→          )}
+   373→        </div>
+   374→
+   375→        {/* Info */}
+   376→        <div className="min-w-0 flex-1">
+   377→          <div className="flex items-start justify-between gap-2">
+   378→            <h4 className="truncate text-sm font-semibold text-foreground">
+   379→              {enrollment.course.title}
+   380→            </h4>
+   381→            <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
+   382→          </div>
+   383→          <div className="mt-1 flex items-center gap-2">
+   384→            {enrollment.course.category && (
+   385→              <Badge
+   386→                variant="secondary"
+   387→                className="text-[10px] px-1.5 py-0"
+   388→              >
+   389→                {enrollment.course.category.name}
+   390→              </Badge>
+   391→            )}
+   392→            {enrollment.completedAt && (
+   393→              <span className="text-[11px] text-muted-foreground">
+   394→                Completed {formatDate(enrollment.completedAt)}
+   395→              </span>
+   396→            )}
+   397→          </div>
+   398→          <Progress
+   399→            value={100}
+   400→            className="mt-2.5 h-1.5 flex-1 [&>div]:bg-emerald-500"
+   401→          />
+   402→        </div>
+   403→      </CardContent>
+   404→    </Card>
+   405→  );
+   406→}
+   407→
+   408→/* ------------------------------------------------------------------ */
+   409→/*  Loading Skeletons                                                  */
+   410→/* ------------------------------------------------------------------ */
+   411→
+   412→function StatsSkeleton() {
+   413→  return (
+   414→    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+   415→      {Array.from({ length: 4 }).map((_, i) => (
+   416→        <Card key={i} className="border-border/50">
+   417→          <CardContent className="flex items-center gap-4 p-4">
+   418→            <Skeleton className="h-11 w-11 shrink-0 rounded-lg" />
+   419→            <div className="flex-1">
+   420→              <Skeleton className="mb-1 h-6 w-8" />
+   421→              <Skeleton className="h-3 w-20" />
+   422→            </div>
+   423→          </CardContent>
+   424→        </Card>
+   425→      ))}
+   426→    </div>
+   427→  );
+   428→}
+   429→
+   430→function ListSkeleton() {
+   431→  return (
+   432→    <div className="space-y-3">
+   433→      {Array.from({ length: 3 }).map((_, i) => (
+   434→        <Card key={i} className="border-border/50">
+   435→          <CardContent className="flex items-center gap-4 p-4">
+   436→            <Skeleton className="h-16 w-24 shrink-0 rounded-lg" />
+   437→            <div className="min-w-0 flex-1 space-y-2">
+   438→              <Skeleton className="h-4 w-3/4" />
+   439→              <Skeleton className="h-3 w-1/2" />
+   440→              <Skeleton className="h-1.5 w-full rounded-full" />
+   441→            </div>
+   442→          </CardContent>
+   443→        </Card>
+   444→      ))}
+   445→    </div>
+   446→  );
+   447→}
+   448→
+   449→function GridSkeleton() {
+   450→  return (
+   451→    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+   452→      {Array.from({ length: 4 }).map((_, i) => (
+   453→        <Card key={i} className="overflow-hidden border-border/50">
+   454→          <Skeleton className="aspect-video w-full" />
+   455→          <div className="space-y-2 p-3">
+   456→            <Skeleton className="h-4 w-full" />
+   457→            <Skeleton className="h-3 w-2/3" />
+   458→          </div>
+   459→        </Card>
+   460→      ))}
+   461→    </div>
+   462→  );
+   463→}
+   464→
+   465→/* ------------------------------------------------------------------ */
+   466→/*  Continue Learning Widget                                           */
+   467→/* ------------------------------------------------------------------ */
+   468→
+   469→function ContinueLearningWidget({
+   470→  enrollment,
+   471→}: {
+   472→  enrollment: EnrollmentItem | null;
+   473→}) {
+   474→  const { openCourseDetail, navigateTo } = useNavigationStore();
+   475→
+   476→  /* Loading state */
+   477→  if (enrollment === undefined) {
+   478→    return (
+   479→      <Card className="overflow-hidden border-border/50">
+   480→        <CardContent className="flex items-center gap-4 p-4">
+   481→          <Skeleton className="h-28 w-full sm:h-32 sm:w-52 rounded-xl" />
+   482→          <div className="flex-1 space-y-3">
+   483→            <Skeleton className="h-5 w-3/4" />
+   484→            <Skeleton className="h-3 w-1/2" />
+   485→            <Skeleton className="h-2 w-full rounded-full" />
+   486→            <Skeleton className="h-10 w-40 rounded-lg" />
+   487→          </div>
+   488→        </CardContent>
+   489→      </Card>
+   490→    );
+   491→  }
+   492→
+   493→  /* Empty state — no in-progress courses */
+   494→  if (!enrollment) {
+   495→    return (
+   496→      <Card className="overflow-hidden border-border/50 bg-gradient-to-r from-muted/40 via-muted/20 to-muted/40">
+   497→        <CardContent className="relative flex flex-col items-center justify-center gap-3 px-6 py-10 text-center sm:flex-row sm:text-left">
+   498→          {/* Decorative blobs */
+   499→          <div className="pointer-events-none absolute -left-10 -top-10 h-32 w-32 rounded-full bg-gradient-to-br from-cyan-400/10 to-teal-400/10 blur-2xl" />
+   500→          <div className="pointer-events-none absolute -bottom-8 -right-8 h-28 w-28 rounded-full bg-gradient-to-tl from-amber-400/10 to-orange-300/10 blur-2xl" />
+   501→
+   502→          <div className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/10 to-accent/10">
+   503→            <GraduationCap className="h-7 w-7 text-primary" />
+   504→          </div>
+   505→          <div className="relative flex-1">
+   506→            <h3 className="text-base font-semibold text-foreground">
+   507→              Ready to start learning?
+   508→            </h3>
+   509→            <p className="mt-1 text-sm text-muted-foreground">
+   510→              Browse our course catalog and enroll in a course to track your progress here.
+   511→            </p>
+   512→          </div>
+   513→          <Button
+   514→            variant="outline"
+   515→            className="relative shrink-0 gap-2 font-semibold"
+   516→            onClick={() => navigateTo("courses")}
+   517→          >
+   518→            <Sparkles className="h-4 w-4" />
+   519→            Browse Courses
+   520→          </Button>
+   521→        </CardContent>
+   522→      </Card>
+   523→    );
+   524→  }
+   525→
+   526→  /* Active course — show continue learning card */
+   527→  const { course, progress, enrolledAt } = enrollment;
+   528→
+   529→  return (
+   530→    <Card className="group overflow-hidden border-border/50 transition-shadow hover:shadow-lg">
+   531→      <CardContent className="p-0">
+   532→        <div className="flex flex-col sm:flex-row">
+   533→          {/* Cover Banner */
+   534→          <div className="relative h-36 w-full shrink-0 overflow-hidden sm:h-auto sm:w-56 sm:min-h-[180px]">
+   535→            {course.coverImage ? (
+   536→              <img
+   537→                src={course.coverImage}
+   538→                alt={course.title}
+   539→                className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+   540→              />
+   541→            ) : (
+   542→              <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-cyan-600 via-teal-500 to-emerald-500">
+   543→                <BookOpen className="h-12 w-12 text-white/40" />
+   544→              </div>
+   545→            )}
+   546→            {/* Gradient overlay on mobile for text readability */
+   547→            <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent sm:bg-gradient-to-r sm:from-transparent sm:to-card" />
+   548→          </div>
+   549→
+   550→          {/* Content */
+   551→          <div className="relative flex flex-1 flex-col justify-center gap-3 p-4 sm:p-5">
+   552→            {/* Category badge + label */
+   553→            <div className="flex items-center gap-2">
+   554→              <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-semibold text-primary">
+   555→                Continue Learning
+   556→              </span>
+   557→              {course.category && (
+   558→                <Badge
+   559→                  variant="secondary"
+   560→                  className="text-[10px] px-1.5 py-0"
+   561→                >
+   562→                  {course.category.name}
+   563→                </Badge>
+   564→              )}
+   565→            </div>
+   566→
+   567→            {/* Title */
+   568→            <h3 className="text-lg font-bold leading-snug text-foreground sm:text-xl">
+   569→              {course.title}
+   570→            </h3>
+   571→
+   572→            {/* Section progress info */
+   573→            <p className="text-xs text-muted-foreground">
+   574→              {course.sectionsCount} sections · Enrolled {formatDate(enrolledAt)}
+   575→            </p>
+   576→
+   577→            {/* Progress bar */
+   578→            <div className="flex items-center gap-3">
+   579→              <Progress value={progress} className="h-2 flex-1" />
+   580→              <span className="text-sm font-bold tabular-nums text-foreground">
+   581→                {progress}%
+   582→              </span>
+   583→            </div>
+   584→
+   585→            {/* Continue Button */
+   586→            <Button
+   587→              className="w-fit gap-2 bg-gradient-to-r from-primary to-accent font-semibold text-primary-foreground shadow-md transition-all hover:shadow-lg hover:opacity-90"
+   588→              onClick={() => openCourseDetail(course.id)}
+   589→            >
+   590→              <Play className="h-4 w-4" />
+   591→              Continue Learning
+   592→              <ArrowRight className="h-4 w-4" />
+   593→            </Button>
+   594→          </div>
+   595→        </div>
+   596→      </CardContent>
+   597→    </Card>
+   598→  );
+   599→}
+   600→
+   601→/* ------------------------------------------------------------------ */
+   602→/*  Main My Learning Page                                              */
+   603→/* ------------------------------------------------------------------ */
+   604→
+   605→export function MyLearningPage() {
+   606→  const { tab, setTab, setEnrollments, setFavorites } = useMyLearningStore();
+   607→  const { currentUserId } = useUserStore();
+   608→
+   609→  const [stats, setStats] = useState<UserStats | null>(null);
+   610→  const [enrollments, setEnrollmentsState] = useState<EnrollmentItem[]>([]);
+   611→  const [favorites, setFavoritesState] = useState<FavoriteItem[]>([]);
+   612→  const [loadingStats, setLoadingStats] = useState(true);
+   613→  const [loadingEnrollments, setLoadingEnrollments] = useState(true);
+   614→  const [loadingFavorites, setLoadingFavorites] = useState(true);
+   615→
+   616→  const fetchStats = useCallback(async () => {
+   617→    setLoadingStats(true);
+   618→    try {
+   619→      const res = await fetch(`/api/user/${currentUserId}`);
+   620→      const json = await res.json();
+   621→      if (json.success) {
+   622→        setStats(json.data.stats);
+   623→      }
+   624→    } catch {
+   625→      /* silent */
+   626→    } finally {
+   627→      setLoadingStats(false);
+   628→    }
+   629→  }, [currentUserId]);
+   630→
+   631→  const fetchEnrollments = useCallback(async () => {
+   632→    setLoadingEnrollments(true);
+   633→    try {
+   634→      const res = await fetch(
+   635→        `/api/enrollments?userId=${currentUserId}`
+   636→      );
+   637→      const json = await res.json();
+   638→      if (json.success) {
+   639→        setEnrollmentsState(json.data);
+   640→        setEnrollments(
+   641→          json.data.map((e: EnrollmentItem) => enrollmentToCourseItem(e))
+   642→        );
+   643→      }
+   644→    } catch {
+   645→      /* silent */
+   646→    } finally {
+   647→      setLoadingEnrollments(false);
+   648→    }
+   649→  }, [currentUserId, setEnrollments]);
+   650→
+   651→  const fetchFavorites = useCallback(async () => {
+   652→    setLoadingFavorites(true);
+   653→    try {
+   654→      const res = await fetch(
+   655→        `/api/favorites?userId=${currentUserId}`
+   656→      );
+   657→      const json = await res.json();
+   658→      if (json.success) {
+   659→        setFavoritesState(json.data);
+   660→        setFavorites(
+   661→          json.data.map((f: FavoriteItem) => favoriteToCourseItem(f))
+   662→        );
+   663→      }
+   664→    } catch {
+   665→      /* silent */
+   666→    } finally {
+   667→      setLoadingFavorites(false);
+   668→    }
+   669→  }, [currentUserId, setFavorites]);
+   670→
+   671→  useEffect(() => {
+   672→    fetchStats();
+   673→    fetchEnrollments();
+   674→    fetchFavorites();
+   675→  }, [fetchStats, fetchEnrollments, fetchFavorites]);
+   676→
+   677→  /* Derived lists */
+   678→  const inProgressList = enrollments.filter(
+   679→    (e) => e.status === "in_progress"
+   680→  );
+   681→  const completedList = enrollments.filter(
+   682→    (e) => e.status === "completed"
+   683→  );
+   684→
+   685→  /* Tab change handler */
+   686→  const handleTabChange = (value: string) => {
+   687→    setTab(value as MyLearningTab);
+   688→  };
+   689→
+   690→  return (
+   691→    <div className="space-y-6">
+   692→      {/* Page Header */}
+   693→      <div>
+   694→        <h1 className="text-2xl font-bold text-foreground">My Learning</h1>
+   695→        <p className="mt-1 text-sm text-muted-foreground">
+   696→          Track your learning progress and manage your courses
+   697→        </p>
+   698→      </div>
+   699→
+   700→      {/* Stats Row */}
+   701→      {loadingStats ? (
+   702→        <StatsSkeleton />
+   703→      ) : stats ? (
+   704→        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+   705→          <StatCard
+   706→            icon={BookOpen}
+   707→            label="Total Courses"
+   708→            value={stats.totalCourses}
+   709→            gradient="bg-gradient-to-br from-blue-500 to-blue-700"
+   710→            trend="up"
+   711→            loading={false}
+   712→          />
+   713→          <StatCard
+   714→            icon={Clock}
+   715→            label="In Progress"
+   716→            value={stats.inProgress}
+   717→            gradient="bg-gradient-to-br from-teal-500 to-teal-700"
+   718→            loading={false}
+   719→          />
+   720→          <StatCard
+   721→            icon={CheckCircle}
+   722→            label="Completed"
+   723→            value={stats.completed}
+   724→            gradient="bg-gradient-to-br from-emerald-500 to-emerald-700"
+   725→            trend="up"
+   726→            loading={false}
+   727→          />
+   728→          <StatCard
+   729→            icon={TrendingUp}
+   730→            label="Avg Progress"
+   731→            value={`${stats.avgProgress}%`}
+   732→            gradient="bg-gradient-to-br from-amber-500 to-amber-700"
+   733→            trend="up"
+   734→            loading={false}
+   735→          />
+   736→        </div>
+   737→      ) : null}
+   738→
+   739→      {/* Continue Learning Widget */}
+   740→      <ContinueLearningWidget
+   741→        enrollment={
+   742→          loadingEnrollments
+   743→            ? undefined
+   744→            : inProgressList.length > 0
+   745→              ? inProgressList[0]
+   746→              : null
+   747→        }
+   748→      />
+   749→
+   750→      {/* Tabs */}
+   751→      <Tabs
+   752→        value={tab}
+   753→        onValueChange={handleTabChange}
+   754→        className="w-full"
+   755→      >
+   756→        {/* Underline-style tab list with animated indicator */}
+   757→        <TabsList className="relative h-auto w-full justify-start gap-6 rounded-none border-b border-border bg-transparent p-0">
+   758→          <TabsTrigger
+   759→            value="in-progress"
+   760→            className="rounded-none border-b-2 border-transparent px-1 pb-3 pt-1 text-sm font-medium text-muted-foreground transition-all duration-300 data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:font-semibold data-[state=active]:shadow-none data-[state=active]:text-foreground"
+   761→          >
+   762→            <span className="flex items-center gap-1.5">
+   763→              In Progress
+   764→              {!loadingEnrollments && inProgressList.length > 0 && (
+   765→                <Badge className="ml-0.5 h-5 min-w-5 rounded-full bg-primary/10 px-1.5 text-[10px] font-bold text-primary">
+   766→                  {inProgressList.length}
+   767→                </Badge>
+   768→              )}
+   769→            </span>
+   770→          </TabsTrigger>
+   771→          <TabsTrigger
+   772→            value="completed"
+   773→            className="rounded-none border-b-2 border-transparent px-1 pb-3 pt-1 text-sm font-medium text-muted-foreground transition-all duration-300 data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:font-semibold data-[state=active]:shadow-none data-[state=active]:text-foreground"
+   774→          >
+   775→            <span className="flex items-center gap-1.5">
+   776→              Completed
+   777→              {!loadingEnrollments && completedList.length > 0 && (
+   778→                <Badge className="ml-0.5 h-5 min-w-5 rounded-full bg-primary/10 px-1.5 text-[10px] font-bold text-primary">
+   779→                  {completedList.length}
+   780→                </Badge>
+   781→              )}
+   782→            </span>
+   783→          </TabsTrigger>
+   784→          <TabsTrigger
+   785→            value="favorites"
+   786→            className="rounded-none border-b-2 border-transparent px-1 pb-3 pt-1 text-sm font-medium text-muted-foreground transition-all duration-300 data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:font-semibold data-[state=active]:shadow-none data-[state=active]:text-foreground"
+   787→          >
+   788→            <span className="flex items-center gap-1.5">
+   789→              Favorites
+   790→              {!loadingFavorites && favorites.length > 0 && (
+   791→                <Badge className="ml-0.5 h-5 min-w-5 rounded-full bg-primary/10 px-1.5 text-[10px] font-bold text-primary">
+   792→                  {favorites.length}
+   793→                </Badge>
+   794→              )}
+   795→            </span>
+   796→          </TabsTrigger>
+   797→        </TabsList>
+   798→
+   799→        {/* In Progress Tab */}
+   800→        <TabsContent value="in-progress" className="mt-6">
+   801→          {loadingEnrollments ? (
+   802→            <ListSkeleton />
+   803→          ) : inProgressList.length === 0 ? (
+   804→            <EmptyState
+   805→              icon={BookOpen}
+   806→              title="No courses in progress"
+   807→              description="Browse our course catalog and enroll in courses that interest you. Your active courses will appear here with progress tracking."
+   808→            />
+   809→          ) : (
+   810→            <div className="space-y-3">
+   811→              {inProgressList.map((enrollment) => (
+   812→                <InProgressRow
+   813→                  key={enrollment.id}
+   814→                  enrollment={enrollment}
+   815→                />
+   816→              ))}
+   817→            </div>
+   818→          )}
+   819→        </TabsContent>
+   820→
+   821→        {/* Completed Tab */}
+   822→        <TabsContent value="completed" className="mt-6">
+   823→          {loadingEnrollments ? (
+   824→            <ListSkeleton />
+   825→          ) : completedList.length === 0 ? (
+   826→            <EmptyState
+   827→              icon={CheckCircle}
+   828→              title="No completed courses yet"
+   829→              description="Keep learning! Once you finish all sections of an enrolled course, it will be moved here to celebrate your achievement."
+   830→            />
+   831→          ) : (
+   832→            <div className="space-y-3">
+   833→              {completedList.map((enrollment) => (
+   834→                <CompletedRow
+   835→                  key={enrollment.id}
+   836→                  enrollment={enrollment}
+   837→                />
+   838→              ))}
+   839→            </div>
+   840→          )}
+   841→        </TabsContent>
+   842→
+   843→        {/* Favorites Tab */}
+   844→        <TabsContent value="favorites" className="mt-6">
+   845→          {loadingFavorites ? (
+   846→            <GridSkeleton />
+   847→          ) : favorites.length === 0 ? (
+   848→            <EmptyState
+   849→              icon={Heart}
+   850→              title="No favorites yet"
+   851→              description="Click the heart icon on any course to save it to your favorites. You can quickly access them from here anytime."
+   852→            />
+   853→          ) : (
+   854→            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+   855→              {favorites.map((favorite) => (
+   856→                <CourseCard
+   857→                  key={favorite.id}
+   858→                  course={favoriteToCourseItem(favorite)}
+   859→                  showFavorite
+   860→                  isFavorited
+   861→                />
+   862→              ))}
+   863→            </div>
+   864→          )}
+   865→        </TabsContent>
+   866→      </Tabs>
+   867→    </div>
+   868→  );
+   869→}
+   870→
