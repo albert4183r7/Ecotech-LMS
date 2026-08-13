@@ -177,7 +177,7 @@ function BadgeCard({ badge }: { badge: AchievementBadge }) {
     <div
       className={`group relative flex flex-col items-center gap-2.5 rounded-xl border p-4 text-center transition-all duration-200 ${
         badge.earned
-          ? "border-primary/20 bg-gradient-to-b from-primary/5 to-transparent shadow-sm hover:border-primary/40 hover:shadow-md"
+          ? "border-primary/20 bg-gradient-to-b from-primary/5 to-transparent shadow-sm hover:border-primary/40 hover:shadow-md card-gradient-border"
           : "border-border/30 bg-muted/20 opacity-50 grayscale"
       }`}
       role="listitem"

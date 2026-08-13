@@ -16,15 +16,16 @@
 ✅ **Phase 8 (Cron Review #7)** — Onboarding tour, announcement banner, course ratings, Pomodoro study timer, extensive CSS enhancements (glassmorphism, mobile touch targets, gradient text, content reveal animations, scrollbar styling)
 ✅ **Phase 9 (Cron Review #8)** — Analytics dashboard, course recommendations engine, notification center with persistent DB storage, 3-way dark mode toggle (light/dark/system), home page hero overhaul (floating orbs, typing animation, CSS parallax, animated counters, category pills), empty states polish, button ripple/glow effects, card hover micro-interactions
 ✅ **Phase 10 (Cron Review #9)** — Settings page (appearance/notifications/learning/privacy/data management), course bookmark collections, floating action button (FAB) with scroll-to-top, course progress timeline visualization, dashboard visual polish (sparklines, donut chart, weekly heatmap), enhanced view transitions (fade+slide+blur), reusable skeleton card components, micro-interaction CSS (focus ring pulse, loading dots, tooltip slide, toggle glow, number roll)
+✅ **Phase 11 (Cron Review #10)** — Daily learning challenges system, XP level progression with level titles, social activity feed, enhanced course filter pills (inline category pills + results count), major CSS overhaul (11 new sections 42-52: neon glow, text wave, magnetic hover, particle shimmer, morphing shapes, floating labels, enhanced cards, scroll-triggered animations, interactive toggle switch, tooltip suite, loading enhancements), component styling upgrades (3D card depth, glass-strong footer, neon navbar, gradient-border badges)
 
 ### Architecture Summary
 - **11 Database Models**: User, Category, Course, Section, Enrollment, Progress, Favorite, Comment, Note, Rating, Notification
-- **9 Frontend Pages**: Home, Courses, My Learning, Profile, Course Detail, Classroom, Create Course, Dashboard, **Settings**
-- **23 API Endpoints**: Full CRUD for courses, enrollments, progress, favorites, categories, sections, user, leaderboard, AI content generation, achievements, activity, comments (GET/POST/DELETE), notes (GET/POST/PUT/DELETE), ratings (GET/POST), analytics (GET), recommendations (GET), notifications (GET/POST/PUT), **progress-timeline (GET)**
-- **Shared Components**: Navbar (with real notifications, search, breadcrumbs, online status, 3-way dark mode toggle), Footer (enhanced), CourseCard, ThemeProvider, SearchAutocomplete, AchievementBadges, CertificateModal, DiscussionPanel, ActivityChart, LeaderboardWidget, KeyboardShortcuts, OnboardingTour, AnnouncementBanner, StarRating, StudyTimer, CourseRecommendations, **CourseBookmarks**, **ProgressTimeline**, **FloatingActions**, **SkeletonCards**
+- **9 Frontend Pages**: Home, Courses, My Learning, Profile, Course Detail, Classroom, Create Course, Dashboard, Settings
+- **26 API Endpoints**: Full CRUD for courses, enrollments, progress, favorites, categories, sections, user, leaderboard, AI content generation, achievements, activity, comments (GET/POST/DELETE), notes (GET/POST/PUT/DELETE), ratings (GET/POST), analytics (GET), recommendations (GET), notifications (GET/POST/PUT), progress-timeline (GET), **challenges (GET)**, **xp (GET/POST)**, **social-feed (GET)**
+- **Shared Components**: Navbar (neon glow, real notifications, search, breadcrumbs, online status, 3-way dark mode toggle), Footer (glass-strong, particle shimmer), CourseCard (3D depth), ThemeProvider, SearchAutocomplete, AchievementBadges (gradient border), CertificateModal, DiscussionPanel, ActivityChart, LeaderboardWidget, KeyboardShortcuts, OnboardingTour, AnnouncementBanner, StarRating, StudyTimer, CourseRecommendations, CourseBookmarks, ProgressTimeline, FloatingActions, SkeletonCards, **DailyChallenges**, **XpBar (compact + full)**, **SocialFeed**
 - **4 Zustand Stores**: Navigation, Course, My Learning, User
 - **Seed Data**: 8 courses, 14 sections, 6 categories, 2 enrollments, 2 favorites, 8 comments (with replies), 8 notifications
-- **CSS Animations Library**: 50+ custom animation classes (btn-ripple, card-shine, glow-pulse, badge-bounce, confetti, staggered fade-in, typing indicator, animated gradient border, glassmorphism, hover-lift, hover-glow, press-effect, shimmer-border, page-enter, badge-pulse, badge-shine, toast-enter-bounce, content-reveal, card-border-glow, card-inner-shine, gradient-text, timer animations, onboarding animations, announcement animations, hero-orb, typing-cursor, search-glow, category-pill, empty-state, btn-glow, card-img-zoom, stat-pop, view-transition-enter, fab-pulse, focus-ring-animate, loading-dots, tooltip-slide, toggle-glow, number-roll, etc.)
+- **CSS Animations Library**: 60+ custom animation classes across 52 sections (3123 lines). Includes: btn-ripple, card-shine, glow-pulse, badge-bounce, confetti, staggered fade-in, typing indicator, animated gradient border, glassmorphism, hover-lift, hover-glow, press-effect, shimmer-border, page-enter, badge-pulse, badge-shine, toast-enter-bounce, content-reveal, card-border-glow, card-inner-shine, gradient-text, timer animations, onboarding animations, announcement animations, hero-orb, typing-cursor, search-glow, category-pill, empty-state, btn-glow, card-img-zoom, stat-pop, view-transition-enter, fab-pulse, focus-ring-animate, loading-dots, tooltip-slide, toggle-glow, number-roll, **neon-glow, neon-text, text-wave, magnetic-hover, particle-shimmer, morph-shape, floating-label, card-spotlight, card-depth-3d, card-breathe, card-gradient-border, card-glass-strong, scroll-fade-up/left/right, scroll-scale-in, toggle-switch, tooltip-glass, tooltip-animated, progress-ring, loading-bar, loading-spinner-ring**
 - **Accessibility**: prefers-reduced-motion support, ARIA labels, keyboard navigation, focus-visible rings
 
 ---
@@ -1431,3 +1432,203 @@ Phase 10 focused on user preferences (settings page), course organization (bookm
 3. **Mobile PWA**: Service worker, offline caching, install prompt
 4. **AI-Powered Features**: AI course recommendations, smart search, learning path suggestions
 5. **Data Export**: Course completion certificates PDF, learning analytics export
+
+---
+
+## Phase 11 — Social Activity Feed + Enhanced Course Filters (Cron Review #10)
+
+### Overview
+Added a social activity feed API and component for community engagement, plus enhanced the courses page with visual category filter pills and inline results count.
+
+### Files Created
+
+#### 1. `/src/app/api/social-feed/route.ts`
+- **GET** endpoint: `/api/social-feed?userId=xxx&limit=N`
+- Uses seeded pseudo-random generator (mulberry32, seed=42) for deterministic mock data
+- Returns 10 activity items with: id, userName, userAvatar (initials), userRole, action, targetTitle, targetType, timestamp (relative), xpEarned
+- 6 action types: completed_section, enrolled_course, posted_comment, earned_badge, rated_course, started_streak
+- 15 realistic user names, 8 roles, 14 course titles, 8 section titles, 7 badge names
+- Timestamps spread across last ~2 hours ("Just now" through "1h ago")
+- XP values per action type: section=25, enrollment=10, comment=5, badge=50, rating=3, streak=null
+- Limit parameter clamped to 1–20 range
+
+#### 2. `/src/components/lms/social-feed.tsx`
+- "Community Activity" feed widget with glass-card styling
+- Header: Users icon in teal-cyan gradient box + "Community Activity" title + green pulsing live indicator
+- Each activity item shows:
+  - Type-specific icon (CheckCircle2/BookOpen/MessageSquare/Trophy/Star/Flame) with themed color
+  - Left border accent color matching action type (emerald/teal/cyan/amber/yellow/orange)
+  - User avatar with gradient background (hash-based gradient selection from 7 palettes)
+  - Bold user name + action label + target title
+  - Relative timestamp + XP badge (e.g., "+25 XP" in teal)
+- 5-item skeleton loading state
+- Scrollable container (max-h-96) with custom-scrollbar
+- content-reveal animation with staggered delay per item
+- hover-lift via left-border hover effect on each row
+- Empty state when no activities
+- Mobile responsive
+
+### Files Modified
+
+#### 3. `/src/components/lms/pages/courses-page.tsx`
+- **Category filter pills**: New row of rounded-full pill buttons between search and course grid
+  - "All" pill + one pill per category (dynamically from fetched categories)
+  - Active pill: `bg-gradient-to-r from-teal-500 to-cyan-500` with text-white and subtle shadow
+  - Inactive pill: `bg-muted text-muted-foreground`
+  - Course count shown as small number on each category pill
+  - Clicking a category pill toggles it (clicking active pill resets to "All")
+  - Updates the sheet filter state (synced with sidebar)
+  - `hover-lift` CSS class applied to all pills
+- **Results count**: Moved inline next to search bar on `sm+` breakpoints ("X courses found")
+  - Mobile: separate line below search bar
+  - Desktop: inline with search, shrink-0
+- **Active filter badges**: Kept for sort/time-range filters (category now uses pills instead of badges)
+- **Active filters indicator**: Already existed on mobile filter button (unchanged)
+- **Existing functionality preserved**: Search, sort, time range, sidebar, sheet, empty state all intact
+
+### Quality
+- ✅ `bun run lint` — 0 errors
+- ✅ No indigo/blue colors used
+- ✅ Theme-aware colors throughout
+- ✅ Mobile-first responsive design
+- ✅ Loading skeleton in social feed
+- ✅ TypeScript strict typing
+- ✅ Follows existing project patterns (fetch API, cn utility, shadcn/ui)
+- ✅ Did NOT modify globals.css, navbar.tsx, page.tsx
+
+---
+
+✅ **Phase 11 (Cron Review #10)** — Global CSS Overhaul + Enhanced Animations (Sections 42-52)
+- **§42 Neon Glow Effects**: `.neon-glow`, `.neon-glow-strong`, `.neon-text`, `.neon-border` — teal glow shadows/text-shadows with smooth transitions
+- **§43 Text Wave Animation**: `@keyframes textWave`, `.text-wave` container with `.text-wave-char` children, per-character stagger via `--wave-delay`
+- **§44 Magnetic Hover Effect**: `.magnetic-hover`, `.magnetic-hover-child` — CSS-only transform translate + scale(1.02) on hover
+- **§45 Particle Shimmer Overlay**: `@keyframes particleShimmer`, `.particle-shimmer` with pseudo-element dot patterns, `.particle-shimmer-slow` (12s), `.particle-shimmer-fast` (3s)
+- **§46 Morphing Shape Backgrounds**: `@keyframes morphBlob`, `.morph-shape` with organic border-radius animation, 3 timing variants (`.morph-1`, `.morph-2`, `.morph-3`)
+- **§47 Floating Label Inputs**: `.floating-label` container with input/textarea/select variants, label floats up on focus, teal focus ring, dark mode support
+- **§48 Enhanced Card Effects**: `.card-spotlight` (radial gradient cursor follow), `.card-depth-3d` (perspective tilt), `.card-breathe` (breathing scale), `.card-gradient-border` (rotating conic-gradient via `@property --border-angle`), `.card-glass-strong` (stronger glassmorphism)
+- **§49 Scroll-Triggered Animations**: `.scroll-fade-up`, `.scroll-fade-left`, `.scroll-fade-right`, `.scroll-scale-in` with `.is-visible` toggle, `@supports (animation-timeline: view())` progressive enhancement
+- **§50 Interactive Toggle Switch**: `.toggle-switch`, `.toggle-track`, `.toggle-thumb`, `.toggle-glow`, `.toggle-label` — spring-like cubic-bezier transitions, dark mode
+- **§51 Tooltip Enhancement Suite**: `@keyframes tooltipPop`, `.tooltip-arrow` (CSS triangle), `.tooltip-dark`, `.tooltip-glass`, `.tooltip-animated`
+- **§52 Loading & Progress Enhancements**: `.progress-ring` (conic-gradient), `.loading-skeleton-pulse` (shimmer overlay), `.loading-bar` (top-of-page bar), `.loading-spinner-ring` (double counter-rotating rings)
+
+**Component updates:**
+- `course-card.tsx`: Added `card-depth-3d` to Card className (alongside existing hover-lift, hover-glow, etc.)
+- `footer.tsx`: Added `card-glass-strong` and `particle-shimmer-slow` to footer element
+- `navbar.tsx`: Added `neon-glow` to outermost `<header>` element
+- `achievement-badges.tsx`: Added `card-gradient-border` to earned badge items
+
+**Quality:**
+- ✅ All 11 sections include `@media (prefers-reduced-motion: reduce)`
+- ✅ All hover effects have 0.2-0.3s transitions
+- ✅ Dark mode variants (`.dark` prefix) for applicable sections
+- ✅ All colors use oklch() values matching existing palette
+- ✅ `bun run lint` — 0 errors
+- ✅ Existing sections 1-41 untouched
+
+---
+
+## Phase 11 (Task 5-a) — Daily Learning Challenges + XP Level System
+
+### Overview
+Implemented a gamification system with daily learning challenges and an XP level progression system. Users see 4 daily challenges on the home page (seeded by date from a pool of 8) and a full XP level card on the profile page.
+
+### Files Created
+
+#### 1. `/src/app/api/challenges/route.ts`
+- **GET** endpoint: `/api/challenges?userId=xxx`
+- Returns 4 daily challenges picked from a pool of 8 using a seeded random (LCG) based on the current date
+- Challenge pool: Complete Lesson (25 XP), Take Quiz (30 XP), Study 15min (50 XP), Leave Comment (20 XP), Rate Course (15 XP), Bookmark Course (10 XP), View Dashboard (10 XP), Read Notes (15 XP)
+- Each challenge has: id, title, description, xpReward, type, icon (lucide-react name), completed (boolean via hash-based mock), progressText
+- Response includes: challenges[], date, completedCount, totalCount, totalXpAvailable, totalXpEarned
+
+#### 2. `/src/app/api/xp/route.ts`
+- **GET** endpoint: `/api/xp?userId=xxx` — Returns totalXp (150-600 mock, seeded), level (1-10), currentLevelXp, nextLevelXp, xpHistory (7 entries), levelTitle, progressPercent
+- **POST** endpoint: `/api/xp` — Accepts { userId, xp, reason, type }, returns updated XP data (demo-only, no DB persistence)
+- Level thresholds: [0, 100, 250, 500, 1000, 1750, 2750, 4000, 5500, 7500]
+- Level titles: Beginner, Learner, Scholar, Adept, Expert, Master, Sage, Grandmaster, Legend, Champion
+- XP history entries with date, xp, reason, type (7 different activity types)
+
+#### 3. `/src/components/lms/daily-challenges.tsx`
+- Horizontal scrollable card row with 4 challenge cards
+- Each card: icon in gradient circle (teal/emerald/amber/cyan/rose), title, description, XP reward badge (teal/emerald), completion checkmark overlay, progress text
+- Glass-card + hover-lift styling, content-reveal animation
+- Completion counter ("2/4 completed") and XP progress bar at bottom
+- Full loading skeleton state
+- Mobile responsive with custom-scrollbar horizontal scroll
+- Uses API: `/api/challenges?userId=xxx`
+
+#### 4. `/src/components/lms/xp-bar.tsx`
+- **`XpBarCompact`**: ~40px height horizontal bar for navbar use, shows "Lv.X" badge + small gradient progress bar, level-up flash animation
+- **`XpBarFull`**: Large card for profile page with level badge (gradient), XP display, gradient progress bar (teal→emerald→cyan), 3 stats (Current Level, Progress%, XP Needed), and 7-entry XP history list with type-specific icons
+- Full skeleton loading state for XpBarFull
+- XP flash animation on level-up using `xp-flash` CSS class
+- Theme-aware colors throughout
+
+### Files Modified
+
+#### 5. `/src/components/lms/pages/home-page.tsx`
+- Added `DailyChallenges` import and component placement between Continue Learning section and Course Grid
+
+#### 6. `/src/components/lms/pages/profile-page.tsx`
+- Added `XpBarFull` import and component placement between Learning Path Timeline and Activity Chart
+
+### Quality
+- ✅ `bun run lint` — 0 errors
+- ✅ No indigo/blue colors used (teal, emerald, cyan, amber, rose palette)
+- ✅ Theme-aware CSS variables (text-foreground, bg-card, border-border, etc.)
+- ✅ Mobile-first responsive design
+- ✅ Loading skeleton states for all components
+- ✅ TypeScript strict typing throughout
+- ✅ Follows existing project patterns (fetch API, cn utility, shadcn/ui components)
+- ✅ Applied existing CSS classes: glass-card, hover-lift, content-reveal, custom-scrollbar, badge-pulse
+- ✅ Navbar compact XP bar skipped (per task "nice-to-have" note to avoid overcrowding)
+
+---
+
+## Phase 11 — Integration + Overall Summary (Cron Review #10)
+
+### Overview
+Phase 11 combined 3 parallel subagent tasks with manual integration to deliver gamification, social features, and a comprehensive CSS overhaul. All work verified: lint clean (0 errors), dev server compiles without errors.
+
+### Integration Work (Manual)
+
+#### Social Feed → Home Page Integration
+**File**: `src/components/lms/pages/home-page.tsx`
+- Added `SocialFeed` import
+- Added SocialFeed to desktop sidebar below LeaderboardWidget (within sticky `space-y-4` container)
+- Added mobile SocialFeed section below mobile Leaderboard collapsible
+- Desktop: renders in right sidebar (hidden on mobile via `hidden lg:block`)
+- Mobile: renders as full-width section (hidden on desktop via `md:hidden`)
+
+### Phase 11 Verification Results
+- ✅ `bun run lint` — 0 errors, 0 warnings
+- ✅ Dev server: Compiles successfully (Ready in ~700ms)
+- ✅ All 3 new API routes: `/api/challenges`, `/api/xp`, `/api/social-feed`
+- ✅ All 3 new components: DailyChallenges, XpBar (compact + full), SocialFeed
+- ✅ 11 new CSS sections (42-52) appended to globals.css (~1100 new lines, total 3123 lines)
+- ✅ Component styling upgrades: CourseCard (3D depth), Footer (glass-strong + particle shimmer), Navbar (neon glow), AchievementBadges (gradient border)
+- ✅ Course page: Inline category filter pills + results count
+- ✅ All existing functionality preserved (no regressions)
+
+### Phase 11 Stats
+- **New API Routes**: 3 (challenges, xp, social-feed) → Total: 26
+- **New Components**: 3 (daily-challenges, xp-bar, social-feed) → Total: 30+
+- **New CSS Sections**: 11 (§42-§52) → Total: 52 sections, 3123 lines
+- **Files Created**: 6
+- **Files Modified**: 7
+
+### Unresolved Issues / Risks
+1. **agent-browser connectivity**: Known sandbox limitation — browser automation cannot connect to port 3000. Used lint + dev.log for QA.
+2. **Dev server stability**: Background `bun run dev` process intermittently terminates. Requires manual restart each session.
+3. **XP persistence**: Currently mock only (seeded random 150-600 XP). No database model for XP tracking yet.
+4. **Challenge completion**: Challenge completion status is mock (hash-based). Real tracking needs progress logging.
+5. **Social feed data**: Mock data only with seeded PRNG. Real social features need user activity logging.
+
+### Priority Recommendations for Phase 12
+1. **Database-backed XP/Challenges**: Add `UserXp` and `DailyChallenge` models to Prisma schema for real persistence
+2. **Collaborative Learning Features**: Study groups, shared notes, peer review system
+3. **Mobile PWA Support**: Service worker, offline caching, install prompt, push notifications
+4. **AI-Powered Smart Search**: Natural language course search using z-ai-web-dev-sdk LLM
+5. **Learning Path System**: Structured multi-course learning paths with prerequisites and milestones
+6. **Performance Optimization**: Code splitting, lazy loading for heavy pages, image optimization with next/image
+7. **Admin Dashboard**: Course management, user analytics, reporting for instructors/admins

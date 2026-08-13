@@ -46,7 +46,7 @@ export function Footer() {
   ];
 
   return (
-    <footer className="mt-auto border-t border-border/60 bg-gradient-to-b from-card to-muted/30 glass-card">
+    <footer className="mt-auto border-t border-border/60 bg-gradient-to-b from-card to-muted/30 glass-card card-glass-strong particle-shimmer-slow">
       <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-12">
         {/* Main Footer Content */}
         <div className="grid grid-cols-2 gap-8 sm:grid-cols-4">

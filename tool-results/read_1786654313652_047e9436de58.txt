@@ -1,0 +1,1300 @@
+     1→"use client";
+     2→
+     3→import { useEffect, useState, useCallback, useRef } from "react";
+     4→import {
+     5→  BookOpen,
+     6→  CheckCircle,
+     7→  Clock,
+     8→  LogOut,
+     9→  Plus,
+    10→  GraduationCap,
+    11→  Shield,
+    12→  Building2,
+    13→  ArrowRight,
+    14→  LayoutGrid,
+    15→  Trophy,
+    16→  Medal,
+    17→  FileBadge,
+    18→  Flame,
+    19→  TrendingUp,
+    20→  TrendingDown,
+    21→  Lock,
+    22→  Award,
+    23→  Star,
+    24→  Zap,
+    25→  MessageSquare,
+    26→  Calendar,
+    27→  Sparkles,
+    28→} from "lucide-react";
+    29→import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+    30→import { Button } from "@/components/ui/button";
+    31→import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+    32→import { Badge } from "@/components/ui/badge";
+    33→import { Separator } from "@/components/ui/separator";
+    34→import { Skeleton } from "@/components/ui/skeleton";
+    35→import { toast } from "sonner";
+    36→import { useNavigationStore, useUserStore } from "@/stores/lms-store";
+    37→import { AchievementBadges } from "@/components/lms/achievement-badges";
+    38→import { ActivityChart } from "@/components/lms/activity-chart";
+    39→import { CertificateModal } from "@/components/lms/certificate-modal";
+    40→import { SkeletonList } from "@/components/lms/skeleton-cards";
+    41→import { CourseBookmarks } from "@/components/lms/course-bookmarks";
+    42→
+    43→/* ------------------------------------------------------------------ */
+    44→/*  Local types                                                       */
+    45→/* ------------------------------------------------------------------ */
+    46→
+    47→interface UserStats {
+    48→  totalCourses: number;
+    49→  inProgress: number;
+    50→  completed: number;
+    51→  avgProgress: number;
+    52→  favoritesCount: number;
+    53→}
+    54→
+    55→interface UserProfile {
+    56→  id: string;
+    57→  email: string;
+    58→  name: string | null;
+    59→  avatar: string | null;
+    60→  role: string;
+    61→  department: string | null;
+    62→  createdAt: string;
+    63→  stats: UserStats;
+    64→}
+    65→
+    66→/* ------------------------------------------------------------------ */
+    67→/*  Circular Progress Ring                                             */
+    68→/* ------------------------------------------------------------------ */
+    69→
+    70→function CircularProgress({ percentage }: { percentage: number }) {
+    71→  const radius = 70;
+    72→  const stroke = 10;
+    73→  const normalizedRadius = radius - stroke / 2;
+    74→  const circumference = normalizedRadius * 2 * Math.PI;
+    75→  const strokeDashoffset =
+    76→    circumference - (percentage / 100) * circumference;
+    77→
+    78→  return (
+    79→    <div className="relative inline-flex items-center justify-center">
+    80→      <svg
+    81→        width={radius * 2}
+    82→        height={radius * 2}
+    83→        className="-rotate-90"
+    84→      >
+    85→        {/* Background track */}
+    86→        <circle
+    87→          cx={radius}
+    88→          cy={radius}
+    89→          r={normalizedRadius}
+    90→          fill="none"
+    91→          stroke="currentColor"
+    92→          strokeWidth={stroke}
+    93→          className="text-muted/30"
+    94→        />
+    95→        {/* Progress arc with gradient stroke */}
+    96→        <circle
+    97→          cx={radius}
+    98→          cy={radius}
+    99→          r={normalizedRadius}
+   100→          fill="none"
+   101→          stroke="url(#progress-gradient)"
+   102→          strokeWidth={stroke}
+   103→          strokeLinecap="round"
+   104→          strokeDasharray={circumference}
+   105→          strokeDashoffset={strokeDashoffset}
+   106→          className="transition-all duration-700 ease-out"
+   107→        />
+   108→        <defs>
+   109→          <linearGradient
+   110→            id="progress-gradient"
+   111→            x1="0%"
+   112→            y1="0%"
+   113→            x2="100%"
+   114→            y2="100%"
+   115→          >
+   116→            <stop offset="0%" stopColor="#06b6d4" />
+   117→            <stop offset="50%" stopColor="#0891b2" />
+   118→            <stop offset="100%" stopColor="#0d9488" />
+   119→          </linearGradient>
+   120→        </defs>
+   121→      </svg>
+   122→      <div className="absolute flex flex-col items-center justify-center">
+   123→        <span className="text-3xl font-extrabold tracking-tight text-foreground">
+   124→          {percentage}%
+   125→        </span>
+   126→        <span className="mt-0.5 text-[11px] font-medium text-muted-foreground">
+   127→          completed
+   128→        </span>
+   129→      </div>
+   130→    </div>
+   131→  );
+   132→}
+   133→
+   134→/* ------------------------------------------------------------------ */
+   135→/*  Animated Counter Hook                                              */
+   136→/* ------------------------------------------------------------------ */
+   137→
+   138→function useAnimatedCounter(target: number, duration = 800) {
+   139→  const [count, setCount] = useState(target);
+   140→
+   141→  useEffect(() => {
+   142→    if (target === 0) return;
+   143→    let start = 0;
+   144→    const startTime = performance.now();
+   145→    const step = (now: number) => {
+   146→      const elapsed = now - startTime;
+   147→      const progress = Math.min(elapsed / duration, 1);
+   148→      const eased = 1 - Math.pow(1 - progress, 3);
+   149→      start = Math.round(eased * target);
+   150→      setCount(start);
+   151→      if (progress < 1) {
+   152→        frameRef.current = requestAnimationFrame(step);
+   153→      }
+   154→    };
+   155→    frameRef.current = requestAnimationFrame(step);
+   156→    return () => cancelAnimationFrame(frameRef.current);
+   157→  }, [target, duration]);
+   158→
+   159→  return count;
+   160→}
+   161→
+   162→/* ------------------------------------------------------------------ */
+   163→/*  Enhanced Stat Card with glass-morphism                              */
+   164→/* ------------------------------------------------------------------ */
+   165→
+   166→function EnhancedStatCard({
+   167→  icon: Icon,
+   168→  label,
+   169→  value,
+   170→  color,
+   171→  trend,
+   172→}: {
+   173→  icon: React.ElementType;
+   174→  label: string;
+   175→  value: number;
+   176→  color: string;
+   177→  trend?: { value: number; direction: 'up' | 'down' };
+   178→}) {
+   179→  const animatedValue = useAnimatedCounter(value);
+   180→  const TrendIcon = trend?.direction === 'up' ? TrendingUp : TrendingDown;
+   181→
+   182→  return (
+   183→    <div className="glass-card group flex flex-col items-center gap-2 rounded-xl px-4 py-4 transition-all duration-200 hover:shadow-lg">
+   184→      <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${color} shadow-md transition-transform duration-200 group-hover:scale-110`}>
+   185→        <Icon className="h-4 w-4 text-white" />
+   186→      </div>
+   187→      <span className="count-up text-2xl font-extrabold leading-none text-foreground">
+   188→        {animatedValue}
+   189→      </span>
+   190→      <span className="text-[10px] font-medium text-muted-foreground">
+   191→        {label}
+   192→      </span>
+   193→      {trend && (
+   194→        <div className={`flex items-center gap-0.5 text-[10px] font-semibold ${trend.direction === 'up' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'}`}>
+   195→          <TrendIcon className="h-3 w-3" />
+   196→          {trend.value}%
+   197→        </div>
+   198→      )}
+   199→    </div>
+   200→  );
+   201→}
+   202→
+   203→/* ------------------------------------------------------------------ */
+   204→/*  XP Display Panel                                                   */
+   205→/* ------------------------------------------------------------------ */
+   206→
+   207→function XPDisplay({ totalXP, level, progressToNext }: { totalXP: number; level: number; progressToNext: number }) {
+   208→  const animatedXP = useAnimatedCounter(totalXP, 1200);
+   209→  const nextLevelXP = level * 500;
+   210→
+   211→  return (
+   212→    <Card className="border-border/50 overflow-hidden">
+   213→      <div className="relative bg-gradient-to-r from-blue-600/5 via-cyan-600/5 to-teal-500/5 px-6 py-8">
+   214→        <div className="flex flex-col items-center gap-2">
+   215→          <div className="flex items-center gap-2">
+   216→            <Badge className="bg-gradient-to-r from-cyan-600 to-teal-500 text-xs font-bold text-white shadow-md">
+   217→              LVL {level}
+   218→            </Badge>
+   219→          </div>
+   220→          <div className="flex items-baseline gap-1.5">
+   221→            <span className="count-up gradient-text text-5xl font-extrabold tracking-tight">
+   222→              {animatedXP}
+   223→            </span>
+   224→            <span className="gradient-text text-lg font-bold">XP</span>
+   225→          </div>
+   226→          <p className="text-xs text-muted-foreground">
+   227→            {nextLevelXP - (totalXP % 500)} XP to Level {level + 1}
+   228→          </p>
+   229→        </div>
+   230→      </div>
+   231→      <CardContent className="pt-4 pb-5">
+   232→        <div className="space-y-2">
+   233→          <div className="flex items-center justify-between text-xs">
+   234→            <span className="font-medium text-muted-foreground">Level {level}</span>
+   235→            <span className="font-medium text-muted-foreground">Level {level + 1}</span>
+   236→          </div>
+   237→          <div className="h-3 w-full overflow-hidden rounded-full bg-muted/60">
+   238→            <div
+   239→              className="h-full rounded-full transition-all duration-1000 ease-out"
+   240→              style={{
+   241→                width: `${progressToNext}%`,
+   242→                background: 'linear-gradient(90deg, #06b6d4, #0891b2, #0d9488, #10b981)',
+   243→              }}
+   244→            />
+   245→          </div>
+   246→          <p className="text-center text-[11px] text-muted-foreground">
+   247→            {totalXP % 500} / 500 XP
+   248→          </p>
+   249→        </div>
+   250→      </CardContent>
+   251→    </Card>
+   252→  );
+   253→}
+   254→
+   255→/* ------------------------------------------------------------------ */
+   256→/*  Streak Calendar (30-day grid)                                      */
+   257→/* ------------------------------------------------------------------ */
+   258→
+   259→function StreakCalendar({ streak, bestStreak }: { streak: number; bestStreak: number }) {
+   260→  const [activityMap, setActivityMap] = useState<Map<string, number>>(new Map());
+   261→  const [days, setDays] = useState<Array<{ date: string; day: string; isToday: boolean }>>([]);
+   262→  const [maxMinutes, setMaxMinutes] = useState(1);
+   263→
+   264→  useEffect(() => {
+   265→    async function fetchActivity() {
+   266→      try {
+   267→        const res = await fetch('/api/activity?userId=user_demo_001&weeks=5');
+   268→        const json = await res.json();
+   269→        if (json.success) {
+   270→          // Build 30-day grid from the response
+   271→          const allDays: ActivityDayEntry[] = [];
+   272→          const today = new Date();
+   273→          today.setHours(0, 0, 0, 0);
+   274→          const start = new Date(today);
+   275→          start.setDate(start.getDate() - 29);
+   276→
+   277→          const resMap = new Map<string, number>();
+   278→          for (const d of (json.data as Activity30Data).dailyData) {
+   279→            resMap.set(d.date, d.minutes);
+   280→          }
+   281→
+   282→          for (let i = 0; i < 30; i++) {
+   283→            const d = new Date(start);
+   284→            d.setDate(d.getDate() + i);
+   285→            const dateStr = d.toISOString().split('T')[0];
+   286→            allDays.push({
+   287→              date: dateStr,
+   288→              day: d.toLocaleDateString('en-US', { weekday: 'narrow' }),
+   289→              isToday: dateStr === today.toISOString().split('T')[0],
+   290→            });
+   291→          }
+   292→
+   293→          setDays(allDays);
+   294→          setActivityMap(resMap);
+   295→          const max = Math.max(...Array.from(resMap.values()), 1);
+   296→          setMaxMinutes(max);
+   297→        }
+   298→      } catch { /* silent */ }
+   299→    }
+   300→    fetchActivity();
+   301→  }, []);
+   302→
+   303→  function getIntensity(date: string): number {
+   304→    const mins = activityMap.get(date) || 0;
+   305→    if (mins === 0) return 0;
+   306→    return Math.min(1, mins / maxMinutes);
+   307→  }
+   308→
+   309→  function getCellColor(intensity: number): string {
+   310→    if (intensity === 0) return 'bg-muted/40';
+   311→    if (intensity <= 0.25) return 'bg-cyan-300/40 dark:bg-cyan-700/40';
+   312→    if (intensity <= 0.5) return 'bg-cyan-400/60 dark:bg-cyan-600/50';
+   313→    if (intensity <= 0.75) return 'bg-cyan-500/70 dark:bg-cyan-500/60';
+   314→    return 'bg-cyan-600 dark:bg-cyan-400';
+   315→  }
+   316→
+   317→  return (
+   318→    <Card className="border-border/50">
+   319→      <CardHeader className="pb-3">
+   320→        <div className="flex items-center justify-between">
+   321→          <CardTitle className="flex items-center gap-2 text-base font-semibold">
+   322→            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-orange-500 to-amber-500">
+   323→              <Flame className="h-4 w-4 text-white" />
+   324→            </div>
+   325→            Learning Streak
+   326→          </CardTitle>
+   327→          <div className="flex items-center gap-3">
+   328→            <div className="flex items-center gap-1.5 text-sm font-bold text-orange-600 dark:text-orange-400">
+   329→              <span className="text-base">🔥</span>
+   330→              <span className="count-up">{streak}</span>
+   331→              <span className="text-xs font-medium text-muted-foreground">days</span>
+   332→            </div>
+   333→          </div>
+   334→        </div>
+   335→      </CardHeader>
+   336→      <CardContent className="space-y-4">
+   337→        {/* Streak stats row */}
+   338→        <div className="flex items-center justify-between">
+   339→          <div className="flex items-center gap-4 text-xs text-muted-foreground">
+   340→            <span className="flex items-center gap-1.5">
+   341→              <Flame className="h-3.5 w-3.5" />
+   342→              Current: <span className="font-semibold text-foreground">{streak} days</span>
+   343→            </span>
+   344→            <span className="flex items-center gap-1.5">
+   345→              <Trophy className="h-3.5 w-3.5" />
+   346→              Best: <span className="font-semibold text-foreground">{bestStreak} days</span>
+   347→            </span>
+   348→          </div>
+   349→        </div>
+   350→
+   351→        {/* 30-day grid - 6 columns x 5 rows */}
+   352→        <div>
+   353→          <p className="mb-2 text-[11px] font-medium text-muted-foreground">Last 30 days</p>
+   354→          <div className="grid grid-cols-6 gap-1.5 sm:grid-cols-10">
+   355→            {days.map((d) => {
+   356→              const intensity = getIntensity(d.date);
+   357→              return (
+   358→                <div
+   359→                  key={d.date}
+   360→                  title={`${d.date}: ${activityMap.get(d.date) || 0} min`}
+   361→                  className={`relative aspect-square rounded-sm transition-all duration-200 hover:scale-125 hover:ring-1 hover:ring-primary/30 ${getCellColor(intensity)} ${d.isToday ? 'ring-1 ring-primary' : ''}`}
+   362→                />
+   363→              );
+   364→            })}
+   365→          </div>
+   366→          {/* Intensity legend */}
+   367→          <div className="mt-2 flex items-center justify-end gap-1 text-[10px] text-muted-foreground">
+   368→            <span>Less</span>
+   369→            <div className="h-2.5 w-2.5 rounded-sm bg-muted/40" />
+   370→            <div className="h-2.5 w-2.5 rounded-sm bg-cyan-300/40 dark:bg-cyan-700/40" />
+   371→            <div className="h-2.5 w-2.5 rounded-sm bg-cyan-400/60 dark:bg-cyan-600/50" />
+   372→            <div className="h-2.5 w-2.5 rounded-sm bg-cyan-500/70 dark:bg-cyan-500/60" />
+   373→            <div className="h-2.5 w-2.5 rounded-sm bg-cyan-600 dark:bg-cyan-400" />
+   374→            <span>More</span>
+   375→          </div>
+   376→        </div>
+   377→      </CardContent>
+   378→    </Card>
+   379→  );
+   380→}
+   381→
+   382→/* ------------------------------------------------------------------ */
+   383→/*  Skills & Badges Grid                                               */
+   384→/* ------------------------------------------------------------------ */
+   385→
+   386→interface SkillBadge {
+   387→  id: string;
+   388→  name: string;
+   389→  description: string;
+   390→  icon: React.ElementType;
+   391→  earned: boolean;
+   392→  condition: string;
+   393→}
+   394→
+   395→function SkillsBadgesGrid({
+   396→  completedCourses,
+   397→  completedInOneDay,
+   398→  slidesViewed,
+   399→  commentCount,
+   400→  currentStreak,
+   401→}: {
+   402→  completedCourses: number;
+   403→  completedInOneDay: boolean;
+   404→  slidesViewed: number;
+   405→  commentCount: number;
+   406→  currentStreak: number;
+   407→}) {
+   408→  const badges: SkillBadge[] = [
+   409→    {
+   410→      id: 'course-master',
+   411→      name: 'Course Master',
+   412→      description: 'Completed 5+ courses',
+   413→      icon: Award,
+   414→      earned: completedCourses >= 5,
+   415→      condition: `${completedCourses}/5 courses`,
+   416→    },
+   417→    {
+   418→      id: 'quick-learner',
+   419→      name: 'Quick Learner',
+   420→      description: 'Completed a course in a day',
+   421→      icon: Zap,
+   422→      earned: completedInOneDay,
+   423→      condition: completedInOneDay ? 'Achieved' : 'Not yet',
+   424→    },
+   425→    {
+   426→      id: 'bookworm',
+   427→      name: 'Bookworm',
+   428→      description: 'Viewed 50+ slides',
+   429→      icon: BookOpen,
+   430→      earned: slidesViewed >= 50,
+   431→      condition: `${slidesViewed}/50 slides`,
+   432→    },
+   433→    {
+   434→      id: 'social-learner',
+   435→      name: 'Social Learner',
+   436→      description: 'Posted 5+ comments',
+   437→      icon: MessageSquare,
+   438→      earned: commentCount >= 5,
+   439→      condition: `${commentCount}/5 comments`,
+   440→    },
+   441→    {
+   442→      id: 'streak-champion',
+   443→      name: 'Streak Champion',
+   444→      description: '7+ day streak',
+   445→      icon: Flame,
+   446→      earned: currentStreak >= 7,
+   447→      condition: `${currentStreak}/7 days`,
+   448→    },
+   449→  ];
+   450→
+   451→  return (
+   452→    <Card className="border-border/50">
+   453→      <CardHeader className="pb-3">
+   454→        <div className="flex items-center justify-between">
+   455→          <CardTitle className="flex items-center gap-2 text-base font-semibold">
+   456→            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-purple-500 to-pink-500">
+   457→              <Star className="h-4 w-4 text-white" />
+   458→            </div>
+   459→            Skills & Badges
+   460→          </CardTitle>
+   461→          <Badge
+   462→            variant="secondary"
+   463→            className="gap-1 bg-gradient-to-r from-purple-600/10 to-pink-500/10 text-xs font-medium text-purple-700 dark:text-purple-400"
+   464→          >
+   465→            {badges.filter(b => b.earned).length}/{badges.length} earned
+   466→          </Badge>
+   467→        </div>
+   468→      </CardHeader>
+   469→      <CardContent>
+   470→        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3" role="list" aria-label="Skill badges">
+   471→          {badges.map((badge) => {
+   472→            const IconComp = badge.icon;
+   473→            return (
+   474→              <div
+   475→                key={badge.id}
+   476→                className={`relative flex flex-col items-center gap-2.5 rounded-xl border p-4 text-center transition-all duration-200 ${
+   477→                  badge.earned
+   478→                    ? 'border-primary/20 bg-gradient-to-b from-primary/5 to-transparent shadow-sm badge-glow'
+   479→                    : 'border-border/30 bg-muted/20 opacity-50 grayscale'
+   480→                }`}
+   481→                role="listitem"
+   482→              >
+   483→                <div className={`flex h-10 w-10 items-center justify-center rounded-xl transition-transform duration-200 ${
+   484→                  badge.earned
+   485→                    ? 'bg-gradient-to-br from-cyan-500 to-teal-500 text-white shadow-md'
+   486→                    : 'bg-muted text-muted-foreground'
+   487→                }`}>
+   488→                  {badge.earned ? <IconComp className="h-5 w-5" /> : <Lock className="h-4 w-4" />}
+   489→                </div>
+   490→                <p className={`text-xs font-semibold leading-tight ${badge.earned ? 'text-foreground' : 'text-muted-foreground'}`}>
+   491→                  {badge.name}
+   492→                </p>
+   493→                <p className="text-[10px] leading-tight text-muted-foreground">{badge.description}</p>
+   494→                <p className={`text-[10px] font-semibold ${badge.earned ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'}`}>
+   495→                  {badge.condition}
+   496→                </p>
+   497→                {badge.earned && (
+   498→                  <div className="absolute top-2 right-2">
+   499→                    <div className="flex h-4 w-4 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600">
+   500→                      <svg className="h-2.5 w-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+   501→                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+   502→                      </svg>
+   503→                    </div>
+   504→                  </div>
+   505→                )}
+   506→              </div>
+   507→            );
+   508→          })}
+   509→        </div>
+   510→      </CardContent>
+   511→    </Card>
+   512→  );
+   513→}
+   514→
+   515→/* ------------------------------------------------------------------ */
+   516→/*  Learning Path Timeline                                             */
+   517→/* ------------------------------------------------------------------ */
+   518→
+   519→function LearningPathTimeline({ enrollments }: { enrollments: EnrollmentData[] }) {
+   520→  const completed = enrollments
+   521→    .filter(e => e.status === 'completed' && e.completedAt)
+   522→    .sort((a, b) => new Date(a.completedAt!).getTime() - new Date(b.completedAt!).getTime());
+   523→
+   524→  if (completed.length === 0) {
+   525→    return (
+   526→      <Card className="border-border/50">
+   527→        <CardHeader className="pb-3">
+   528→          <CardTitle className="flex items-center gap-2 text-base font-semibold">
+   529→            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500 to-teal-500">
+   530→              <Calendar className="h-4 w-4 text-white" />
+   531→            </div>
+   532→            Learning Path
+   533→          </CardTitle>
+   534→        </CardHeader>
+   535→        <CardContent>
+   536→          <p className="text-sm text-muted-foreground">Complete courses to see your learning timeline here.</p>
+   537→        </CardContent>
+   538→      </Card>
+   539→    );
+   540→  }
+   541→
+   542→  return (
+   543→    <Card className="border-border/50">
+   544→      <CardHeader className="pb-3">
+   545→        <CardTitle className="flex items-center gap-2 text-base font-semibold">
+   546→          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500 to-teal-500">
+   547→            <Calendar className="h-4 w-4 text-white" />
+   548→          </div>
+   549→          Learning Path
+   550→        </CardTitle>
+   551→      </CardHeader>
+   552→      <CardContent>
+   553→        <div className="overflow-x-auto pb-2">
+   554→          <div className="flex items-start gap-0 min-w-max">
+   555→            {completed.map((enrollment, idx) => {
+   556→              const date = new Date(enrollment.completedAt!);
+   557→              const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+   558→              return (
+   559→                <div key={enrollment.id} className="flex items-start">
+   560→                  {/* Node */}
+   561→                  <div className="flex flex-col items-center">
+   562→                    <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 shadow-md ${
+   563→                      idx === completed.length - 1
+   564→                        ? 'border-cyan-500 bg-gradient-to-br from-cyan-500 to-teal-500 text-white'
+   565→                        : 'border-emerald-400 bg-emerald-500 text-white'
+   566→                    }`}>
+   567→                      {idx === completed.length - 1 ? <Star className="h-4 w-4" /> : <CheckCircle className="h-4 w-4" />}
+   568→                    </div>
+   569→                    <p className="mt-1.5 max-w-[100px] text-center text-[10px] font-medium text-muted-foreground">
+   570→                      {dateStr}
+   571→                    </p>
+   572→                    <p className="mt-0.5 max-w-[100px] text-center text-[11px] font-semibold leading-tight text-foreground">
+   573→                      {enrollment.course.title.length > 20
+   574→                        ? enrollment.course.title.slice(0, 20) + '...'
+   575→                        : enrollment.course.title}
+   576→                    </p>
+   577→                  </div>
+   578→                  {/* Connector line */}
+   579→                  {idx < completed.length - 1 && (
+   580→                    <div className="mt-5 h-0.5 w-12 bg-gradient-to-r from-emerald-400 to-cyan-400" />
+   581→                  )}
+   582→                </div>
+   583→              );
+   584→            })}
+   585→          </div>
+   586→        </div>
+   587→      </CardContent>
+   588→    </Card>
+   589→  );
+   590→}
+   591→
+   592→interface LeaderboardEntry {
+   593→  rank: number;
+   594→  id: string;
+   595→  name: string;
+   596→  department: string;
+   597→  completedCourses: number;
+   598→  avgProgress: number;
+   599→  score: number;
+   600→  isCurrentUser: boolean;
+   601→}
+   602→
+   603→/* ------------------------------------------------------------------ */
+   604→/*  Medal badge for top-3 ranks                                       */
+   605→/* ------------------------------------------------------------------ */
+   606→
+   607→function RankBadge({ rank }: { rank: number }) {
+   608→  if (rank === 1) {
+   609→    return (
+   610→      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-amber-400 via-yellow-400 to-yellow-500 text-[11px] font-extrabold text-yellow-900 shadow-sm">
+   611→        1
+   612→      </div>
+   613→    );
+   614→  }
+   615→  if (rank === 2) {
+   616→    return (
+   617→      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-gray-300 via-gray-200 to-slate-300 text-[11px] font-extrabold text-gray-700 shadow-sm">
+   618→        2
+   619→      </div>
+   620→    );
+   621→  }
+   622→  if (rank === 3) {
+   623→    return (
+   624→      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-amber-600 via-orange-500 to-amber-700 text-[11px] font-extrabold text-amber-100 shadow-sm">
+   625→        3
+   626→      </div>
+   627→    );
+   628→  }
+   629→  return (
+   630→    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-[11px] font-bold text-muted-foreground">
+   631→      {rank}
+   632→    </div>
+   633→  );
+   634→}
+   635→
+   636→/* ------------------------------------------------------------------ */
+   637→/*  Leaderboard Skeleton                                              */
+   638→/* ------------------------------------------------------------------ */
+   639→
+   640→function LeaderboardSkeleton() {
+   641→  return (
+   642→    <Card className="border-border/50">
+   643→      <CardHeader className="pb-3">
+   644→        <div className="flex items-center gap-2">
+   645→          <Skeleton className="h-5 w-5 rounded" />
+   646→          <Skeleton className="h-5 w-32" />
+   647→        </div>
+   648→      </CardHeader>
+   649→      <CardContent>
+   650→        <div className="space-y-2.5">
+   651→          {Array.from({ length: 5 }).map((_, i) => (
+   652→            <div key={i} className="flex items-center gap-3 rounded-lg px-2 py-2">
+   653→              <Skeleton className="h-7 w-7 rounded-full" />
+   654→              <Skeleton className="h-8 w-8 rounded-full" />
+   655→              <div className="flex-1 space-y-1.5">
+   656→                <Skeleton className="h-3.5 w-28" />
+   657→                <Skeleton className="h-2.5 w-20" />
+   658→              </div>
+   659→              <Skeleton className="h-4 w-12" />
+   660→            </div>
+   661→          ))}
+   662→        </div>
+   663→      </CardContent>
+   664→    </Card>
+   665→  );
+   666→}
+   667→
+   668→/* ------------------------------------------------------------------ */
+   669→/*  Team Leaderboard Card                                             */
+   670→/* ------------------------------------------------------------------ */
+   671→
+   672→function TeamLeaderboardCard() {
+   673→  const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
+   674→  const [loading, setLoading] = useState(true);
+   675→
+   676→  useEffect(() => {
+   677→    async function fetchLeaderboard() {
+   678→      try {
+   679→        const res = await fetch('/api/leaderboard');
+   680→        const json = await res.json();
+   681→        if (json.success) {
+   682→          setEntries(json.data);
+   683→        }
+   684→      } catch {
+   685→        /* silent */
+   686→      } finally {
+   687→        setLoading(false);
+   688→      }
+   689→    }
+   690→    fetchLeaderboard();
+   691→  }, []);
+   692→
+   693→  if (loading) {
+   694→    return <LeaderboardSkeleton />;
+   695→  }
+   696→
+   697→  const currentUser = entries.find((e) => e.isCurrentUser);
+   698→  const currentUserRank = currentUser?.rank;
+   699→
+   700→  return (
+   701→    <Card className="border-border/50">
+   702→      <CardHeader className="pb-3">
+   703→        <div className="flex items-center justify-between">
+   704→          <CardTitle className="flex items-center gap-2 text-base font-semibold">
+   705→            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-amber-500 to-orange-500">
+   706→              <Trophy className="h-4 w-4 text-white" />
+   707→            </div>
+   708→            Team Leaderboard
+   709→          </CardTitle>
+   710→          {currentUserRank && (
+   711→            <Badge
+   712→              variant="secondary"
+   713→              className="gap-1 bg-gradient-to-r from-cyan-600/10 to-teal-500/10 text-xs font-medium text-cyan-700 dark:text-cyan-400"
+   714→            >
+   715→              <Medal className="h-3 w-3" />
+   716→              Your rank: #{currentUserRank}
+   717→            </Badge>
+   718→          )}
+   719→        </div>
+   720→      </CardHeader>
+   721→      <CardContent>
+   722→        <div className="max-h-[420px] space-y-1 overflow-y-auto pr-1">
+   723→          {entries.map((entry) => {
+   724→            const isMe = entry.isCurrentUser;
+   725→            const initials = entry.name
+   726→              .split(' ')
+   727→              .map((w) => w.charAt(0).toUpperCase())
+   728→              .slice(0, 2)
+   729→              .join('');
+   730→
+   731→            return (
+   732→              <div
+   733→                key={entry.id}
+   734→                className={`group flex items-center gap-3 rounded-lg px-2 py-2.5 transition-colors duration-150 ${
+   735→                  isMe
+   736→                    ? 'bg-primary/5 ring-1 ring-primary/15'
+   737→                    : 'hover:bg-muted/50'
+   738→                }`}
+   739→              >
+   740→                {/* Rank badge */}
+   741→                <RankBadge rank={entry.rank} />
+   742→
+   743→                {/* Avatar */}
+   744→                <Avatar className="h-8 w-8 border border-border/50">
+   745→                  <AvatarFallback
+   746→                    className={`text-xs font-semibold ${
+   747→                      isMe
+   748→                        ? 'bg-gradient-to-br from-cyan-600 to-teal-500 text-white'
+   749→                        : 'bg-muted text-muted-foreground'
+   750→                    }`}
+   751→                  >
+   752→                    {initials}
+   753→                  </AvatarFallback>
+   754→                </Avatar>
+   755→
+   756→                {/* Name + Department */}
+   757→                <div className="min-w-0 flex-1">
+   758→                  <p
+   759→                    className={`text-sm font-medium leading-tight ${
+   760→                      isMe ? 'text-primary' : 'text-foreground'
+   761→                    }`}
+   762→                  >
+   763→                    {entry.name}
+   764→                    {isMe && (
+   765→                      <span className="ml-1.5 text-[10px] font-normal text-muted-foreground">
+   766→                        (You)
+   767→                      </span>
+   768→                    )}
+   769→                  </p>
+   770→                  <p className="mt-0.5 text-[11px] text-muted-foreground">
+   771→                    {entry.department}
+   772→                  </p>
+   773→                </div>
+   774→
+   775→                {/* Score */}
+   776→                <div className="text-right">
+   777→                  <p
+   778→                    className={`text-sm font-bold tabular-nums ${
+   779→                      isMe ? 'text-primary' : 'text-foreground'
+   780→                    }`}
+   781→                  >
+   782→                    {entry.score.toLocaleString()}
+   783→                  </p>
+   784→                  <p className="text-[10px] text-muted-foreground">
+   785→                    pts
+   786→                  </p>
+   787→                </div>
+   788→              </div>
+   789→            );
+   790→          })}
+   791→        </div>
+   792→      </CardContent>
+   793→    </Card>
+   794→  );
+   795→}
+   796→
+   797→/* ------------------------------------------------------------------ */
+   798→/*  Loading Skeleton                                                   */
+   799→/* ------------------------------------------------------------------ */
+   800→
+   801→function ProfileSkeleton() {
+   802→  return (
+   803→    <div className="space-y-6">
+   804→      {/* Banner skeleton */}
+   805→      <Skeleton className="h-40 w-full rounded-2xl skeleton-shimmer" />
+   806→      {/* Cards skeleton */}
+   807→      <div className="grid gap-6 md:grid-cols-2">
+   808→        <Card className="border-border/50 bg-card/50 backdrop-blur-sm skeleton-shimmer opacity-0" style={{ animation: `viewFadeSlideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) 80ms forwards` }}>
+   809→          <CardHeader className="pb-4">
+   810→            <Skeleton className="h-5 w-32" />
+   811→          </CardHeader>
+   812→          <CardContent className="space-y-6">
+   813→            <div className="flex justify-center">
+   814→              <Skeleton className="h-36 w-36 rounded-full" />
+   815→            </div>
+   816→            <div className="grid grid-cols-3 gap-3">
+   817→              {Array.from({ length: 3 }).map((_, i) => (
+   818→                <div key={i} className="flex flex-col items-center gap-2">
+   819→                  <Skeleton className="h-9 w-9 rounded-lg" />
+   820→                  <Skeleton className="h-6 w-8" />
+   821→                  <Skeleton className="h-3 w-16" />
+   822→                </div>
+   823→              ))}
+   824→            </div>
+   825→          </CardContent>
+   826→        </Card>
+   827→        <Card className="border-border/50 bg-card/50 backdrop-blur-sm skeleton-shimmer opacity-0" style={{ animation: `viewFadeSlideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) 160ms forwards` }}>
+   828→          <CardHeader className="pb-4">
+   829→            <Skeleton className="h-5 w-32" />
+   830→          </CardHeader>
+   831→          <CardContent className="space-y-3">
+   832→            {Array.from({ length: 3 }).map((_, i) => (
+   833→              <div key={i} className="flex items-center gap-4">
+   834→                <Skeleton className="h-10 w-10 rounded-xl" />
+   835→                <div className="flex-1 space-y-1.5">
+   836→                  <Skeleton className="h-4 w-32" />
+   837→                  <Skeleton className="h-3 w-48" />
+   838→                </div>
+   839→              </div>
+   840→            ))}
+   841→          </CardContent>
+   842→        </Card>
+   843→      </div>
+   844→
+   845→      {/* Learning path timeline skeleton */}
+   846→      <Card className="border-border/50 bg-card/50 backdrop-blur-sm skeleton-shimmer opacity-0" style={{ animation: `viewFadeSlideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) 240ms forwards` }}>
+   847→        <CardHeader className="pb-3">
+   848→          <div className="flex items-center gap-2">
+   849→            <Skeleton className="h-7 w-7 rounded-lg" />
+   850→            <Skeleton className="h-5 w-28" />
+   851→          </div>
+   852→        </CardHeader>
+   853→        <CardContent>
+   854→          <SkeletonList count={3} />
+   855→        </CardContent>
+   856→      </Card>
+   857→    </div>
+   858→  );
+   859→}
+   860→
+   861→/* ------------------------------------------------------------------ */
+   862→/*  Main Profile Page                                                  */
+   863→/* ------------------------------------------------------------------ */
+   864→
+   865→export function ProfilePage() {
+   866→  const { currentUserId } = useUserStore();
+   867→  const { navigateTo } = useNavigationStore();
+   868→
+   869→  const [profile, setProfile] = useState<UserProfile | null>(null);
+   870→  const [loading, setLoading] = useState(true);
+   871→  const [certificateOpen, setCertificateOpen] = useState(false);
+   872→  const [firstCompletedCourse, setFirstCompletedCourse] = useState<string | null>(null);
+   873→  const [completedDate, setCompletedDate] = useState<string | null>(null);
+   874→
+   875→  // New state for XP / streak / badges / timeline
+   876→  const [enrollments, setEnrollments] = useState<EnrollmentData[]>([]);
+   877→  const [streakData, setStreakData] = useState({ current: 0, longest: 0 });
+   878→
+   879→  const fetchProfile = useCallback(async () => {
+   880→    setLoading(true);
+   881→    try {
+   882→      const res = await fetch(`/api/user/${currentUserId}`);
+   883→      const json = await res.json();
+   884→      if (json.success) {
+   885→        setProfile(json.data);
+   886→      }
+   887→    } catch {
+   888→      /* silent */
+   889→    } finally {
+   890→      setLoading(false);
+   891→    }
+   892→  }, [currentUserId]);
+   893→
+   894→  // Fetch enrollments for XP, timeline, badges, and certificate
+   895→  useEffect(() => {
+   896→    async function fetchEnrollments() {
+   897→      try {
+   898→        const res = await fetch('/api/enrollments?userId=' + currentUserId);
+   899→        const json = await res.json();
+   900→        if (json.success && json.data) {
+   901→          setEnrollments(json.data);
+   902→          const completed = json.data.find(
+   903→            (e: { status: string; course: { title: string }; completedAt: string | null }) =>
+   904→              e.status === 'completed' && e.completedAt
+   905→          );
+   906→          if (completed) {
+   907→            setFirstCompletedCourse(completed.course.title);
+   908→            setCompletedDate(completed.completedAt);
+   909→          }
+   910→        }
+   911→      } catch {
+   912→        /* silent */
+   913→      }
+   914→    }
+   915→    fetchEnrollments();
+   916→  }, [currentUserId]);
+   917→
+   918→  // Fetch activity for streak data (used by StreakCalendar and SkillsBadgesGrid)
+   919→  useEffect(() => {
+   920→    async function fetchStreak() {
+   921→      try {
+   922→        const res = await fetch(`/api/activity?userId=user_demo_001&weeks=5`);
+   923→        const json = await res.json();
+   924→        if (json.success && json.data) {
+   925→          setStreakData(json.data.streak);
+   926→        }
+   927→      } catch {
+   928→        /* silent */
+   929→      }
+   930→    }
+   931→    fetchStreak();
+   932→  }, []);
+   933→
+   934→  useEffect(() => {
+   935→    fetchProfile();
+   936→  }, [fetchProfile]);
+   937→
+   938→  if (loading) {
+   939→    return <ProfileSkeleton />;
+   940→  }
+   941→
+   942→  if (!profile) {
+   943→    return (
+   944→      <div className="flex items-center justify-center py-20">
+   945→        <p className="text-sm text-muted-foreground">
+   946→          Unable to load profile
+   947→        </p>
+   948→      </div>
+   949→    );
+   950→  }
+   951→
+   952→  const initials = (profile.name || profile.email)
+   953→    .split(" ")
+   954→    .map((w) => w.charAt(0).toUpperCase())
+   955→    .slice(0, 2)
+   956→    .join("");
+   957→
+   958→  const joinDate = new Date(profile.createdAt).toLocaleDateString(
+   959→    "en-US",
+   960→    {
+   961→      month: "long",
+   962→      year: "numeric",
+   963→    }
+   964→  );
+   965→
+   966→  const completedPercent =
+   967→    profile.stats.totalCourses > 0
+   968→      ? Math.round(
+   969→          (profile.stats.completed / profile.stats.totalCourses) * 100
+   970→        )
+   971→      : 0;
+   972→
+   973→  /* ---- XP calculation ---- */
+   974→  const completedEnrollments = enrollments.filter(e => e.status === 'completed');
+   975→  const xpFromCompletedCourses = completedEnrollments.length * 100;
+   976→  const xpFromSections = enrollments.reduce((sum, e) => {
+   977→    // Each section = 10 XP; estimate completed sections from progress percentage
+   978→    const completedSections = Math.round((e.progress / 100) * (e.course.sectionsCount || 0));
+   979→    return sum + completedSections * 10;
+   980→  }, 0);
+   981→  const totalXP = xpFromCompletedCourses + xpFromSections;
+   982→  const level = Math.floor(totalXP / 500) + 1;
+   983→  const progressToNext = (totalXP % 500) / 5; // percentage toward next 500 XP
+   984→
+   985→  /* ---- Badge condition helpers ---- */
+   986→  const completedInOneDay = completedEnrollments.some(e => {
+   987→    if (!e.completedAt || !e.enrolledAt) return false;
+   988→    const enrolled = new Date(e.enrolledAt);
+   989→    const completed = new Date(e.completedAt);
+   990→    const diffMs = completed.getTime() - enrolled.getTime();
+   991→    return diffMs <= 24 * 60 * 60 * 1000;
+   992→  });
+   993→  // Estimate total slides viewed: each completed section ~ 10 slides
+   994→  const totalSlidesViewed = enrollments.reduce((sum, e) => {
+   995→    const completedSections = Math.round((e.progress / 100) * (e.course.sectionsCount || 0));
+   996→    return sum + completedSections * 10;
+   997→  }, 0);
+   998→  // Comment count: use a mock estimate (no comments API tied to user)
+   999→  const commentCount = 3; // placeholder; adjust when comments API supports user filtering
+  1000→
+  1001→  return (
+  1002→    <div className="space-y-6">
+  1003→      {/* Page Header */}
+  1004→      <div>
+  1005→        <h1 className="text-2xl font-bold text-foreground">Profile</h1>
+  1006→        <p className="mt-1 text-sm text-muted-foreground">
+  1007→          Manage your account and view learning overview
+  1008→        </p>
+  1009→      </div>
+  1010→
+  1011→      {/* Profile Banner */}
+  1012→      <div className="relative overflow-hidden rounded-2xl">
+  1013→        {/* Gradient background with decorative patterns */}
+  1014→        <div className="relative bg-gradient-to-r from-blue-600 via-cyan-600 to-teal-500 px-6 pb-20 pt-8 sm:px-8 sm:pb-24 sm:pt-10">
+  1015→          {/* Decorative geometric shapes */}
+  1016→          <div className="absolute -top-12 -right-12 h-48 w-48 rounded-full bg-white/10" />
+  1017→          <div className="absolute -bottom-8 -left-8 h-32 w-32 rounded-full bg-white/10" />
+  1018→          <div className="absolute top-6 right-1/4 h-20 w-20 rounded-full bg-white/5" />
+  1019→          {/* Diamond shape */}
+  1020→          <div className="absolute top-4 left-1/3 h-16 w-16 rotate-45 rounded-sm border border-white/10" />
+  1021→          {/* Small circle */}
+  1022→          <div className="absolute bottom-8 right-12 h-6 w-6 rounded-full bg-white/10" />
+  1023→          {/* Dots pattern */}
+  1024→          <div className="absolute top-1/2 left-8 grid grid-cols-3 gap-2 opacity-20">
+  1025→            {Array.from({ length: 9 }).map((_, i) => (
+  1026→              <div key={i} className="h-1.5 w-1.5 rounded-full bg-white" />
+  1027→            ))}
+  1028→          </div>
+  1029→          {/* Triangle hint */}
+  1030→          <div className="absolute right-16 bottom-4 h-0 w-0 border-l-[12px] border-r-[12px] border-b-[20px] border-l-transparent border-r-transparent border-b-white/10" />
+  1031→        </div>
+  1032→
+  1033→        {/* Profile info overlapping the banner */}
+  1034→        <div className="relative mx-4 -mt-12 sm:mx-6">
+  1035→          <div className="flex flex-col gap-4 rounded-xl border border-border/50 bg-card p-5 shadow-sm sm:flex-row sm:items-center sm:gap-5 sm:p-6">
+  1036→            {/* Avatar with animated ring */}
+  1037→            <div className="flex items-start sm:items-center">
+  1038→              <div className="relative">
+  1039→                {/* Animated ring */}
+  1040→                <div className="absolute -inset-1 rounded-full bg-gradient-to-r from-cyan-500 via-teal-400 to-emerald-400 opacity-60 blur-[2px] animate-[pulse_3s_ease-in-out_infinite]" />
+  1041→                <Avatar className="relative h-20 w-20 border-4 border-card shadow-lg">
+  1042→                  <AvatarFallback className="bg-gradient-to-br from-cyan-600 to-teal-500 text-2xl font-bold text-white">
+  1043→                    {initials}
+  1044→                  </AvatarFallback>
+  1045→                </Avatar>
+  1046→              </div>
+  1047→            </div>
+  1048→
+  1049→            {/* Info */}
+  1050→            <div className="flex-1 space-y-1.5">
+  1051→              <div className="flex flex-wrap items-center gap-2">
+  1052→                <h2 className="text-xl font-bold text-foreground">
+  1053→                  {profile.name || "Unnamed User"}
+  1054→                </h2>
+  1055→                {/* Role badge */}
+  1056→                <Badge className="gap-1 bg-gradient-to-r from-cyan-600 to-teal-500 text-[10px] font-semibold text-white hover:from-cyan-700 hover:to-teal-600">
+  1057→                  <Shield className="h-3 w-3" />
+  1058→                  {profile.role}
+  1059→                </Badge>
+  1060→              </div>
+  1061→              <p className="text-sm text-muted-foreground">
+  1062→                {profile.email}
+  1063→              </p>
+  1064→              <div className="flex flex-wrap items-center gap-2 pt-0.5">
+  1065→                {profile.department && (
+  1066→                  <Badge
+  1067→                    variant="secondary"
+  1068→                    className="gap-1 text-xs"
+  1069→                  >
+  1070→                    <Building2 className="h-3 w-3" />
+  1071→                    {profile.department}
+  1072→                  </Badge>
+  1073→                )}
+  1074→                <span className="text-xs text-muted-foreground">
+  1075→                  Joined {joinDate}
+  1076→                </span>
+  1077→              </div>
+  1078→            </div>
+  1079→          </div>
+  1080→        </div>
+  1081→      </div>
+  1082→
+  1083→      {/* Stats + Quick Actions */}
+  1084→      <div className="grid gap-6 md:grid-cols-2">
+  1085→        {/* Stats Panel */}
+  1086→        <Card className="border-border/50">
+  1087→          <CardHeader className="pb-4">
+  1088→            <CardTitle className="text-base font-semibold">
+  1089→              Learning Stats
+  1090→            </CardTitle>
+  1091→          </CardHeader>
+  1092→          <CardContent className="space-y-6">
+  1093→            {/* Circular Progress */}
+  1094→            <div className="flex justify-center">
+  1095→              <CircularProgress percentage={completedPercent} />
+  1096→            </div>
+  1097→
+  1098→            {/* Enhanced stat cards with glass-morphism & animated counters */}
+  1099→            <div className="grid grid-cols-3 gap-3">
+  1100→              <EnhancedStatCard
+  1101→                icon={BookOpen}
+  1102→                label="Total Courses"
+  1103→                value={profile.stats.totalCourses}
+  1104→                color="bg-gradient-to-br from-blue-500 to-blue-700"
+  1105→                trend={{ value: 12, direction: 'up' }}
+  1106→              />
+  1107→              <EnhancedStatCard
+  1108→                icon={CheckCircle}
+  1109→                label="Completed"
+  1110→                value={profile.stats.completed}
+  1111→                color="bg-gradient-to-br from-emerald-500 to-emerald-700"
+  1112→                trend={{ value: 25, direction: 'up' }}
+  1113→              />
+  1114→              <EnhancedStatCard
+  1115→                icon={Clock}
+  1116→                label="In Progress"
+  1117→                value={profile.stats.inProgress}
+  1118→                color="bg-gradient-to-br from-amber-500 to-amber-700"
+  1119→                trend={{ value: 8, direction: 'down' }}
+  1120→              />
+  1121→            </div>
+  1122→          </CardContent>
+  1123→        </Card>
+  1124→
+  1125→        {/* Quick Actions */}
+  1126→        <Card className="border-border/50">
+  1127→          <CardHeader className="pb-4">
+  1128→            <CardTitle className="text-base font-semibold">
+  1129→              Quick Actions
+  1130→            </CardTitle>
+  1131→          </CardHeader>
+  1132→          <CardContent className="space-y-3">
+  1133→            {/* Create Course */}
+  1134→            <button
+  1135→              className="group flex w-full items-center gap-4 rounded-xl border border-border/50 bg-gradient-to-r from-cyan-600/5 to-teal-500/5 p-4 text-left transition-all duration-200 hover:border-cyan-500/30 hover:bg-gradient-to-r hover:from-cyan-600/10 hover:to-teal-500/10 hover:shadow-sm"
+  1136→              onClick={() => navigateTo("create-course")}
+  1137→            >
+  1138→              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-600 to-teal-500 text-white shadow-sm transition-transform duration-200 group-hover:scale-110">
+  1139→                <Plus className="h-5 w-5" />
+  1140→              </div>
+  1141→              <div className="min-w-0 flex-1">
+  1142→                <p className="text-sm font-semibold text-foreground">
+  1143→                  Create Course
+  1144→                </p>
+  1145→                <p className="mt-0.5 text-xs text-muted-foreground">
+  1146→                  Build and publish a new learning course
+  1147→                </p>
+  1148→              </div>
+  1149→              <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-primary" />
+  1150→            </button>
+  1151→
+  1152→            {/* Browse Courses */}
+  1153→            <button
+  1154→              className="group flex w-full items-center gap-4 rounded-xl border border-border/50 bg-gradient-to-r from-emerald-600/5 to-cyan-500/5 p-4 text-left transition-all duration-200 hover:border-emerald-500/30 hover:bg-gradient-to-r hover:from-emerald-600/10 hover:to-cyan-500/10 hover:shadow-sm"
+  1155→              onClick={() => navigateTo("courses")}
+  1156→            >
+  1157→              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-600 to-cyan-500 text-white shadow-sm transition-transform duration-200 group-hover:scale-110">
+  1158→                <LayoutGrid className="h-5 w-5" />
+  1159→              </div>
+  1160→              <div className="min-w-0 flex-1">
+  1161→                <p className="text-sm font-semibold text-foreground">
+  1162→                  Browse Courses
+  1163→                </p>
+  1164→                <p className="mt-0.5 text-xs text-muted-foreground">
+  1165→                  Explore the full course catalog
+  1166→                </p>
+  1167→              </div>
+  1168→              <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-primary" />
+  1169→            </button>
+  1170→
+  1171→            {/* View Certificate */}
+  1172→            <button
+  1173→              className="group flex w-full items-center gap-4 rounded-xl border border-border/50 bg-gradient-to-r from-cyan-600/5 to-teal-500/5 p-4 text-left transition-all duration-200 hover:border-cyan-500/30 hover:bg-gradient-to-r hover:from-cyan-600/10 hover:to-teal-500/10 hover:shadow-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:from-cyan-600/5 disabled:hover:to-teal-500/5 disabled:hover:border-border/50 disabled:hover:shadow-none"
+  1174→              onClick={() => {
+  1175→                if (firstCompletedCourse && completedDate) {
+  1176→                  setCertificateOpen(true);
+  1177→                } else {
+  1178→                  toast.info("Complete a course to earn a certificate!");
+  1179→                }
+  1180→              }}
+  1181→            >
+  1182→              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-600 to-teal-500 text-white shadow-sm transition-transform duration-200 group-hover:scale-110">
+  1183→                <FileBadge className="h-5 w-5" />
+  1184→              </div>
+  1185→              <div className="min-w-0 flex-1">
+  1186→                <p className="text-sm font-semibold text-foreground">
+  1187→                  View Certificate
+  1188→                </p>
+  1189→                <p className="mt-0.5 text-xs text-muted-foreground">
+  1190→                  {firstCompletedCourse
+  1191→                    ? `View cert for "${firstCompletedCourse.length > 30 ? firstCompletedCourse.slice(0, 30) + '...' : firstCompletedCourse}"`
+  1192→                    : "Complete a course to earn a certificate"}
+  1193→                </p>
+  1194→              </div>
+  1195→              <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-primary" />
+  1196→            </button>
+  1197→
+  1198→            {/* My Learning */}
+  1199→            <button
+  1200→              className="group flex w-full items-center gap-4 rounded-xl border border-border/50 bg-gradient-to-r from-amber-600/5 to-orange-500/5 p-4 text-left transition-all duration-200 hover:border-amber-500/30 hover:bg-gradient-to-r hover:from-amber-600/10 hover:to-orange-500/10 hover:shadow-sm"
+  1201→              onClick={() => navigateTo("my-learning")}
+  1202→            >
+  1203→              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 text-white shadow-sm transition-transform duration-200 group-hover:scale-110">
+  1204→                <GraduationCap className="h-5 w-5" />
+  1205→              </div>
+  1206→              <div className="min-w-0 flex-1">
+  1207→                <p className="text-sm font-semibold text-foreground">
+  1208→                  My Learning
+  1209→                </p>
+  1210→                <p className="mt-0.5 text-xs text-muted-foreground">
+  1211→                  Track your progress and enrolled courses
+  1212→                </p>
+  1213→              </div>
+  1214→              <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-primary" />
+  1215→            </button>
+  1216→
+  1217→            {/* Retake Tour */}
+  1218→            <button
+  1219→              className="group flex w-full items-center gap-4 rounded-xl border border-border/50 bg-gradient-to-r from-violet-600/5 to-purple-500/5 p-4 text-left transition-all duration-200 hover:border-violet-500/30 hover:bg-gradient-to-r hover:from-violet-600/10 hover:to-purple-500/10 hover:shadow-sm"
+  1220→              onClick={() => {
+  1221→                localStorage.removeItem("openclass_onboarding_done");
+  1222→                toast.success("Tour will show on next page refresh!");
+  1223→              }}
+  1224→            >
+  1225→              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-purple-500 text-white shadow-sm transition-transform duration-200 group-hover:scale-110">
+  1226→                <Sparkles className="h-5 w-5" />
+  1227→              </div>
+  1228→              <div className="min-w-0 flex-1">
+  1229→                <p className="text-sm font-semibold text-foreground">
+  1230→                  Retake Tour
+  1231→                </p>
+  1232→                <p className="mt-0.5 text-xs text-muted-foreground">
+  1233→                  Replay the welcome guide and feature overview
+  1234→                </p>
+  1235→              </div>
+  1236→              <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-primary" />
+  1237→            </button>
+  1238→
+  1239→            <Separator className="my-2" />
+  1240→
+  1241→            {/* Logout */}
+  1242→            <Button
+  1243→              variant="destructive"
+  1244→              className="w-full"
+  1245→              onClick={() => {
+  1246→                toast.success("You have been logged out.");
+  1247→                navigateTo("home");
+  1248→              }}
+  1249→            >
+  1250→              <LogOut className="mr-2 h-4 w-4" />
+  1251→              Logout
+  1252→            </Button>
+  1253→          </CardContent>
+  1254→        </Card>
+  1255→      </div>
+  1256→
+  1257→      {/* Course Bookmark Collections */}
+  1258→      <CourseBookmarks />
+  1259→
+  1260→      {/* XP Display + Streak Calendar */}
+  1261→      <div className="grid gap-6 md:grid-cols-2">
+  1262→        <XPDisplay totalXP={totalXP} level={level} progressToNext={progressToNext} />
+  1263→        <StreakCalendar streak={streakData.current} bestStreak={streakData.longest} />
+  1264→      </div>
+  1265→
+  1266→      {/* Skills & Badges Grid */}
+  1267→      <SkillsBadgesGrid
+  1268→        completedCourses={profile.stats.completed}
+  1269→        completedInOneDay={completedInOneDay}
+  1270→        slidesViewed={totalSlidesViewed}
+  1271→        commentCount={commentCount}
+  1272→        currentStreak={streakData.current}
+  1273→      />
+  1274→
+  1275→      {/* Learning Path Timeline */}
+  1276→      <LearningPathTimeline enrollments={enrollments} />
+  1277→
+  1278→      {/* Weekly Activity Chart */}
+  1279→      <ActivityChart userId={profile.id} />
+  1280→
+  1281→      {/* Team Leaderboard */}
+  1282→      <TeamLeaderboardCard />
+  1283→
+  1284→      {/* Achievement Badges */}
+  1285→      {profile && (
+  1286→        <AchievementBadges stats={profile.stats} />
+  1287→      )}
+  1288→
+  1289→      {/* Certificate Modal */}
+  1290→      <CertificateModal
+  1291→        open={certificateOpen}
+  1292→        onOpenChange={setCertificateOpen}
+  1293→        userName={profile?.name || profile?.email || "Learner"}
+  1294→        courseName={firstCompletedCourse || "Course"}
+  1295→        completionDate={completedDate || new Date().toISOString()}
+  1296→      />
+  1297→    </div>
+  1298→  );
+  1299→}
+  1300→

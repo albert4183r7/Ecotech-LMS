@@ -39,6 +39,7 @@ import { ActivityChart } from "@/components/lms/activity-chart";
 import { CertificateModal } from "@/components/lms/certificate-modal";
 import { SkeletonList } from "@/components/lms/skeleton-cards";
 import { CourseBookmarks } from "@/components/lms/course-bookmarks";
+import { XpBarFull } from "@/components/lms/xp-bar";
 
 /* ------------------------------------------------------------------ */
 /*  Local types                                                       */
@@ -1274,6 +1275,9 @@ export function ProfilePage() {
 
       {/* Learning Path Timeline */}
       <LearningPathTimeline enrollments={enrollments} />
+
+      {/* XP Level Progress (Full) */}
+      <XpBarFull userId={profile.id} />
 
       {/* Weekly Activity Chart */}
       <ActivityChart userId={profile.id} />

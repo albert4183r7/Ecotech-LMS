@@ -486,7 +486,7 @@ export function Navbar() {
   };
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-border/60 frosted-glass glass-card">
+    <header className="sticky top-0 z-50 w-full border-b border-border/60 frosted-glass glass-card neon-glow">
       <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         {/* Logo + Breadcrumb */}
         <div className="flex flex-col gap-0">

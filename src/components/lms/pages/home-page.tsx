@@ -12,6 +12,8 @@ import { CourseCard } from "@/components/lms/course-card";
 import { SearchAutocomplete } from "@/components/lms/search-autocomplete";
 import { LeaderboardWidget } from "@/components/lms/leaderboard-widget";
 import { CourseRecommendations } from "@/components/lms/course-recommendations";
+import { DailyChallenges } from "@/components/lms/daily-challenges";
+import { SocialFeed } from "@/components/lms/social-feed";
 import { useNavigationStore, useCourseStore } from "@/stores/lms-store";
 import type { CourseItem, CategoryItem, HomeTab } from "@/types/lms";
 
@@ -705,6 +707,11 @@ export function HomePage() {
             </div>
           )}
 
+          {/* ── Daily Challenges ─────────────────────────────────── */}
+          <div className="mb-5">
+            <DailyChallenges />
+          </div>
+
           {/* Course Grid / Loading / Empty ────────────────────────── */}
           {loadingCourses ? (
             <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">
@@ -757,10 +764,11 @@ export function HomePage() {
           <CourseRecommendations />
         </div>
 
-        {/* ── Desktop Right Sidebar (Leaderboard) ──────────────────── */}
+        {/* ── Desktop Right Sidebar (Leaderboard + Social Feed) ────────── */}
         <aside className="hidden w-72 shrink-0 lg:block">
-          <div className="sticky top-6">
+          <div className="sticky top-6 space-y-4">
             <LeaderboardWidget />
+            <SocialFeed />
           </div>
         </aside>
       </section>
@@ -786,6 +794,11 @@ export function HomePage() {
             </div>
           </CollapsibleContent>
         </Collapsible>
+      </section>
+
+      {/* ── Mobile Social Feed ────────────────────────────────────── */}
+      <section className="px-4 pb-6 md:hidden">
+        <SocialFeed />
       </section>
     </div>
   );

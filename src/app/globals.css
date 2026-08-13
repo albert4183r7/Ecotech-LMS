@@ -2139,3 +2139,984 @@
 .animate-fab-pulse {
   animation: fab-pulse-anim 2.5s ease-in-out infinite;
 }
+
+/* ============================================ */
+/* 42. Neon Glow Effects                         */
+/* ============================================ */
+
+.neon-glow {
+  transition: box-shadow 0.3s ease;
+}
+
+.neon-glow:hover {
+  box-shadow: 0 0 15px oklch(0.7 0.15 180 / 0.3), 0 0 30px oklch(0.7 0.15 180 / 0.1);
+}
+
+.neon-glow-strong {
+  transition: box-shadow 0.3s ease;
+}
+
+.neon-glow-strong:hover {
+  box-shadow: 0 0 20px oklch(0.7 0.15 180 / 0.5), 0 0 40px oklch(0.7 0.15 180 / 0.25), 0 0 60px oklch(0.7 0.15 180 / 0.1);
+}
+
+.neon-text {
+  text-shadow: 0 0 8px oklch(0.7 0.15 180 / 0.4), 0 0 20px oklch(0.7 0.15 180 / 0.15);
+  transition: text-shadow 0.3s ease;
+}
+
+.neon-text:hover {
+  text-shadow: 0 0 12px oklch(0.7 0.15 180 / 0.6), 0 0 30px oklch(0.7 0.15 180 / 0.25);
+}
+
+.neon-border {
+  transition: box-shadow 0.3s ease;
+  box-shadow: 0 0 4px oklch(0.7 0.15 180 / 0.15);
+}
+
+.neon-border:hover {
+  box-shadow: 0 0 8px oklch(0.7 0.15 180 / 0.3), 0 0 16px oklch(0.7 0.15 180 / 0.15), inset 0 0 8px oklch(0.7 0.15 180 / 0.05);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .neon-glow,
+  .neon-glow-strong,
+  .neon-text,
+  .neon-border {
+    transition: none;
+  }
+  .neon-glow:hover,
+  .neon-glow-strong:hover {
+    box-shadow: none;
+  }
+  .neon-text,
+  .neon-text:hover {
+    text-shadow: none;
+  }
+  .neon-border,
+  .neon-border:hover {
+    box-shadow: none;
+  }
+}
+
+/* ============================================ */
+/* 43. Text Wave Animation                       */
+/* ============================================ */
+
+@keyframes textWave {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  25% {
+    transform: translateY(-6px);
+  }
+  50% {
+    transform: translateY(0);
+  }
+  75% {
+    transform: translateY(3px);
+  }
+}
+
+.text-wave {
+  display: inline-flex;
+}
+
+.text-wave .text-wave-char {
+  display: inline-block;
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.text-wave:hover .text-wave-char {
+  animation: textWave 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  animation-delay: var(--wave-delay, 0s);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .text-wave:hover .text-wave-char {
+    animation: none;
+  }
+}
+
+/* ============================================ */
+/* 44. Magnetic Hover Effect                     */
+/* ============================================ */
+
+.magnetic-hover {
+  transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.magnetic-hover:hover {
+  transform: translate(2px, -2px) scale(1.02);
+}
+
+.magnetic-hover-child {
+  transition: transform 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.magnetic-hover:hover .magnetic-hover-child {
+  transform: translate(1px, -1px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .magnetic-hover,
+  .magnetic-hover-child {
+    transition: none;
+  }
+  .magnetic-hover:hover {
+    transform: none;
+  }
+  .magnetic-hover:hover .magnetic-hover-child {
+    transform: none;
+  }
+}
+
+/* ============================================ */
+/* 45. Particle Shimmer Overlay                  */
+/* ============================================ */
+
+@keyframes particleShimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 200%;
+  }
+}
+
+.particle-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.particle-shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(1.5px 1.5px at 10% 20%, oklch(1 0 0 / 0.6) 50%, transparent 50%),
+    radial-gradient(1px 1px at 30% 60%, oklch(1 0 0 / 0.4) 50%, transparent 50%),
+    radial-gradient(2px 2px at 50% 10%, oklch(1 0 0 / 0.5) 50%, transparent 50%),
+    radial-gradient(1px 1px at 70% 80%, oklch(1 0 0 / 0.35) 50%, transparent 50%),
+    radial-gradient(1.5px 1.5px at 90% 40%, oklch(1 0 0 / 0.45) 50%, transparent 50%),
+    radial-gradient(1px 1px at 20% 90%, oklch(1 0 0 / 0.3) 50%, transparent 50%),
+    radial-gradient(2px 2px at 80% 15%, oklch(1 0 0 / 0.5) 50%, transparent 50%),
+    radial-gradient(1px 1px at 45% 70%, oklch(1 0 0 / 0.4) 50%, transparent 50%),
+    radial-gradient(1.5px 1.5px at 65% 50%, oklch(1 0 0 / 0.35) 50%, transparent 50%),
+    radial-gradient(1px 1px at 15% 45%, oklch(1 0 0 / 0.5) 50%, transparent 50%);
+  background-size: 200% 200%;
+  animation: particleShimmer 6s linear infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.particle-shimmer-slow::after {
+  animation-duration: 12s;
+  opacity: 0.6;
+}
+
+.particle-shimmer-fast::after {
+  animation-duration: 3s;
+}
+
+.dark .particle-shimmer::after,
+.dark .particle-shimmer-slow::after,
+.dark .particle-shimmer-fast::after {
+  background-image:
+    radial-gradient(1.5px 1.5px at 10% 20%, oklch(0.9 0.05 180 / 0.4) 50%, transparent 50%),
+    radial-gradient(1px 1px at 30% 60%, oklch(0.9 0.05 180 / 0.25) 50%, transparent 50%),
+    radial-gradient(2px 2px at 50% 10%, oklch(0.9 0.05 180 / 0.35) 50%, transparent 50%),
+    radial-gradient(1px 1px at 70% 80%, oklch(0.9 0.05 180 / 0.2) 50%, transparent 50%),
+    radial-gradient(1.5px 1.5px at 90% 40%, oklch(0.9 0.05 180 / 0.3) 50%, transparent 50%),
+    radial-gradient(1px 1px at 20% 90%, oklch(0.9 0.05 180 / 0.2) 50%, transparent 50%),
+    radial-gradient(2px 2px at 80% 15%, oklch(0.9 0.05 180 / 0.35) 50%, transparent 50%),
+    radial-gradient(1px 1px at 45% 70%, oklch(0.9 0.05 180 / 0.25) 50%, transparent 50%),
+    radial-gradient(1.5px 1.5px at 65% 50%, oklch(0.9 0.05 180 / 0.2) 50%, transparent 50%),
+    radial-gradient(1px 1px at 15% 45%, oklch(0.9 0.05 180 / 0.35) 50%, transparent 50%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .particle-shimmer::after,
+  .particle-shimmer-slow::after,
+  .particle-shimmer-fast::after {
+    animation: none;
+  }
+}
+
+/* ============================================ */
+/* 46. Morphing Shape Backgrounds                */
+/* ============================================ */
+
+@keyframes morphBlob {
+  0%, 100% {
+    border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;
+  }
+  25% {
+    border-radius: 30% 60% 70% 40% / 50% 60% 30% 60%;
+  }
+  50% {
+    border-radius: 50% 60% 30% 60% / 30% 60% 70% 40%;
+  }
+  75% {
+    border-radius: 60% 30% 60% 40% / 70% 40% 50% 60%;
+  }
+}
+
+.morph-shape {
+  border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;
+  animation: morphBlob 12s ease-in-out infinite;
+}
+
+.morph-1 {
+  animation-duration: 10s;
+}
+
+.morph-2 {
+  animation-duration: 16s;
+  animation-delay: -4s;
+}
+
+.morph-3 {
+  animation-duration: 20s;
+  animation-delay: -8s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .morph-shape,
+  .morph-1,
+  .morph-2,
+  .morph-3 {
+    animation: none;
+    border-radius: 50%;
+  }
+}
+
+/* ============================================ */
+/* 47. Floating Label Inputs                     */
+/* ============================================ */
+
+.floating-label {
+  position: relative;
+}
+
+.floating-label input {
+  width: 100%;
+  padding: 1.25rem 0.75rem 0.5rem;
+  border: 1px solid oklch(0.8 0.01 260 / 0.5);
+  border-radius: 0.5rem;
+  background: oklch(1 0 0 / 1);
+  font-size: 0.875rem;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.floating-label input::placeholder {
+  color: transparent;
+}
+
+.floating-label label {
+  position: absolute;
+  top: 50%;
+  left: 0.75rem;
+  transform: translateY(-50%);
+  font-size: 0.875rem;
+  color: oklch(0.55 0.02 260 / 0.8);
+  pointer-events: none;
+  transition: all 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  transform-origin: left center;
+}
+
+.floating-label input:focus + label,
+.floating-label input:not(:placeholder-shown) + label {
+  top: 0.5rem;
+  transform: translateY(0);
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.025em;
+  color: oklch(0.55 0.18 180);
+}
+
+.floating-label input:focus {
+  border-color: oklch(0.55 0.18 180);
+  box-shadow: 0 0 0 3px oklch(0.55 0.18 180 / 0.12);
+}
+
+/* Textarea variant */
+.floating-label textarea {
+  width: 100%;
+  padding: 1.5rem 0.75rem 0.5rem;
+  border: 1px solid oklch(0.8 0.01 260 / 0.5);
+  border-radius: 0.5rem;
+  background: oklch(1 0 0 / 1);
+  font-size: 0.875rem;
+  outline: none;
+  resize: vertical;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.floating-label textarea::placeholder {
+  color: transparent;
+}
+
+.floating-label textarea:focus + label,
+.floating-label textarea:not(:placeholder-shown) + label {
+  top: 0.5rem;
+  transform: translateY(0);
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.025em;
+  color: oklch(0.55 0.18 180);
+}
+
+.floating-label textarea:focus {
+  border-color: oklch(0.55 0.18 180);
+  box-shadow: 0 0 0 3px oklch(0.55 0.18 180 / 0.12);
+}
+
+/* Select variant */
+.floating-label select {
+  width: 100%;
+  padding: 1.25rem 0.75rem 0.5rem;
+  border: 1px solid oklch(0.8 0.01 260 / 0.5);
+  border-radius: 0.5rem;
+  background: oklch(1 0 0 / 1);
+  font-size: 0.875rem;
+  outline: none;
+  appearance: none;
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.floating-label select:focus + label {
+  top: 0.5rem;
+  transform: translateY(0);
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.025em;
+  color: oklch(0.55 0.18 180);
+}
+
+.floating-label select:focus {
+  border-color: oklch(0.55 0.18 180);
+  box-shadow: 0 0 0 3px oklch(0.55 0.18 180 / 0.12);
+}
+
+/* Dark mode */
+.dark .floating-label input,
+.dark .floating-label textarea,
+.dark .floating-label select {
+  background: oklch(0.2 0.01 260 / 1);
+  border-color: oklch(0.35 0.01 260 / 0.6);
+  color: oklch(0.9 0.01 260);
+}
+
+.dark .floating-label label {
+  color: oklch(0.55 0.02 260 / 0.7);
+}
+
+.dark .floating-label input:focus + label,
+.dark .floating-label input:not(:placeholder-shown) + label,
+.dark .floating-label textarea:focus + label,
+.dark .floating-label textarea:not(:placeholder-shown) + label,
+.dark .floating-label select:focus + label {
+  color: oklch(0.7 0.15 180);
+}
+
+.dark .floating-label input:focus,
+.dark .floating-label textarea:focus,
+.dark .floating-label select:focus {
+  border-color: oklch(0.7 0.15 180);
+  box-shadow: 0 0 0 3px oklch(0.7 0.15 180 / 0.12);
+}
+
+/* ============================================ */
+/* 48. Enhanced Card Effects                     */
+/* ============================================ */
+
+/* Card spotlight — radial gradient follows cursor via custom property */
+.card-spotlight {
+  position: relative;
+  overflow: hidden;
+  --mouse-x: 50%;
+  --mouse-y: 50%;
+  transition: box-shadow 0.3s ease;
+}
+
+.card-spotlight::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(400px circle at var(--mouse-x) var(--mouse-y), oklch(0.7 0.15 180 / 0.08), transparent 60%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.card-spotlight:hover::before {
+  opacity: 1;
+}
+
+/* 3D perspective tilt on hover */
+.card-depth-3d {
+  perspective: 800px;
+  transform-style: preserve-3d;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.card-depth-3d:hover {
+  transform: rotateX(2deg) rotateY(-2deg) translateY(-4px);
+  box-shadow: 0 20px 40px oklch(0 0 0 / 0.08), 0 8px 16px oklch(0 0 0 / 0.06);
+}
+
+.dark .card-depth-3d:hover {
+  box-shadow: 0 20px 40px oklch(0 0 0 / 0.3), 0 8px 16px oklch(0 0 0 / 0.2);
+}
+
+/* Breathing scale for featured cards */
+@keyframes cardBreathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.02); }
+}
+
+.card-breathe {
+  animation: cardBreathe 4s ease-in-out infinite;
+}
+
+/* Animated rotating gradient border */
+@keyframes gradientBorderRotate {
+  0% { --border-angle: 0deg; }
+  100% { --border-angle: 360deg; }
+}
+
+@property --border-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
+.card-gradient-border {
+  position: relative;
+  --border-angle: 0deg;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  animation: gradientBorderRotate 3s linear infinite;
+}
+
+.card-gradient-border::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  background: conic-gradient(
+    from var(--border-angle),
+    oklch(0.7 0.15 180),
+    oklch(0.75 0.15 200),
+    oklch(0.65 0.2 165),
+    oklch(0.7 0.15 180)
+  );
+  z-index: -1;
+  animation: gradientBorderRotate 3s linear infinite;
+}
+
+.dark .card-gradient-border::before {
+  background: conic-gradient(
+    from var(--border-angle),
+    oklch(0.55 0.18 180),
+    oklch(0.6 0.18 200),
+    oklch(0.5 0.22 165),
+    oklch(0.55 0.18 180)
+  );
+}
+
+/* Stronger glassmorphism */
+.card-glass-strong {
+  background: oklch(0.98 0.005 260 / 0.75);
+  backdrop-filter: blur(20px) saturate(1.3);
+  -webkit-backdrop-filter: blur(20px) saturate(1.3);
+  border: 1px solid oklch(0.85 0.01 260 / 0.4);
+}
+
+.dark .card-glass-strong {
+  background: oklch(0.18 0.01 260 / 0.7);
+  border-color: oklch(0.35 0.01 260 / 0.3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card-breathe {
+    animation: none;
+  }
+  .card-depth-3d:hover {
+    transform: none;
+  }
+  .card-gradient-border,
+  .card-gradient-border::before {
+    animation: none;
+  }
+}
+
+/* ============================================ */
+/* 49. Scroll-Triggered Animations               */
+/* ============================================ */
+
+@keyframes scrollFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scrollFadeLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes scrollFadeRight {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes scrollScaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Base: hidden until animated */
+.scroll-fade-up,
+.scroll-fade-left,
+.scroll-fade-right,
+.scroll-scale-in {
+  opacity: 0;
+}
+
+/* Active state — toggled via JS intersection observer */
+.scroll-fade-up.is-visible {
+  animation: scrollFadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.scroll-fade-left.is-visible {
+  animation: scrollFadeLeft 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.scroll-fade-right.is-visible {
+  animation: scrollFadeRight 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.scroll-scale-in.is-visible {
+  animation: scrollScaleIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Native animation-timeline support */
+@supports (animation-timeline: view()) {
+  .scroll-fade-up {
+    opacity: 0;
+    animation: scrollFadeUp linear both;
+    animation-timeline: view();
+    animation-range: entry 0% entry 100%;
+  }
+
+  .scroll-fade-left {
+    opacity: 0;
+    animation: scrollFadeLeft linear both;
+    animation-timeline: view();
+    animation-range: entry 0% entry 100%;
+  }
+
+  .scroll-fade-right {
+    opacity: 0;
+    animation: scrollFadeRight linear both;
+    animation-timeline: view();
+    animation-range: entry 0% entry 100%;
+  }
+
+  .scroll-scale-in {
+    opacity: 0;
+    animation: scrollScaleIn linear both;
+    animation-timeline: view();
+    animation-range: entry 0% entry 100%;
+  }
+
+  /* Override JS-toggled visible state when native timeline is used */
+  .scroll-fade-up.is-visible,
+  .scroll-fade-left.is-visible,
+  .scroll-fade-right.is-visible,
+  .scroll-scale-in.is-visible {
+    animation: none;
+  }
+
+  .scroll-fade-up {
+    animation: scrollFadeUp linear both;
+    animation-timeline: view();
+    animation-range: entry 0% entry 100%;
+  }
+  .scroll-fade-left {
+    animation: scrollFadeLeft linear both;
+    animation-timeline: view();
+    animation-range: entry 0% entry 100%;
+  }
+  .scroll-fade-right {
+    animation: scrollFadeRight linear both;
+    animation-timeline: view();
+    animation-range: entry 0% entry 100%;
+  }
+  .scroll-scale-in {
+    animation: scrollScaleIn linear both;
+    animation-timeline: view();
+    animation-range: entry 0% entry 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scroll-fade-up,
+  .scroll-fade-left,
+  .scroll-fade-right,
+  .scroll-scale-in {
+    opacity: 1;
+    animation: none;
+  }
+}
+
+/* ============================================ */
+/* 50. Interactive Toggle Switch                 */
+/* ============================================ */
+
+.toggle-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.toggle-track {
+  position: relative;
+  width: 2.75rem;
+  height: 1.5rem;
+  border-radius: 9999px;
+  background: oklch(0.82 0.01 260 / 1);
+  border: 1px solid oklch(0.75 0.01 260 / 0.6);
+  transition: background 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+              border-color 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+              box-shadow 0.25s ease;
+}
+
+.toggle-switch input:checked + .toggle-track {
+  background: oklch(0.55 0.18 180);
+  border-color: oklch(0.5 0.18 180);
+}
+
+.toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 1.125rem;
+  height: 1.125rem;
+  border-radius: 9999px;
+  background: oklch(1 0 0 / 1);
+  box-shadow: 0 1px 3px oklch(0 0 0 / 0.15);
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+              box-shadow 0.25s ease;
+}
+
+.toggle-switch input:checked + .toggle-track .toggle-thumb {
+  transform: translateX(1.25rem);
+}
+
+.toggle-glow input:checked + .toggle-track {
+  box-shadow: 0 0 12px oklch(0.55 0.18 180 / 0.35), 0 0 24px oklch(0.55 0.18 180 / 0.15);
+}
+
+.toggle-label {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: oklch(0.4 0.01 260);
+  transition: color 0.2s ease;
+}
+
+.toggle-switch input:checked ~ .toggle-label {
+  color: oklch(0.55 0.18 180);
+}
+
+/* Dark mode */
+.dark .toggle-track {
+  background: oklch(0.3 0.01 260 / 1);
+  border-color: oklch(0.35 0.01 260 / 0.6);
+}
+
+.dark .toggle-switch input:checked + .toggle-track {
+  background: oklch(0.55 0.18 180);
+  border-color: oklch(0.6 0.18 180);
+}
+
+.dark .toggle-thumb {
+  background: oklch(0.95 0.01 260);
+  box-shadow: 0 1px 3px oklch(0 0 0 / 0.3);
+}
+
+.dark .toggle-label {
+  color: oklch(0.65 0.02 260);
+}
+
+.dark .toggle-switch input:checked ~ .toggle-label {
+  color: oklch(0.7 0.15 180);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toggle-track,
+  .toggle-thumb,
+  .toggle-label {
+    transition: none;
+  }
+}
+
+/* ============================================ */
+/* 51. Tooltip Enhancement Suite                 */
+/* ============================================ */
+
+@keyframes tooltipPop {
+  0% {
+    opacity: 0;
+    transform: scale(0.92) translateY(4px);
+  }
+  60% {
+    transform: scale(1.02) translateY(0);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* Tooltip with CSS arrow */
+.tooltip-arrow {
+  position: relative;
+}
+
+.tooltip-arrow::after {
+  content: '';
+  position: absolute;
+  bottom: -5px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 6px solid oklch(0.25 0.01 260);
+}
+
+.dark .tooltip-arrow::after {
+  border-top-color: oklch(0.2 0.01 260);
+}
+
+/* Dark tooltip variant */
+.tooltip-dark {
+  background: oklch(0.2 0.01 260 / 0.95) !important;
+  color: oklch(0.95 0 0) !important;
+  border: 1px solid oklch(0.3 0.01 260 / 0.5);
+}
+
+/* Glassmorphism tooltip */
+.tooltip-glass {
+  background: oklch(0.97 0.005 260 / 0.8) !important;
+  backdrop-filter: blur(12px) saturate(1.2);
+  -webkit-backdrop-filter: blur(12px) saturate(1.2);
+  border: 1px solid oklch(0.85 0.01 260 / 0.5);
+  box-shadow: 0 4px 16px oklch(0 0 0 / 0.08);
+}
+
+.dark .tooltip-glass {
+  background: oklch(0.2 0.01 260 / 0.8) !important;
+  border-color: oklch(0.35 0.01 260 / 0.4);
+  box-shadow: 0 4px 16px oklch(0 0 0 / 0.25);
+}
+
+/* Animated tooltip entrance */
+.tooltip-animated {
+  animation: tooltipPop 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tooltip-animated {
+    animation: none;
+    opacity: 1;
+  }
+}
+
+/* ============================================ */
+/* 52. Loading & Progress Enhancements           */
+/* ============================================ */
+
+/* Circular progress ring using conic-gradient */
+.progress-ring {
+  --progress: 0%;
+  width: 3rem;
+  height: 3rem;
+  border-radius: 50%;
+  background: conic-gradient(
+    oklch(0.55 0.18 180) calc(var(--progress) * 1%),
+    oklch(0.9 0.01 260 / 0.2) calc(var(--progress) * 1%)
+  );
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.4s ease;
+}
+
+.progress-ring::after {
+  content: '';
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 50%;
+  background: oklch(1 0 0 / 1);
+}
+
+.dark .progress-ring {
+  background: conic-gradient(
+    oklch(0.65 0.15 180) calc(var(--progress) * 1%),
+    oklch(0.25 0.01 260 / 0.3) calc(var(--progress) * 1%)
+  );
+}
+
+.dark .progress-ring::after {
+  background: oklch(0.15 0.01 260);
+}
+
+/* Enhanced skeleton with pulse overlay */
+.loading-skeleton-pulse {
+  position: relative;
+  overflow: hidden;
+}
+
+.loading-skeleton-pulse::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    oklch(1 0 0 / 0.4),
+    transparent
+  );
+  animation: skeletonPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes skeletonPulse {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* Top-of-page loading bar */
+@keyframes loadingBarMove {
+  0% {
+    transform: translateX(-100%);
+    width: 40%;
+  }
+  50% {
+    transform: translateX(0%);
+    width: 60%;
+  }
+  100% {
+    transform: translateX(100%);
+    width: 40%;
+  }
+}
+
+.loading-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 2px;
+  background: linear-gradient(90deg, oklch(0.55 0.18 180), oklch(0.65 0.15 200), oklch(0.55 0.18 180));
+  z-index: 9999;
+  animation: loadingBarMove 1.5s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* Double-ring spinner */
+@keyframes spinnerRingRotate {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes spinnerRingCounterRotate {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(-360deg); }
+}
+
+.loading-spinner-ring {
+  position: relative;
+  width: 2rem;
+  height: 2rem;
+}
+
+.loading-spinner-ring::before,
+.loading-spinner-ring::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2.5px solid transparent;
+}
+
+.loading-spinner-ring::before {
+  border-top-color: oklch(0.55 0.18 180);
+  border-right-color: oklch(0.55 0.18 180 / 0.3);
+  animation: spinnerRingRotate 0.8s linear infinite;
+}
+
+.loading-spinner-ring::after {
+  inset: 3px;
+  border-bottom-color: oklch(0.65 0.15 200);
+  border-left-color: oklch(0.65 0.15 200 / 0.3);
+  animation: spinnerRingCounterRotate 0.6s linear infinite;
+}
+
+.dark .loading-spinner-ring::before {
+  border-top-color: oklch(0.7 0.15 180);
+  border-right-color: oklch(0.7 0.15 180 / 0.3);
+}
+
+.dark .loading-spinner-ring::after {
+  border-bottom-color: oklch(0.75 0.12 200);
+  border-left-color: oklch(0.75 0.12 200 / 0.3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading-bar {
+    animation: none;
+    display: none;
+  }
+  .loading-skeleton-pulse::after {
+    animation: none;
+  }
+  .loading-spinner-ring::before,
+  .loading-spinner-ring::after {
+    animation: none;
+  }
+  .progress-ring {
+    transition: none;
+  }
+}

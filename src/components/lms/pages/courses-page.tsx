@@ -380,8 +380,8 @@ export function CoursesPage() {
         {/* Main Content */}
         {/* ============================================ */}
         <main className="min-w-0 flex-1">
-          {/* Search Bar & Mobile Filter Toggle */}
-          <div className="mb-6 flex items-center gap-3">
+          {/* Search Bar & Results Count & Mobile Filter Toggle */}
+          <div className="mb-4 flex items-center gap-3">
             <SearchAutocomplete
               value={courseFilters.search}
               onChange={(val) => handleFilterChange({ search: val })}
@@ -392,6 +392,14 @@ export function CoursesPage() {
               inputRef={searchInputRef}
               className="flex-1"
             />
+
+            {/* Results count — inline with search */}
+            <span className="hidden shrink-0 text-sm text-muted-foreground sm:inline">
+              <span className="font-semibold text-foreground">
+                {isLoading ? "..." : courses.length}
+              </span>{" "}
+              courses found
+            </span>
 
             {/* Mobile Filter Button */}
             <Sheet open={isSidebarOpen} onOpenChange={setIsSidebarOpen}>
@@ -424,18 +432,63 @@ export function CoursesPage() {
             </Sheet>
           </div>
 
-          {/* Active Filters Pills (desktop) */}
-          <div className="mb-4 hidden flex-wrap items-center gap-2 md:flex">
-            {courseFilters.category !== "all" && (
-              <Badge
-                variant="secondary"
-                className="cursor-pointer gap-1 pr-1"
+          {/* Mobile results count */}
+          <div className="mb-3 sm:hidden">
+            <p className="text-sm text-muted-foreground">
+              <span className="font-semibold text-foreground">
+                {isLoading ? "..." : courses.length}
+              </span>{" "}
+              courses found
+            </p>
+          </div>
+
+          {/* Category Filter Pills */}
+          {categories.length > 0 && (
+            <div className="mb-4 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
                 onClick={() => handleFilterChange({ category: "all" })}
+                className={cn(
+                  "hover-lift inline-flex items-center rounded-full px-3.5 py-1.5 text-xs font-medium transition-all duration-200",
+                  courseFilters.category === "all"
+                    ? "bg-gradient-to-r from-teal-500 to-cyan-500 text-white shadow-sm shadow-teal-500/20"
+                    : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
+                )}
               >
-                Category: {categories.find((c) => c.id === courseFilters.category)?.name ?? courseFilters.category}
-                <X className="h-3 w-3" />
-              </Badge>
-            )}
+                All
+              </button>
+              {categories.map((cat) => (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() =>
+                    handleFilterChange({
+                      category: courseFilters.category === cat.id ? "all" : cat.id,
+                    })
+                  }
+                  className={cn(
+                    "hover-lift inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-all duration-200",
+                    courseFilters.category === cat.id
+                      ? "bg-gradient-to-r from-teal-500 to-cyan-500 text-white shadow-sm shadow-teal-500/20"
+                      : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
+                  )}
+                >
+                  {cat.name}
+                  <span className={cn(
+                    "text-[10px] tabular-nums",
+                    courseFilters.category === cat.id
+                      ? "text-white/80"
+                      : "text-muted-foreground/60"
+                  )}>
+                    {cat._count?.courses ?? 0}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Active Non-Category Filters Pills (desktop) */}
+          <div className="mb-4 hidden flex-wrap items-center gap-2 md:flex">
             {courseFilters.sortBy !== "newest" && (
               <Badge
                 variant="secondary"
@@ -456,17 +509,6 @@ export function CoursesPage() {
                 <X className="h-3 w-3" />
               </Badge>
             )}
-          </div>
-
-          {/* Results Count */}
-          <div className="mb-4">
-            <p className="text-sm text-muted-foreground">
-              Found{" "}
-              <span className="font-semibold text-foreground">
-                {isLoading ? "..." : courses.length}
-              </span>{" "}
-              courses
-            </p>
           </div>
 
           {/* Course Grid */}
