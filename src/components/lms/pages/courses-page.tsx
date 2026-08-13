@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Search, SlidersHorizontal, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SkeletonCard } from "@/components/lms/skeleton-cards";
 import { Badge } from "@/components/ui/badge";
 import {
   Sheet,
@@ -65,12 +66,14 @@ function CourseGridSkeleton() {
   return (
     <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
       {Array.from({ length: 6 }).map((_, i) => (
-        <div key={i} className="overflow-hidden rounded-lg border border-border/50">
-          <Skeleton className="aspect-video w-full" />
-          <div className="space-y-2 p-3">
-            <Skeleton className="h-4 w-3/4" />
-            <Skeleton className="h-4 w-1/2" />
-          </div>
+        <div
+          key={i}
+          className="opacity-0"
+          style={{
+            animation: `viewFadeSlideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) ${i * 60}ms forwards`,
+          }}
+        >
+          <SkeletonCard lines={2} showImage />
         </div>
       ))}
     </div>

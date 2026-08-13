@@ -13,6 +13,8 @@ import { CourseDetailPage } from "@/components/lms/pages/course-detail-page";
 import { ClassroomPage } from "@/components/lms/pages/classroom-page";
 import { CreateCoursePage } from "@/components/lms/pages/create-course-page";
 import { DashboardPage } from "@/components/lms/pages/dashboard-page";
+import { SettingsPage } from "@/components/lms/pages/settings-page";
+import { FloatingActions } from "@/components/lms/floating-actions";
 import { KeyboardShortcuts } from "@/components/lms/keyboard-shortcuts";
 
 /**
@@ -45,6 +47,8 @@ export default function AppPage() {
         return <ClassroomPage />;
       case "create-course":
         return <CreateCoursePage />;
+      case "settings":
+        return <SettingsPage />;
       default:
         return <HomePage />;
     }
@@ -64,8 +68,16 @@ export default function AppPage() {
     <div className="min-h-screen flex flex-col bg-background">
       <Navbar />
       <AnnouncementBanner />
-      <main className="flex-1 page-transition page-enter">{renderView()}</main>
+      <main className="flex-1 page-transition">
+        <div
+          key={currentView}
+          className="view-transition-enter"
+        >
+          {renderView()}
+        </div>
+      </main>
       <Footer />
+      <FloatingActions />
       <KeyboardShortcuts />
       <OnboardingTour />
     </div>

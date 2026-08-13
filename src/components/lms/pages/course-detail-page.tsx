@@ -38,6 +38,7 @@ import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { useNavigationStore, useUserStore } from "@/stores/lms-store";
 import { DiscussionPanel } from "@/components/lms/discussion-panel";
+import { ProgressTimeline } from "@/components/lms/progress-timeline";
 import { StarRating } from "@/components/lms/star-rating";
 import type { CourseItem, SectionItem, ClassroomState, SlideContent } from "@/types/lms";
 
@@ -661,6 +662,21 @@ export function CourseDetailPage() {
           </Accordion>
         )}
       </section>
+
+      {/* ─── Progress Timeline ──────────────────── */}
+      {course.isEnrolled && (
+        <section className="mt-8">
+          <ProgressTimeline
+            courseId={course.id}
+            courseTitle={course.title}
+            userId={userId}
+            isEnrolled={course.isEnrolled}
+            sections={course.sections}
+            openClassroom={openClassroom}
+            course={course}
+          />
+        </section>
+      )}
 
       <section className="mt-8">
         <DiscussionPanel

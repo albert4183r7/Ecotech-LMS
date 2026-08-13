@@ -1,0 +1,824 @@
+     1→"use client";
+     2→
+     3→import { useState, useEffect, useRef, useCallback } from "react";
+     4→import {
+     5→  GraduationCap,
+     6→  Home,
+     7→  BookOpen,
+     8→  User,
+     9→  PlusCircle,
+    10→  Menu,
+    11→  X,
+    12→  Sun,
+    13→  Moon,
+    14→  Monitor,
+    15→  Bell,
+    16→  CheckCheck,
+    17→  Info,
+    18→  CheckCircle2,
+    19→  AlertTriangle,
+    20→  Trophy,
+    21→  Settings,
+    22→  Search,
+    23→} from "lucide-react";
+    24→import { Button } from "@/components/ui/button";
+    25→import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+    26→import { Separator } from "@/components/ui/separator";
+    27→import { ScrollArea } from "@/components/ui/scroll-area";
+    28→import { Badge } from "@/components/ui/badge";
+    29→import { Skeleton } from "@/components/ui/skeleton";
+    30→import {
+    31→  Tooltip,
+    32→  TooltipTrigger,
+    33→  TooltipContent,
+    34→} from "@/components/ui/tooltip";
+    35→import { cn } from "@/lib/utils";
+    36→import { useNavigationStore, useUserStore } from "@/stores/lms-store";
+    37→import type { ViewName } from "@/types/lms";
+    38→import { useTheme } from "next-themes";
+    39→
+    40→/** Navigation link configuration */
+    41→interface NavItem {
+    42→  label: string;
+    43→  icon: React.ReactNode;
+    44→  view: ViewName;
+    45→}
+    46→
+    47→/** Main navigation items */
+    48→const NAV_ITEMS: NavItem[] = [
+    49→  { label: "Home", icon: <Home className="h-4 w-4" />, view: "home" },
+    50→  { label: "Courses", icon: <BookOpen className="h-4 w-4" />, view: "courses" },
+    51→  { label: "My Learning", icon: <GraduationCap className="h-4 w-4" />, view: "my-learning" },
+    52→  { label: "Profile", icon: <User className="h-4 w-4" />, view: "profile" },
+    53→];
+    54→
+    55→/** Get human-readable label for any view including detail views */
+    56→function getViewLabel(view: ViewName): string {
+    57→  switch (view) {
+    58→    case "home": return "Home";
+    59→    case "courses": return "Courses";
+    60→    case "my-learning": return "My Learning";
+    61→    case "profile": return "Profile";
+    62→    case "course-detail": return "Course Details";
+    63→    case "classroom": return "Classroom";
+    64→    case "create-course": return "Create Course";
+    65→    default: return "";
+    66→  }
+    67→}
+    68→
+    69→/** Notification item shape (from API) */
+    70→interface NotificationItem {
+    71→  id: string;
+    72→  title: string;
+    73→  message: string;
+    74→  type: string;
+    75→  read: boolean;
+    76→  link: string | null;
+    77→  createdAt: string;
+    78→}
+    79→
+    80→/** Notification type → icon + color mapping */
+    81→function NotificationIcon({ type }: { type: string }) {
+    82→  switch (type) {
+    83→    case "info":
+    84→      return <Info className="h-4 w-4 text-blue-500" />;
+    85→    case "success":
+    86→      return <CheckCircle2 className="h-4 w-4 text-emerald-500" />;
+    87→    case "warning":
+    88→      return <AlertTriangle className="h-4 w-4 text-amber-500" />;
+    89→    case "course":
+    90→      return <BookOpen className="h-4 w-4 text-teal-500" />;
+    91→    case "system":
+    92→      return <Settings className="h-4 w-4 text-gray-500" />;
+    93→    case "achievement":
+    94→      return <Trophy className="h-4 w-4 text-amber-500" />;
+    95→    default:
+    96→      return <Info className="h-4 w-4 text-blue-500" />;
+    97→  }
+    98→}
+    99→
+   100→/** Notification type → icon bg color mapping */
+   101→function NotificationIconBg({ type, read }: { type: string; read: boolean }) {
+   102→  const base = read ? "bg-muted/60" : "bg-primary/10";
+   103→  const colorMap: Record<string, string> = {
+   104→    info: read ? "bg-blue-500/10" : "bg-blue-500/15",
+   105→    success: read ? "bg-emerald-500/10" : "bg-emerald-500/15",
+   106→    warning: read ? "bg-amber-500/10" : "bg-amber-500/15",
+   107→    course: read ? "bg-teal-500/10" : "bg-teal-500/15",
+   108→    system: read ? "bg-gray-500/10" : "bg-gray-500/15",
+   109→    achievement: read ? "bg-amber-500/10" : "bg-amber-500/15",
+   110→  };
+   111→  return colorMap[type] || base;
+   112→}
+   113→
+   114→/** Notification type → left border accent color */
+   115→function NotificationBorderAccent({ type }: { type: string }) {
+   116→  const colorMap: Record<string, string> = {
+   117→    info: "border-l-blue-500",
+   118→    success: "border-l-emerald-500",
+   119→    warning: "border-l-amber-500",
+   120→    course: "border-l-teal-500",
+   121→    system: "border-l-gray-400",
+   122→    achievement: "border-l-amber-500",
+   123→  };
+   124→  return colorMap[type] || "border-l-blue-500";
+   125→}
+   126→
+   127→/** Format relative time for notifications */
+   128→function formatRelativeTime(dateStr: string): string {
+   129→  const now = new Date();
+   130→  const date = new Date(dateStr);
+   131→  const diffMs = now.getTime() - date.getTime();
+   132→  const diffMins = Math.floor(diffMs / 60000);
+   133→  const diffHours = Math.floor(diffMs / 3600000);
+   134→  const diffDays = Math.floor(diffMs / 86400000);
+   135→
+   136→  if (diffMins < 1) return "Just now";
+   137→  if (diffMins < 60) return `${diffMins}m ago`;
+   138→  if (diffHours < 24) return `${diffHours}h ago`;
+   139→  if (diffDays < 7) return `${diffDays}d ago`;
+   140→  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+   141→}
+   142→
+   143→/** Group notifications by date category: Today, Yesterday, Earlier */
+   144→function groupNotificationsByDate(items: NotificationItem[]) {
+   145→  const now = new Date();
+   146→  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+   147→  const yesterdayStart = todayStart - 86400000;
+   148→
+   149→  const today: NotificationItem[] = [];
+   150→  const yesterday: NotificationItem[] = [];
+   151→  const earlier: NotificationItem[] = [];
+   152→
+   153→  for (const item of items) {
+   154→    const t = new Date(item.createdAt).getTime();
+   155→    if (t >= todayStart) today.push(item);
+   156→    else if (t >= yesterdayStart) yesterday.push(item);
+   157→    else earlier.push(item);
+   158→  }
+   159→
+   160→  return { today, yesterday, earlier };
+   161→}
+   162→
+   163→/** Notification group with date header */
+   164→function NotificationGroup({
+   165→  label,
+   166→  items,
+   167→  onNotificationClick,
+   168→}: {
+   169→  label: string;
+   170→  items: NotificationItem[];
+   171→  onNotificationClick: (notif: NotificationItem) => void;
+   172→}) {
+   173→  if (items.length === 0) return null;
+   174→
+   175→  return (
+   176→    <div>
+   177→      <p className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+   178→        {label}
+   179→      </p>
+   180→      {items.map((notif) => (
+   181→        <button
+   182→          key={notif.id}
+   183→          type="button"
+   184→          onClick={() => onNotificationClick(notif)}
+   185→          className={cn(
+   186→            "group flex w-full items-start gap-3 rounded-lg px-3 py-3 text-left transition-colors notif-appear",
+   187→            notif.read
+   188→              ? "hover:bg-muted/50"
+   189→              : "bg-primary/5 hover:bg-primary/8"
+   190→          )}
+   191→        >
+   192→          {/* Left border accent for unread */}
+   193→          {!notif.read && (
+   194→            <div className={cn(
+   195→              "absolute left-1 top-3 bottom-3 w-0.5 rounded-full",
+   196→              NotificationBorderAccent({ type: notif.type })
+   197→            )} style={{ position: "absolute" }} />
+   198→          )}
+   199→          <div className={cn(
+   200→            "mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors relative",
+   201→            NotificationIconBg({ type: notif.type, read: notif.read })
+   202→          )}>
+   203→            <NotificationIcon type={notif.type} />
+   204→          </div>
+   205→          <div className="min-w-0 flex-1">
+   206→            <div className="flex items-start justify-between gap-2">
+   207→              <p className={cn(
+   208→                "text-sm leading-snug",
+   209→                notif.read
+   210→                  ? "text-muted-foreground font-medium"
+   211→                  : "text-foreground font-semibold"
+   212→              )}>
+   213→                {notif.title}
+   214→              </p>
+   215→              {!notif.read && (
+   216→                <div className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-primary" />
+   217→              )}
+   218→            </div>
+   219→            <p className="mt-0.5 text-xs text-muted-foreground leading-relaxed line-clamp-2">
+   220→              {notif.message}
+   221→            </p>
+   222→            <p className="mt-1 text-[10px] text-muted-foreground/60">
+   223→              {formatRelativeTime(notif.createdAt)}
+   224→            </p>
+   225→          </div>
+   226→        </button>
+   227→      ))}
+   228→    </div>
+   229→  );
+   230→}
+   231→
+   232→/** Skeleton loader for notifications */
+   233→function NotificationSkeleton() {
+   234→  return (
+   235→    <div className="space-y-1 p-1">
+   236→      {Array.from({ length: 4 }).map((_, i) => (
+   237→        <div key={i} className="flex items-start gap-3 rounded-lg px-3 py-3">
+   238→          <Skeleton className="h-8 w-8 rounded-lg shrink-0" />
+   239→          <div className="flex-1 space-y-2">
+   240→            <Skeleton className="h-3.5 w-3/4" />
+   241→            <Skeleton className="h-3 w-full" />
+   242→            <Skeleton className="h-2.5 w-16" />
+   243→          </div>
+   244→        </div>
+   245→      ))}
+   246→    </div>
+   247→  );
+   248→}
+   249→
+   250→/** Parse link string into view + id for navigation */
+   251→function parseNotificationLink(link: string | null): { view: ViewName; courseId?: string } | null {
+   252→  if (!link) return null;
+   253→  if (link === "profile") return { view: "profile" };
+   254→  if (link.startsWith("course-detail:")) {
+   255→    const courseId = link.replace("course-detail:", "");
+   256→    return { view: "course-detail", courseId };
+   257→  }
+   258→  return null;
+   259→}
+   260→
+   261→export function Navbar() {
+   262→  const { currentView, navigateTo, openCourseDetail } = useNavigationStore();
+   263→  const currentUserId = useUserStore((s) => s.currentUserId);
+   264→  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+   265→  const { theme, setTheme, resolvedTheme } = useTheme();
+   266→
+   267→  // Search bar state
+   268→  const [searchExpanded, setSearchExpanded] = useState(false);
+   269→  const searchInputRef = useRef<HTMLInputElement>(null);
+   270→
+   271→  // Notification state
+   272→  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+   273→  const [showNotifications, setShowNotifications] = useState(false);
+   274→  const [bellAnimating, setBellAnimating] = useState(false);
+   275→  const [badgeKey, setBadgeKey] = useState(0);
+   276→  const [notificationsLoading, setNotificationsLoading] = useState(true);
+   277→  const notifRef = useRef<HTMLDivElement>(null);
+   278→
+   279→  // Theme toggle state for cycling animation
+   280→  const [themeIconRotating, setThemeIconRotating] = useState(false);
+   281→
+   282→  // Breadcrumb: derive current page label
+   283→  const currentPageLabel = getViewLabel(currentView);
+   284→
+   285→  // ============================================
+   286→  // Fetch notifications from API
+   287→  // ============================================
+   288→  useEffect(() => {
+   289→    let cancelled = false;
+   290→    async function fetchNotifications() {
+   291→      setNotificationsLoading(true);
+   292→      try {
+   293→        const res = await fetch(`/api/notifications?userId=${encodeURIComponent(currentUserId)}`);
+   294→        if (!res.ok) throw new Error("Failed to fetch");
+   295→        const data = await res.json();
+   296→        if (!cancelled) {
+   297→          setNotifications(data.notifications || []);
+   298→        }
+   299→      } catch {
+   300→        // Silently fail — notifications will just be empty
+   301→      } finally {
+   302→        if (!cancelled) {
+   303→          setNotificationsLoading(false);
+   304→        }
+   305→      }
+   306→    }
+   307→    fetchNotifications();
+   308→    return () => { cancelled = true; };
+   309→  }, [currentUserId]);
+   310→
+   311→  // Close mobile menu and search on view change
+   312→  useEffect(() => {
+   313→    const handleViewCleanup = () => {
+   314→      setMobileMenuOpen(false);
+   315→      setSearchExpanded(false);
+   316→    };
+   317→    handleViewCleanup();
+   318→  }, [currentView]);
+   319→
+   320→  // Collapse search when clicking outside
+   321→  useEffect(() => {
+   322→    if (!searchExpanded) return;
+   323→    function handleClickOutside(e: MouseEvent) {
+   324→      if (searchInputRef.current && !searchInputRef.current.parentElement?.contains(e.target as Node)) {
+   325→        setSearchExpanded(false);
+   326→      }
+   327→    }
+   328→    document.addEventListener("mousedown", handleClickOutside);
+   329→    return () => document.removeEventListener("mousedown", handleClickOutside);
+   330→  }, [searchExpanded]);
+   331→
+   332→  // Close notification panel on outside click
+   333→  useEffect(() => {
+   334→    function handleClickOutside(e: MouseEvent) {
+   335→      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+   336→        setShowNotifications(false);
+   337→      }
+   338→    }
+   339→    if (showNotifications) {
+   340→      document.addEventListener("mousedown", handleClickOutside);
+   341→    }
+   342→    return () => document.removeEventListener("mousedown", handleClickOutside);
+   343→  }, [showNotifications]);
+   344→
+   345→  /** Toggle notification panel */
+   346→  const toggleNotifications = useCallback(() => {
+   347→    if (!showNotifications) {
+   348→      setBellAnimating(true);
+   349→      setTimeout(() => setBellAnimating(false), 600);
+   350→    }
+   351→    setShowNotifications((prev) => !prev);
+   352→  }, [showNotifications]);
+   353→
+   354→  /** Mark a single notification as read via API */
+   355→  const handleMarkAsRead = useCallback(async (notif: NotificationItem) => {
+   356→    // Navigate if link is present
+   357→    const parsed = parseNotificationLink(notif.link);
+   358→    if (parsed) {
+   359→      if (parsed.courseId) {
+   360→        openCourseDetail(parsed.courseId);
+   361→      } else {
+   362→        navigateTo(parsed.view);
+   363→      }
+   364→      setShowNotifications(false);
+   365→    }
+   366→
+   367→    // Mark as read in API
+   368→    if (!notif.read) {
+   369→      try {
+   370→        await fetch("/api/notifications", {
+   371→          method: "PUT",
+   372→          headers: { "Content-Type": "application/json" },
+   373→          body: JSON.stringify({ notificationId: notif.id, read: true }),
+   374→        });
+   375→        setNotifications((prev) =>
+   376→          prev.map((n) => (n.id === notif.id ? { ...n, read: true } : n))
+   377→        );
+   378→      } catch {
+   379→        // Silently fail
+   380→      }
+   381→    }
+   382→  }, [navigateTo, openCourseDetail]);
+   383→
+   384→  /** Mark all notifications as read via API */
+   385→  const markAllAsRead = useCallback(async () => {
+   386→    try {
+   387→      await fetch("/api/notifications", {
+   388→        method: "PUT",
+   389→        headers: { "Content-Type": "application/json" },
+   390→        body: JSON.stringify({ userId: currentUserId, readAll: true }),
+   391→      });
+   392→      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+   393→    } catch {
+   394→      // Silently fail
+   395→    }
+   396→  }, [currentUserId]);
+   397→
+   398→  /** Handle "View All" — navigate to profile */
+   399→  const handleViewAll = useCallback(() => {
+   400→    setShowNotifications(false);
+   401→    navigateTo("profile");
+   402→  }, [navigateTo]);
+   403→
+   404→  const unreadCount = notifications.filter((n) => !n.read).length;
+   405→  const groupedNotifications = notificationsLoading ? null : groupNotificationsByDate(notifications);
+   406→
+   407→  // Bounce badge when unread count changes
+   408→  const prevUnreadRef = useRef(unreadCount);
+   409→  useEffect(() => {
+   410→    if (unreadCount !== prevUnreadRef.current) {
+   411→      setBadgeKey((k) => k + 1);
+   412→      prevUnreadRef.current = unreadCount;
+   413→    }
+   414→  }, [unreadCount]);
+   415→
+   416→  /** Handle search icon click: navigate to home on mobile, expand on desktop */
+   417→  const handleSearchClick = useCallback(() => {
+   418→    if (window.innerWidth < 768) {
+   419→      navigateTo("home");
+   420→      setMobileMenuOpen(false);
+   421→    } else {
+   422→      setSearchExpanded(true);
+   423→      setTimeout(() => searchInputRef.current?.focus(), 50);
+   424→    }
+   425→  }, [navigateTo]);
+   426→
+   427→  /** Get initials from user name for avatar */
+   428→  const getInitials = (name: string) => {
+   429→    if (name.includes("_")) {
+   430→      const parts = name.split("_");
+   431→      return parts
+   432→        .filter((p) => !/^\d+$/.test(p) && p.length > 0)
+   433→        .slice(0, 2)
+   434→        .map((p) => p[0].toUpperCase())
+   435→        .join("");
+   436→    }
+   437→    return name.slice(0, 2).toUpperCase();
+   438→  };
+   439→
+   440→  /** Format user id to display name */
+   441→  const displayName = currentUserId.includes("_")
+   442→    ? currentUserId.split("_").filter((p) => !/^\d+$/.test(p) && p.length > 0).map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join(" ")
+   443→    : currentUserId.charAt(0).toUpperCase() + currentUserId.slice(1);
+   444→
+   445→  const handleSearchKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+   446→    if (e.key === "Enter") {
+   447→      navigateTo("home");
+   448→    }
+   449→    if (e.key === "Escape") {
+   450→      setSearchExpanded(false);
+   451→    }
+   452→  }, [navigateTo]);
+   453→
+   454→  /** Cycle theme: light → dark → system → light */
+   455→  const cycleTheme = useCallback(() => {
+   456→    setThemeIconRotating(true);
+   457→    setTimeout(() => setThemeIconRotating(false), 300);
+   458→    const current = resolvedTheme || "light";
+   459→    if (current === "light") {
+   460→      setTheme("dark");
+   461→    } else if (current === "dark") {
+   462→      setTheme("system");
+   463→    } else {
+   464→      setTheme("light");
+   465→    }
+   466→  }, [resolvedTheme, setTheme]);
+   467→
+   468→  /** Get theme tooltip text */
+   469→  const getThemeTooltip = () => {
+   470→    if (theme === "system") return "System";
+   471→    if (theme === "dark") return "Dark mode";
+   472→    return "Light mode";
+   473→  };
+   474→
+   475→  /** Get theme icon based on current theme setting */
+   476→  const ThemeIcon = () => {
+   477→    const iconClass = cn(
+   478→      "h-4 w-4 transition-all duration-300",
+   479→      themeIconRotating && "rotate-180 scale-75"
+   480→    );
+   481→    if (theme === "system") return <Monitor className={iconClass} />;
+   482→    if (theme === "dark") return <Moon className={iconClass} />;
+   483→    return <Sun className={iconClass} />;
+   484→  };
+   485→
+   486→  return (
+   487→    <header className="sticky top-0 z-50 w-full border-b border-border/60 frosted-glass glass-card">
+   488→      <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+   489→        {/* Logo + Breadcrumb */}
+   490→        <div className="flex flex-col gap-0">
+   491→          <button
+   492→            type="button"
+   493→            className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+   494→            onClick={() => navigateTo("home")}
+   495→            aria-label="Go to homepage"
+   496→          >
+   497→            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary shadow-sm">
+   498→              <GraduationCap className="h-5 w-5 text-primary-foreground" />
+   499→            </div>
+   500→            <span className="text-lg font-bold tracking-tight hidden sm:inline gradient-text">
+   501→              OpenClass
+   502→            </span>
+   503→          </button>
+   504→          {/* Breadcrumb: subtle page indicator */}
+   505→          {currentView !== "home" && (
+   506→            <span className={cn(
+   507→              "text-[10px] font-medium leading-none tracking-wide uppercase",
+   508→              "text-muted-foreground/60 sm:hidden"
+   509→            )}>
+   510→              {currentPageLabel}
+   511→            </span>
+   512→          )}
+   513→          {currentView !== "home" && (
+   514→            <span className={cn(
+   515→              "hidden sm:block text-[10px] font-medium leading-none tracking-wide",
+   516→              "text-muted-foreground/50 pl-10"
+   517→            )}>
+   518→              {currentPageLabel}
+   519→            </span>
+   520→          )}
+   521→        </div>
+   522→
+   523→        {/* Desktop Navigation */}
+   524→        <nav className="hidden md:flex items-center gap-1" aria-label="Main navigation">
+   525→          {NAV_ITEMS.map((item) => (
+   526→            <Button
+   527→              key={item.view}
+   528→              variant="ghost"
+   529→              size="sm"
+   530→              onClick={() => navigateTo(item.view)}
+   531→              className={cn(
+   532→                "gap-2 rounded-lg transition-all duration-200 hover-lift",
+   533→                currentView === item.view
+   534→                  ? "bg-primary/10 text-primary font-medium shadow-sm"
+   535→                  : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+   536→              )}
+   537→            >
+   538→              {item.icon}
+   539→              <span className="hidden lg:inline">{item.label}</span>
+   540→            </Button>
+   541→          ))}
+   542→        </nav>
+   543→
+   544→        {/* Right Actions */}
+   545→        <div className="flex items-center gap-1.5">
+   546→          {/* Search Bar (desktop) */}
+   547→          <div className="relative hidden sm:flex items-center">
+   548→            <div
+   549→              className={cn(
+   550→                "flex items-center rounded-lg border border-border/60 bg-muted/40 transition-all duration-300 overflow-hidden",
+   551→                searchExpanded ? "w-56 h-9" : "w-9 h-9"
+   552→              )}
+   553→            >
+   554→              <button
+   555→                type="button"
+   556→                onClick={handleSearchClick}
+   557→                className="flex h-9 w-9 shrink-0 items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+   558→                aria-label="Search"
+   559→              >
+   560→                <Search className="h-4 w-4" />
+   561→              </button>
+   562→              {searchExpanded && (
+   563→                <input
+   564→                  ref={searchInputRef}
+   565→                  type="text"
+   566→                  placeholder="Search courses..."
+   567→                  className="h-full flex-1 bg-transparent px-0 pr-3 text-sm outline-none placeholder:text-muted-foreground/50"
+   568→                  onKeyDown={handleSearchKeyDown}
+   569→                />
+   570→              )}
+   571→            </div>
+   572→          </div>
+   573→
+   574→          {/* Mobile search button */}
+   575→          <Button
+   576→            variant="ghost"
+   577→            size="icon"
+   578→            className="sm:hidden h-9 w-9 rounded-lg"
+   579→            onClick={handleSearchClick}
+   580→            aria-label="Search"
+   581→          >
+   582→            <Search className="h-4 w-4" />
+   583→          </Button>
+   584→
+   585→          {/* Dark Mode Toggle — cycles Light → Dark → System */}
+   586→          <Tooltip>
+   587→            <TooltipTrigger asChild>
+   588→              <Button
+   589→                variant="ghost"
+   590→                size="icon"
+   591→                className="h-9 w-9 rounded-lg"
+   592→                onClick={cycleTheme}
+   593→                aria-label={`Current: ${getThemeTooltip()}. Click to switch.`}
+   594→              >
+   595→                <ThemeIcon />
+   596→              </Button>
+   597→            </TooltipTrigger>
+   598→            <TooltipContent>
+   599→              <span className="flex items-center gap-1.5">
+   600→                {getThemeTooltip()}
+   601→                <span className="text-muted-foreground/60 text-[10px]">(click to switch)</span>
+   602→              </span>
+   603→            </TooltipContent>
+   604→          </Tooltip>
+   605→
+   606→          {/* Notification Bell */}
+   607→          <div className="relative" ref={notifRef}>
+   608→            <Tooltip>
+   609→              <TooltipTrigger asChild>
+   610→                <Button
+   611→                  variant="ghost"
+   612→                  size="icon"
+   613→                  className={cn(
+   614→                    "relative h-9 w-9 rounded-lg transition-all duration-300",
+   615→                    unreadCount > 0 && "badge-glow"
+   616→                  )}
+   617→                  onClick={toggleNotifications}
+   618→                  aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ""}`}
+   619→                >
+   620→                  <Bell className={cn("h-4 w-4 transition-colors", bellAnimating && "bell-ring")} />
+   621→                  {unreadCount > 0 && (
+   622→                    <span
+   623→                      key={badgeKey}
+   624→                      className="badge-bounce absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground shadow-sm"
+   625→                    >
+   626→                      {unreadCount > 9 ? "9+" : unreadCount}
+   627→                    </span>
+   628→                  )}
+   629→                </Button>
+   630→              </TooltipTrigger>
+   631→              <TooltipContent>Notifications</TooltipContent>
+   632→            </Tooltip>
+   633→
+   634→            {/* Notification Panel Dropdown */}
+   635→            {showNotifications && (
+   636→              <div className="panel-slide-in absolute right-0 top-full mt-2 w-80 rounded-xl border border-border/60 bg-card shadow-xl sm:w-96">
+   637→                {/* Header */}
+   638→                <div className="flex items-center justify-between px-4 py-3">
+   639→                  <div className="flex items-center gap-2">
+   640→                    <h3 className="text-sm font-semibold text-foreground">
+   641→                      Notifications
+   642→                    </h3>
+   643→                    {!notificationsLoading && unreadCount > 0 && (
+   644→                      <Badge variant="secondary" className="h-5 min-w-5 px-1.5 text-[10px] font-bold">
+   645→                        {unreadCount}
+   646→                      </Badge>
+   647→                    )}
+   648→                  </div>
+   649→                  {!notificationsLoading && unreadCount > 0 && (
+   650→                    <button
+   651→                      type="button"
+   652→                      onClick={markAllAsRead}
+   653→                      className="flex items-center gap-1 text-xs font-medium text-primary hover:text-primary/80 transition-colors"
+   654→                    >
+   655→                      <CheckCheck className="h-3 w-3" />
+   656→                      Mark all read
+   657→                    </button>
+   658→                  )}
+   659→                </div>
+   660→                <Separator />
+   661→                {/* Notification List (grouped by date) */}
+   662→                <ScrollArea className="max-h-[360px]">
+   663→                  <div className="p-1">
+   664→                    {notificationsLoading ? (
+   665→                      <NotificationSkeleton />
+   666→                    ) : notifications.length === 0 ? (
+   667→                      <div className="flex flex-col items-center py-8 text-center">
+   668→                        <Bell className="h-8 w-8 text-muted-foreground/30 mb-2" />
+   669→                        <p className="text-sm text-muted-foreground">No notifications</p>
+   670→                      </div>
+   671→                    ) : (
+   672→                      groupedNotifications && (
+   673→                        <>
+   674→                          {groupedNotifications.today.length > 0 && (
+   675→                            <NotificationGroup label="Today" items={groupedNotifications.today} onNotificationClick={handleMarkAsRead} />
+   676→                          )}
+   677→                          {groupedNotifications.yesterday.length > 0 && (
+   678→                            <NotificationGroup label="Yesterday" items={groupedNotifications.yesterday} onNotificationClick={handleMarkAsRead} />
+   679→                          )}
+   680→                          {groupedNotifications.earlier.length > 0 && (
+   681→                            <NotificationGroup label="Earlier" items={groupedNotifications.earlier} onNotificationClick={handleMarkAsRead} />
+   682→                          )}
+   683→                        </>
+   684→                      )
+   685→                    )}
+   686→                  </div>
+   687→                </ScrollArea>
+   688→                <Separator />
+   689→                {/* Footer */}
+   690→                <div className="px-4 py-2.5">
+   691→                  <button
+   692→                    type="button"
+   693→                    className="w-full text-center text-xs font-medium text-primary hover:text-primary/80 transition-colors"
+   694→                    onClick={handleViewAll}
+   695→                  >
+   696→                    View all notifications
+   697→                  </button>
+   698→                </div>
+   699→              </div>
+   700→            )}
+   701→          </div>
+   702→
+   703→          {/* Create Course Button */}
+   704→          <Button
+   705→            size="sm"
+   706→            className="hidden sm:flex gap-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg shadow-sm transition-all duration-200 hover:shadow-md press-effect"
+   707→            onClick={() => navigateTo("create-course")}
+   708→          >
+   709→            <PlusCircle className="h-4 w-4" />
+   710→            Create Course
+   711→          </Button>
+   712→
+   713→          {/* User Avatar with Online Status Indicator */}
+   714→          <Tooltip>
+   715→            <TooltipTrigger asChild>
+   716→              <Button
+   717→                variant="ghost"
+   718→                size="icon"
+   719→                className="h-9 w-9 rounded-full"
+   720→                onClick={() => navigateTo("profile")}
+   721→                aria-label="User profile"
+   722→              >
+   723→                <span className="relative">
+   724→                  <Avatar className="h-7 w-7 border-2 border-primary/20">
+   725→                    <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
+   726→                      {getInitials(currentUserId)}
+   727→                    </AvatarFallback>
+   728→                  </Avatar>
+   729→                  <span
+   730→                    className="pulse-dot absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-card bg-emerald-500"
+   731→                    aria-hidden="true"
+   732→                  />
+   733→                </span>
+   734→              </Button>
+   735→            </TooltipTrigger>
+   736→            <TooltipContent>
+   737→              <span className="flex items-center gap-1.5">
+   738→                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+   739→                Online &middot; Profile
+   740→              </span>
+   741→            </TooltipContent>
+   742→          </Tooltip>
+   743→
+   744→          {/* Mobile Menu Toggle */}
+   745→          <Button
+   746→            variant="ghost"
+   747→            size="icon"
+   748→            className="md:hidden h-9 w-9 rounded-lg"
+   749→            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+   750→            aria-label={mobileMenuOpen ? "Close navigation menu" : "Open navigation menu"}
+   751→          >
+   752→            {mobileMenuOpen ? (
+   753→              <X className="h-5 w-5" />
+   754→            ) : (
+   755→              <Menu className="h-5 w-5" />
+   756→            )}
+   757→          </Button>
+   758→        </div>
+   759→      </div>
+   760→
+   761→      {/* Mobile Navigation Dropdown */}
+   762→      {mobileMenuOpen && (
+   763→        <nav className="md:hidden border-t border-border/60 bg-card/95 backdrop-blur-lg px-4 py-3 space-y-1 slide-in-left" aria-label="Mobile navigation">
+   764→          {NAV_ITEMS.map((item) => (
+   765→            <Button
+   766→              key={item.view}
+   767→              variant="ghost"
+   768→              className={cn(
+   769→                "w-full justify-start gap-3 rounded-lg h-11",
+   770→                currentView === item.view
+   771→                  ? "bg-primary/10 text-primary font-medium"
+   772→                  : "text-muted-foreground"
+   773→              )}
+   774→              onClick={() => {
+   775→                navigateTo(item.view);
+   776→                setMobileMenuOpen(false);
+   777→              }}
+   778→            >
+   779→              {item.icon}
+   780→              {item.label}
+   781→            </Button>
+   782→          ))}
+   783→          {/* Gradient Create Course CTA */}
+   784→          <div className="pt-2 border-t border-border/60 mt-2">
+   785→            <Button
+   786→              size="sm"
+   787→              className="w-full gap-2 rounded-lg text-white font-semibold shadow-md transition-all duration-200 hover:shadow-lg bg-gradient-to-r from-primary to-primary/70 hover:from-primary/90 hover:to-primary/60"
+   788→              onClick={() => {
+   789→                navigateTo("create-course");
+   790→                setMobileMenuOpen(false);
+   791→              }}
+   792→            >
+   793→              <PlusCircle className="h-4 w-4" />
+   794→              Create Course
+   795→            </Button>
+   796→          </div>
+   797→          {/* User Info Section at Bottom */}
+   798→          <div className="flex items-center gap-3 rounded-lg bg-muted/40 px-3 py-2.5 mt-2">
+   799→            <span className="relative">
+   800→              <Avatar className="h-9 w-9 border-2 border-primary/20">
+   801→                <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
+   802→                  {getInitials(currentUserId)}
+   803→                </AvatarFallback>
+   804→              </Avatar>
+   805→              <span
+   806→                className="pulse-dot absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-card bg-emerald-500"
+   807→                aria-hidden="true"
+   808→              />
+   809→            </span>
+   810→            <div className="min-w-0 flex-1">
+   811→              <p className="text-sm font-medium text-foreground truncate">{displayName}</p>
+   812→              <p className="text-xs text-muted-foreground truncate">{currentUserId.replace(/_/g, ".")}@openclass.com</p>
+   813→            </div>
+   814→            <span className="flex items-center gap-1 text-[10px] font-medium text-emerald-500">
+   815→              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+   816→              Online
+   817→            </span>
+   818→          </div>
+   819→        </nav>
+   820→      )}
+   821→    </header>
+   822→  );
+   823→}
+   824→

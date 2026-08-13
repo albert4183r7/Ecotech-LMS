@@ -50,6 +50,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Courses", icon: <BookOpen className="h-4 w-4" />, view: "courses" },
   { label: "My Learning", icon: <GraduationCap className="h-4 w-4" />, view: "my-learning" },
   { label: "Profile", icon: <User className="h-4 w-4" />, view: "profile" },
+  { label: "Settings", icon: <Settings className="h-4 w-4" />, view: "settings" },
 ];
 
 /** Get human-readable label for any view including detail views */
@@ -62,6 +63,7 @@ function getViewLabel(view: ViewName): string {
     case "course-detail": return "Course Details";
     case "classroom": return "Classroom";
     case "create-course": return "Create Course";
+    case "settings": return "Settings";
     default: return "";
   }
 }

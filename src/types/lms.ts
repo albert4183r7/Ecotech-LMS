@@ -11,7 +11,8 @@ export type ViewName =
   | "profile"
   | "course-detail"
   | "classroom"
-  | "create-course";
+  | "create-course"
+  | "settings";
 
 /** Course data shape */
 export interface CourseItem {

@@ -15,16 +15,17 @@
 ✅ **Phase 7 (Cron Review #6)** — Major styling overhaul (15+ new CSS animations), notes system, XP/level system, streak calendar, keyboard shortcuts overlay, leaderboard widget, enhanced all 7 pages
 ✅ **Phase 8 (Cron Review #7)** — Onboarding tour, announcement banner, course ratings, Pomodoro study timer, extensive CSS enhancements (glassmorphism, mobile touch targets, gradient text, content reveal animations, scrollbar styling)
 ✅ **Phase 9 (Cron Review #8)** — Analytics dashboard, course recommendations engine, notification center with persistent DB storage, 3-way dark mode toggle (light/dark/system), home page hero overhaul (floating orbs, typing animation, CSS parallax, animated counters, category pills), empty states polish, button ripple/glow effects, card hover micro-interactions
+✅ **Phase 10 (Cron Review #9)** — Settings page (appearance/notifications/learning/privacy/data management), course bookmark collections, floating action button (FAB) with scroll-to-top, course progress timeline visualization, dashboard visual polish (sparklines, donut chart, weekly heatmap), enhanced view transitions (fade+slide+blur), reusable skeleton card components, micro-interaction CSS (focus ring pulse, loading dots, tooltip slide, toggle glow, number roll)
 
 ### Architecture Summary
 - **11 Database Models**: User, Category, Course, Section, Enrollment, Progress, Favorite, Comment, Note, Rating, Notification
-- **8 Frontend Pages**: Home, Courses, My Learning, Profile, Course Detail, Classroom, Create Course, **Dashboard**
-- **22 API Endpoints**: Full CRUD for courses, enrollments, progress, favorites, categories, sections, user, leaderboard, AI content generation, achievements, activity, comments (GET/POST/DELETE), notes (GET/POST/PUT/DELETE), ratings (GET/POST), **analytics (GET)**, **recommendations (GET)**, **notifications (GET/POST/PUT)**
-- **Shared Components**: Navbar (with real notifications, search, breadcrumbs, online status, 3-way dark mode toggle), Footer (enhanced), CourseCard (with progress/difficulty/duration), ThemeProvider, SearchAutocomplete, AchievementBadges, CertificateModal, DiscussionPanel, ActivityChart, LeaderboardWidget, KeyboardShortcuts, OnboardingTour, AnnouncementBanner, StarRating, StudyTimer, **CourseRecommendations**
+- **9 Frontend Pages**: Home, Courses, My Learning, Profile, Course Detail, Classroom, Create Course, Dashboard, **Settings**
+- **23 API Endpoints**: Full CRUD for courses, enrollments, progress, favorites, categories, sections, user, leaderboard, AI content generation, achievements, activity, comments (GET/POST/DELETE), notes (GET/POST/PUT/DELETE), ratings (GET/POST), analytics (GET), recommendations (GET), notifications (GET/POST/PUT), **progress-timeline (GET)**
+- **Shared Components**: Navbar (with real notifications, search, breadcrumbs, online status, 3-way dark mode toggle), Footer (enhanced), CourseCard, ThemeProvider, SearchAutocomplete, AchievementBadges, CertificateModal, DiscussionPanel, ActivityChart, LeaderboardWidget, KeyboardShortcuts, OnboardingTour, AnnouncementBanner, StarRating, StudyTimer, CourseRecommendations, **CourseBookmarks**, **ProgressTimeline**, **FloatingActions**, **SkeletonCards**
 - **4 Zustand Stores**: Navigation, Course, My Learning, User
 - **Seed Data**: 8 courses, 14 sections, 6 categories, 2 enrollments, 2 favorites, 8 comments (with replies), 8 notifications
-- **CSS Animations Library**: 40+ custom animation classes (btn-ripple, card-shine, glow-pulse, badge-bounce, confetti, staggered fade-in, typing indicator, animated gradient border, glassmorphism, hover-lift, hover-glow, press-effect, shimmer-border, page-enter, badge-pulse, badge-shine, toast-enter-bounce, content-reveal, card-border-glow, card-inner-shine, gradient-text, timer animations, onboarding animations, announcement animations, hero-orb, typing-cursor, search-glow, category-pill, empty-state, btn-glow, card-img-zoom, stat-pop, etc.)
-- **Accessibility**: prefers-reduced-motion support, ARIA labels, keyboard navigation
+- **CSS Animations Library**: 50+ custom animation classes (btn-ripple, card-shine, glow-pulse, badge-bounce, confetti, staggered fade-in, typing indicator, animated gradient border, glassmorphism, hover-lift, hover-glow, press-effect, shimmer-border, page-enter, badge-pulse, badge-shine, toast-enter-bounce, content-reveal, card-border-glow, card-inner-shine, gradient-text, timer animations, onboarding animations, announcement animations, hero-orb, typing-cursor, search-glow, category-pill, empty-state, btn-glow, card-img-zoom, stat-pop, view-transition-enter, fab-pulse, focus-ring-animate, loading-dots, tooltip-slide, toggle-glow, number-roll, etc.)
+- **Accessibility**: prefers-reduced-motion support, ARIA labels, keyboard navigation, focus-visible rings
 
 ---
 
@@ -1143,3 +1144,290 @@ Significantly enhanced the home page hero section with animated floating gradien
 - ✅ Dev server compiled successfully
 - ✅ All existing views/routes preserved
 - ✅ Imports cleaned up: removed unused `Sparkles`, `BookMarked`; added `Monitor`, `Info`, `CheckCircle2`, `AlertTriangle`, `Settings`, `Badge`, `Skeleton`
+
+---
+
+## Task 4-c: Enhanced View Transitions, Skeleton Loading Improvements, Micro-interactions CSS
+
+### Changes Overview
+Three enhancements: enhanced view transitions with key-based remount, reusable skeleton card components with shimmer/stagger, and new micro-interaction CSS utilities.
+
+### Task 1: Enhanced View Transitions
+**Files modified:**
+- `src/app/page.tsx` — Added `key={currentView}` on the view wrapper div to trigger React remount on navigation, wrapped content in `<div className="view-transition-enter">` for fade+slide animation
+- `src/app/globals.css` — Appended CSS sections 36 (Enhanced View Transitions) with `viewFadeSlideIn` keyframe (opacity + translateY + scale + blur), `view-slide-right`/`view-slide-left` directional animations, and `prefers-reduced-motion` support
+
+### Task 2: Skeleton Loading Improvements
+**New file:** `src/components/lms/skeleton-cards.tsx`
+- `SkeletonCard` — Reusable card skeleton with shimmer gradient (`skeleton-shimmer` class), optional image area, configurable text lines, bottom divider with meta placeholders, slightly transparent with `bg-card/50 backdrop-blur-sm`
+- `SkeletonList` — List-style skeleton with avatar circles, text lines, and staggered cascade reveal using `viewFadeSlideIn` animation with incremental delays
+
+**Files modified:**
+- `src/components/lms/pages/courses-page.tsx` — Replaced plain `CourseGridSkeleton` with `SkeletonCard` components; each card has staggered fade-in delay (`i * 60ms`)
+- `src/components/lms/pages/dashboard-page.tsx` — Enhanced `DashboardSkeleton` with card-shaped skeletons using `skeleton-shimmer`, `bg-card/50 backdrop-blur-sm`, staggered reveal delays (80ms increments for stat cards, cascading 350ms→580ms for chart/bottom rows), replaced activity feed skeleton with `SkeletonList` component
+- `src/components/lms/pages/profile-page.tsx` — Replaced minimal `ProfileSkeleton` (2 plain blocks) with detailed card-shaped skeletons: banner shimmer, stats panel with circular progress placeholder, quick actions panel, and learning path timeline section using `SkeletonList`; all with staggered cascade reveals
+
+### Task 3: Enhanced Micro-interactions CSS
+**File modified:** `src/app/globals.css` — Appended CSS sections 37–41:
+- **37. Focus Ring Animations** — `focusRingPulse` keyframe with pulsing box-shadow, `.focus-ring-animate:focus-visible` class
+- **38. Loading Dots Animation** — `loadingDots` keyframe with scale bounce, `.loading-dots` container with 3 staggered `<span>` dots
+- **39. Tooltip Enhancement** — `tooltipSlideUp` keyframe, `.tooltip-slide` class for tooltips
+- **40. Checkbox/Radio Custom Styling** — `.toggle-glow:checked` with glow box-shadow
+- **41. Number Counter Animation** — `numberRoll` keyframe, `.number-roll` class for counter roll-up effect
+
+### Verification
+- ✅ `bun run lint` — passed with no errors
+- ✅ Dev server compiled successfully
+- ✅ All existing views/routes preserved
+- ✅ No existing CSS overwritten (all changes appended)
+- ✅ `prefers-reduced-motion` respected for view transitions
+
+---
+
+## Task 4-a: Settings Page, Course Bookmarks, Floating Action Button
+
+### Changes Overview
+Three new features implemented: comprehensive settings page, course bookmark collections sidebar widget, and a floating action button with scroll-to-top.
+
+### Feature 1: Settings Page
+**Files modified:**
+- `src/types/lms.ts` — Added `"settings"` to `ViewName` union type
+- `src/components/lms/navbar.tsx` — Added Settings nav item with `Settings` icon (last item in NAV_ITEMS), added to `getViewLabel` switch
+- `src/app/page.tsx` — Added `case "settings": return <SettingsPage />;` to router, imported `SettingsPage`
+- **New file:** `src/components/lms/pages/settings-page.tsx` — Full settings page with 6 sections
+
+**Settings Page Sections:**
+1. **Appearance** — Theme toggle (Light/Dark/System) via `next-themes`, Compact Mode toggle
+2. **Notifications** — 5 toggles: Email, Push, Course Update Alerts, Achievement Alerts, Weekly Digest
+3. **Learning Preferences** — Daily Learning Goal dropdown (15/30/45/60/90 min), Study Timer dropdown (15/25/30/45/60 min), Auto-play Next Section toggle
+4. **Privacy** — Show Profile Publicly toggle, Show Learning Activity toggle
+5. **Data** — Clear Search History button, Reset Tour button, Dismiss All Announcements button, Clear All Local Data danger button (with AlertDialog confirmation)
+6. **About** — Version (v2.0.0), Built With badges (Next.js, TypeScript, Tailwind CSS), Resource links (Help Center, Documentation, Feedback)
+
+**Settings persistence:** All stored in localStorage with `openclass_settings_` prefix. Uses lazy `useState` initializers to avoid lint errors.
+
+### Feature 2: Course Bookmark Collections
+**New file:** `src/components/lms/course-bookmarks.tsx` — "My Collections" sidebar widget
+
+**Features:**
+- Default "Saved for Later" collection (cannot be deleted)
+- Create named collections with text input
+- Expand/collapse collection to see course list
+- Click course to navigate to its detail page
+- Remove course from collection
+- Delete custom collections with AlertDialog confirmation
+- Course count badge
+- All data stored in `openclass_collections` localStorage key as JSON
+
+**Integration:**
+- `src/components/lms/pages/profile-page.tsx` — Imported and rendered `<CourseBookmarks />` after the Quick Actions section
+
+### Feature 3: Floating Action Button (FAB)
+**New file:** `src/components/lms/floating-actions.tsx`
+
+**Features:**
+- **Primary FAB** (bottom-right, fixed position):
+  - "+" icon that toggles to "X" when expanded
+  - 3 quick actions: Search Courses, Create Course, Dashboard (with colored pill buttons)
+  - Smooth expand/collapse animation with staggered delays
+  - Subtle pulse animation (CSS `fab-pulse-anim`) when collapsed
+  - Glass-card style (`backdrop-blur-md`, white/20 border)
+  - Click-outside to close, Escape key to close
+- **Scroll-to-top button** (bottom-right, below FAB):
+  - ChevronUp icon
+  - Appears after scrolling 300px down
+  - Slides in/out with opacity transition
+  - Smooth scroll to top
+
+**CSS:**
+- `src/app/globals.css` — Added `@keyframes fab-pulse-anim` and `.animate-fab-pulse` class
+
+**Integration:**
+- `src/app/page.tsx` — Added `<FloatingActions />` in the non-classroom layout path (after Footer)
+- Also cleaned up unused `useState`/`useEffect` imports and dead animation state code
+
+### Verification
+- ✅ `bun run lint` — passed with no errors
+- ✅ Dev server compiled successfully
+- ✅ All existing views/routes preserved
+
+---
+
+## Phase 10 — Task 4-b: Course Progress Timeline + Dashboard Visual Polish
+
+### Overview
+Added a course progress timeline visualization on the course detail page and comprehensive visual polish to the analytics dashboard.
+
+### Task 1: Course Progress Timeline
+
+**New API** — `src/app/api/progress-timeline/route.ts`
+- GET `?userId=xxx&courseId=xxx` — returns detailed progress data for a specific course
+- Overall course progress percentage (based on completed sections)
+- Per-section timeline data: title, status (not-started/in-progress/completed), current page, total pages, last accessed time, days ago, time estimate
+- Learning milestones: first access, first section completed, halfway, course completed — with dates and icon types
+- Total time estimate (2 min per page)
+- Proper error handling: 400 for missing courseId, 404 for non-enrolled users
+
+**New Component** — `src/components/lms/progress-timeline.tsx`
+- Vertical timeline with CSS-based line + positioned circle nodes
+- Circle node colors: gray (not started), amber with pulse (in progress), green (completed)
+- Section title + status badge + mini progress bar per item
+- "Last accessed: X days ago" and time estimate text
+- Click-to-open classroom for each section
+- Milestones section in a 2×2 grid with colored icons
+- Summary footer: total time, sections completed/total, "Continue Learning" CTA button
+- Uses glass-card, content-reveal, stat-pop CSS classes
+- Loading skeleton and graceful null state for non-enrolled users
+
+**Integration** — `src/components/lms/pages/course-detail-page.tsx`
+- Added `ProgressTimeline` import and component
+- Placed after Curriculum accordion section, before Discussion panel
+- Only renders when user is enrolled (`course.isEnrolled`)
+- Passes courseId, courseTitle, userId, sections, openClassroom, and course as props
+
+### Task 2: Dashboard Visual Polish
+
+**Sparkline mini-charts in stat cards**
+- Added `SparklineChart` component: 7 CSS-based gradient bars per stat card
+- Seeded random data for consistent visual effect per card
+- Gradient colors match each stat card's theme
+- Added to `StatCard` component (new `gradientFrom`, `gradientTo`, `seed` props)
+
+**Enhanced progress bars**
+- New `AnimatedProgressBar` component replaces static div bars
+- Gradient fills: emerald/teal for completed, amber/orange for in-progress
+- Width animates from 0 on mount (1s ease-out transition)
+- Subtle shimmer overlay effect for bars with >10% width
+
+**Category distribution donut chart**
+- Replaced horizontal bars with CSS `conic-gradient` donut chart
+- Inner circle (donut hole) shows total courses count
+- Color legend below with category name + percentage
+- Fallback color palette for categories without colors
+- `stat-pop` animation on mount
+
+**Weekly heatmap**
+- New `WeeklyHeatmap` component fetching from `/api/activity?userId=xxx`
+- 7 rows (days) × 12 columns (weeks) CSS grid layout
+- Color intensity based on minutes studied (0=none, 1=<30min, 2=31-60min, 3=61-90min, 4=90+min)
+- Green shade palette with dark mode support
+- Month labels on top, day labels on left
+- Tooltip on each cell showing time range
+- Legend with "Less → More" labels
+- Fallback random seeded data if API fails
+
+**Overall polish**
+- All CardTitle elements use `gradient-text` class
+- All cards use `hover-lift` class for hover elevation
+- All cards use `glass-card` class for glassmorphism
+- All cards use `content-reveal` with staggered delays (`content-reveal-delay-1` through `-4`)
+- Updated loading skeleton to include sparkline placeholder and donut chart skeleton
+- Added heatmap skeleton section
+
+### Files Created
+- `src/app/api/progress-timeline/route.ts`
+- `src/components/lms/progress-timeline.tsx`
+
+### Files Modified
+- `src/components/lms/pages/course-detail-page.tsx` — imported and integrated ProgressTimeline
+- `src/components/lms/pages/dashboard-page.tsx` — complete visual overhaul with sparklines, donut, heatmap, animated bars, CSS classes
+
+### Verification
+- ✅ `bun run lint` — passed with no errors
+- ✅ Dev server compiled successfully, no runtime errors in log
+
+---
+## Phase 10 Changes (Cron Review #9)
+
+### Overview
+Phase 10 focused on user preferences (settings page), course organization (bookmarks), navigation aids (FAB, scroll-to-top), detailed progress visualization (timeline), dashboard visual polish (sparklines, donut, heatmap), and comprehensive view transition + skeleton loading enhancements. All 3 subagent tasks completed. Lint passes clean.
+
+### 1. Settings Page (Subagent 4-a)
+**File**: `src/components/lms/pages/settings-page.tsx`
+- **9 views** now (added "settings" to ViewName)
+- **6 settings sections** with Card components:
+  - **Appearance**: Theme toggle (Light/Dark/System via next-themes), Compact Mode toggle
+  - **Notifications**: 5 switches (Email, Push, Course Updates, Achievements, Weekly Digest)
+  - **Learning Preferences**: Daily Goal dropdown (15-90min), Study Timer dropdown, Auto-play toggle
+  - **Privacy**: Show Profile Publicly + Show Learning Activity toggles
+  - **Data Management**: Clear Search History, Reset Tour, Dismiss Announcements, Clear All Data (danger zone with confirmation dialog)
+  - **About**: Version v2.0.0, tech badges, resource links
+- All settings persisted in localStorage with `openclass_settings_` prefix
+- Settings nav item added to navbar (after Profile)
+
+### 2. Course Bookmark Collections (Subagent 4-a)
+**File**: `src/components/lms/course-bookmarks.tsx`
+- "My Collections" widget for Profile page
+- Default "Saved for Later" collection
+- Create/delete named collections
+- Expandable course lists within each collection
+- Click to navigate to course detail
+- Data stored in localStorage as JSON
+
+### 3. Floating Action Button (Subagent 4-a)
+**File**: `src/components/lms/floating-actions.tsx`
+- **Primary FAB** (bottom-right): "+" icon expanding to 3 quick actions (Search Courses, Create Course, Dashboard)
+- **Scroll-to-top button**: Appears after 300px scroll, slides in from right
+- Pulse animation, glass-card background
+- Click-outside and Escape to close
+- Integrated into page.tsx (non-classroom layout only)
+- FAB pulse CSS animation added to globals.css
+
+### 4. Course Progress Timeline (Subagent 4-b)
+**Files**: `src/app/api/progress-timeline/route.ts`, `src/components/lms/progress-timeline.tsx`
+- **API**: GET `?userId=xxx&courseId=xxx` returns per-section timeline data, milestones, overall progress
+- **Timeline visualization**: Vertical line with circle nodes (gray=not-started, amber=in-progress, green=completed)
+- Section items with status badges, mini progress bars, last accessed time
+- Click to open classroom for any section
+- Milestones grid (first access, first completion, halfway, course completed)
+- Summary footer with total time, completion count, Continue Learning CTA
+- Integrated into course-detail-page.tsx (between Curriculum and Discussion)
+
+### 5. Dashboard Visual Polish (Subagent 4-b)
+**File**: `src/components/lms/pages/dashboard-page.tsx`
+- **Sparkline mini-charts**: 7-bar CSS sparklines in stat cards with seeded data and gradient colors
+- **Animated progress bars**: Width animates from 0 with gradient fills (emerald for completed, amber for in-progress)
+- **Donut chart**: CSS conic-gradient donut for category distribution with center count and color legend
+- **Weekly heatmap**: 7×12 grid (days × weeks) with 5-level green intensity, month/day labels, tooltips, legend
+- **Overall polish**: All cards use glass-card, hover-lift, content-reveal with staggered delays, gradient-text titles
+
+### 6. Enhanced View Transitions (Subagent 4-c)
+**Files**: `src/app/page.tsx`, `src/app/globals.css`
+- Added `key={currentView}` on view wrapper for React remount animation
+- Applied `view-transition-enter` class with fade + slide + blur entrance
+- Directional slide classes (view-slide-right, view-slide-left)
+- prefers-reduced-motion support
+
+### 7. Reusable Skeleton Cards (Subagent 4-c)
+**File**: `src/components/lms/skeleton-cards.tsx`
+- **SkeletonCard**: Reusable card skeleton with shimmer gradient, optional image, configurable text lines
+- **SkeletonList**: Avatar + text rows with staggered cascade reveal
+- Applied in courses-page, dashboard-page, profile-page loading states
+
+### 8. Micro-interaction CSS (Subagent 4-c)
+**File**: `src/app/globals.css` — Appended sections 36-41:
+- §36: View transitions (viewFadeSlideIn, slide-right, slide-left)
+- §37: Focus ring pulse animation
+- §38: Loading dots animation (3-dot bounce)
+- §39: Tooltip slide-up animation
+- §40: Toggle switch glow effect
+- §41: Number counter roll animation
+
+### Verification Results
+- ✅ `bun run lint` — 0 errors, 0 warnings
+- ✅ `GET /` — 200 OK (compiles in ~7.5s)
+- ✅ `GET /api/progress-timeline?userId=user_demo_001&courseId=course_001` — Returns timeline data with sections and milestones
+- ✅ All existing functionality preserved
+- ✅ No runtime errors
+
+### Unresolved Issues / Risks
+1. **agent-browser connectivity**: Known sandbox limitation. Used curl and dev.log for QA.
+2. **Dev server stability**: Background process intermittently terminates. Known issue, requires manual restart.
+3. **Settings persistence**: Settings stored in localStorage only — not yet synced to database. Could migrate to User model in future phases.
+
+### Priority Recommendations for Phase 11
+1. **Collaborative Learning**: Study groups, shared notes, peer reviews
+2. **Gamification Enhancements**: XP-based level progression, daily challenges, badges collection
+3. **Mobile PWA**: Service worker, offline caching, install prompt
+4. **AI-Powered Features**: AI course recommendations, smart search, learning path suggestions
+5. **Data Export**: Course completion certificates PDF, learning analytics export
