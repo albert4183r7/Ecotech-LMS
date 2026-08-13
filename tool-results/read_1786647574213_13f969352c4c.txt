@@ -1,0 +1,719 @@
+     1→"use client";
+     2→
+     3→import { useEffect, useState, useCallback } from "react";
+     4→import {
+     5→  BookOpen,
+     6→  CheckCircle,
+     7→  Clock,
+     8→  LogOut,
+     9→  Plus,
+    10→  GraduationCap,
+    11→  Shield,
+    12→  Building2,
+    13→  ArrowRight,
+    14→  LayoutGrid,
+    15→  Trophy,
+    16→  Medal,
+    17→  FileBadge,
+    18→} from "lucide-react";
+    19→import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+    20→import { Button } from "@/components/ui/button";
+    21→import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+    22→import { Badge } from "@/components/ui/badge";
+    23→import { Separator } from "@/components/ui/separator";
+    24→import { Skeleton } from "@/components/ui/skeleton";
+    25→import { toast } from "sonner";
+    26→import { useNavigationStore, useUserStore } from "@/stores/lms-store";
+    27→import { AchievementBadges } from "@/components/lms/achievement-badges";
+    28→import { CertificateModal } from "@/components/lms/certificate-modal";
+    29→
+    30→/* ------------------------------------------------------------------ */
+    31→/*  Local types                                                       */
+    32→/* ------------------------------------------------------------------ */
+    33→
+    34→interface UserStats {
+    35→  totalCourses: number;
+    36→  inProgress: number;
+    37→  completed: number;
+    38→  avgProgress: number;
+    39→  favoritesCount: number;
+    40→}
+    41→
+    42→interface UserProfile {
+    43→  id: string;
+    44→  email: string;
+    45→  name: string | null;
+    46→  avatar: string | null;
+    47→  role: string;
+    48→  department: string | null;
+    49→  createdAt: string;
+    50→  stats: UserStats;
+    51→}
+    52→
+    53→/* ------------------------------------------------------------------ */
+    54→/*  Circular Progress Ring                                             */
+    55→/* ------------------------------------------------------------------ */
+    56→
+    57→function CircularProgress({ percentage }: { percentage: number }) {
+    58→  const radius = 70;
+    59→  const stroke = 10;
+    60→  const normalizedRadius = radius - stroke / 2;
+    61→  const circumference = normalizedRadius * 2 * Math.PI;
+    62→  const strokeDashoffset =
+    63→    circumference - (percentage / 100) * circumference;
+    64→
+    65→  return (
+    66→    <div className="relative inline-flex items-center justify-center">
+    67→      <svg
+    68→        width={radius * 2}
+    69→        height={radius * 2}
+    70→        className="-rotate-90"
+    71→      >
+    72→        {/* Background track */}
+    73→        <circle
+    74→          cx={radius}
+    75→          cy={radius}
+    76→          r={normalizedRadius}
+    77→          fill="none"
+    78→          stroke="currentColor"
+    79→          strokeWidth={stroke}
+    80→          className="text-muted/30"
+    81→        />
+    82→        {/* Progress arc with gradient stroke */}
+    83→        <circle
+    84→          cx={radius}
+    85→          cy={radius}
+    86→          r={normalizedRadius}
+    87→          fill="none"
+    88→          stroke="url(#progress-gradient)"
+    89→          strokeWidth={stroke}
+    90→          strokeLinecap="round"
+    91→          strokeDasharray={circumference}
+    92→          strokeDashoffset={strokeDashoffset}
+    93→          className="transition-all duration-700 ease-out"
+    94→        />
+    95→        <defs>
+    96→          <linearGradient
+    97→            id="progress-gradient"
+    98→            x1="0%"
+    99→            y1="0%"
+   100→            x2="100%"
+   101→            y2="100%"
+   102→          >
+   103→            <stop offset="0%" stopColor="#06b6d4" />
+   104→            <stop offset="50%" stopColor="#0891b2" />
+   105→            <stop offset="100%" stopColor="#0d9488" />
+   106→          </linearGradient>
+   107→        </defs>
+   108→      </svg>
+   109→      <div className="absolute flex flex-col items-center justify-center">
+   110→        <span className="text-3xl font-extrabold tracking-tight text-foreground">
+   111→          {percentage}%
+   112→        </span>
+   113→        <span className="mt-0.5 text-[11px] font-medium text-muted-foreground">
+   114→          completed
+   115→        </span>
+   116→      </div>
+   117→    </div>
+   118→  );
+   119→}
+   120→
+   121→/* ------------------------------------------------------------------ */
+   122→/*  Stat Mini Card (used inside profile stats panel)                   */
+   123→/* ------------------------------------------------------------------ */
+   124→
+   125→function StatMini({
+   126→  icon: Icon,
+   127→  label,
+   128→  value,
+   129→  color,
+   130→}: {
+   131→  icon: React.ElementType;
+   132→  label: string;
+   133→  value: number;
+   134→  color: string;
+   135→}) {
+   136→  return (
+   137→    <div className="group flex flex-col items-center gap-2 rounded-xl border border-border/50 bg-gradient-to-b from-muted/40 to-transparent px-4 py-4 transition-all duration-200 hover:border-primary/20 hover:shadow-sm">
+   138→      <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${color} transition-transform duration-200 group-hover:scale-110`}>
+   139→        <Icon className="h-4 w-4 text-white" />
+   140→      </div>
+   141→      <span className="text-xl font-extrabold leading-none text-foreground">
+   142→        {value}
+   143→      </span>
+   144→      <span className="text-[10px] font-medium text-muted-foreground">
+   145→        {label}
+   146→      </span>
+   147→    </div>
+   148→  );
+   149→}
+   150→
+   151→/* ------------------------------------------------------------------ */
+   152→/*  Leaderboard types                                                 */
+   153→/* ------------------------------------------------------------------ */
+   154→
+   155→interface LeaderboardEntry {
+   156→  rank: number;
+   157→  id: string;
+   158→  name: string;
+   159→  department: string;
+   160→  completedCourses: number;
+   161→  avgProgress: number;
+   162→  score: number;
+   163→  isCurrentUser: boolean;
+   164→}
+   165→
+   166→/* ------------------------------------------------------------------ */
+   167→/*  Medal badge for top-3 ranks                                       */
+   168→/* ------------------------------------------------------------------ */
+   169→
+   170→function RankBadge({ rank }: { rank: number }) {
+   171→  if (rank === 1) {
+   172→    return (
+   173→      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-amber-400 via-yellow-400 to-yellow-500 text-[11px] font-extrabold text-yellow-900 shadow-sm">
+   174→        1
+   175→      </div>
+   176→    );
+   177→  }
+   178→  if (rank === 2) {
+   179→    return (
+   180→      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-gray-300 via-gray-200 to-slate-300 text-[11px] font-extrabold text-gray-700 shadow-sm">
+   181→        2
+   182→      </div>
+   183→    );
+   184→  }
+   185→  if (rank === 3) {
+   186→    return (
+   187→      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-amber-600 via-orange-500 to-amber-700 text-[11px] font-extrabold text-amber-100 shadow-sm">
+   188→        3
+   189→      </div>
+   190→    );
+   191→  }
+   192→  return (
+   193→    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-[11px] font-bold text-muted-foreground">
+   194→      {rank}
+   195→    </div>
+   196→  );
+   197→}
+   198→
+   199→/* ------------------------------------------------------------------ */
+   200→/*  Leaderboard Skeleton                                              */
+   201→/* ------------------------------------------------------------------ */
+   202→
+   203→function LeaderboardSkeleton() {
+   204→  return (
+   205→    <Card className="border-border/50">
+   206→      <CardHeader className="pb-3">
+   207→        <div className="flex items-center gap-2">
+   208→          <Skeleton className="h-5 w-5 rounded" />
+   209→          <Skeleton className="h-5 w-32" />
+   210→        </div>
+   211→      </CardHeader>
+   212→      <CardContent>
+   213→        <div className="space-y-2.5">
+   214→          {Array.from({ length: 5 }).map((_, i) => (
+   215→            <div key={i} className="flex items-center gap-3 rounded-lg px-2 py-2">
+   216→              <Skeleton className="h-7 w-7 rounded-full" />
+   217→              <Skeleton className="h-8 w-8 rounded-full" />
+   218→              <div className="flex-1 space-y-1.5">
+   219→                <Skeleton className="h-3.5 w-28" />
+   220→                <Skeleton className="h-2.5 w-20" />
+   221→              </div>
+   222→              <Skeleton className="h-4 w-12" />
+   223→            </div>
+   224→          ))}
+   225→        </div>
+   226→      </CardContent>
+   227→    </Card>
+   228→  );
+   229→}
+   230→
+   231→/* ------------------------------------------------------------------ */
+   232→/*  Team Leaderboard Card                                             */
+   233→/* ------------------------------------------------------------------ */
+   234→
+   235→function TeamLeaderboardCard() {
+   236→  const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
+   237→  const [loading, setLoading] = useState(true);
+   238→
+   239→  useEffect(() => {
+   240→    async function fetchLeaderboard() {
+   241→      try {
+   242→        const res = await fetch('/api/leaderboard');
+   243→        const json = await res.json();
+   244→        if (json.success) {
+   245→          setEntries(json.data);
+   246→        }
+   247→      } catch {
+   248→        /* silent */
+   249→      } finally {
+   250→        setLoading(false);
+   251→      }
+   252→    }
+   253→    fetchLeaderboard();
+   254→  }, []);
+   255→
+   256→  if (loading) {
+   257→    return <LeaderboardSkeleton />;
+   258→  }
+   259→
+   260→  const currentUser = entries.find((e) => e.isCurrentUser);
+   261→  const currentUserRank = currentUser?.rank;
+   262→
+   263→  return (
+   264→    <Card className="border-border/50">
+   265→      <CardHeader className="pb-3">
+   266→        <div className="flex items-center justify-between">
+   267→          <CardTitle className="flex items-center gap-2 text-base font-semibold">
+   268→            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-amber-500 to-orange-500">
+   269→              <Trophy className="h-4 w-4 text-white" />
+   270→            </div>
+   271→            Team Leaderboard
+   272→          </CardTitle>
+   273→          {currentUserRank && (
+   274→            <Badge
+   275→              variant="secondary"
+   276→              className="gap-1 bg-gradient-to-r from-cyan-600/10 to-teal-500/10 text-xs font-medium text-cyan-700 dark:text-cyan-400"
+   277→            >
+   278→              <Medal className="h-3 w-3" />
+   279→              Your rank: #{currentUserRank}
+   280→            </Badge>
+   281→          )}
+   282→        </div>
+   283→      </CardHeader>
+   284→      <CardContent>
+   285→        <div className="max-h-[420px] space-y-1 overflow-y-auto pr-1">
+   286→          {entries.map((entry) => {
+   287→            const isMe = entry.isCurrentUser;
+   288→            const initials = entry.name
+   289→              .split(' ')
+   290→              .map((w) => w.charAt(0).toUpperCase())
+   291→              .slice(0, 2)
+   292→              .join('');
+   293→
+   294→            return (
+   295→              <div
+   296→                key={entry.id}
+   297→                className={`group flex items-center gap-3 rounded-lg px-2 py-2.5 transition-colors duration-150 ${
+   298→                  isMe
+   299→                    ? 'bg-primary/5 ring-1 ring-primary/15'
+   300→                    : 'hover:bg-muted/50'
+   301→                }`}
+   302→              >
+   303→                {/* Rank badge */}
+   304→                <RankBadge rank={entry.rank} />
+   305→
+   306→                {/* Avatar */}
+   307→                <Avatar className="h-8 w-8 border border-border/50">
+   308→                  <AvatarFallback
+   309→                    className={`text-xs font-semibold ${
+   310→                      isMe
+   311→                        ? 'bg-gradient-to-br from-cyan-600 to-teal-500 text-white'
+   312→                        : 'bg-muted text-muted-foreground'
+   313→                    }`}
+   314→                  >
+   315→                    {initials}
+   316→                  </AvatarFallback>
+   317→                </Avatar>
+   318→
+   319→                {/* Name + Department */}
+   320→                <div className="min-w-0 flex-1">
+   321→                  <p
+   322→                    className={`text-sm font-medium leading-tight ${
+   323→                      isMe ? 'text-primary' : 'text-foreground'
+   324→                    }`}
+   325→                  >
+   326→                    {entry.name}
+   327→                    {isMe && (
+   328→                      <span className="ml-1.5 text-[10px] font-normal text-muted-foreground">
+   329→                        (You)
+   330→                      </span>
+   331→                    )}
+   332→                  </p>
+   333→                  <p className="mt-0.5 text-[11px] text-muted-foreground">
+   334→                    {entry.department}
+   335→                  </p>
+   336→                </div>
+   337→
+   338→                {/* Score */}
+   339→                <div className="text-right">
+   340→                  <p
+   341→                    className={`text-sm font-bold tabular-nums ${
+   342→                      isMe ? 'text-primary' : 'text-foreground'
+   343→                    }`}
+   344→                  >
+   345→                    {entry.score.toLocaleString()}
+   346→                  </p>
+   347→                  <p className="text-[10px] text-muted-foreground">
+   348→                    pts
+   349→                  </p>
+   350→                </div>
+   351→              </div>
+   352→            );
+   353→          })}
+   354→        </div>
+   355→      </CardContent>
+   356→    </Card>
+   357→  );
+   358→}
+   359→
+   360→/* ------------------------------------------------------------------ */
+   361→/*  Loading Skeleton                                                   */
+   362→/* ------------------------------------------------------------------ */
+   363→
+   364→function ProfileSkeleton() {
+   365→  return (
+   366→    <div className="space-y-6">
+   367→      {/* Banner skeleton */}
+   368→      <Skeleton className="h-40 w-full rounded-2xl" />
+   369→      {/* Cards skeleton */}
+   370→      <div className="grid gap-6 md:grid-cols-2">
+   371→        <Skeleton className="h-72 rounded-2xl" />
+   372→        <Skeleton className="h-72 rounded-2xl" />
+   373→      </div>
+   374→    </div>
+   375→  );
+   376→}
+   377→
+   378→/* ------------------------------------------------------------------ */
+   379→/*  Main Profile Page                                                  */
+   380→/* ------------------------------------------------------------------ */
+   381→
+   382→export function ProfilePage() {
+   383→  const { currentUserId } = useUserStore();
+   384→  const { navigateTo } = useNavigationStore();
+   385→
+   386→  const [profile, setProfile] = useState<UserProfile | null>(null);
+   387→  const [loading, setLoading] = useState(true);
+   388→  const [certificateOpen, setCertificateOpen] = useState(false);
+   389→  const [firstCompletedCourse, setFirstCompletedCourse] = useState<string | null>(null);
+   390→  const [completedDate, setCompletedDate] = useState<string | null>(null);
+   391→
+   392→  const fetchProfile = useCallback(async () => {
+   393→    setLoading(true);
+   394→    try {
+   395→      const res = await fetch(`/api/user/${currentUserId}`);
+   396→      const json = await res.json();
+   397→      if (json.success) {
+   398→        setProfile(json.data);
+   399→      }
+   400→    } catch {
+   401→      /* silent */
+   402→    } finally {
+   403→      setLoading(false);
+   404→    }
+   405→  }, [currentUserId]);
+   406→
+   407→  // Fetch first completed course for certificate
+   408→  useEffect(() => {
+   409→    async function fetchCompletedCourse() {
+   410→      try {
+   411→        const res = await fetch('/api/enrollments?userId=' + currentUserId);
+   412→        const json = await res.json();
+   413→        if (json.success && json.data) {
+   414→          const completed = json.data.find(
+   415→            (e: { status: string; course: { title: string }; completedAt: string | null }) =>
+   416→              e.status === 'completed' && e.completedAt
+   417→          );
+   418→          if (completed) {
+   419→            setFirstCompletedCourse(completed.course.title);
+   420→            setCompletedDate(completed.completedAt);
+   421→          }
+   422→        }
+   423→      } catch {
+   424→        /* silent */
+   425→      }
+   426→    }
+   427→    fetchCompletedCourse();
+   428→  }, [currentUserId]);
+   429→
+   430→  useEffect(() => {
+   431→    fetchProfile();
+   432→  }, [fetchProfile]);
+   433→
+   434→  if (loading) {
+   435→    return <ProfileSkeleton />;
+   436→  }
+   437→
+   438→  if (!profile) {
+   439→    return (
+   440→      <div className="flex items-center justify-center py-20">
+   441→        <p className="text-sm text-muted-foreground">
+   442→          Unable to load profile
+   443→        </p>
+   444→      </div>
+   445→    );
+   446→  }
+   447→
+   448→  const initials = (profile.name || profile.email)
+   449→    .split(" ")
+   450→    .map((w) => w.charAt(0).toUpperCase())
+   451→    .slice(0, 2)
+   452→    .join("");
+   453→
+   454→  const joinDate = new Date(profile.createdAt).toLocaleDateString(
+   455→    "en-US",
+   456→    {
+   457→      month: "long",
+   458→      year: "numeric",
+   459→    }
+   460→  );
+   461→
+   462→  const completedPercent =
+   463→    profile.stats.totalCourses > 0
+   464→      ? Math.round(
+   465→          (profile.stats.completed / profile.stats.totalCourses) * 100
+   466→        )
+   467→      : 0;
+   468→
+   469→  return (
+   470→    <div className="space-y-6">
+   471→      {/* Page Header */}
+   472→      <div>
+   473→        <h1 className="text-2xl font-bold text-foreground">Profile</h1>
+   474→        <p className="mt-1 text-sm text-muted-foreground">
+   475→          Manage your account and view learning overview
+   476→        </p>
+   477→      </div>
+   478→
+   479→      {/* Profile Banner */}
+   480→      <div className="relative overflow-hidden rounded-2xl">
+   481→        {/* Gradient background with decorative patterns */}
+   482→        <div className="relative bg-gradient-to-r from-blue-600 via-cyan-600 to-teal-500 px-6 pb-20 pt-8 sm:px-8 sm:pb-24 sm:pt-10">
+   483→          {/* Decorative geometric shapes */}
+   484→          <div className="absolute -top-12 -right-12 h-48 w-48 rounded-full bg-white/10" />
+   485→          <div className="absolute -bottom-8 -left-8 h-32 w-32 rounded-full bg-white/10" />
+   486→          <div className="absolute top-6 right-1/4 h-20 w-20 rounded-full bg-white/5" />
+   487→          {/* Diamond shape */}
+   488→          <div className="absolute top-4 left-1/3 h-16 w-16 rotate-45 rounded-sm border border-white/10" />
+   489→          {/* Small circle */}
+   490→          <div className="absolute bottom-8 right-12 h-6 w-6 rounded-full bg-white/10" />
+   491→          {/* Dots pattern */}
+   492→          <div className="absolute top-1/2 left-8 grid grid-cols-3 gap-2 opacity-20">
+   493→            {Array.from({ length: 9 }).map((_, i) => (
+   494→              <div key={i} className="h-1.5 w-1.5 rounded-full bg-white" />
+   495→            ))}
+   496→          </div>
+   497→          {/* Triangle hint */}
+   498→          <div className="absolute right-16 bottom-4 h-0 w-0 border-l-[12px] border-r-[12px] border-b-[20px] border-l-transparent border-r-transparent border-b-white/10" />
+   499→        </div>
+   500→
+   501→        {/* Profile info overlapping the banner */}
+   502→        <div className="relative mx-4 -mt-12 sm:mx-6">
+   503→          <div className="flex flex-col gap-4 rounded-xl border border-border/50 bg-card p-5 shadow-sm sm:flex-row sm:items-center sm:gap-5 sm:p-6">
+   504→            {/* Avatar with animated ring */}
+   505→            <div className="flex items-start sm:items-center">
+   506→              <div className="relative">
+   507→                {/* Animated ring */}
+   508→                <div className="absolute -inset-1 rounded-full bg-gradient-to-r from-cyan-500 via-teal-400 to-emerald-400 opacity-60 blur-[2px] animate-[pulse_3s_ease-in-out_infinite]" />
+   509→                <Avatar className="relative h-20 w-20 border-4 border-card shadow-lg">
+   510→                  <AvatarFallback className="bg-gradient-to-br from-cyan-600 to-teal-500 text-2xl font-bold text-white">
+   511→                    {initials}
+   512→                  </AvatarFallback>
+   513→                </Avatar>
+   514→              </div>
+   515→            </div>
+   516→
+   517→            {/* Info */}
+   518→            <div className="flex-1 space-y-1.5">
+   519→              <div className="flex flex-wrap items-center gap-2">
+   520→                <h2 className="text-xl font-bold text-foreground">
+   521→                  {profile.name || "Unnamed User"}
+   522→                </h2>
+   523→                {/* Role badge */}
+   524→                <Badge className="gap-1 bg-gradient-to-r from-cyan-600 to-teal-500 text-[10px] font-semibold text-white hover:from-cyan-700 hover:to-teal-600">
+   525→                  <Shield className="h-3 w-3" />
+   526→                  {profile.role}
+   527→                </Badge>
+   528→              </div>
+   529→              <p className="text-sm text-muted-foreground">
+   530→                {profile.email}
+   531→              </p>
+   532→              <div className="flex flex-wrap items-center gap-2 pt-0.5">
+   533→                {profile.department && (
+   534→                  <Badge
+   535→                    variant="secondary"
+   536→                    className="gap-1 text-xs"
+   537→                  >
+   538→                    <Building2 className="h-3 w-3" />
+   539→                    {profile.department}
+   540→                  </Badge>
+   541→                )}
+   542→                <span className="text-xs text-muted-foreground">
+   543→                  Joined {joinDate}
+   544→                </span>
+   545→              </div>
+   546→            </div>
+   547→          </div>
+   548→        </div>
+   549→      </div>
+   550→
+   551→      {/* Stats + Quick Actions */}
+   552→      <div className="grid gap-6 md:grid-cols-2">
+   553→        {/* Stats Panel */}
+   554→        <Card className="border-border/50">
+   555→          <CardHeader className="pb-4">
+   556→            <CardTitle className="text-base font-semibold">
+   557→              Learning Stats
+   558→            </CardTitle>
+   559→          </CardHeader>
+   560→          <CardContent className="space-y-6">
+   561→            {/* Circular Progress */}
+   562→            <div className="flex justify-center">
+   563→              <CircularProgress percentage={completedPercent} />
+   564→            </div>
+   565→
+   566→            {/* Mini stat cards */}
+   567→            <div className="grid grid-cols-3 gap-3">
+   568→              <StatMini
+   569→                icon={BookOpen}
+   570→                label="Total Courses"
+   571→                value={profile.stats.totalCourses}
+   572→                color="bg-gradient-to-br from-blue-500 to-blue-700"
+   573→              />
+   574→              <StatMini
+   575→                icon={CheckCircle}
+   576→                label="Completed"
+   577→                value={profile.stats.completed}
+   578→                color="bg-gradient-to-br from-emerald-500 to-emerald-700"
+   579→              />
+   580→              <StatMini
+   581→                icon={Clock}
+   582→                label="In Progress"
+   583→                value={profile.stats.inProgress}
+   584→                color="bg-gradient-to-br from-amber-500 to-amber-700"
+   585→              />
+   586→            </div>
+   587→          </CardContent>
+   588→        </Card>
+   589→
+   590→        {/* Quick Actions */}
+   591→        <Card className="border-border/50">
+   592→          <CardHeader className="pb-4">
+   593→            <CardTitle className="text-base font-semibold">
+   594→              Quick Actions
+   595→            </CardTitle>
+   596→          </CardHeader>
+   597→          <CardContent className="space-y-3">
+   598→            {/* Create Course */}
+   599→            <button
+   600→              className="group flex w-full items-center gap-4 rounded-xl border border-border/50 bg-gradient-to-r from-cyan-600/5 to-teal-500/5 p-4 text-left transition-all duration-200 hover:border-cyan-500/30 hover:bg-gradient-to-r hover:from-cyan-600/10 hover:to-teal-500/10 hover:shadow-sm"
+   601→              onClick={() => navigateTo("create-course")}
+   602→            >
+   603→              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-600 to-teal-500 text-white shadow-sm transition-transform duration-200 group-hover:scale-110">
+   604→                <Plus className="h-5 w-5" />
+   605→              </div>
+   606→              <div className="min-w-0 flex-1">
+   607→                <p className="text-sm font-semibold text-foreground">
+   608→                  Create Course
+   609→                </p>
+   610→                <p className="mt-0.5 text-xs text-muted-foreground">
+   611→                  Build and publish a new learning course
+   612→                </p>
+   613→              </div>
+   614→              <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-primary" />
+   615→            </button>
+   616→
+   617→            {/* Browse Courses */}
+   618→            <button
+   619→              className="group flex w-full items-center gap-4 rounded-xl border border-border/50 bg-gradient-to-r from-emerald-600/5 to-cyan-500/5 p-4 text-left transition-all duration-200 hover:border-emerald-500/30 hover:bg-gradient-to-r hover:from-emerald-600/10 hover:to-cyan-500/10 hover:shadow-sm"
+   620→              onClick={() => navigateTo("courses")}
+   621→            >
+   622→              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-600 to-cyan-500 text-white shadow-sm transition-transform duration-200 group-hover:scale-110">
+   623→                <LayoutGrid className="h-5 w-5" />
+   624→              </div>
+   625→              <div className="min-w-0 flex-1">
+   626→                <p className="text-sm font-semibold text-foreground">
+   627→                  Browse Courses
+   628→                </p>
+   629→                <p className="mt-0.5 text-xs text-muted-foreground">
+   630→                  Explore the full course catalog
+   631→                </p>
+   632→              </div>
+   633→              <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-primary" />
+   634→            </button>
+   635→
+   636→            {/* View Certificate */}
+   637→            <button
+   638→              className="group flex w-full items-center gap-4 rounded-xl border border-border/50 bg-gradient-to-r from-cyan-600/5 to-teal-500/5 p-4 text-left transition-all duration-200 hover:border-cyan-500/30 hover:bg-gradient-to-r hover:from-cyan-600/10 hover:to-teal-500/10 hover:shadow-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:from-cyan-600/5 disabled:hover:to-teal-500/5 disabled:hover:border-border/50 disabled:hover:shadow-none"
+   639→              onClick={() => {
+   640→                if (firstCompletedCourse && completedDate) {
+   641→                  setCertificateOpen(true);
+   642→                } else {
+   643→                  toast.info("Complete a course to earn a certificate!");
+   644→                }
+   645→              }}
+   646→            >
+   647→              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-600 to-teal-500 text-white shadow-sm transition-transform duration-200 group-hover:scale-110">
+   648→                <FileBadge className="h-5 w-5" />
+   649→              </div>
+   650→              <div className="min-w-0 flex-1">
+   651→                <p className="text-sm font-semibold text-foreground">
+   652→                  View Certificate
+   653→                </p>
+   654→                <p className="mt-0.5 text-xs text-muted-foreground">
+   655→                  {firstCompletedCourse
+   656→                    ? `View cert for "${firstCompletedCourse.length > 30 ? firstCompletedCourse.slice(0, 30) + '...' : firstCompletedCourse}"`
+   657→                    : "Complete a course to earn a certificate"}
+   658→                </p>
+   659→              </div>
+   660→              <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-primary" />
+   661→            </button>
+   662→
+   663→            {/* My Learning */}
+   664→            <button
+   665→              className="group flex w-full items-center gap-4 rounded-xl border border-border/50 bg-gradient-to-r from-amber-600/5 to-orange-500/5 p-4 text-left transition-all duration-200 hover:border-amber-500/30 hover:bg-gradient-to-r hover:from-amber-600/10 hover:to-orange-500/10 hover:shadow-sm"
+   666→              onClick={() => navigateTo("my-learning")}
+   667→            >
+   668→              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 text-white shadow-sm transition-transform duration-200 group-hover:scale-110">
+   669→                <GraduationCap className="h-5 w-5" />
+   670→              </div>
+   671→              <div className="min-w-0 flex-1">
+   672→                <p className="text-sm font-semibold text-foreground">
+   673→                  My Learning
+   674→                </p>
+   675→                <p className="mt-0.5 text-xs text-muted-foreground">
+   676→                  Track your progress and enrolled courses
+   677→                </p>
+   678→              </div>
+   679→              <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-primary" />
+   680→            </button>
+   681→
+   682→            <Separator className="my-2" />
+   683→
+   684→            {/* Logout */}
+   685→            <Button
+   686→              variant="destructive"
+   687→              className="w-full"
+   688→              onClick={() => {
+   689→                toast.success("You have been logged out.");
+   690→                navigateTo("home");
+   691→              }}
+   692→            >
+   693→              <LogOut className="mr-2 h-4 w-4" />
+   694→              Logout
+   695→            </Button>
+   696→          </CardContent>
+   697→        </Card>
+   698→      </div>
+   699→
+   700→      {/* Team Leaderboard */}
+   701→      <TeamLeaderboardCard />
+   702→
+   703→      {/* Achievement Badges */}
+   704→      {profile && (
+   705→        <AchievementBadges stats={profile.stats} />
+   706→      )}
+   707→
+   708→      {/* Certificate Modal */}
+   709→      <CertificateModal
+   710→        open={certificateOpen}
+   711→        onOpenChange={setCertificateOpen}
+   712→        userName={profile?.name || profile?.email || "Learner"}
+   713→        courseName={firstCompletedCourse || "Course"}
+   714→        completionDate={completedDate || new Date().toISOString()}
+   715→      />
+   716→    </div>
+   717→  );
+   718→}
+   719→

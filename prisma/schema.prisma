@@ -23,6 +23,7 @@ model User {
   enrollments  Enrollment[]
   favorites    Favorite[]
   createdCourses Course[] @relation("CourseCreator")
+  comments     Comment[]
 }
 
 // ============================================
@@ -61,6 +62,7 @@ model Course {
   sections    Section[]
   enrollments Enrollment[]
   favorites    Favorite[]
+  comments    Comment[]
 }
 
 // ============================================
@@ -78,6 +80,27 @@ model Section {
   courseId    String
   course      Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
   progresses  Progress[]
+  comments    Comment[]
+}
+
+// ============================================
+// Comment - course/section discussion
+// ============================================
+model Comment {
+  id        String   @id @default(cuid())
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sectionId String?
+  section   Section? @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  courseId  String
+  course    Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  userId    String
+  author    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parentId  String?
+  parent    Comment? @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   Comment[] @relation("CommentReplies")
 }
 
 // ============================================

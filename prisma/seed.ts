@@ -6,6 +6,7 @@ async function main() {
   console.log("🌱 Seeding LMS database...\n");
 
   // Clean existing data
+  await prisma.comment.deleteMany();
   await prisma.favorite.deleteMany();
   await prisma.progress.deleteMany();
   await prisma.enrollment.deleteMany();
@@ -455,9 +456,118 @@ async function main() {
     },
   });
 
+  // ============================================
+  // Create additional demo users for comments
+  // ============================================
+  const user2 = await prisma.user.create({
+    data: {
+      id: "user_demo_002",
+      email: "sarah.trainer@company.com",
+      name: "Sarah Chen",
+      avatar: null,
+      role: "instructor",
+      department: "Product",
+    },
+  });
+  const user3 = await prisma.user.create({
+    data: {
+      id: "user_demo_003",
+      email: "mike.jones@company.com",
+      name: "Mike Jones",
+      avatar: null,
+      role: "employee",
+      department: "Engineering",
+    },
+  });
+  console.log(`👤 Created users: ${user2.name}, ${user3.name}`);
+
+  // ============================================
+  // Create some comments for discussion
+  // ============================================
+  const comment1 = await prisma.comment.create({
+    data: {
+      id: "comment_001",
+      content: "This section on logical fallacies was incredibly helpful! I never realized how often I encounter ad hominem arguments in meetings. Can anyone recommend additional resources on identifying cognitive biases?",
+      courseId: "course_001",
+      sectionId: "sec_001",
+      userId: "user_demo_001",
+      createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
+    },
+  });
+  await prisma.comment.create({
+    data: {
+      id: "comment_002",
+      content: "Great question, John! I'd recommend Daniel Kahneman's 'Thinking, Fast and Slow' — it covers cognitive biases in depth and is very accessible.",
+      courseId: "course_001",
+      sectionId: "sec_001",
+      userId: "user_demo_002",
+      parentId: "comment_001",
+      createdAt: new Date(Date.now() - 1 * 60 * 60 * 1000),
+    },
+  });
+  await prisma.comment.create({
+    data: {
+      id: "comment_003",
+      content: "The email templates in this course saved me so much time. I've already started using the meeting request template and my colleagues noticed the improvement!",
+      courseId: "course_002",
+      sectionId: "sec_004",
+      userId: "user_demo_003",
+      createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+    },
+  });
+  await prisma.comment.create({
+    data: {
+      id: "comment_004",
+      content: "Is there a follow-up course that covers more advanced communication topics like cross-cultural communication?",
+      courseId: "course_002",
+      userId: "user_demo_001",
+      createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
+    },
+  });
+  await prisma.comment.create({
+    data: {
+      id: "comment_005",
+      content: "The Polya method section was eye-opening. I've been using it at work to break down complex engineering problems. Highly recommended for anyone in a technical role.",
+      courseId: "course_001",
+      sectionId: "sec_003",
+      userId: "user_demo_003",
+      createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
+    },
+  });
+  await prisma.comment.create({
+    data: {
+      id: "comment_006",
+      content: "I agree! The 'Look Back' step is something most people skip but it really helps solidify understanding.",
+      courseId: "course_001",
+      sectionId: "sec_003",
+      userId: "user_demo_002",
+      parentId: "comment_005",
+      createdAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000),
+    },
+  });
+  await prisma.comment.create({
+    data: {
+      id: "comment_007",
+      content: "The financial literacy course was very practical. I wish we had this training when I first joined the company. The budgeting section alone is worth the time.",
+      courseId: "course_003",
+      userId: "user_demo_002",
+      createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+    },
+  });
+  await prisma.comment.create({
+    data: {
+      id: "comment_008",
+      content: "The quiz at the end of each section really helps reinforce the concepts. I found myself going back to review slides I thought I already understood.",
+      courseId: "course_001",
+      userId: "user_demo_001",
+      createdAt: new Date(Date.now() - 6 * 60 * 60 * 1000),
+    },
+  });
+  console.log("💬 Created 8 comments (including 2 replies)");
+
   console.log("\n✅ Seed completed successfully!");
-  console.log(`   - 1 user, ${categories.length} categories, ${courseSeeds.length} courses`);
-  console.log(`   - 2 enrollments, 2 favorites created\n`);
+  console.log(`   - 3 users, ${categories.length} categories, ${courseSeeds.length} courses`);
+  console.log(`   - 2 enrollments, 2 favorites, 8 comments created\n`);
 }
 
 main()

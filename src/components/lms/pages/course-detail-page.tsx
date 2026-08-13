@@ -37,6 +37,7 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { useNavigationStore, useUserStore } from "@/stores/lms-store";
+import { DiscussionPanel } from "@/components/lms/discussion-panel";
 import type { CourseItem, SectionItem, ClassroomState, SlideContent } from "@/types/lms";
 
 type SectionProgress = {
@@ -607,6 +608,12 @@ export function CourseDetailPage() {
         )}
       </section>
 
+      <section className="mt-8">
+        <DiscussionPanel
+          courseId={course.id}
+          userId={userId}
+        />
+      </section>
       {/* ─── Browser Warning ─────────────────────── */}
       <div className="mt-8 flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-200">
         <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />

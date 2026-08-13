@@ -405,8 +405,10 @@ export function HomePage() {
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">
-              {courses.map((course) => (
-                <CourseCard key={course.id} course={course} />
+              {courses.map((course, i) => (
+                <div key={course.id} className="stagger-fade-in" style={{ animationDelay: `${i * 60}ms` }}>
+                  <CourseCard course={course} index={i} />
+                </div>
               ))}
             </div>
           )}

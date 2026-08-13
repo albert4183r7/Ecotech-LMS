@@ -11,14 +11,15 @@
 ✅ **Phase 3 (WebDevReview #2)** — Major UI enhancements, new features, keyboard shortcuts
 ✅ **Phase 4 (WebDevReview #3)** — Interactive quizzes, confetti celebration, leaderboard, search autocomplete, continue learning widget, dark mode fixes
 ✅ **Phase 5 (Cron Review #4)** — CSS styling overhaul, enhanced footer, notification system, AI generation, achievement badges, certificate modal
+✅ **Phase 6 (Cron Review #5)** — Course discussion/comments system, weekly activity chart, streak tracker, enhanced course cards
 
 ### Architecture Summary
-- **7 Database Models**: User, Category, Course, Section, Enrollment, Progress, Favorite
+- **8 Database Models**: User, Category, Course, Section, Enrollment, Progress, Favorite, Comment
 - **7 Frontend Pages**: Home, Courses, My Learning, Profile, Course Detail, Classroom, Create Course
-- **14 API Endpoints**: Full CRUD for courses, enrollments, progress, favorites, categories, sections, user, leaderboard, AI content generation, achievements
-- **Shared Components**: Navbar (with notifications), Footer (enhanced), CourseCard, ThemeProvider, SearchAutocomplete, AchievementBadges, CertificateModal
+- **17 API Endpoints**: Full CRUD for courses, enrollments, progress, favorites, categories, sections, user, leaderboard, AI content generation, achievements, activity, comments (GET/POST/DELETE)
+- **Shared Components**: Navbar (with notifications), Footer (enhanced), CourseCard (enhanced), ThemeProvider, SearchAutocomplete, AchievementBadges, CertificateModal, DiscussionPanel, ActivityChart
 - **4 Zustand Stores**: Navigation, Course, My Learning, User
-- **Seed Data**: 8 courses, 14 sections, 6 categories, 2 enrollments, 2 favorites
+- **Seed Data**: 8 courses, 14 sections, 6 categories, 2 enrollments, 2 favorites, 8 comments (with replies)
 
 ---
 
@@ -177,6 +178,67 @@ Added 10+ new animation utilities and visual effects:
 
 ---
 
+## Phase 6 — Course Discussion, Activity Charts & Visual Polish (Cron Review #5)
+
+### Overview
+This phase added a full course discussion/comments system, weekly activity chart with streak tracking, and enhanced the course card component with stagger animations and improved visuals.
+
+### 1. Enhanced Course Card (course-card.tsx)
+- **Stagger animation support**: Accepts `index` prop for animation delay (`animationDelay: ${index * 60}ms`)
+- **Improved gradient covers**: Decorative dot pattern overlay on gradient fallbacks, BookOpen icon + truncated title
+- **Language badge**: Shows 2-letter language code for non-English courses
+- **Enrollment count**: Shows enrolled count from `_count.enrollments`
+- **Bottom border separator**: Added `border-t border-border/30` between content and metadata
+- **Hover shimmer**: Animated gradient line at bottom of cover on hover (`.scale-x-0 → scale-x-100`)
+- **Enhanced hover effects**: `hover:shadow-lg hover:border-primary/20` for stronger visual feedback
+- **Favorite button**: Added shadow-sm, scale animation on active state
+
+### 2. Stagger Animation on Course Grids
+- **Home page**: Wrapped each CourseCard in a `stagger-fade-in` div with incremental delay
+- **Courses page**: Same stagger treatment applied to course grid
+- **CSS**: Uses existing `.stagger-fade-in` animation (opacity 0→1, translateY 8px→0, 0.35s ease-out)
+
+### 3. Course Discussion/Comments System (Subagent)
+- **Database**: Added `Comment` model with self-referencing `parentId` for reply threading; added `comments` relations to User, Course, Section
+- **API Routes**:
+  - `GET /api/comments?courseId=xxx&sectionId=xxx` — Lists comments with nested replies, author info (name, avatar), relative timestamps
+  - `POST /api/comments` — Creates comment or reply (body: `{ content, courseId, sectionId?, parentId? }`)
+  - `DELETE /api/comments/[id]` — Deletes comment (cascades to replies, only own comments)
+- **DiscussionPanel component** (`src/components/lms/discussion-panel.tsx`):
+  - Collapsible panel (chevron toggle) below Curriculum on Course Detail page
+  - Comment list with author initials avatar (gradient bg), name, timestamp, content
+  - Reply nesting (indented with left border accent)
+  - Inline reply input (revealed on "Reply" click, auto-focused, Ctrl+Enter to submit)
+  - New comment textarea with gradient accent bar, Submit button
+  - Hover-reveal action buttons (Reply, Delete)
+  - Loading skeleton, empty state, error handling
+- **Seed data**: 3 users (John Employee, Sarah Chen, Mike Jones), 8 comments across 3 courses, 2 reply threads
+
+### 4. Weekly Activity Chart & Streak Tracker (Subagent)
+- **API Route** (`GET /api/activity?userId=xxx&weeks=12`):
+  - Returns 7-day activity data, current/longest streak, total minutes
+  - Seeded PRNG (seed=42) for consistent mock data (weekdays 85% active 15-120min, weekends 65% active 0-60min)
+  - Real data path: aggregates Progress table by updatedAt date when ≥3 records exist
+- **ActivityChart component** (`src/components/lms/activity-chart.tsx`):
+  - Pure CSS/Tailwind bar chart (no external library)
+  - 7 bars with oklch teal→blue gradients, rounded tops
+  - Hover tooltips showing exact minutes
+  - Today indicator (pulsing dot)
+  - Streak badge: animated 🔥 flame with current streak count
+  - Total minutes this week summary
+  - Loading skeleton, responsive layout
+  - Dark mode compatible via oklch colors
+- **Profile integration**: Added ActivityChart between Stats+Quick Actions grid and Team Leaderboard
+
+### Verification Results
+- ✅ ESLint: 0 errors, 0 warnings
+- ✅ Dev server: All 7 pages compile successfully (GET / 200)
+- ✅ API endpoints: All 17 return 200 with proper data
+- ✅ Database: Comment model pushed, seed data with 8 comments
+- ✅ No regressions: All Phase 1-5 features intact
+
+---
+
 ## Remaining Issues / Risks
 - **Agent-browser testing** — Cannot test directly due to sandbox network. Preview panel works for end users.
 - **No authentication** — Hardcoded `user_demo_001` (acceptable for internal MVP)
@@ -184,22 +246,25 @@ Added 10+ new animation utilities and visual effects:
 - **Raw `<img>` tags** — Not yet migrated to `next/image` (cosmetic optimization, low priority)
 - **Leaderboard is mock data** — Only 1 real user; 9 mock users. Real data requires more seeded users.
 - **Notification persistence** — Currently mock data only; no database-backed notifications
-- **Streak Keeper achievement** — Requires activity tracking system (mock/locked for now)
+- **Activity data is mock** — Seeded PRNG provides consistent but fake data; real tracking needs a logging system
 
 ---
 
 ## Recommended Next Steps
-1. ~~**Implement real AI generation**~~ — ✅ DONE: z-ai-web-dev-sdk LLM wired to Create Course section generation
-2. ~~**Add certificate generation**~~ — ✅ DONE: CertificateModal with download on profile page
-3. ~~**Notification system**~~ — ✅ DONE: In-app notification panel in navbar (mock data)
-4. **Build admin dashboard** — Course management, user analytics, reporting
-5. **Add progress persistence validation** — Ensure progress survives page reload via enrollment tracking
-6. **Add course discussion/comments** — Per-section comments for Q&A
-7. **Persist notifications to database** — Replace mock data with real notification records
-8. **Add more seed users** — Populate database with more users for realistic leaderboard
-9. **Mobile PWA support** — Add service worker, offline capabilities
-10. **Analytics dashboard** — Learning hours, completion rates, skill assessments
-11. **Bulk course operations** — Import/export courses, batch enrollments
+1. ~~**Implement real AI generation**~~ — ✅ DONE
+2. ~~**Add certificate generation**~~ — ✅ DONE
+3. ~~**Notification system**~~ — ✅ DONE (mock data)
+4. ~~**Course discussion/comments**~~ — ✅ DONE
+5. ~~**Weekly activity chart**~~ — ✅ DONE
+6. **Build admin dashboard** — Course management, user analytics, reporting
+7. **Add progress persistence validation** — Ensure progress survives page reload via enrollment tracking
+8. **Persist notifications to database** — Replace mock data with real notification records
+9. **Persist activity to database** — Real-time activity logging for accurate streaks/charts
+10. **Add more seed users** — Populate database with more users for realistic leaderboard
+11. **Mobile PWA support** — Add service worker, offline capabilities
+12. **Analytics dashboard** — Learning hours, completion rates, skill assessments
+
+---
 
 ## Phase 5 Changes (Task 5b — AI Course Generation)
 
@@ -297,6 +362,114 @@ Added achievement badges, certificate generation modal, and profile page enhance
 - `worklog.md`
 
 ---
+
+## Phase 5 — Weekly Activity Chart & Streak Tracker (Task 5c)
+
+### Overview
+Added a weekly learning activity bar chart and streak tracker to the profile page. Includes a new API endpoint that returns daily activity data with realistic mock data fallback, a reusable ActivityChart component with pure-CSS bar visualization, and integration into the profile page between the Stats/Actions grid and the Team Leaderboard.
+
+### 1. New API Route: `/api/activity` (`src/app/api/activity/route.ts`)
+- **GET endpoint**: `/api/activity?userId=xxx&weeks=12`
+- **Parameters**: `userId` (defaults to `user_demo_001`), `weeks` (1-52, defaults to 12)
+- **Real data path**: Queries Progress table for records updated within the last N weeks, aggregates by date, estimates ~15-45 min per progress update
+- **Mock data fallback**: Seeded PRNG generates 7-12 weeks of realistic daily activity
+  - Weekdays: 85% active, 15-120 min per day, 10% chance of burst days
+  - Weekends: 65% active, 0-60 min per day
+- **Streak calculation**: Walks backward from today for current streak, full scan for longest streak (consecutive days with minutes > 0)
+- **Response shape**: `{ weeklyData: DayEntry[], streak: { current, longest }, totalMinutes }`
+
+### 2. New Component: ActivityChart (`src/components/lms/activity-chart.tsx`)
+- **7-day bar chart**: Pure CSS/Tailwind divs with height proportional to minutes
+- **Bar styling**:
+  - Active days: `oklch` gradient from teal to blue, intensity scales with minutes/maxMinutes ratio
+  - Inactive days: Subtle muted background bar (2px minimum)
+  - Rounded tops (`rounded-t-md`), max-width 40px per bar, 120px chart height
+- **Hover tooltip**: Dark pill tooltip showing exact minutes, with CSS arrow pointer, `animate-in` entrance
+- **Today indicator**: Day label in primary color with a small dot below
+- **Streak badge**: "🔥 N day streak" in the header with CSS pulse animation, orange/amber gradient badge
+- **Summary footer**: Total minutes this week + "Best: N days" longest streak
+- **Loading skeleton**: Matches the card layout with randomized bar heights
+- **Accessibility**: `role="img"` with descriptive `aria-label` per bar
+- **Dark mode**: Uses `oklch` color values that work in both themes; foreground/background CSS variables
+
+### 3. Profile Page Integration (`src/components/lms/pages/profile-page.tsx`)
+- Added `<ActivityChart userId={profile.id} />` as a full-width card between the Stats+Quick Actions grid and the Team Leaderboard
+- Added import for the new component
+- No other changes to existing functionality
+
+### Files Created
+- `src/app/api/activity/route.ts`
+- `src/components/lms/activity-chart.tsx`
+
+### Files Modified
+- `src/components/lms/pages/profile-page.tsx`
+- `worklog.md`
+
+### Verification
+- ✅ ESLint: 0 errors, 0 warnings
+- ✅ No existing functionality broken
+- ✅ Component follows existing patterns (Card, Skeleton, Badge, shadcn/ui)
+
+---
+
+## Phase 5 — Course Discussion/Comments System (Task 5b)
+
+### Overview
+Added a complete course discussion/comments system allowing employees to ask questions and discuss course content. Includes a new Comment database model, 3 API endpoints, a full-featured DiscussionPanel component, and integration into the Course Detail page.
+
+### 1. Database Model: Comment (`prisma/schema.prisma`)
+- New `Comment` model with self-referencing `parentId` for nested replies
+- Fields: id, content, courseId, sectionId (optional), userId, parentId (optional), createdAt, updatedAt
+- Relations: author (User), course (Course), section (Section, optional), parent/replies (self)
+- Added `comments Comment[]` relation to User, Course, and Section models
+
+### 2. Seed Data (`prisma/seed.ts`)
+- Added 2 additional demo users: Sarah Chen (instructor, Product dept), Mike Jones (employee, Engineering)
+- Created 8 seed comments across 3 courses (course_001, course_002, course_003)
+- Includes 2 reply threads (comment_001→002, comment_005→006)
+- Staggered relative timestamps (Just now, 1h, 2h, 6h, 1d, 2d, 3d, 4d, 5d ago)
+- Total seed: 3 users, 6 categories, 8 courses, 2 enrollments, 2 favorites, 8 comments
+
+### 3. API Endpoints
+- **GET `/api/comments?courseId=xxx&sectionId=xxx`**: Lists top-level comments with nested replies, newest first. Includes author info (name, role).
+- **POST `/api/comments`**: Creates comment or reply. Validates courseId, userId, and parentId. Returns created comment with author info.
+- **DELETE `/api/comments/[id]?userId=xxx`**: Deletes comment (only own comments). Cascades to replies via schema onDelete.
+
+### 4. DiscussionPanel Component (`src/components/lms/discussion-panel.tsx`)
+- **Collapsible panel** with gradient accent bar (primary→accent) and chevron toggle
+- **Comment input**: Textarea with gradient top accent, Ctrl+Enter to submit, Post Comment button with gradient
+- **Comment cards**: Avatar with cyan→teal gradient initials, author name, instructor badge, relative timestamp, content
+- **Reply system**: Inline reply input appears below parent comment with gradient border, auto-focus, Cancel/Reply buttons
+- **Nested replies**: Indented with left border line (border-l-2), smaller avatars
+- **Hover-reveal actions**: Reply and Delete buttons fade in on hover
+- **Loading state**: 3 skeleton comment placeholders
+- **Empty state**: Centered MessageSquare icon with "No comments yet" message
+- **Comment count badge**: Shown in header with primary color
+- **Keyboard shortcuts**: Ctrl/Cmd+Enter to submit, Escape to cancel reply
+- **Dark mode**: All colors use CSS variables, fully theme-aware
+- **Responsive**: Full-width on mobile, comfortable reading width on desktop
+
+### 5. Course Detail Page Integration (`src/components/lms/pages/course-detail-page.tsx`)
+- Added DiscussionPanel below the Curriculum section and above the Browser Warning
+- Passes `courseId` and `userId` props
+- No other changes to existing functionality
+
+### Files Created
+- `src/app/api/comments/route.ts`
+- `src/app/api/comments/[id]/route.ts`
+- `src/components/lms/discussion-panel.tsx`
+
+### Files Modified
+- `prisma/schema.prisma`
+- `prisma/seed.ts`
+- `src/components/lms/pages/course-detail-page.tsx`
+- `worklog.md`
+
+### Verification
+- ✅ ESLint: 0 errors, 0 warnings
+- ✅ Dev server compiles successfully
+- ✅ Database schema pushed and seeded
+- ✅ No existing functionality broken
 
 ## Previous Phases (Archived)
 

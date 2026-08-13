@@ -25,6 +25,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { useNavigationStore, useUserStore } from "@/stores/lms-store";
 import { AchievementBadges } from "@/components/lms/achievement-badges";
+import { ActivityChart } from "@/components/lms/activity-chart";
 import { CertificateModal } from "@/components/lms/certificate-modal";
 
 /* ------------------------------------------------------------------ */
@@ -696,6 +697,9 @@ export function ProfilePage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Weekly Activity Chart */}
+      <ActivityChart userId={profile.id} />
 
       {/* Team Leaderboard */}
       <TeamLeaderboardCard />
