@@ -3,6 +3,8 @@
 import { useNavigationStore } from "@/stores/lms-store";
 import { Navbar } from "@/components/lms/navbar";
 import { Footer } from "@/components/lms/footer";
+import { OnboardingTour } from "@/components/lms/onboarding-tour";
+import { AnnouncementBanner } from "@/components/lms/announcement-banner";
 import { HomePage } from "@/components/lms/pages/home-page";
 import { CoursesPage } from "@/components/lms/pages/courses-page";
 import { MyLearningPage } from "@/components/lms/pages/my-learning-page";
@@ -50,6 +52,7 @@ export default function AppPage() {
       <>
         <ClassroomPage />
         <KeyboardShortcuts />
+        <OnboardingTour />
       </>
     );
   }
@@ -57,9 +60,11 @@ export default function AppPage() {
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <Navbar />
-      <main className="flex-1 page-transition">{renderView()}</main>
+      <AnnouncementBanner />
+      <main className="flex-1 page-transition page-enter">{renderView()}</main>
       <Footer />
       <KeyboardShortcuts />
+      <OnboardingTour />
     </div>
   );
 }

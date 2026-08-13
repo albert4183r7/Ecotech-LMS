@@ -46,7 +46,7 @@ export function Footer() {
   ];
 
   return (
-    <footer className="mt-auto border-t border-border/60 bg-gradient-to-b from-card to-muted/30">
+    <footer className="mt-auto border-t border-border/60 bg-gradient-to-b from-card to-muted/30 glass-card">
       <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-12">
         {/* Main Footer Content */}
         <div className="grid grid-cols-2 gap-8 sm:grid-cols-4">
@@ -56,7 +56,7 @@ export function Footer() {
               <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary shadow-sm">
                 <GraduationCap className="h-5 w-5 text-primary-foreground" />
               </div>
-              <span className="text-lg font-bold tracking-tight text-foreground">
+              <span className="text-lg font-bold tracking-tight gradient-text">
                 OpenClass
               </span>
             </div>
@@ -80,7 +80,7 @@ export function Footer() {
                   <li key={link.label}>
                     <button
                       type="button"
-                      className="group flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-primary"
+                      className="group flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-primary hover-lift"
                     >
                       {link.label}
                       <ExternalLink className="h-3 w-3 opacity-0 -translate-y-px transition-all group-hover:opacity-40 group-hover:translate-y-0" />

@@ -31,6 +31,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useNavigationStore, useUserStore } from "@/stores/lms-store";
 import type { SlideContent, ClassroomState } from "@/types/lms";
+import { StudyTimer } from "@/components/lms/study-timer";
 
 const MIN_ZOOM = 50;
 const MAX_ZOOM = 200;
@@ -625,6 +626,9 @@ export function ClassroomPage() {
           </div>
         </div>
       </footer>
+
+      {/* ─── Study Timer (floating panel) ────────── */}
+      <StudyTimer />
     </div>
   );
 }

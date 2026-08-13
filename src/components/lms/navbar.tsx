@@ -361,7 +361,7 @@ export function Navbar() {
   }, [navigateTo]);
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-border/60 frosted-glass">
+    <header className="sticky top-0 z-50 w-full border-b border-border/60 frosted-glass glass-card">
       <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         {/* Logo + Breadcrumb */}
         <div className="flex flex-col gap-0">
@@ -374,7 +374,7 @@ export function Navbar() {
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary shadow-sm">
               <GraduationCap className="h-5 w-5 text-primary-foreground" />
             </div>
-            <span className="text-lg font-bold tracking-tight text-primary hidden sm:inline">
+            <span className="text-lg font-bold tracking-tight hidden sm:inline gradient-text">
               OpenClass
             </span>
           </button>
@@ -406,7 +406,7 @@ export function Navbar() {
               size="sm"
               onClick={() => navigateTo(item.view)}
               className={cn(
-                "gap-2 rounded-lg transition-all duration-200",
+                "gap-2 rounded-lg transition-all duration-200 hover-lift",
                 currentView === item.view
                   ? "bg-primary/10 text-primary font-medium shadow-sm"
                   : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
@@ -569,7 +569,7 @@ export function Navbar() {
           {/* Create Course Button */}
           <Button
             size="sm"
-            className="hidden sm:flex gap-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg shadow-sm transition-all duration-200 hover:shadow-md"
+            className="hidden sm:flex gap-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg shadow-sm transition-all duration-200 hover:shadow-md press-effect"
             onClick={() => navigateTo("create-course")}
           >
             <PlusCircle className="h-4 w-4" />

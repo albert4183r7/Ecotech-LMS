@@ -13,15 +13,16 @@
 ✅ **Phase 5 (Cron Review #4)** — CSS styling overhaul, enhanced footer, notification system, AI generation, achievement badges, certificate modal
 ✅ **Phase 6 (Cron Review #5)** — Course discussion/comments system, weekly activity chart, streak tracker, enhanced course cards
 ✅ **Phase 7 (Cron Review #6)** — Major styling overhaul (15+ new CSS animations), notes system, XP/level system, streak calendar, keyboard shortcuts overlay, leaderboard widget, enhanced all 7 pages
+✅ **Phase 8 (Cron Review #7)** — Onboarding tour, announcement banner, course ratings, Pomodoro study timer, extensive CSS enhancements (glassmorphism, mobile touch targets, gradient text, content reveal animations, scrollbar styling)
 
 ### Architecture Summary
-- **9 Database Models**: User, Category, Course, Section, Enrollment, Progress, Favorite, Comment, Note
+- **10 Database Models**: User, Category, Course, Section, Enrollment, Progress, Favorite, Comment, Note, Rating
 - **7 Frontend Pages**: Home, Courses, My Learning, Profile, Course Detail, Classroom, Create Course
-- **18 API Endpoints**: Full CRUD for courses, enrollments, progress, favorites, categories, sections, user, leaderboard, AI content generation, achievements, activity, comments (GET/POST/DELETE), notes (GET/POST/PUT/DELETE)
-- **Shared Components**: Navbar (with notifications, search, breadcrumbs, online status), Footer (enhanced), CourseCard (with progress/difficulty/duration), ThemeProvider, SearchAutocomplete, AchievementBadges, CertificateModal, DiscussionPanel, ActivityChart, LeaderboardWidget, KeyboardShortcuts
+- **19 API Endpoints**: Full CRUD for courses, enrollments, progress, favorites, categories, sections, user, leaderboard, AI content generation, achievements, activity, comments (GET/POST/DELETE), notes (GET/POST/PUT/DELETE), **ratings (GET/POST)**
+- **Shared Components**: Navbar (with notifications, search, breadcrumbs, online status), Footer (enhanced), CourseCard (with progress/difficulty/duration), ThemeProvider, SearchAutocomplete, AchievementBadges, CertificateModal, DiscussionPanel, ActivityChart, LeaderboardWidget, KeyboardShortcuts, **OnboardingTour**, **AnnouncementBanner**, **StarRating**, **StudyTimer**
 - **4 Zustand Stores**: Navigation, Course, My Learning, User
 - **Seed Data**: 8 courses, 14 sections, 6 categories, 2 enrollments, 2 favorites, 8 comments (with replies)
-- **CSS Animations Library**: 15+ custom animation classes (btn-ripple, card-shine, glow-pulse, badge-bounce, confetti, staggered fade-in, typing indicator, animated gradient border, etc.)
+- **CSS Animations Library**: 30+ custom animation classes (btn-ripple, card-shine, glow-pulse, badge-bounce, confetti, staggered fade-in, typing indicator, animated gradient border, glassmorphism, hover-lift, hover-glow, press-effect, shimmer-border, page-enter, badge-pulse, badge-shine, toast-enter-bounce, content-reveal, card-border-glow, card-inner-shine, gradient-text, timer animations, onboarding animations, announcement animations, etc.)
 - **Accessibility**: prefers-reduced-motion support, ARIA labels, keyboard navigation
 
 ---
@@ -601,3 +602,266 @@ Full CRUD endpoint following project conventions:
 4. **Analytics dashboard**: Admin analytics with course completion rates, engagement metrics
 5. **Mobile PWA**: Service worker, offline support, push notifications for course updates
 6. **Accessibility audit**: Screen reader testing, WCAG 2.1 AA compliance verification
+
+---
+
+## Task 2-b: Course Ratings System
+
+### Changes Made
+
+**1. Database Schema — `prisma/schema.prisma`**
+- Added `Rating` model with `id`, `score` (Int 1-5), `userId`, `courseId`, timestamps, and `@@unique([userId, courseId])`
+- Added `ratings Rating[]` relation to both `User` and `Course` models
+- Ran `bun run db:push` successfully to apply
+
+**2. API Endpoint — `src/app/api/ratings/route.ts`**
+- **GET**: Accepts `courseId` (required) and `userId` (optional). Returns `{ average, count, userRating }`.
+- **POST**: Accepts `{ userId, courseId, score }`. Validates score 1-5. Upserts the rating, recalculates course average, updates `course.rating` field. Returns updated rating data.
+
+**3. Star Rating Component — `src/components/lms/star-rating.tsx`**
+- Interactive 5-star component with hover preview and click-to-rate
+- Supports filled and half-filled star states with amber-400 color
+- Shows "Your rating" label, current rating number, and total rating count
+- Pulse animation (`ratingPulse` keyframes) on successful rating submission
+- Loading state with spinner during API call
+- Toast notification via sonner on success/error
+- Proper ARIA roles (`radiogroup`, `radio`, `aria-checked`, `aria-label`)
+- Keyboard accessible with focus-visible ring
+- `onRate` callback returns `{ score, average, count }` for parent state updates
+
+**4. Course Detail Page Integration — `src/components/lms/pages/course-detail-page.tsx`**
+- Added `userRating` and `ratingCount` state
+- Added `fetchRatingData` to load initial rating info when course loads
+- Replaced static star display: hero section now shows rating count `(N)` next to stars
+- Added interactive `StarRating` component below the description/language row
+- `onRate` callback updates userRating, ratingCount, and course.rating in real-time
+
+**5. CSS Animation — `src/app/globals.css`**
+- Added `@keyframes ratingPulse` animation (scale 1 → 1.25 → 1) for star rating feedback
+
+### Files Created/Modified
+- `prisma/schema.prisma` — Added Rating model + relations
+- `src/app/api/ratings/route.ts` — New API endpoint (GET + POST)
+- `src/components/lms/star-rating.tsx` — New interactive component
+- `src/components/lms/pages/course-detail-page.tsx` — Integrated StarRating + rating fetch
+- `src/app/globals.css` — Added ratingPulse keyframes
+
+### Lint Result
+- 0 errors, 1 pre-existing warning (unrelated)
+
+---
+
+## Phase 8 (Task 2-c) — Study Timer & Major Styling Overhaul
+
+### Task 1: Pomodoro Study Timer Component
+
+**New file: `src/components/lms/study-timer.tsx`**
+- Full Pomodoro-style study timer with 3 modes: Focus (configurable 15/25/30/45/60 min), Short Break (5 min), Long Break (15 min)
+- Compact floating button (bottom-right) that expands into a full timer panel
+- Circular SVG progress ring with color coding: Focus=teal/emerald, Short Break=cyan, Long Break=blue
+- Mode selector tabs, Start/Pause/Reset controls, session counter (X/4)
+- Estimated total study time display and completed session tracking
+- Audio notification via Web Audio API (C5-E5-G5 chime) when timer completes
+- Visual flash effect on timer completion (CSS animation)
+- Auto-suggests long break after every 4 focus sessions
+- Full localStorage persistence (survives page navigation, handles tab close during active timer)
+- Keyboard shortcuts: Space=play/pause, R=reset (only when panel is expanded)
+- Properly handles `set-state-in-effect` lint rule — completion logic runs in interval callback, not in useEffect
+
+**Integration: `src/components/lms/pages/classroom-page.tsx`**
+- Added `StudyTimer` import and rendered as floating panel inside the classroom layout
+- Positioned via CSS `fixed bottom-20 right-4 z-40` to avoid overlapping bottom controls
+
+### Task 2: Major Styling Overhaul
+
+**CSS additions to `src/app/globals.css`** (sections 16-22 appended):
+- **§16 Study Timer Animations**: `timer-pulse`, `timer-complete`, `timer-glow` keyframes + `.study-timer-pulse`, `.study-timer-complete`, `.timer-ring` classes
+- **§17 Glassmorphism**: `.glass-card` (backdrop-blur + semi-transparent bg + subtle border), `.glass-dark` (dark mode variant)
+- **§18 Hover/Interaction**: `.hover-lift` (translate-y + shadow), `.hover-glow` (colored box-shadow glow), `.press-effect` (scale down on click), `.shimmer-border` (animated gradient border sweep on hover)
+- **§19 Page Transitions**: `.page-enter` (fade+slide up), `.page-exit` (fade+slide down)
+- **§20 Badge Enhancements**: `.badge-pulse` (subtle scale pulse), `.badge-shine` (sweeping light reflection)
+- **§21 Toast Animation**: `.toast-enter-bounce` (bounce entrance for toasts)
+- **§22 Dark Mode Refinements**: Enhanced glass-card shadows, hover-glow dark variants, dark gradient handling, improved dark mode card shadows
+
+**Applied styling classes to existing components:**
+- `src/components/lms/navbar.tsx`: Added `glass-card` to header, `hover-lift` to nav items, `press-effect` to Create Course button
+- `src/components/lms/course-card.tsx`: Added `hover-lift`, `hover-glow`, `shimmer-border`, `press-effect` to card
+- `src/components/lms/footer.tsx`: Added `glass-card` to footer, `hover-lift` to footer links
+- `src/app/page.tsx`: Added `page-enter` to main content wrapper
+
+### Lint Result
+- 0 errors, 0 warnings — clean pass
+
+### Files Created/Modified
+- `src/components/lms/study-timer.tsx` — New Pomodoro timer component (~500 lines)
+- `src/components/lms/pages/classroom-page.tsx` — Integrated StudyTimer
+- `src/app/globals.css` — Added ~220 lines of new CSS (sections 16-22)
+- `src/components/lms/navbar.tsx` — Applied glass-card, hover-lift, press-effect
+- `src/components/lms/course-card.tsx` — Applied hover-lift, hover-glow, shimmer-border, press-effect
+- `src/components/lms/footer.tsx` — Applied glass-card, hover-lift
+- `src/app/page.tsx` — Applied page-enter
+
+---
+
+## Phase 9 (Task 2-a) — Onboarding Tour & Announcement Banner
+
+### Feature 1: Welcome/Onboarding Tour Modal
+
+**New file: `src/components/lms/onboarding-tour.tsx`**
+- Multi-step tour dialog (4 steps) with shadcn/ui `Dialog` component
+- **Step 1 — Welcome**: GraduationCap hero icon (scale-in animation), greeting message, 3 feature preview cards (Courses, My Learning, Profile) with glass-card effect
+- **Step 2 — Explore**: List-style feature cards with gradient icon boxes, hover states, staggered animation delays
+- **Step 3 — Interactive Classrooms**: 2×2 grid of classroom features (Slides, Quizzes, Notes, Progress) with glass-card styling
+- **Step 4 — Get Started**: Rocket icon with glow-pulse animation, motivational CTA text
+- Uses `useSyncExternalStore` for SSR-safe mounted detection (avoids `set-state-in-effect` lint rule)
+- localStorage key `openclass_onboarding_done` persists completion
+- Auto-shows after 600ms delay on first visit
+- Gradient header per step (blue-teal-green rotating palette)
+- Dot indicators (reuses existing `.slide-progress-indicator`), Previous/Next/Skip buttons
+- Final step CTA: "Start Learning" button with gradient + glow-pulse
+- Decorative sparkle icons on first step, glassmorphism card effects throughout
+- Slide-next/slide-prev CSS animations for step transitions
+- Closes on outside click or ESC (marks as done via `handleOpenChange`)
+
+### Feature 2: Announcement Banner System
+
+**New file: `src/components/lms/announcement-banner.tsx`**
+- Dismissible banner rendered below Navbar, above main content
+- **3 announcement types** with distinct color schemes:
+  - `info` (blue-teal): New courses announcement
+  - `success` (green): Learning milestone celebration
+  - `warning` (amber): Maintenance window notice
+- Each type has light/dark mode variants (oklch colors matching project palette)
+- Icon + message + X dismiss button layout
+- localStorage persistence: dismissed IDs stored as JSON set (`openclass_dismissed_ann_set`)
+- Auto-rotates to next non-dismissed announcement after dismiss
+- Slide-down entrance animation (400ms), slide-up dismiss animation (350ms)
+- Uses `useSyncExternalStore` for mounted detection
+- Proper ARIA: `role="status"`, `aria-live="polite"`, `aria-label` on dismiss button
+
+### CSS Animations — `src/app/globals.css` (sections 23-24 appended)
+- **§23 Onboarding Tour Animations**:
+  - `onboardingScaleIn`: Scale 0.6→1.05→1 with bounce easing for hero icon
+  - `onboardingFadeIn`: Fade + translateY for title text (150ms delay)
+  - `onboardingSlideNext` / `onboardingSlidePrev`: Directional slide + scale for step transitions
+- **§24 Announcement Banner Animations**:
+  - `announcementSlideDown`: Slide down from -100% with max-height/opacity/padding transition
+  - `announcementSlideUp`: Reverse slide-up with collapsing for dismiss
+
+### Integration — `src/app/page.tsx`
+- Added imports for `OnboardingTour` and `AnnouncementBanner`
+- `AnnouncementBanner` rendered between `<Navbar />` and `<main>`
+- `OnboardingTour` rendered in both layout paths (normal + classroom full-view)
+
+### Lint Result
+- ✅ 0 errors, 0 warnings — clean pass
+
+### Files Created/Modified
+- `src/components/lms/onboarding-tour.tsx` — New (onboarding tour modal)
+- `src/components/lms/announcement-banner.tsx` — New (announcement banner)
+- `src/app/globals.css` — Appended ~105 lines (sections 23-24)
+- `src/app/page.tsx` — Added imports + component integration
+
+---
+## Phase 8 Changes (Cron Review #7)
+
+### Overview
+Phase 8 focused on adding 4 new interactive features and a comprehensive CSS styling overhaul. All 3 subagent tasks completed successfully, lint passes clean (0 errors), and the dev server compiles without issues.
+
+### 1. Onboarding Tour Modal (Subagent 2-a)
+**File**: `src/components/lms/onboarding-tour.tsx`
+- 4-step guided tour: Welcome → Explore → Interactive Classrooms → Get Started
+- Glassmorphism card design with rotating gradient headers per step
+- Step 1: GraduationCap hero with 3 feature preview cards (glass-card style)
+- Step 2: List-style feature cards with gradient icons (Courses, My Learning, Profile)
+- Step 3: 2×2 grid of classroom features (Slides, Quizzes, Notes, Progress)
+- Step 4: Rocket CTA with glow-pulse animation, "Start Learning" button
+- Dot indicators with completed/active/pending states
+- Previous/Next/Skip navigation
+- localStorage persistence (`openclass_onboarding_done`)
+- SSR-safe with `useSyncExternalStore`
+- Auto-shows after 600ms delay on first visit
+- Re-triggerable from Profile page ("Retake Tour" button added)
+
+### 2. Announcement Banner System (Subagent 2-a)
+**File**: `src/components/lms/announcement-banner.tsx`
+- 3 rotating announcements: info (new courses), success (learner milestone), warning (maintenance)
+- Dismissible with X button, persisted in localStorage
+- Auto-rotates to next available announcement after dismiss
+- Slide-down entrance (400ms) and slide-up dismiss (350ms) animations
+- Full oklch color theming for both light and dark modes
+- ARIA attributes for accessibility (`role="status"`, `aria-live="polite"`)
+- Integrated between Navbar and main content in page.tsx
+
+### 3. Course Ratings System (Subagent 2-b)
+**Files**: `src/app/api/ratings/route.ts`, `src/components/lms/star-rating.tsx`, `prisma/schema.prisma`
+- **Database**: New `Rating` model with `userId`/`courseId` unique constraint, cascade deletes
+- **API GET**: Returns `{ average, count, userRating }` for a course
+- **API POST**: Upserts 1-5 score, recalculates average, updates `course.rating` field
+- **Star Rating Component**: 
+  - Interactive 5-star widget with hover preview
+  - Half-filled star support
+  - Pulse animation on submit
+  - Loading spinner during API calls
+  - Toast notifications on success/error
+  - Full accessibility (radiogroup ARIA roles, keyboard focus)
+  - Amber-400 color for filled stars
+- **Integration**: Added to Course Detail page below description, shows total count
+
+### 4. Pomodoro Study Timer (Subagent 2-c)
+**File**: `src/components/lms/study-timer.tsx`
+- 3 modes: Focus (configurable 15/25/30/45/60 min), Short Break (5 min), Long Break (15 min)
+- Circular SVG progress ring with mode-specific color coding
+- Compact floating button (bottom-right) that expands to full panel
+- Audio chime via Web Audio API (C5-E5-G5 triad) on timer complete
+- Visual flash effect on completion
+- Auto-suggests long break after 4 focus sessions
+- localStorage persistence (survives navigation/tab close)
+- Keyboard shortcuts: Space=play/pause, R=reset
+- Session tracking (X/4 counter, total studied time)
+- Integrated into classroom-page.tsx as floating panel
+
+### 5. Major CSS Styling Overhaul (Subagent 2-c + manual)
+**File**: `src/app/globals.css` (now ~1750+ lines)
+
+**New CSS Sections Added (16-29)**:
+- **16. Study Timer**: `timer-pulse`, `timer-complete`, `timer-glow`, `timer-ring`
+- **17. Glassmorphism**: `.glass-card`, `.glass-dark` with backdrop-blur + semi-transparent backgrounds
+- **18. Enhanced Hover**: `.hover-lift`, `.hover-glow`, `.press-effect`, `.shimmer-border`
+- **19. Page Transitions**: `.page-enter`, `.page-exit` with fade + slide animations
+- **20. Badge Enhancements**: `.badge-pulse`, `.badge-shine` with sweep animations
+- **21. Toast Animation**: `.toast-enter-bounce` for bouncy entrance
+- **22. Dark Mode Refinements**: Improved glass, shadows, gradient handling
+- **23. Onboarding Animations**: Scale-in, fade-in, slide-next/prev
+- **24. Announcement Animations**: Slide-down, slide-up with max-height transitions
+- **25. Mobile Responsiveness**: 44px touch targets, smooth scroll, tap highlight removal, iOS safe area insets
+- **26. Loading State Polish**: `.skeleton-shimmer`, `.content-reveal` with staggered delays
+- **27. Enhanced Card Effects**: `.card-border-glow`, `.card-3d-hover`, `.card-inner-shine`
+- **28. Typography**: `.gradient-text`, `.gradient-text-animated` with shifting gradients
+- **29. Scrollbar Styling**: Custom thin scrollbars for all overflow containers (light + dark)
+
+**Component Styling Updates**:
+- Navbar: Applied `glass-card` effect, `gradient-text` for brand name, `hover-lift` on items
+- Course Cards: Added `hover-lift`, `hover-glow`, `shimmer-border` on hover
+- Footer: Applied `glass-card` gradient style, `gradient-text` for brand
+- Page wrapper: Added `page-enter` animation class
+- Profile page: Added "Retake Tour" quick action button with violet gradient
+
+### Verification Results
+- ✅ `bun run lint` — 0 errors, 0 warnings
+- ✅ `GET /` — 200 OK (compiles in ~7s)
+- ✅ All new components properly integrated into page.tsx
+- ✅ Database schema updated with `db:push`
+- ✅ All existing functionality preserved
+
+### Unresolved Issues / Risks
+1. **agent-browser connectivity**: Known sandbox limitation, browser automation cannot connect to port 3000. Used dev.log and curl as alternatives.
+2. **Dev server stability**: The `bun run dev` process occasionally terminates when run in background. Using `nohup` helps but may need manual restart.
+3. **Study timer audio**: Web Audio API chime may not work in all browsers (fallback: visual flash only).
+
+### Priority Recommendations for Phase 9
+1. **Data Dashboard / Analytics Page**: Add a dedicated analytics view with charts showing learning trends, popular courses, completion rates
+2. **Course Recommendations Engine**: ML-based or rule-based personalized course suggestions
+3. **Notification Center**: Persist notifications in database, add notification history page
+4. **Mobile PWA Support**: Add service worker for offline learning capability
+5. **Accessibility Audit**: WCAG 2.1 AA compliance review and fixes

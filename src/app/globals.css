@@ -1179,6 +1179,209 @@
 }
 
 /* ============================================ */
+/* 16. Study Timer Animations                       */
+/* ============================================ */
+@keyframes timer-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+@keyframes timer-complete {
+  0% { box-shadow: 0 0 0 0 oklch(0.55 0.16 175 / 0.4); }
+  50% { box-shadow: 0 0 0 12px oklch(0.55 0.16 175 / 0); transform: scale(1.02); }
+  100% { box-shadow: 0 0 0 0 oklch(0.55 0.16 175 / 0); transform: scale(1); }
+}
+@keyframes timer-glow {
+  0%, 100% { filter: drop-shadow(0 0 4px oklch(0.55 0.16 175 / 0.3)); }
+  50% { filter: drop-shadow(0 0 10px oklch(0.55 0.16 175 / 0.6)); }
+}
+.study-timer-pulse {
+  animation: timer-pulse 2s ease-in-out infinite;
+}
+.study-timer-complete {
+  animation: timer-complete 0.6s ease-out;
+}
+.timer-ring {
+  filter: drop-shadow(0 0 3px oklch(0.55 0.16 175 / 0.2));
+  transition: stroke-dashoffset 1s linear;
+}
+
+/* ============================================ */
+/* 17. Glassmorphism Utility Classes               */
+/* ============================================ */
+.glass-card {
+  backdrop-filter: blur(16px) saturate(1.4);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  background-color: oklch(1 0 0 / 0.72);
+  border: 1px solid oklch(0.9 0.005 250 / 0.5);
+}
+.dark .glass-card {
+  background-color: oklch(0.18 0.005 250 / 0.75);
+  border-color: oklch(0.3 0.01 250 / 0.4);
+}
+.glass-dark {
+  backdrop-filter: blur(20px) saturate(1.6);
+  -webkit-backdrop-filter: blur(20px) saturate(1.6);
+  background-color: oklch(0.12 0.01 250 / 0.85);
+  border: 1px solid oklch(0.25 0.01 250 / 0.4);
+}
+
+/* ============================================ */
+/* 18. Enhanced Hover & Interaction Effects        */
+/* ============================================ */
+.hover-lift {
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease;
+}
+.hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px -8px oklch(0.2 0.02 250 / 0.25);
+}
+.hover-glow {
+  transition: box-shadow 0.3s ease;
+}
+.hover-glow:hover {
+  box-shadow:
+    0 0 16px -4px oklch(0.55 0.16 175 / 0.25),
+    0 8px 24px -8px oklch(0.2 0.02 250 / 0.2);
+}
+.press-effect {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.press-effect:active {
+  transform: scale(0.96);
+  box-shadow: none !important;
+}
+@keyframes shimmer-border-sweep {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+.shimmer-border {
+  position: relative;
+  overflow: hidden;
+}
+.shimmer-border::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    oklch(0.55 0.16 175 / 0.5) 25%,
+    oklch(0.65 0.2 175 / 0.7) 50%,
+    oklch(0.55 0.16 175 / 0.5) 75%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+.shimmer-border:hover::before {
+  opacity: 1;
+  animation: shimmer-border-sweep 1.5s linear infinite;
+}
+
+/* ============================================ */
+/* 19. Page Transitions                            */
+/* ============================================ */
+@keyframes page-enter-anim {
+  0% { opacity: 0; transform: translateY(12px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+@keyframes page-exit-anim {
+  0% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-8px); }
+}
+.page-enter {
+  animation: page-enter-anim 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.page-exit {
+  animation: page-exit-anim 0.25s ease-in forwards;
+}
+
+/* ============================================ */
+/* 20. Badge Enhancements                          */
+/* ============================================ */
+@keyframes badge-pulse-anim {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.12); }
+}
+.badge-pulse {
+  animation: badge-pulse-anim 2s ease-in-out infinite;
+}
+@keyframes badge-shine-sweep {
+  0% { left: -100%; }
+  100% { left: 200%; }
+}
+.badge-shine {
+  position: relative;
+  overflow: hidden;
+}
+.badge-shine::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 60%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    oklch(1 0 0 / 0.35),
+    transparent
+  );
+  animation: badge-shine-sweep 3s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* ============================================ */
+/* 21. Toast Animation Improvements                */
+/* ============================================ */
+@keyframes toast-bounce-in {
+  0% { opacity: 0; transform: translateY(24px) scale(0.92); }
+  40% { opacity: 1; transform: translateY(-6px) scale(1.02); }
+  60% { transform: translateY(2px) scale(0.99); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+.toast-enter-bounce {
+  animation: toast-bounce-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+/* ============================================ */
+/* 22. Dark Mode Refinements                       */
+/* ============================================ */
+.dark .glass-card {
+  box-shadow: 0 4px 24px -4px oklch(0 0 0 / 0.4), inset 0 1px 0 oklch(1 0 0 / 0.05);
+}
+.dark .hover-glow:hover {
+  box-shadow:
+    0 0 20px -4px oklch(0.55 0.16 175 / 0.2),
+    0 12px 32px -8px oklch(0 0 0 / 0.5);
+}
+.dark .hover-lift:hover {
+  box-shadow: 0 8px 24px -8px oklch(0 0 0 / 0.5), inset 0 1px 0 oklch(1 0 0 / 0.05);
+}
+/* Better dark mode gradient handling */
+.dark .glass-card.bg-gradient-to-b {
+  background: linear-gradient(
+    to bottom,
+    oklch(0.18 0.005 250 / 0.8),
+    oklch(0.15 0.005 250 / 0.9)
+  );
+}
+/* Improved dark mode card shadows */
+.dark .shadow-lg {
+  box-shadow: 0 8px 32px -8px oklch(0 0 0 / 0.35), 0 0 0 1px oklch(1 0 0 / 0.04);
+}
+.dark .shadow-xl {
+  box-shadow: 0 16px 48px -12px oklch(0 0 0 / 0.5), 0 0 0 1px oklch(1 0 0 / 0.05);
+}
+
+/* ============================================ */
 /* Reduced Motion Accessibility                    */
 /* ============================================ */
 @media (prefers-reduced-motion: reduce) {
@@ -1190,4 +1393,359 @@
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* Star rating pulse animation */
+@keyframes ratingPulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.25);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* ============================================ */
+/* 23. Onboarding Tour Animations                  */
+/* ============================================ */
+@keyframes onboardingScaleIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.onboarding-scale-in {
+  animation: onboardingScaleIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes onboardingFadeIn {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.onboarding-fade-in {
+  animation: onboardingFadeIn 0.5s cubic-bezier(0.4, 0, 0.2, 1) 0.15s both;
+}
+
+@keyframes onboardingSlideNext {
+  0% {
+    opacity: 0;
+    transform: translateX(30px) scale(0.97);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+@keyframes onboardingSlidePrev {
+  0% {
+    opacity: 0;
+    transform: translateX(-30px) scale(0.97);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+.onboarding-slide-next {
+  animation: onboardingSlideNext 0.35s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+.onboarding-slide-prev {
+  animation: onboardingSlidePrev 0.35s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+/* ============================================ */
+/* 24. Announcement Banner Animations               */
+/* ============================================ */
+@keyframes announcementSlideDown {
+  0% {
+    opacity: 0;
+    transform: translateY(-100%);
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    margin-bottom: 0;
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+    max-height: 80px;
+    padding-top: 0.5rem;
+    padding-bottom: 0;
+    margin-bottom: 0.75rem;
+  }
+}
+@keyframes announcementSlideUp {
+  0% {
+    opacity: 1;
+    transform: translateY(0);
+    max-height: 80px;
+    padding-top: 0.5rem;
+    margin-bottom: 0.75rem;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-100%);
+    max-height: 0;
+    padding-top: 0;
+    margin-bottom: 0;
+  }
+}
+.announcement-slide-down {
+  animation: announcementSlideDown 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.announcement-slide-up {
+  animation: announcementSlideUp 0.35s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+/* ============================================ */
+/* 25. Mobile Responsiveness & Touch Enhancements   */
+/* ============================================ */
+
+/* Better touch targets on mobile */
+@media (max-width: 640px) {
+  /* Minimum 44px touch target for all interactive elements */
+  button:not(.lms-ignore-touch),
+  [role="button"]:not(.lms-ignore-touch),
+  a:not(.lms-ignore-touch),
+  [type="checkbox"],
+  [type="radio"],
+  select {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Larger padding for tap areas */
+  .lms-mobile-tap {
+    padding: 0.75rem 1rem;
+  }
+
+  /* Smooth scroll on mobile */
+  html {
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Prevent text selection on interactive elements */
+  .course-card-mobile,
+  .lms-card-hover {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Full-width cards on mobile */
+  .lms-mobile-full {
+    width: 100% !important;
+  }
+
+  /* Safe area insets for iOS */
+  .lms-safe-bottom {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+}
+
+/* Improved focus states for keyboard navigation */
+*:focus-visible {
+  outline: 2px solid oklch(0.55 0.18 230);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ============================================ */
+/* 26. Loading State Polish                        */
+/* ============================================ */
+
+/* Skeleton shimmer with gradient */
+@keyframes skeletonShimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    oklch(0.94 0.01 200) 25%,
+    oklch(0.97 0.005 200) 50%,
+    oklch(0.94 0.01 200) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeletonShimmer 1.5s ease-in-out infinite;
+}
+
+/* Dark mode skeleton */
+.dark .skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    oklch(0.22 0.02 200) 25%,
+    oklch(0.26 0.015 200) 50%,
+    oklch(0.22 0.02 200) 75%
+  );
+  background-size: 200% 100%;
+}
+
+/* Content placeholder animation */
+@keyframes contentReveal {
+  0% {
+    opacity: 0;
+    transform: translateY(12px);
+    filter: blur(4px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+.content-reveal {
+  animation: contentReveal 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Staggered content reveal delays */
+.content-reveal-delay-1 { animation-delay: 0.05s; }
+.content-reveal-delay-2 { animation-delay: 0.1s; }
+.content-reveal-delay-3 { animation-delay: 0.15s; }
+.content-reveal-delay-4 { animation-delay: 0.2s; }
+.content-reveal-delay-5 { animation-delay: 0.25s; }
+.content-reveal-delay-6 { animation-delay: 0.3s; }
+
+/* ============================================ */
+/* 27. Enhanced Card Effects                        */
+/* ============================================ */
+
+/* Animated gradient border on cards */
+@keyframes borderGlow {
+  0%, 100% { border-color: oklch(0.65 0.12 200); }
+  50% { border-color: oklch(0.55 0.18 230); }
+}
+
+.card-border-glow:hover {
+  animation: borderGlow 2s ease-in-out infinite;
+}
+
+/* Card tilt effect on hover (subtle perspective) */
+.card-3d-hover {
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  transform-style: preserve-3d;
+  perspective: 800px;
+}
+
+/* Inner content shine sweep */
+@keyframes innerShine {
+  0% { transform: translateX(-100%) rotate(25deg); }
+  100% { transform: translateX(200%) rotate(25deg); }
+}
+
+.card-inner-shine {
+  position: relative;
+  overflow: hidden;
+}
+
+.card-inner-shine::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 50%;
+  height: 200%;
+  background: linear-gradient(
+    to right,
+    transparent 0%,
+    oklch(1 0 0 / 0.08) 50%,
+    transparent 100%
+  );
+  transform: translateX(-100%) rotate(25deg);
+  transition: transform 0.6s ease;
+}
+
+.card-inner-shine:hover::after {
+  transform: translateX(200%) rotate(25deg);
+}
+
+/* ============================================ */
+/* 28. Text & Typography Enhancements               */
+/* ============================================ */
+
+/* Gradient text utility */
+.gradient-text {
+  background: linear-gradient(135deg, oklch(0.55 0.18 230), oklch(0.50 0.16 175));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Animated gradient text */
+@keyframes gradientShift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.gradient-text-animated {
+  background: linear-gradient(
+    135deg,
+    oklch(0.55 0.18 230),
+    oklch(0.50 0.16 175),
+    oklch(0.55 0.14 165),
+    oklch(0.50 0.18 230)
+  );
+  background-size: 300% 300%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: gradientShift 4s ease infinite;
+}
+
+/* ============================================ */
+/* 29. Smooth Scrollbar for All Lists               */
+/* ============================================ */
+
+/* Custom scrollbar for ScrollArea and overflow lists */
+.overflow-y-auto::-webkit-scrollbar,
+.overflow-auto::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+.overflow-y-auto::-webkit-scrollbar-track,
+.overflow-auto::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.overflow-y-auto::-webkit-scrollbar-thumb,
+.overflow-auto::-webkit-scrollbar-thumb {
+  background: oklch(0.78 0.04 200);
+  border-radius: 10px;
+}
+
+.overflow-y-auto::-webkit-scrollbar-thumb:hover,
+.overflow-auto::-webkit-scrollbar-thumb:hover {
+  background: oklch(0.60 0.08 200);
+}
+
+.dark .overflow-y-auto::-webkit-scrollbar-thumb,
+.dark .overflow-auto::-webkit-scrollbar-thumb {
+  background: oklch(0.35 0.04 200);
+}
+
+.dark .overflow-y-auto::-webkit-scrollbar-thumb:hover,
+.dark .overflow-auto::-webkit-scrollbar-thumb:hover {
+  background: oklch(0.45 0.06 200);
 }

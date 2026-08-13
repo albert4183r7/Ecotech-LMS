@@ -24,6 +24,7 @@ import {
   Zap,
   MessageSquare,
   Calendar,
+  Sparkles,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -1160,6 +1161,28 @@ export function ProfilePage() {
                 </p>
                 <p className="mt-0.5 text-xs text-muted-foreground">
                   Track your progress and enrolled courses
+                </p>
+              </div>
+              <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-primary" />
+            </button>
+
+            {/* Retake Tour */}
+            <button
+              className="group flex w-full items-center gap-4 rounded-xl border border-border/50 bg-gradient-to-r from-violet-600/5 to-purple-500/5 p-4 text-left transition-all duration-200 hover:border-violet-500/30 hover:bg-gradient-to-r hover:from-violet-600/10 hover:to-purple-500/10 hover:shadow-sm"
+              onClick={() => {
+                localStorage.removeItem("openclass_onboarding_done");
+                toast.success("Tour will show on next page refresh!");
+              }}
+            >
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-purple-500 text-white shadow-sm transition-transform duration-200 group-hover:scale-110">
+                <Sparkles className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-foreground">
+                  Retake Tour
+                </p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Replay the welcome guide and feature overview
                 </p>
               </div>
               <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-primary" />

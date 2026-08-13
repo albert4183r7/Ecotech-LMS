@@ -38,6 +38,7 @@ import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { useNavigationStore, useUserStore } from "@/stores/lms-store";
 import { DiscussionPanel } from "@/components/lms/discussion-panel";
+import { StarRating } from "@/components/lms/star-rating";
 import type { CourseItem, SectionItem, ClassroomState, SlideContent } from "@/types/lms";
 
 type SectionProgress = {
@@ -65,6 +66,8 @@ export function CourseDetailPage() {
   const [togglingFav, setTogglingFav] = useState(false);
   const [imgError, setImgError] = useState(false);
   const [sectionProgress, setSectionProgress] = useState<SectionProgress[]>([]);
+  const [userRating, setUserRating] = useState<number | null>(null);
+  const [ratingCount, setRatingCount] = useState(0);
 
   /** Fetch course detail from API */
   const fetchCourse = useCallback(async () => {
@@ -92,6 +95,32 @@ export function CourseDetailPage() {
   useEffect(() => {
     fetchCourse();
   }, [fetchCourse]);
+
+  /** Fetch rating data */
+  const fetchRatingData = useCallback(async () => {
+    if (!selectedCourseId) return;
+    try {
+      const res = await fetch(
+        `/api/ratings?courseId=${selectedCourseId}&userId=${userId}`
+      );
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success) {
+          setUserRating(json.data.userRating);
+          setRatingCount(json.data.count);
+          setCourse((prev) =>
+            prev ? { ...prev, rating: json.data.average } : prev
+          );
+        }
+      }
+    } catch {
+      // Best-effort
+    }
+  }, [selectedCourseId, userId]);
+
+  useEffect(() => {
+    fetchRatingData();
+  }, [fetchRatingData]);
 
   /** Fetch section progress if enrolled */
   const fetchSectionProgress = useCallback(async () => {
@@ -393,6 +422,11 @@ export function CourseDetailPage() {
               <div className="flex items-center gap-0.5">
                 {renderStars(course.rating)}
               </div>
+              {ratingCount > 0 && (
+                <span className="text-xs text-white/60 ml-0.5">
+                  ({ratingCount})
+                </span>
+              )}
             </div>
 
             <span className="w-px h-4 bg-white/30" />
@@ -432,7 +466,7 @@ export function CourseDetailPage() {
       </div>
 
       {/* ─── Description + Language ─────────────────── */}
-      <div className="flex items-start gap-3 mb-4">
+      <div className="flex items-start gap-3 mb-2">
         {course.language && (
           <Badge variant="secondary" className="shrink-0 mt-0.5">
             {course.language}
@@ -444,6 +478,26 @@ export function CourseDetailPage() {
           </p>
         )}
       </div>
+
+      {/* ─── Interactive Star Rating ─────────────── */}
+      {userId && (
+        <div className="mb-4">
+          <StarRating
+            courseId={course.id}
+            userId={userId}
+            currentRating={userRating}
+            averageRating={course.rating}
+            ratingCount={ratingCount}
+            onRate={(data) => {
+              setUserRating(data.score);
+              setRatingCount(data.count);
+              setCourse((prev) =>
+                prev ? { ...prev, rating: data.average } : prev
+              );
+            }}
+          />
+        </div>
+      )}
 
       {/* ─── Action Bar ──────────────────────────── */}
       <Separator className="my-4" />

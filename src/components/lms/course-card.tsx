@@ -68,7 +68,7 @@ export function CourseCard({
 
   return (
     <Card
-      className="lms-card-hover card-shine hover-scale group cursor-pointer overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm transition-all duration-300 hover:shadow-lg hover:border-primary/20"
+      className="lms-card-hover card-shine hover-scale group cursor-pointer overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm transition-all duration-300 hover:shadow-lg hover:border-primary/20 hover-lift hover-glow shimmer-border press-effect"
       onClick={() => openCourseDetail(course.id)}
       onKeyDown={handleKeyDown}
       role="button"
