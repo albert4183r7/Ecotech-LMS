@@ -60,6 +60,7 @@ export function CourseDetailPage() {
   const { selectedCourseId, goBack, openClassroom, navigateTo } =
     useNavigationStore();
   const userId = useUserStore((s) => s.currentUserId);
+  const currentRole = useUserStore((s) => s.currentRole);
 
   const [course, setCourse] = useState<CourseDetailData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -604,34 +605,41 @@ export function CourseDetailPage() {
           Download as PPT
         </Button>
 
-        {/* Start / Continue Learning Button - Prominent */}
-        <Button
-          size="lg"
-          className={`ml-auto gap-2.5 font-semibold text-base px-8 py-6 ${
-            course.isEnrolled
-              ? "bg-primary hover:bg-primary/90 text-primary-foreground"
-              : "bg-gradient-to-r from-primary to-accent hover:opacity-90 text-primary-foreground pulse-glow"
-          }`}
-          onClick={
-            course.isEnrolled
-              ? () => {
-                  if (course.sections.length > 0) {
-                    handleSectionClick(course.sections[0]);
+        {/* Start / Continue Learning Button - Prominent (students only) */}
+        {currentRole === "student" ? (
+          <Button
+            size="lg"
+            className={`ml-auto gap-2.5 font-semibold text-base px-8 py-6 ${
+              course.isEnrolled
+                ? "bg-primary hover:bg-primary/90 text-primary-foreground"
+                : "bg-gradient-to-r from-primary to-accent hover:opacity-90 text-primary-foreground pulse-glow"
+            }`}
+            onClick={
+              course.isEnrolled
+                ? () => {
+                    if (course.sections.length > 0) {
+                      handleSectionClick(course.sections[0]);
+                    }
                   }
-                }
-              : handleEnroll
-          }
-          disabled={enrolling}
-        >
-          {enrolling ? (
-            <Loader2 className="h-5 w-5 animate-spin" />
-          ) : course.isEnrolled ? (
-            <PlayCircle className="h-5 w-5" />
-          ) : (
-            <BookOpen className="h-5 w-5" />
-          )}
-          {course.isEnrolled ? "Continue Learning" : "Start Learning"}
-        </Button>
+                : handleEnroll
+            }
+            disabled={enrolling}
+          >
+            {enrolling ? (
+              <Loader2 className="h-5 w-5 animate-spin" />
+            ) : course.isEnrolled ? (
+              <PlayCircle className="h-5 w-5" />
+            ) : (
+              <BookOpen className="h-5 w-5" />
+            )}
+            {course.isEnrolled ? "Continue Learning" : "Start Learning"}
+          </Button>
+        ) : (
+          <div className="ml-auto flex items-center gap-2 rounded-lg border border-violet-200 bg-violet-50 dark:border-violet-800/60 dark:bg-violet-950/40 px-4 py-3 text-sm text-violet-700 dark:text-violet-300">
+            <BookOpen className="h-4 w-4" />
+            Viewing as instructor. Switch to Student role to enroll.
+          </div>
+        )}
       </div>
 
       {/* ─── Curriculum Section ───────────────────── */}

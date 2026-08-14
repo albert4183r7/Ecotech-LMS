@@ -1,0 +1,600 @@
+   208→    fetchCourses();
+   209→  }, [fetchCourses]);
+   210→
+   211→  // ── Fetch enrollments for Continue Learning ─────────────────────
+   212→  useEffect(() => {
+   213→    let cancelled = false;
+   214→    async function fetchEnrollments() {
+   215→      try {
+   216→        const res = await fetch(`/api/enrollments?userId=${currentUserId}`);
+   217→        const json = await res.json();
+   218→        if (!cancelled && json.success) {
+   219→          const inProgress = json.data
+   220→            .filter((e: Enrollment) => e.status === "in_progress")
+   221→            .slice(0, 3);
+   222→          setEnrollments(inProgress);
+   223→        }
+   224→      } catch (err) {
+   225→        console.error("Failed to fetch enrollments", err);
+   226→      } finally {
+   227→        if (!cancelled) setLoadingEnrollments(false);
+   228→      }
+   229→    }
+   230→    fetchEnrollments();
+   231→    return () => { cancelled = true; };
+   232→  }, []);
+   233→
+   234→  // ── Typing animation ──────────────────────────────────────────────
+   235→  useEffect(() => {
+   236→    const word = TYPING_WORDS[typingIndex];
+   237→    if (!typingDeleting && typingCharIndex < word.length) {
+   238→      const timer = setTimeout(() => setTypingCharIndex((c) => c + 1), 80);
+   239→      return () => clearTimeout(timer);
+   240→    } else if (!typingDeleting && typingCharIndex === word.length) {
+   241→      const timer = setTimeout(() => setTypingDeleting(true), 1800);
+   242→      return () => clearTimeout(timer);
+   243→    } else if (typingDeleting && typingCharIndex > 0) {
+   244→      const timer = setTimeout(() => setTypingCharIndex((c) => c - 1), 40);
+   245→      return () => clearTimeout(timer);
+   246→    } else if (typingDeleting && typingCharIndex === 0) {
+   247→      setTypingDeleting(false);
+   248→      setTypingIndex((prev) => (prev + 1) % TYPING_WORDS.length);
+   249→    }
+   250→  }, [typingIndex, typingCharIndex, typingDeleting]);
+   251→
+   252→  // ── Parallax scroll effect ─────────────────────────────────────────
+   253→  useEffect(() => {
+   254→    function handleScroll() {
+   255→      setScrollY(window.scrollY);
+   256→    }
+   257→    window.addEventListener("scroll", handleScroll, { passive: true });
+   258→    return () => window.removeEventListener("scroll", handleScroll);
+   259→  }, []);
+   260→
+   261→  // ── Intersection observer for stats animation ──────────────────────
+   262→  useEffect(() => {
+   263→    const el = statsRef.current;
+   264→    if (!el) return;
+   265→    const observer = new IntersectionObserver(
+   266→      ([entry]) => { if (entry.isIntersecting) setStatsVisible(true); },
+   267→      { threshold: 0.3 }
+   268→    );
+   269→    observer.observe(el);
+   270→    return () => observer.disconnect();
+   271→  }, []);
+   272→
+   273→  // ── Animated counter values ────────────────────────────────────────
+   274→  const totalCourseCount = categories.reduce((sum, c) => sum + (c._count?.courses ?? 0), 0);
+   275→  const countCourses = useCountUp(totalCourseCount, 1200, statsVisible);
+   276→  const countCategories = useCountUp(categories.length, 800, statsVisible);
+   277→  const countLearners = useCountUp(150, 1400, statsVisible);
+   278→  const countCompletion = useCountUp(92, 1600, statsVisible);
+   279→
+   280→  const counterValues = [countCourses, countCategories, countLearners, countCompletion];
+   281→
+   282→  // ── Handlers ───────────────────────────────────────────────────────
+   283→  function handleTabChange(tab: HomeTab) {
+   284→    setHomeTab(tab);
+   285→  }
+   286→
+   287→  function handleCategorySelect(categoryId: string) {
+   288→    setCourseFilters({ category: categoryId });
+   289→  }
+   290→
+   291→  function handleSearch(term: string) {
+   292→    setCourseFilters({ search: term });
+   293→  }
+   294→
+   295→  function handlePopularSearch(tag: string) {
+   296→    setSearchInput(tag);
+   297→    setCourseFilters({ search: tag });
+   298→  }
+   299→
+   300→  function handleCreateCourse() {
+   301→    if (heroPrompt.trim()) {
+   302→      setCreatePrompt(heroPrompt.trim());
+   303→    }
+   304→    navigateTo("create-course");
+   305→  }
+   306→
+   307→  // ── Render helpers ─────────────────────────────────────────────────
+   308→
+   309→  return (
+   310→    <div className="flex flex-col min-h-0 overflow-x-hidden">
+   311→      {/* ─── Hero Banner ─────────────────────────────────────────── */}
+   312→      <section
+   313→        className="hero-gradient hero-enhanced relative overflow-hidden px-4 py-6 sm:px-6 sm:py-8 md:px-8 md:py-10 lg:px-12 lg:py-12"
+   314→        style={{ '--scroll': scrollY } as React.CSSProperties}
+   315→      >
+   316→        {/* Floating gradient orbs */}
+   317→        <div className="hero-orb hero-orb-1 hero-parallax" style={{ '--scroll': scrollY * 0.2 } as React.CSSProperties} />
+   318→        <div className="hero-orb hero-orb-2 hero-parallax" style={{ '--scroll': scrollY * 0.15 } as React.CSSProperties} />
+   319→        <div className="hero-orb hero-orb-3 hero-parallax" style={{ '--scroll': scrollY * 0.25 } as React.CSSProperties} />
+   320→
+   321→        {/* SVG pattern overlay for visual depth */}
+   322→        <svg className="pointer-events-none absolute inset-0 h-full w-full opacity-[0.06]" xmlns="http://www.w3.org/2000/svg">
+   323→          <defs>
+   324→            <pattern id="heroGrid" width="40" height="40" patternUnits="userSpaceOnUse">
+   325→              <circle cx="1" cy="1" r="1" fill="white" />
+   326→            </pattern>
+   327→          </defs>
+   328→          <rect width="100%" height="100%" fill="url(#heroGrid)" />
+   329→          <circle cx="85%" cy="15%" r="120" fill="none" stroke="white" strokeWidth="0.5" opacity="0.3" />
+   330→          <circle cx="10%" cy="90%" r="80" fill="none" stroke="white" strokeWidth="0.5" opacity="0.2" />
+   331→          <path d="M0 60 Q 200 20 400 60 T 800 60" fill="none" stroke="white" strokeWidth="0.4" opacity="0.15" />
+   332→          <path d="M0 90 Q 150 50 350 90 T 750 90" fill="none" stroke="white" strokeWidth="0.4" opacity="0.1" />
+   333→        </svg>
+   334→
+   335→        {/* Animated decorative dots/circles */}
+   336→        <span className="hero-dot-1 pointer-events-none absolute left-[8%] top-[20%] h-3 w-3 rounded-full bg-white/20" />
+   337→        <span className="hero-dot-2 pointer-events-none absolute right-[12%] top-[25%] h-2 w-2 rounded-full bg-white/15" />
+   338→        <span className="hero-dot-3 pointer-events-none absolute left-[15%] bottom-[30%] h-4 w-4 rounded-full border border-white/15" />
+   339→        <span className="hero-dot-2 pointer-events-none absolute right-[20%] bottom-[25%] h-2.5 w-2.5 rounded-full bg-white/10" />
+   340→        <span className="hero-dot-1 pointer-events-none absolute left-[45%] top-[12%] h-1.5 w-1.5 rounded-full bg-white/25" />
+   341→        <span className="hero-dot-3 pointer-events-none absolute right-[35%] bottom-[40%] h-2 w-2 rounded-full border border-white/20" />
+   342→
+   343→        {/* Gradient overlay for depth */}
+   344→        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/10" />
+   345→
+   346→        <div className="relative z-10 mx-auto max-w-4xl max-w-full text-center">
+   347→          <h1 className="text-2xl font-bold text-white sm:text-3xl md:text-4xl lg:text-5xl">
+   348→            Create Your Course
+   349→          </h1>
+   350→          <p className="mt-2 text-sm font-medium tracking-wide text-white/90 sm:text-base md:mt-3 md:text-lg">
+   351→            Empowering our team through knowledge sharing
+   352→          </p>
+   353→          {/* Typing animation subtitle */}
+   354→          <p className="mt-3 inline-flex items-center text-base font-semibold text-white sm:text-lg md:mt-4 md:text-xl">
+   355→            <span className="typing-cursor">
+   356→              {TYPING_WORDS[typingIndex].slice(0, typingCharIndex)}
+   357→            </span>
+   358→          </p>
+   359→          <p className="mt-2 text-sm text-white/60 sm:text-base md:mt-3">
+   360→            Harness AI to build engaging courses in minutes — generate content, structure, and visuals effortlessly.
+   361→          </p>
+   362→
+   363→          {/* Create prompt input with glow & gradient border */}
+   364→          <div className="search-glow mt-3 flex max-w-full flex-wrap items-center gap-2 rounded-xl border-2 border-white/10 sm:mt-4">
+   365→            <div className="relative flex-1">
+   366→              <Sparkles className="absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-primary/60" />
+   367→              <input
+   368→                type="text"
+   369→                placeholder="Describe your course idea..."
+   370→                value={heroPrompt}
+   371→                onChange={(e) => setHeroPrompt(e.target.value)}
+   372→                onKeyDown={(e) => {
+   373→                  if (e.key === "Enter") handleCreateCourse();
+   374→                }}
+   375→                className="min-w-0 h-12 w-full bg-transparent pl-11 pr-4 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none sm:h-14 sm:text-base"
+   376→              />
+   377→            </div>
+   378→            <Button
+   379→              onClick={handleCreateCourse}
+   380→              className="btn-glow h-12 shrink-0 rounded-xl bg-white px-4 text-xs font-semibold text-primary shadow-md shadow-black/10 transition-all hover:bg-white/90 hover:shadow-lg hover:shadow-black/15 sm:h-14 sm:px-6 sm:text-sm"
+   381→            >
+   382→              Try Create
+   383→            </Button>
+   384→            <Button
+   385→              onClick={() => navigateTo("courses")}
+   386→              className="btn-glow h-12 shrink-0 rounded-xl border-2 border-white/30 bg-transparent px-3 text-xs font-semibold text-white transition-all hover:border-white/50 hover:bg-white/10 sm:h-14 sm:px-5 sm:text-sm"
+   387→            >
+   388→              Get Started
+   389→              <ArrowRight className="ml-1.5 h-4 w-4" />
+   390→            </Button>
+   391→          </div>
+   392→
+   393→          {/* Category quick-access pills */}
+   394→          <div className="mt-3 flex flex-wrap items-center justify-center gap-2 sm:mt-4">
+   395→            <span className="text-xs font-medium text-white/50">Explore:</span>
+   396→            {categories.slice(0, 6).map((cat) => (
+   397→              <button
+   398→                key={cat.id}
+   399→                onClick={() => handleCategorySelect(cat.id)}
+   400→                className="category-pill inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-medium text-white/90 backdrop-blur-sm transition-colors hover:bg-white/20 hover:text-white"
+   401→              >
+   402→                <span>{CATEGORY_ICONS[cat.name] ?? "📚"}</span>
+   403→                {cat.name}
+   404→              </button>
+   405→            ))}
+   406→          </div>
+   407→
+   408→          {/* Tab buttons with animated underline */}
+   409→          <div className="mt-3 flex flex-wrap items-center justify-center gap-1 sm:mt-4">
+   410→            {TABS.map((tab) => (
+   411→              <button
+   412→                key={tab.key}
+   413→                onClick={() => handleTabChange(tab.key)}
+   414→                className={`relative rounded-full px-4 py-1.5 text-sm font-medium transition-colors sm:px-5 sm:py-2 sm:text-base ${
+   415→                  homeTab === tab.key
+   416→                    ? "bg-white text-primary shadow-sm tab-underline-active"
+   417→                    : "bg-white/10 text-white/80 hover:bg-white/20 hover:text-white"
+   418→                }`}
+   419→              >
+   420→                {tab.label}
+   421→              </button>
+   422→            ))}
+   423→          </div>
+   424→
+   425→          {/* Stats row in pill badges */}
+   426→          <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+   427→            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-medium text-white/90 backdrop-blur-sm">
+   428→              <GraduationCap className="h-3 w-3" />
+   429→              {totalCourseCount} Courses
+   430→            </span>
+   431→            <span className="text-white/40">|</span>
+   432→            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-medium text-white/90 backdrop-blur-sm">
+   433→              <FolderOpen className="h-3 w-3" />
+   434→              {categories.length} Categories
+   435→            </span>
+   436→            <span className="text-white/40">|</span>
+   437→            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-medium text-white/90 backdrop-blur-sm">
+   438→              <Users className="h-3 w-3" />
+   439→              150+ Learners
+   440→            </span>
+   441→          </div>
+   442→        </div>
+   443→      </section>
+   444→
+   445→      {/* ─── Quick Stats Dashboard ──────────────────────────────── */}
+   446→      <section className="px-4 py-4 sm:px-6 md:px-8 lg:px-12" ref={statsRef}>
+   447→        <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
+   448→          {QUICK_STATS.map((stat, i) => {
+   449→            const Icon = stat.icon;
+   450→            const animatedValue = statsVisible ? counterValues[i] : 0;
+   451→            const suffix = 'suffix' in stat && stat.suffix ? stat.suffix : '';
+   452→            return (
+   453→              <div
+   454→                key={stat.key}
+   455→                className={`glass-card stat-pop stat-delay-${i + 1} flex items-center gap-3 rounded-xl p-4`}
+   456→              >
+   457→                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${stat.gradient} shadow-sm`}>
+   458→                  <Icon className="h-5 w-5 text-white" aria-hidden="true" />
+   459→                </div>
+   460→                <div className="min-w-0">
+   461→                  <p className="text-lg font-bold tabular-nums text-foreground">
+   462→                    <span className={statsVisible ? 'counter-value' : ''}>
+   463→                      {stat.animated ? `${animatedValue}${suffix}` : stat.getValue(totalCourseCount, categories.length)}
+   464→                    </span>
+   465→                  </p>
+   466→                  <p className="text-xs text-muted-foreground">
+   467→                    {stat.label}
+   468→                  </p>
+   469→                </div>
+   470→              </div>
+   471→            );
+   472→          })}
+   473→        </div>
+   474→      </section>
+   475→
+   476→      {/* ─── Content Area: Sidebar + Course Grid ──────────────────── */}
+   477→      <section className="flex min-w-0 flex-1 gap-6 px-4 py-4 sm:px-6 md:px-8 lg:px-12">
+   478→        {/* ── Desktop Category Sidebar ─────────────────────────────── */}
+   479→        <aside className="hidden w-56 shrink-0 md:block">
+   480→          <ScrollArea className="h-[calc(100vh-340px)] max-h-[600px]">
+   481→            <nav className="space-y-1 pr-2">
+   482→              {/* All categories option */}
+   483→              <button
+   484→                onClick={() => handleCategorySelect("all")}
+   485→                className={`category-item flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+   486→                  courseFilters.category === "all"
+   487→                    ? "bg-primary/10 text-primary"
+   488→                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+   489→                }`}
+   490→              >
+   491→                <span className="flex items-center gap-2">
+   492→                  <span className="h-2 w-2 rounded-full bg-primary/60" />
+   493→                  All
+   494→                </span>
+   495→                <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-muted px-1.5 text-[11px] font-semibold tabular-nums text-muted-foreground">{totalCourseCount}</span>
+   496→              </button>
+   497→
+   498→              {loadingCategories
+   499→                ? Array.from({ length: 5 }).map((_, i) => (
+   500→                    <div key={i} className="flex items-center justify-between px-3 py-2.5">
+   501→                      <Skeleton className="h-4 w-24" />
+   502→                      <Skeleton className="h-3 w-6" />
+   503→                    </div>
+   504→                  ))
+   505→                : categories.map((cat) => {
+   506→                    const count = cat._count?.courses ?? 0;
+   507→                    const isFeatured = !loadingCategories && categories.length > 0 && count === Math.max(...categories.map((c) => c._count?.courses ?? 0));
+   508→                    return (
+   509→                      <button
+   510→                        key={cat.id}
+   511→                        onClick={() => handleCategorySelect(cat.id)}
+   512→                        className={`category-item flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm transition-colors ${
+   513→                          courseFilters.category === cat.id
+   514→                            ? "bg-primary/10 font-medium text-primary"
+   515→                            : "text-muted-foreground hover:bg-muted hover:text-foreground"
+   516→                        }`}
+   517→                      >
+   518→                        <span className="flex min-w-0 items-center gap-2">
+   519→                          <span
+   520→                            className="h-2 w-2 shrink-0 rounded-full"
+   521→                            style={{ backgroundColor: cat.color ?? "var(--color-primary)" }}
+   522→                          />
+   523→                          <span className="truncate">{cat.name}</span>
+   524→                          {isFeatured && <Star className="h-3 w-3 shrink-0 fill-amber-400 text-amber-400" />}
+   525→                        </span>
+   526→                        <span className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-muted px-1.5 text-[11px] font-semibold tabular-nums text-muted-foreground">{count}</span>
+   527→                      </button>
+   528→                    );
+   529→                  })}
+   530→            </nav>
+   531→          </ScrollArea>
+   532→        </aside>
+   533→
+   534→        {/* ── Mobile Category Chips ────────────────────────────────── */}
+   535→        <div className="mb-2 block md:hidden">
+   536→          <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar">
+   537→            <button
+   538→              onClick={() => handleCategorySelect("all")}
+   539→              className={`shrink-0 rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+   540→                courseFilters.category === "all"
+   541→                  ? "bg-primary text-primary-foreground"
+   542→                  : "border border-border bg-card text-muted-foreground hover:bg-muted"
+   543→              }`}
+   544→            >
+   545→              All ({totalCourseCount})
+   546→            </button>
+   547→            {loadingCategories
+   548→              ? Array.from({ length: 4 }).map((_, i) => (
+   549→                  <Skeleton key={i} className="h-8 w-20 shrink-0 rounded-full" />
+   550→                ))
+   551→              : categories.map((cat) => (
+   552→                  <button
+   553→                    key={cat.id}
+   554→                    onClick={() => handleCategorySelect(cat.id)}
+   555→                    className={`shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-sm transition-colors ${
+   556→                      courseFilters.category === cat.id
+   557→                        ? "inline-flex bg-primary text-primary-foreground"
+   558→                        : "inline-flex border border-border bg-card text-muted-foreground hover:bg-muted"
+   559→                    }`}
+   560→                  >
+   561→                    <span
+   562→                      className="h-2 w-2 shrink-0 rounded-full"
+   563→                      style={{ backgroundColor: cat.color ?? "var(--color-primary)" }}
+   564→                    />
+   565→                    {cat.name}
+   566→                    {cat._count?.courses != null && cat._count.courses > 0 && (
+   567→                      <span className="ml-0.5 text-[11px] opacity-70">({cat._count.courses})</span>
+   568→                    )}
+   569→                  </button>
+   570→                ))}
+   571→          </div>
+   572→        </div>
+   573→
+   574→        {/* ── Main Content Area ────────────────────────────────────── */}
+   575→        <div className="min-w-0 flex-1">
+   576→          {/* Search Bar (Desktop) */}
+   577→          <div className="mb-3 hidden md:block">
+   578→            <SearchAutocomplete
+   579→              value={searchInput}
+   580→              onChange={setSearchInput}
+   581→              onSearch={handleSearch}
+   582→              placeholder="Search courses..."
+   583→              courses={courses}
+   584→              categories={categories}
+   585→            />
+   586→            {/* Popular Searches */}
+   587→            <div className="mt-2 flex items-center gap-2">
+   588→              <TrendingUp className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+   589→              <span className="text-xs text-muted-foreground">Popular:</span>
+   590→              {POPULAR_SEARCHES.map((tag) => (
+   591→                <button
+   592→                  key={tag}
+   593→                  onClick={() => handlePopularSearch(tag)}
+   594→                  className="shrink-0 rounded-full border border-border/60 bg-card px-2.5 py-0.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+   595→                >
+   596→                  {tag}
+   597→                </button>
+   598→              ))}
+   599→            </div>
+   600→          </div>
+   601→
+   602→          {/* Search Bar (Mobile) */}
+   603→          <div className="mb-3 md:hidden">
+   604→            <SearchAutocomplete
+   605→              value={searchInput}
+   606→              onChange={setSearchInput}
+   607→              onSearch={handleSearch}
+   608→              placeholder="Search..."
+   609→              courses={courses}
+   610→              categories={categories}
+   611→              className="[&_input]:h-9 [&_input]:text-sm"
+   612→            />
+   613→            {/* Popular Searches */}
+   614→            <div className="mt-2 flex items-center gap-2 overflow-x-auto">
+   615→              <TrendingUp className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+   616→              <span className="shrink-0 text-xs text-muted-foreground">Popular:</span>
+   617→              {POPULAR_SEARCHES.map((tag) => (
+   618→                <button
+   619→                  key={tag}
+   620→                  onClick={() => handlePopularSearch(tag)}
+   621→                  className="shrink-0 rounded-full border border-border/60 bg-card px-2.5 py-0.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+   622→                >
+   623→                  {tag}
+   624→                </button>
+   625→              ))}
+   626→            </div>
+   627→          </div>
+   628→
+   629→          {/* ── Continue Learning Section ─────────────────────────── */}
+   630→          {!loadingEnrollments && enrollments.length > 0 && (
+   631→            <div className="mb-5">
+   632→              <div className="mb-3 flex items-center gap-2">
+   633→                <BookMarked className="h-4 w-4 text-primary" aria-hidden="true" />
+   634→                <h2 className="text-sm font-semibold text-foreground">Continue Learning</h2>
+   635→              </div>
+   636→              <div className="flex gap-3 overflow-x-auto pb-2 custom-scrollbar">
+   637→                {enrollments.map((enrollment, i) => (
+   638→                  <div
+   639→                    key={enrollment.id}
+   640→                    className="stagger-fade-in w-64 shrink-0 overflow-hidden rounded-xl border border-border/50 bg-card transition-shadow hover:shadow-md"
+   641→                    style={{ animationDelay: `${i * 80}ms` }}
+   642→                  >
+   643→                    <div className="relative aspect-video w-full bg-muted">
+   644→                      {enrollment.course.coverImage ? (
+   645→                        <img
+   646→                          src={enrollment.course.coverImage}
+   647→                          alt={enrollment.course.title}
+   648→                          className="h-full w-full object-cover"
+   649→                        />
+   650→                      ) : (
+   651→                        <div className="flex h-full w-full items-center justify-center">
+   652→                          <BookOpen className="h-8 w-8 text-muted-foreground/40" />
+   653→                        </div>
+   654→                      )}
+   655→                      <div className="absolute bottom-2 left-2">
+   656→                        <Badge variant="secondary" className="bg-background/80 text-[10px] font-medium backdrop-blur-sm">
+   657→                          {enrollment.progress}%
+   658→                        </Badge>
+   659→                      </div>
+   660→                    </div>
+   661→                    <div className="p-3">
+   662→                      <h3 className="line-clamp-1 text-sm font-semibold text-foreground">
+   663→                        {enrollment.course.title}
+   664→                      </h3>
+   665→                      {enrollment.course.category && (
+   666→                        <p className="mt-0.5 text-[11px] text-muted-foreground">
+   667→                          {enrollment.course.category.name}
+   668→                        </p>
+   669→                      )}
+   670→                      <div className="mt-2 flex items-center gap-2">
+   671→                        <Progress
+   672→                          value={enrollment.progress}
+   673→                          className="h-1.5 flex-1 [&_[data-slot=progress-indicator]]:bg-gradient-to-r [&_[data-slot=progress-indicator]]:from-primary/80 [&_[data-slot=progress-indicator]]:to-primary"
+   674→                        />
+   675→                        <Button
+   676→                          size="sm"
+   677→                          className="h-7 shrink-0 gap-1 rounded-lg px-3 text-xs"
+   678→                          onClick={() => openCourseDetail(enrollment.course.id)}
+   679→                        >
+   680→                          <Play className="h-3 w-3" aria-hidden="true" />
+   681→                          Continue
+   682→                        </Button>
+   683→                      </div>
+   684→                    </div>
+   685→                  </div>
+   686→                ))}
+   687→              </div>
+   688→            </div>
+   689→          )}
+   690→
+   691→          {loadingEnrollments && (
+   692→            <div className="mb-5">
+   693→              <div className="mb-3 flex items-center gap-2">
+   694→                <Skeleton className="h-4 w-4 rounded" />
+   695→                <Skeleton className="h-4 w-32" />
+   696→              </div>
+   697→              <div className="flex gap-3 overflow-x-auto pb-2">
+   698→                {Array.from({ length: 2 }).map((_, i) => (
+   699→                  <div key={i} className="w-64 shrink-0 overflow-hidden rounded-xl border border-border/50">
+   700→                    <Skeleton className="aspect-video w-full" />
+   701→                    <div className="p-3">
+   702→                      <Skeleton className="mb-2 h-4 w-full" />
+   703→                      <Skeleton className="h-3 w-16" />
+   704→                    </div>
+   705→                  </div>
+   706→                ))}
+   707→              </div>
+   708→            </div>
+   709→          )}
+   710→
+   711→          {/* ── Daily Challenges ─────────────────────────────────── */}
+   712→          <div className="mb-5">
+   713→            <DailyChallenges />
+   714→          </div>
+   715→
+   716→          {/* Course Grid / Loading / Empty ────────────────────────── */}
+   717→          {loadingCourses ? (
+   718→            <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">
+   719→              {Array.from({ length: 8 }).map((_, i) => (
+   720→                <div key={i} className="overflow-hidden rounded-xl border border-border/50">
+   721→                  <Skeleton className="aspect-video w-full" />
+   722→                  <div className="p-3">
+   723→                    <Skeleton className="mb-2 h-4 w-full" />
+   724→                    <Skeleton className="mb-1 h-3 w-16" />
+   725→                    <Skeleton className="h-3 w-20" />
+   726→                  </div>
+   727→                </div>
+   728→              ))}
+   729→            </div>
+   730→          ) : courses.length === 0 ? (
+   731→            <div className="empty-state flex flex-col items-center justify-center py-20 text-center">
+   732→              <div className="empty-illustration flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+   733→                <BookOpen className="h-7 w-7 text-muted-foreground" />
+   734→              </div>
+   735→              <h3 className="mt-4 text-base font-semibold text-foreground">
+   736→                No courses found
+   737→              </h3>
+   738→              <p className="mt-1 max-w-xs text-sm text-muted-foreground">
+   739→                Try adjusting your search or filters to discover courses that match your interests.
+   740→              </p>
+   741→              {courseFilters.search && (
+   742→                <Button
+   743→                  variant="outline"
+   744→                  className="mt-4"
+   745→                  onClick={() => {
+   746→                    setSearchInput("");
+   747→                    setCourseFilters({ search: "" });
+   748→                  }}
+   749→                >
+   750→                  Clear search
+   751→                </Button>
+   752→              )}
+   753→            </div>
+   754→          ) : (
+   755→            <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">
+   756→              {courses.map((course, i) => (
+   757→                <div key={course.id} className="stagger-fade-in" style={{ animationDelay: `${i * 60}ms` }}>
+   758→                  <CourseCard course={course} index={i} />
+   759→                </div>
+   760→              ))}
+   761→            </div>
+   762→          )}
+   763→
+   764→          {/* ── Course Recommendations ─────────────────────────────── */}
+   765→          <CourseRecommendations />
+   766→        </div>
+   767→
+   768→        {/* ── Desktop Right Sidebar (Leaderboard + Social Feed) ────────── */}
+   769→        <aside className="hidden w-72 shrink-0 lg:block">
+   770→          <div className="sticky top-6 space-y-4">
+   771→            <LeaderboardWidget />
+   772→            <SocialFeed />
+   773→          </div>
+   774→        </aside>
+   775→      </section>
+   776→
+   777→      {/* ── Mobile Leaderboard (Collapsible) ──────────────────────── */}
+   778→      <section className="px-4 pb-6 md:hidden">
+   779→        <Collapsible open={leaderboardOpen} onOpenChange={setLeaderboardOpen}>
+   780→          <CollapsibleTrigger className="flex w-full items-center justify-between rounded-xl border border-border/50 bg-card p-4 transition-colors hover:bg-muted/50">
+   781→            <div className="flex items-center gap-2">
+   782→              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-cyan-500 to-teal-500">
+   783→                <BarChart3 className="h-4 w-4 text-white" aria-hidden="true" />
+   784→              </div>
+   785→              <span className="text-sm font-semibold text-foreground">Leaderboard</span>
+   786→            </div>
+   787→            <ChevronDown
+   788→              className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${leaderboardOpen ? "rotate-180" : ""}`}
+   789→              aria-hidden="true"
+   790→            />
+   791→          </CollapsibleTrigger>
+   792→          <CollapsibleContent>
+   793→            <div className="mt-3">
+   794→              <LeaderboardWidget />
+   795→            </div>
+   796→          </CollapsibleContent>
+   797→        </Collapsible>
+   798→      </section>
+   799→
+   800→      {/* ── Mobile Social Feed ────────────────────────────────────── */}
+   801→      <section className="px-4 pb-6 md:hidden">
+   802→        <SocialFeed />
+   803→      </section>
+   804→    </div>
+   805→  );
+   806→}
+   807→

@@ -104,10 +104,8 @@ export function CertificateModal({
               <div className="flex flex-col items-center text-center">
                 {/* Logo and Brand */}
                 <div className="mb-4 flex items-center gap-2">
-                  <img src="/ecotech-logo.png" alt="Ecotech" className="h-10 w-10 rounded-xl object-contain" />
-                  <span className="text-sm font-bold tracking-wide text-cyan-600 dark:text-cyan-400">
-                    Ecotech
-                  </span>
+                  <img src="/ecotech-logo.png" alt="Ecotech" className="h-10 w-10 rounded-lg object-contain" />
+                  <img src="/ecotech-name.png" alt="Ecotech" className="h-5 w-auto object-contain" />
                 </div>
 
                 {/* Decorative separator */}

@@ -1848,19 +1848,19 @@
 
 /* Hero enhanced gradient overlay */
 .hero-enhanced {
-  min-height: 380px;
+  min-height: 320px;
   position: relative;
 }
 
 @media (min-width: 640px) {
   .hero-enhanced {
-    min-height: 440px;
+    min-height: 380px;
   }
 }
 
 @media (min-width: 768px) {
   .hero-enhanced {
-    min-height: 480px;
+    min-height: 420px;
   }
 }
 

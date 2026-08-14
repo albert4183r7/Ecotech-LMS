@@ -257,7 +257,7 @@ function XPDisplay({ totalXP, level, progressToNext }: { totalXP: number; level:
 /*  Streak Calendar (30-day grid)                                      */
 /* ------------------------------------------------------------------ */
 
-function StreakCalendar({ streak, bestStreak }: { streak: number; bestStreak: number }) {
+function StreakCalendar({ streak, bestStreak, userId }: { streak: number; bestStreak: number; userId: string }) {
   const [activityMap, setActivityMap] = useState<Map<string, number>>(new Map());
   const [days, setDays] = useState<Array<{ date: string; day: string; isToday: boolean }>>([]);
   const [maxMinutes, setMaxMinutes] = useState(1);
@@ -265,7 +265,7 @@ function StreakCalendar({ streak, bestStreak }: { streak: number; bestStreak: nu
   useEffect(() => {
     async function fetchActivity() {
       try {
-        const res = await fetch('/api/activity?userId=user_demo_001&weeks=5');
+        const res = await fetch(`/api/activity?userId=${userId}&weeks=5`);
         const json = await res.json();
         if (json.success) {
           // Build 30-day grid from the response
@@ -299,7 +299,7 @@ function StreakCalendar({ streak, bestStreak }: { streak: number; bestStreak: nu
       } catch { /* silent */ }
     }
     fetchActivity();
-  }, []);
+  }, [userId]);
 
   function getIntensity(date: string): number {
     const mins = activityMap.get(date) || 0;
@@ -920,7 +920,7 @@ export function ProfilePage() {
   useEffect(() => {
     async function fetchStreak() {
       try {
-        const res = await fetch(`/api/activity?userId=user_demo_001&weeks=5`);
+        const res = await fetch(`/api/activity?userId=${currentUserId}&weeks=5`);
         const json = await res.json();
         if (json.success && json.data) {
           setStreakData(json.data.streak);
@@ -1261,7 +1261,7 @@ export function ProfilePage() {
       {/* XP Display + Streak Calendar */}
       <div className="grid gap-6 md:grid-cols-2">
         <XPDisplay totalXP={totalXP} level={level} progressToNext={progressToNext} />
-        <StreakCalendar streak={streakData.current} bestStreak={streakData.longest} />
+        <StreakCalendar streak={streakData.current} bestStreak={streakData.longest} userId={currentUserId} />
       </div>
 
       {/* Skills & Badges Grid */}

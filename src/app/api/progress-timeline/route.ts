@@ -65,7 +65,7 @@ function formatDate(date: Date): string {
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const userId = searchParams.get("userId") || "user_demo_001";
+    const userId = searchParams.get("userId") || "user_student_001";
     const courseId = searchParams.get("courseId");
 
     if (!courseId) {

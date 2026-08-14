@@ -46,7 +46,7 @@ const TYPE_ICONS: Record<string, React.ElementType> = {
 //  Compact XP Bar (for navbar)
 // ------------------------------------------------------------------
 
-export function XpBarCompact({ userId = "user_demo_001" }: { userId?: string }) {
+export function XpBarCompact({ userId = "user_student_001" }: { userId?: string }) {
   const [data, setData] = useState<XpData | null>(null);
   const [loading, setLoading] = useState(true);
   const [flash, setFlash] = useState(false);
@@ -130,7 +130,7 @@ export function XpBarCompact({ userId = "user_demo_001" }: { userId?: string }) 
 //  Full XP Bar (for profile page)
 // ------------------------------------------------------------------
 
-export function XpBarFull({ userId = "user_demo_001" }: { userId?: string }) {
+export function XpBarFull({ userId = "user_student_001" }: { userId?: string }) {
   const [data, setData] = useState<XpData | null>(null);
   const [loading, setLoading] = useState(true);
   const [flash, setFlash] = useState(false);

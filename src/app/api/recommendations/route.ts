@@ -29,7 +29,7 @@ interface RecommendationsResponse {
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const userId = searchParams.get("userId") || "user_demo_001";
+    const userId = searchParams.get("userId") || "user_student_001";
 
     // Get user's enrolled course IDs and their categories
     const enrollments = await db.enrollment.findMany({

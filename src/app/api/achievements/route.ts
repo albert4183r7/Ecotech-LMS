@@ -13,7 +13,7 @@ interface AchievementResult {
   earned: boolean;
 }
 
-const CURRENT_USER_ID = 'user_demo_001';
+const CURRENT_USER_ID = 'user_student_001';
 
 // ------------------------------------------------------------------
 //  GET /api/achievements?userId=xxx

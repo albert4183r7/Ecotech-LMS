@@ -32,7 +32,7 @@ const MOCK_USERS = [
   { id: 'mock_chloe_dupont', name: 'Chloe Dupont', department: 'Engineering', completedCourses: 2, avgProgress: 45 },
 ];
 
-const CURRENT_USER_ID = 'user_demo_001';
+const CURRENT_USER_ID = 'user_student_001';
 
 // ------------------------------------------------------------------
 //  Score calculation: completedCourses * 100 + avgProgress * 10

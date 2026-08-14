@@ -198,7 +198,7 @@ function ChallengeCard({ challenge }: { challenge: Challenge }) {
 //  DailyChallenges component
 // ------------------------------------------------------------------
 
-export function DailyChallenges({ userId = "user_demo_001" }: { userId?: string }) {
+export function DailyChallenges({ userId = "user_student_001" }: { userId?: string }) {
   const [data, setData] = useState<ChallengesData | null>(null);
   const [loading, setLoading] = useState(true);
 

@@ -1,0 +1,667 @@
+     1→import { PrismaClient } from "@prisma/client";
+     2→
+     3→const prisma = new PrismaClient();
+     4→
+     5→async function main() {
+     6→  console.log("🌱 Seeding LMS database...\n");
+     7→
+     8→  // Clean existing data
+     9→  await prisma.notification.deleteMany();
+    10→  await prisma.comment.deleteMany();
+    11→  await prisma.favorite.deleteMany();
+    12→  await prisma.progress.deleteMany();
+    13→  await prisma.enrollment.deleteMany();
+    14→  await prisma.section.deleteMany();
+    15→  await prisma.course.deleteMany();
+    16→  await prisma.category.deleteMany();
+    17→  await prisma.user.deleteMany();
+    18→
+    19→  // ============================================
+    20→  // Create demo user
+    21→  // ============================================
+    22→  const user = await prisma.user.create({
+    23→    data: {
+    24→      id: "user_demo_001",
+    25→      email: "john.employee@company.com",
+    26→      name: "John Employee",
+    27→      avatar: null,
+    28→      role: "employee",
+    29→      department: "Engineering",
+    30→    },
+    31→  });
+    32→  console.log(`👤 Created user: ${user.name}`);
+    33→
+    34→  // ============================================
+    35→  // Create categories
+    36→  // ============================================
+    37→  const categories = await Promise.all([
+    38→    prisma.category.create({
+    39→      data: {
+    40→        id: "cat_001",
+    41→        name: "Subject Education",
+    42→        description: "Core academic subjects and foundational knowledge",
+    43→        color: "#0891b2"
+    44→      }
+    45→    }),
+    46→    prisma.category.create({
+    47→      data: {
+    48→        id: "cat_002",
+    49→        name: "Life Skills",
+    50→        description: "Practical skills for everyday life",
+    51→        color: "#0d9488"
+    52→      }
+    53→    }),
+    54→    prisma.category.create({
+    55→      data: {
+    56→        id: "cat_003",
+    57→        name: "Business Knowledge",
+    58→        description: "Business acumen and professional skills",
+    59→        color: "#2563eb"
+    60→      }
+    61→    }),
+    62→    prisma.category.create({
+    63→      data: {
+    64→        id: "cat_004",
+    65→        name: "Technology",
+    66→        description: "Technical skills and IT knowledge",
+    67→        color: "#7c3aed"
+    68→      }
+    69→    }),
+    70→    prisma.category.create({
+    71→      data: {
+    72→        id: "cat_005",
+    73→        name: "Communication",
+    74→        description: "Writing, speaking, and interpersonal skills",
+    75→        color: "#059669"
+    76→      }
+    77→    }),
+    78→    prisma.category.create({
+    79→      data: {
+    80→        id: "cat_006",
+    81→        name: "Safety & Compliance",
+    82→        description: "Workplace safety and regulatory compliance",
+    83→        color: "#dc2626"
+    84→      }
+    85→    }),
+    86→  ]);
+    87→  console.log(`📂 Created ${categories.length} categories`);
+    88→
+    89→  // ============================================
+    90→  // Helper: create course with sections
+    91→  // ============================================
+    92→  const courseSeeds: Array<{
+    93→    id: string;
+    94→    title: string;
+    95→    description: string;
+    96→    categoryId: string;
+    97→    coverImage: string;
+    98→    language: string;
+    99→    studentCount: number;
+   100→    rating: number;
+   101→    sections: { id: string; title: string; totalPages: number; content: string }[];
+   102→  }> = [
+   103→    {
+   104→      id: "course_001",
+   105→      title: "Mathematical Thinking",
+   106→      description: "Develop logical reasoning and problem-solving skills through mathematical concepts. Learn to approach complex problems systematically and build strong analytical foundations.",
+   107→      categoryId: "cat_001",
+   108→      coverImage: "https://placehold.co/800x450/0891b2/white?text=Mathematical+Thinking",
+   109→      language: "english",
+   110→      studentCount: 142,
+   111→      rating: 4.5,
+   112→      sections: [
+   113→        {
+   114→          id: "sec_001",
+   115→          title: "Introduction to Logical Reasoning",
+   116→          totalPages: 7,
+   117→          content: JSON.stringify([
+   118→            { title: "Introduction to Logical Reasoning", type: "title", subtitle: "Building the foundation for mathematical thinking" },
+   119→            { title: "What is Logical Reasoning?", type: "content", items: [
+   120→              { heading: "Definition", text: "Logical reasoning is the process of using rational, systematic steps to arrive at a valid conclusion." },
+   121→              { heading: "Core Principles", text: "Inductive reasoning, deductive reasoning, and abductive reasoning form the three pillars." },
+   122→              { heading: "Real-World Application", text: "From debugging code to making business decisions, logical thinking is essential." }
+   123→            ]},
+   124→            { title: "Types of Logical Reasoning", type: "list", items: [
+   125→              { text: "Deductive Reasoning - From general to specific (Top-down)" },
+   126→              { text: "Inductive Reasoning - From specific to general (Bottom-up)" },
+   127→              { text: "Abductive Reasoning - Inference to the best explanation" }
+   128→            ]},
+   129→            { title: "Common Logical Fallacies", type: "table", tableData: { headers: ["Fallacy", "Description", "Example"], rows: [["Ad Hominem", "Attacking the person, not the argument", "\"You can't trust his math skills, he's a musician\""], ["Straw Man", "Misrepresenting the argument", "Oversimplifying an opponent's position"], ["Circular Reasoning", "Begging the question", "\"X is true because X is true\""]] } },
+   130→            { title: "Practice Exercise", type: "quiz", items: [{ text: "Identify the type of reasoning: 'All birds have feathers. A robin is a bird. Therefore, a robin has feathers.'" }] },
+   131→            { title: "Logical Reasoning in Technology", type: "content", items: [
+   132→              { heading: "Algorithm Design", text: "Breaking down complex problems into step-by-step procedures." },
+   133→              { heading: "Debugging", text: "Systematically tracing code to find and fix errors." },
+   134→              { heading: "System Architecture", text: "Designing scalable and maintainable software systems." }
+   135→            ]},
+   136→            { title: "Key Takeaways", type: "list", items: [
+   137→              { text: "Logical reasoning is a skill that improves with practice" },
+   138→              { text: "Understanding fallacies helps avoid common thinking traps" },
+   139→              { text: "Apply structured thinking to both technical and everyday problems" }
+   140→            ]}
+   141→          ]),
+   142→        },
+   143→        {
+   144→          id: "sec_002",
+   145→          title: "Patterns and Sequences",
+   146→          totalPages: 5,
+   147→          content: JSON.stringify([
+   148→            { title: "Patterns and Sequences", type: "title", subtitle: "Recognizing and creating mathematical patterns" },
+   149→            { title: "Arithmetic Sequences", type: "content", items: [{ heading: "Definition", text: "A sequence where each term differs from the previous by a constant difference." }, { heading: "Formula", text: "aₙ = a₁ + (n-1)d where d is the common difference." }] },
+   150→            { title: "Geometric Sequences", type: "content", items: [{ heading: "Definition", text: "A sequence where each term is multiplied by a constant ratio." }, { heading: "Formula", text: "aₙ = a₁ × r⁽ⁿ⁻¹⁾ where r is the common ratio." }] },
+   151→            { title: "Fibonacci Sequence", type: "content", items: [{ heading: "The Golden Pattern", text: "1, 1, 2, 3, 5, 8, 13, 21... Each number is the sum of the two before it." }, { heading: "Nature Connection", text: "Found in sunflower spirals, shell curves, and branching patterns." }] },
+   152→            { title: "Key Takeaways", type: "list", items: [{ text: "Patterns are everywhere in nature and mathematics" }, { text: "Sequences follow predictable rules that can be described mathematically" }] }
+   153→          ]),
+   154→        },
+   155→        {
+   156→          id: "sec_003",
+   157→          title: "Problem Solving Strategies",
+   158→          totalPages: 4,
+   159→          content: JSON.stringify([
+   160→            { title: "Problem Solving Strategies", type: "title", subtitle: "Systematic approaches to tackle complex problems" },
+   161→            { title: "Polya's Four-Step Method", type: "list", items: [{ text: "1. Understand the Problem - Read carefully, identify what's given and what's asked" }, { text: "2. Devise a Plan - Choose a strategy (draw diagram, find pattern, work backwards)" }, { text: "3. Carry out the Plan - Execute your chosen strategy step by step" }, { text: "4. Look Back - Verify your answer and consider alternative solutions" }] },
+   162→            { title: "Common Strategies", type: "content", items: [{ heading: "Draw a Diagram", text: "Visual representations make abstract problems concrete." }, { heading: "Look for Patterns", text: "Identify repeating structures that simplify the problem." }] },
+   163→            { title: "Summary", type: "list", items: [{ text: "Good problem solvers are made, not born" }, { text: "Practice with diverse problems builds flexibility" }] }
+   164→          ]),
+   165→        },
+   166→      ],
+   167→    },
+   168→    {
+   169→      id: "course_002",
+   170→      title: "Effective Business Communication",
+   171→      description: "Master the art of professional communication in the workplace. Learn to write clear emails, deliver impactful presentations, and communicate effectively with teams.",
+   172→      categoryId: "cat_005",
+   173→      coverImage: "https://placehold.co/800x450/0d9488/white?text=Business+Communication",
+   174→      language: "english",
+   175→      studentCount: 238,
+   176→      rating: 4.8,
+   177→      sections: [
+   178→        {
+   179→          id: "sec_004",
+   180→          title: "Email Writing Fundamentals",
+   181→          totalPages: 5,
+   182→          content: JSON.stringify([
+   183→            { title: "Email Writing Fundamentals", type: "title", subtitle: "Writing clear, professional emails" },
+   184→            { title: "The Anatomy of a Professional Email", type: "content", items: [{ heading: "Subject Line", text: "Clear, specific, and actionable. Example: 'Action Required: Q3 Budget Review - Due Friday'" }, { heading: "Opening", text: "Professional greeting tailored to the recipient." }, { heading: "Body", text: "Concise, well-structured paragraphs with a clear call to action." }] },
+   185→            { title: "Common Email Mistakes", type: "table", tableData: { headers: ["Mistake", "Impact", "Fix"], rows: [["Vague subject line", "Email gets lost or ignored", "Use specific, action-oriented subjects"], ["Wall of text", "Reader skims and misses key points", "Use bullet points and short paragraphs"], ["No call to action", "Recipient unsure what to do", "End with clear next steps"]] } },
+   186→            { title: "Email Templates", type: "content", items: [{ heading: "Meeting Request", text: "State purpose, proposed time, and agenda." }, { heading: "Status Update", text: "Lead with progress, flag blockers." }] },
+   187→            { title: "Best Practices Summary", type: "list", items: [{ text: "Proofread before sending" }, { text: "Keep emails under 200 words when possible" }, { text: "Reply within 24 hours" }] }
+   188→          ]),
+   189→        },
+   190→        {
+   191→          id: "sec_005",
+   192→          title: "Presentation Skills",
+   193→          totalPages: 6,
+   194→          content: JSON.stringify([
+   195→            { title: "Presentation Skills", type: "title", subtitle: "Delivering impactful presentations" },
+   196→            { title: "Planning Your Presentation", type: "content", items: [{ heading: "Know Your Audience", text: "Tailor your content, tone, and examples to who you're presenting to." }, { heading: "Define Clear Objectives", text: "What should the audience know or do after your presentation?" }] },
+   197→            { title: "Slide Design Principles", type: "list", items: [{ text: "One idea per slide - Don't overcrowd" }, { text: "Use visuals over text - People remember images better" }, { text: "Consistent formatting - Same fonts, colors, and layouts" }, { text: "Limit text to 6 lines per slide" }] },
+   198→            { title: "Delivery Techniques", type: "content", items: [{ heading: "Body Language", text: "Maintain eye contact, use open gestures, and move purposefully." }, { heading: "Voice", text: "Vary your pace, volume, and tone to maintain engagement." }] },
+   199→            { title: "Handling Q&A", type: "content", items: [{ heading: "Listen Fully", text: "Let the questioner finish before responding." }, { heading: "Bridge Techniques", text: "Connect questions back to your key messages." }] },
+   200→            { title: "Key Takeaways", type: "list", items: [{ text: "Preparation is 80% of a great presentation" }, { text: "Practice out loud at least 3 times" }] }
+   201→          ]),
+   202→        },
+   203→        {
+   204→          id: "sec_006",
+   205→          title: "Cross-Team Communication",
+   206→          totalPages: 4,
+   207→          content: JSON.stringify([
+   208→            { title: "Cross-Team Communication", type: "title", subtitle: "Collaborating across departments" },
+   209→            { title: "Bridging the Gap", type: "content", items: [{ heading: "Shared Vocabulary", text: "Establish common terms to avoid misunderstandings across teams." }, { heading: "Regular Sync", text: "Schedule brief check-ins to maintain alignment." }] },
+   210→            { title: "Communication Tools", type: "table", tableData: { headers: ["Tool Type", "Best For", "Avoid Using For"], rows: [["Slack/Teams", "Quick questions, updates", "Complex discussions, decisions"], ["Email", "Formal communication, records", "Urgent matters"], ["Video Call", "Brainstorming, complex topics", "Quick status updates"], ["Documentation", "Reference material, SOPs", "Time-sensitive communication"]] } },
+   211→            { title: "Summary", type: "list", items: [{ text: "Context is king - always provide enough background" }, { text: "Over-communicate rather than under-communicate" }] }
+   212→          ]),
+   213→        },
+   214→      ],
+   215→    },
+   216→    {
+   217→      id: "course_003",
+   218→      title: "Workplace Safety Essentials",
+   219→      description: "Comprehensive guide to workplace safety protocols, emergency procedures, and hazard prevention. Required training for all employees.",
+   220→      categoryId: "cat_006",
+   221→      coverImage: "https://placehold.co/800x450/dc2626/white?text=Workplace+Safety",
+   222→      language: "english",
+   223→      studentCount: 456,
+   224→      rating: 4.2,
+   225→      sections: [
+   226→        {
+   227→          id: "sec_007",
+   228→          title: "Emergency Procedures",
+   229→          totalPages: 5,
+   230→          content: JSON.stringify([
+   231→            { title: "Emergency Procedures", type: "title", subtitle: "Know what to do in an emergency" },
+   232→            { title: "Fire Safety", type: "content", items: [{ heading: "R.A.C.E Protocol", text: "Rescue, Alarm, Contain, Extinguish/Evacuate." }, { heading: "Evacuation Routes", text: "Know at least two exit routes from your work area." }] },
+   233→            { title: "First Aid Basics", type: "content", items: [{ heading: "ABCs of First Aid", text: "Airway, Breathing, Circulation - Check these first." }, { heading: "AED Usage", text: "Turn on, follow voice prompts, apply pads as shown." }] },
+   234→            { title: "Emergency Contacts", type: "table", tableData: { headers: ["Emergency Type", "Contact", "Extension"], rows: [["Medical Emergency", "Company Nurse Station", "x5001"], ["Fire/Police", "911", ""], ["Building Security", "Security Office", "x5000"], ["HR Incident Report", "HR Department", "x3001"]] } },
+   235→            { title: "Remember", type: "list", items: [{ text: "Stay calm and follow established protocols" }, { text: "Report all incidents, even near-misses" }] }
+   236→          ]),
+   237→        },
+   238→        {
+   239→          id: "sec_008",
+   240→          title: "Ergonomics and Injury Prevention",
+   241→          totalPages: 4,
+   242→          content: JSON.stringify([
+   243→            { title: "Ergonomics and Injury Prevention", type: "title", subtitle: "Setting up your workspace for health" },
+   244→            { title: "Proper Desk Setup", type: "list", items: [{ text: "Monitor at eye level, arm's length away" }, { text: "Chair supports lower back, feet flat on floor" }, { text: "Keyboard at elbow height, wrists straight" }, { text: "Take breaks every 30 minutes - Use the 20-20-20 rule" }] },
+   245→            { title: "Common Workplace Injuries", type: "table", tableData: { headers: ["Injury Type", "Cause", "Prevention"], rows: [["RSI (Repetitive Strain)", "Repetitive typing/mouse use", "Ergonomic setup, stretches, breaks"], ["Back Pain", "Poor posture, heavy lifting", "Proper lifting technique, core strength"], ["Eye Strain", "Extended screen time", "20-20-20 rule, proper lighting"]] } },
+   246→            { title: "Key Takeaways", type: "list", items: [{ text: "Your health is the company's priority" }, { text: "Report discomfort early - don't wait for injury" }] }
+   247→          ]),
+   248→        },
+   249→      ],
+   250→    },
+   251→    {
+   252→      id: "course_004",
+   253→      title: "Introduction to Data Analytics",
+   254→      description: "Learn the fundamentals of data analytics, including data collection, cleaning, visualization, and basic statistical analysis. Perfect for beginners.",
+   255→      categoryId: "cat_004",
+   256→      coverImage: "https://placehold.co/800x450/7c3aed/white?text=Data+Analytics",
+   257→      language: "english",
+   258→      studentCount: 189,
+   259→      rating: 4.6,
+   260→      sections: [
+   261→        {
+   262→          id: "sec_009",
+   263→          title: "What is Data Analytics?",
+   264→          totalPages: 6,
+   265→          content: JSON.stringify([
+   266→            { title: "What is Data Analytics?", type: "title", subtitle: "Understanding the power of data-driven decisions" },
+   267→            { title: "The Data Analytics Process", type: "content", items: [{ heading: "Collect", text: "Gathering data from various sources - databases, APIs, surveys." }, { heading: "Clean", text: "Removing errors, duplicates, and inconsistencies." }, { heading: "Analyze", text: "Applying statistical methods and algorithms." }, { heading: "Visualize", text: "Creating charts and dashboards for insights." }] },
+   268→            { title: "Types of Analytics", type: "list", items: [{ text: "Descriptive Analytics - What happened?" }, { text: "Diagnostic Analytics - Why did it happen?" }, { text: "Predictive Analytics - What will happen?" }, { text: "Prescriptive Analytics - What should we do?" }] },
+   269→            { title: "Common Tools", type: "table", tableData: { headers: ["Tool", "Purpose", "Skill Level"], rows: [["Excel/Google Sheets", "Basic analysis and pivots", "Beginner"], ["SQL", "Data querying and manipulation", "Beginner"], ["Python/R", "Advanced analysis and modeling", "Intermediate"], ["Tableau/Power BI", "Data visualization", "Intermediate"]] } },
+   270→            { title: "Data Quality Matters", type: "content", items: [{ heading: "Garbage In, Garbage Out", text: "The quality of your analysis depends entirely on data quality." }, { heading: "Data Validation", text: "Always verify source, accuracy, and completeness." }] },
+   271→            { title: "Key Takeaways", type: "list", items: [{ text: "Data analytics transforms raw data into actionable insights" }, { text: "Start with the right question before diving into data" }] }
+   272→          ]),
+   273→        },
+   274→        {
+   275→          id: "sec_010",
+   276→          title: "Data Visualization Basics",
+   277→          totalPages: 5,
+   278→          content: JSON.stringify([
+   279→            { title: "Data Visualization Basics", type: "title", subtitle: "Making data tell a story" },
+   280→            { title: "Choosing the Right Chart", type: "table", tableData: { headers: ["Chart Type", "Best For", "Example Use"], rows: [["Bar Chart", "Comparing categories", "Sales by region"], ["Line Chart", "Showing trends over time", "Monthly revenue"], ["Pie Chart", "Showing proportions", "Market share breakdown"], ["Scatter Plot", "Showing relationships", "Correlation analysis"]] } },
+   281→            { title: "Design Principles", type: "list", items: [{ text: "Keep it simple - Remove unnecessary elements" }, { text: "Use color purposefully - Highlight key data points" }, { text: "Label clearly - Every axis and legend should be self-explanatory" }, { text: "Tell a story - Guide the viewer's eye to the insight" }] },
+   282→            { title: "Common Visualization Mistakes", type: "content", items: [{ heading: "Truncated Y-Axis", text: "Starting the Y-axis above zero exaggerates differences." }, { heading: "3D Charts", text: "They distort perception and are hard to read." }] },
+   283→            { title: "Summary", type: "list", items: [{ text: "Good visualization makes complex data accessible to everyone" }, { text: "Always consider your audience when designing charts" }] }
+   284→          ]),
+   285→        },
+   286→      ],
+   287→    },
+   288→    {
+   289→      id: "course_005",
+   290→      title: "Healthy Diet & Nutrition",
+   291→      description: "Learn the fundamentals of balanced nutrition, meal planning, and healthy eating habits that boost productivity and well-being.",
+   292→      categoryId: "cat_002",
+   293→      coverImage: "https://placehold.co/800x450/059669/white?text=Healthy+Nutrition",
+   294→      language: "english",
+   295→      studentCount: 97,
+   296→      rating: 4.3,
+   297→      sections: [
+   298→        {
+   299→          id: "sec_011",
+   300→          title: "Understanding Macronutrients",
+   301→          totalPages: 5,
+   302→          content: JSON.stringify([
+   303→            { title: "Understanding Macronutrients", type: "title", subtitle: "The building blocks of a healthy diet" },
+   304→            { title: "The Three Macronutrients", type: "table", tableData: { headers: ["Macronutrient", "Function", "Healthy Sources", "% of Daily Calories"], rows: [["Protein", "Builds and repairs tissue", "Lean meat, fish, eggs, legumes", "10-35%"], ["Carbohydrates", "Primary energy source", "Whole grains, fruits, vegetables", "45-65%"], ["Fats", "Hormone production, brain health", "Nuts, avocado, olive oil, fish", "20-35%"]] } },
+   305→            { title: "Protein Essentials", type: "content", items: [{ heading: "Daily Needs", text: "0.8g per kg body weight for sedentary adults." }, { heading: "Complete vs Incomplete", text: "Animal proteins are complete; combine plant sources for complete amino acid profiles." }] },
+   306→            { title: "Smart Carbs", type: "content", items: [{ heading: "Complex Carbs", text: "Oats, brown rice, sweet potatoes - provide sustained energy." }, { heading: "Simple Carbs", text: "Sugar, white bread - quick energy spike followed by crash." }] },
+   307→            { title: "Key Takeaways", type: "list", items: [{ text: "Balance is key - no single macronutrient should dominate" }, { text: "Whole foods > processed foods" }] }
+   308→          ]),
+   309→        },
+   310→      ],
+   311→    },
+   312→    {
+   313→      id: "course_006",
+   314→      title: "Basic Economics for Professionals",
+   315→      description: "Understanding fundamental economic principles that affect business decisions, market dynamics, and financial literacy.",
+   316→      categoryId: "cat_003",
+   317→      coverImage: "https://placehold.co/800x450/2563eb/white?text=Basic+Economics",
+   318→      language: "english",
+   319→      studentCount: 164,
+   320→      rating: 4.1,
+   321→      sections: [
+   322→        {
+   323→          id: "sec_012",
+   324→          title: "Supply and Demand",
+   325→          totalPages: 5,
+   326→          content: JSON.stringify([
+   327→            { title: "Supply and Demand", type: "title", subtitle: "The fundamental forces of every market" },
+   328→            { title: "The Law of Demand", type: "content", items: [{ heading: "Principle", text: "As price increases, quantity demanded decreases (and vice versa)." }, { heading: "Demand Curve", text: "A downward-sloping curve showing price-quantity relationship." }] },
+   329→            { title: "The Law of Supply", type: "content", items: [{ heading: "Principle", text: "As price increases, quantity supplied increases." }, { heading: "Supply Curve", text: "An upward-sloping curve showing producer behavior." }] },
+   330→            { title: "Market Equilibrium", type: "content", items: [{ heading: "Where Supply Meets Demand", text: "The point where quantity supplied equals quantity demanded." }, { heading: "Price Signals", text: "Prices communicate information about scarcity and value." }] },
+   331→            { title: "Key Takeaways", type: "list", items: [{ text: "Supply and demand affects every business decision" }, { text: "Understanding market forces helps in strategic planning" }] }
+   332→          ]),
+   333→        },
+   334→      ],
+   335→    },
+   336→    {
+   337→      id: "course_007",
+   338→      title: "Guitar Basics for Beginners",
+   339→      description: "Start your musical journey with guitar fundamentals. Learn chords, strumming patterns, and your first songs.",
+   340→      categoryId: "cat_002",
+   341→      coverImage: "https://placehold.co/800x450/ea580c/white?text=Guitar+Basics",
+   342→      language: "english",
+   343→      studentCount: 78,
+   344→      rating: 4.7,
+   345→      sections: [
+   346→        {
+   347→          id: "sec_013",
+   348→          title: "Parts of the Guitar",
+   349→          totalPages: 3,
+   350→          content: JSON.stringify([
+   351→            { title: "Parts of the Guitar", type: "title", subtitle: "Getting to know your instrument" },
+   352→            { title: "Anatomy of a Guitar", type: "content", items: [{ heading: "Headstock", text: "Houses the tuning pegs." }, { heading: "Neck & Fretboard", text: "Where you press strings to create notes." }, { heading: "Body", text: "The sound-producing chamber." }] },
+   353→            { title: "Summary", type: "list", items: [{ text: "Understanding your guitar's parts is the first step to playing" }] }
+   354→          ]),
+   355→        },
+   356→      ],
+   357→    },
+   358→    {
+   359→      id: "course_008",
+   360→      title: "Fiber Optic Construction",
+   361→      description: "Comprehensive training on fiber optic cable installation, splicing, and testing for telecommunications infrastructure.",
+   362→      categoryId: "cat_004",
+   363→      coverImage: "https://placehold.co/800x450/0f766e/white?text=Fiber+Optics",
+   364→      language: "chinese",
+   365→      studentCount: 53,
+   366→      rating: 4.4,
+   367→      sections: [
+   368→        {
+   369→          id: "sec_014",
+   370→          title: "光纤基础知识",
+   371→          totalPages: 4,
+   372→          content: JSON.stringify([
+   373→            { title: "光纤基础知识", type: "title", subtitle: "了解光纤通信的原理和结构" },
+   374→            { title: "光纤的结构", type: "content", items: [{ heading: "纤芯", text: "光信号传输的核心部分。" }, { heading: "包层", text: "包裹纤芯，使光在纤芯中全反射传输。" }] },
+   375→            { title: "光纤类型", type: "table", tableData: { headers: ["类型", "特点", "应用"], rows: [["单模光纤", "芯径小，传输距离远", "长途通信，海底光缆"], ["多模光纤", "芯径大，成本低", "短距离通信，局域网"]] } },
+   376→            { title: "总结", type: "list", items: [{ text: "光纤是现代通信的基础" }, { text: "理解基本原理是施工的第一步" }] }
+   377→          ]),
+   378→        },
+   379→      ],
+   380→    },
+   381→  ];
+   382→
+   383→  // ============================================
+   384→  // Create courses with sections
+   385→  // ============================================
+   386→  for (const seed of courseSeeds) {
+   387→    await prisma.course.create({
+   388→      data: {
+   389→        id: seed.id,
+   390→        title: seed.title,
+   391→        description: seed.description,
+   392→        coverImage: seed.coverImage,
+   393→        rating: seed.rating,
+   394→        studentCount: seed.studentCount,
+   395→        status: "published",
+   396→        language: seed.language,
+   397→        categoryId: seed.categoryId,
+   398→        creatorId: "user_demo_001",
+   399→        sections: {
+   400→          create: seed.sections.map((sec, index) => ({
+   401→            id: sec.id,
+   402→            title: sec.title,
+   403→            content: sec.content,
+   404→            totalPages: sec.totalPages,
+   405→            order: index + 1,
+   406→          })),
+   407→        },
+   408→      },
+   409→    });
+   410→    console.log(`📚 Created course: ${seed.title}`);
+   411→  }
+   412→
+   413→  // ============================================
+   414→  // Create some enrollments for the demo user
+   415→  // ============================================
+   416→  await prisma.enrollment.create({
+   417→    data: {
+   418→      userId: "user_demo_001",
+   419→      courseId: "course_001",
+   420→      status: "in_progress",
+   421→      progresses: {
+   422→        create: [
+   423→          { sectionId: "sec_001", completed: true, currentPage: 7 },
+   424→          { sectionId: "sec_002", completed: false, currentPage: 3 },
+   425→        ],
+   426→      },
+   427→    },
+   428→  });
+   429→
+   430→  await prisma.enrollment.create({
+   431→    data: {
+   432→      userId: "user_demo_001",
+   433→      courseId: "course_003",
+   434→      status: "completed",
+   435→      completedAt: new Date("2026-07-20"),
+   436→      progresses: {
+   437→        create: [
+   438→          { sectionId: "sec_007", completed: true, currentPage: 5 },
+   439→          { sectionId: "sec_008", completed: true, currentPage: 4 },
+   440→        ],
+   441→      },
+   442→    },
+   443→  });
+   444→
+   445→  // Create some favorites
+   446→  await prisma.favorite.create({
+   447→    data: {
+   448→      userId: "user_demo_001",
+   449→      courseId: "course_004",
+   450→    },
+   451→  });
+   452→
+   453→  await prisma.favorite.create({
+   454→    data: {
+   455→      userId: "user_demo_001",
+   456→      courseId: "course_002",
+   457→    },
+   458→  });
+   459→
+   460→  // ============================================
+   461→  // Create additional demo users for comments
+   462→  // ============================================
+   463→  const user2 = await prisma.user.create({
+   464→    data: {
+   465→      id: "user_demo_002",
+   466→      email: "sarah.trainer@company.com",
+   467→      name: "Sarah Chen",
+   468→      avatar: null,
+   469→      role: "instructor",
+   470→      department: "Product",
+   471→    },
+   472→  });
+   473→  const user3 = await prisma.user.create({
+   474→    data: {
+   475→      id: "user_demo_003",
+   476→      email: "mike.jones@company.com",
+   477→      name: "Mike Jones",
+   478→      avatar: null,
+   479→      role: "employee",
+   480→      department: "Engineering",
+   481→    },
+   482→  });
+   483→  console.log(`👤 Created users: ${user2.name}, ${user3.name}`);
+   484→
+   485→  // ============================================
+   486→  // Create some comments for discussion
+   487→  // ============================================
+   488→  const comment1 = await prisma.comment.create({
+   489→    data: {
+   490→      id: "comment_001",
+   491→      content: "This section on logical fallacies was incredibly helpful! I never realized how often I encounter ad hominem arguments in meetings. Can anyone recommend additional resources on identifying cognitive biases?",
+   492→      courseId: "course_001",
+   493→      sectionId: "sec_001",
+   494→      userId: "user_demo_001",
+   495→      createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
+   496→    },
+   497→  });
+   498→  await prisma.comment.create({
+   499→    data: {
+   500→      id: "comment_002",
+   501→      content: "Great question, John! I'd recommend Daniel Kahneman's 'Thinking, Fast and Slow' — it covers cognitive biases in depth and is very accessible.",
+   502→      courseId: "course_001",
+   503→      sectionId: "sec_001",
+   504→      userId: "user_demo_002",
+   505→      parentId: "comment_001",
+   506→      createdAt: new Date(Date.now() - 1 * 60 * 60 * 1000),
+   507→    },
+   508→  });
+   509→  await prisma.comment.create({
+   510→    data: {
+   511→      id: "comment_003",
+   512→      content: "The email templates in this course saved me so much time. I've already started using the meeting request template and my colleagues noticed the improvement!",
+   513→      courseId: "course_002",
+   514→      sectionId: "sec_004",
+   515→      userId: "user_demo_003",
+   516→      createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+   517→    },
+   518→  });
+   519→  await prisma.comment.create({
+   520→    data: {
+   521→      id: "comment_004",
+   522→      content: "Is there a follow-up course that covers more advanced communication topics like cross-cultural communication?",
+   523→      courseId: "course_002",
+   524→      userId: "user_demo_001",
+   525→      createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
+   526→    },
+   527→  });
+   528→  await prisma.comment.create({
+   529→    data: {
+   530→      id: "comment_005",
+   531→      content: "The Polya method section was eye-opening. I've been using it at work to break down complex engineering problems. Highly recommended for anyone in a technical role.",
+   532→      courseId: "course_001",
+   533→      sectionId: "sec_003",
+   534→      userId: "user_demo_003",
+   535→      createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
+   536→    },
+   537→  });
+   538→  await prisma.comment.create({
+   539→    data: {
+   540→      id: "comment_006",
+   541→      content: "I agree! The 'Look Back' step is something most people skip but it really helps solidify understanding.",
+   542→      courseId: "course_001",
+   543→      sectionId: "sec_003",
+   544→      userId: "user_demo_002",
+   545→      parentId: "comment_005",
+   546→      createdAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000),
+   547→    },
+   548→  });
+   549→  await prisma.comment.create({
+   550→    data: {
+   551→      id: "comment_007",
+   552→      content: "The financial literacy course was very practical. I wish we had this training when I first joined the company. The budgeting section alone is worth the time.",
+   553→      courseId: "course_003",
+   554→      userId: "user_demo_002",
+   555→      createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+   556→    },
+   557→  });
+   558→  await prisma.comment.create({
+   559→    data: {
+   560→      id: "comment_008",
+   561→      content: "The quiz at the end of each section really helps reinforce the concepts. I found myself going back to review slides I thought I already understood.",
+   562→      courseId: "course_001",
+   563→      userId: "user_demo_001",
+   564→      createdAt: new Date(Date.now() - 6 * 60 * 60 * 1000),
+   565→    },
+   566→  });
+   567→  console.log("💬 Created 8 comments (including 2 replies)");
+   568→
+   569→  // ============================================
+   570→  // Create notifications for demo user
+   571→  // ============================================
+   572→  const now = new Date();
+   573→  await prisma.notification.createMany({
+   574→    data: [
+   575→      {
+   576→        id: "notif_001",
+   577→        userId: "user_demo_001",
+   578→        title: "New Course Available",
+   579→        message: "Advanced TypeScript Patterns has been published. Check it out!",
+   580→        type: "course",
+   581→        read: false,
+   582→        link: "course-detail:course_003",
+   583→        createdAt: new Date(now.getTime() - 15 * 60 * 1000),
+   584→      },
+   585→      {
+   586→        id: "notif_002",
+   587→        userId: "user_demo_001",
+   588→        title: "Achievement Unlocked!",
+   589→        message: "You completed your first course. Keep up the great work!",
+   590→        type: "achievement",
+   591→        read: false,
+   592→        link: null,
+   593→        createdAt: new Date(now.getTime() - 2 * 60 * 60 * 1000),
+   594→      },
+   595→      {
+   596→        id: "notif_003",
+   597→        userId: "user_demo_001",
+   598→        title: "Enrollment Confirmed",
+   599→        message: "You are now enrolled in Critical Thinking Mastery.",
+   600→        type: "success",
+   601→        read: false,
+   602→        link: "course-detail:course_001",
+   603→        createdAt: new Date(now.getTime() - 5 * 60 * 60 * 1000),
+   604→      },
+   605→      {
+   606→        id: "notif_004",
+   607→        userId: "user_demo_001",
+   608→        title: "Weekly Learning Reminder",
+   609→        message: "You haven't started a course this week. Keep your learning streak going!",
+   610→        type: "warning",
+   611→        read: false,
+   612→        link: null,
+   613→        createdAt: new Date(now.getTime() - 24 * 60 * 60 * 1000),
+   614→      },
+   615→      {
+   616→        id: "notif_005",
+   617→        userId: "user_demo_001",
+   618→        title: "Course Updated",
+   619→        message: "React Fundamentals has new content in Chapter 3.",
+   620→        type: "course",
+   621→        read: true,
+   622→        link: "course-detail:course_003",
+   623→        createdAt: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000),
+   624→      },
+   625→      {
+   626→        id: "notif_006",
+   627→        userId: "user_demo_001",
+   628→        title: "System Update",
+   629→        message: "Ecotech v1.0 is now live with new features and improvements.",
+   630→        type: "system",
+   631→        read: true,
+   632→        link: null,
+   633→        createdAt: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000),
+   634→      },
+   635→      {
+   636→        id: "notif_007",
+   637→        userId: "user_demo_001",
+   638→        title: "Streak Milestone",
+   639→        message: "Congratulations! You've maintained a 7-day learning streak.",
+   640→        type: "achievement",
+   641→        read: false,
+   642→        link: "profile",
+   643→        createdAt: new Date(now.getTime() - 8 * 60 * 60 * 1000),
+   644→      },
+   645→      {
+   646→        id: "notif_008",
+   647→        userId: "user_demo_001",
+   648→        title: "New Reply to Your Comment",
+   649→        message: "Sarah Instructor replied to your question in Critical Thinking Mastery.",
+   650→        type: "info",
+   651→        read: true,
+   652→        link: "course-detail:course_001",
+   653→        createdAt: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000),
+   654→      },
+   655→    ],
+   656→  });
+   657→  console.log("🔔 Created 8 sample notifications");
+   658→
+   659→  console.log("\n✅ Seed completed successfully!");
+   660→  console.log(`   - 3 users, ${categories.length} categories, ${courseSeeds.length} courses`);
+   661→  console.log(`   - 2 enrollments, 2 favorites, 8 comments, 8 notifications created\n`);
+   662→}
+   663→
+   664→main()
+   665→  .catch(console.error)
+   666→  .finally(() => prisma.$disconnect());
+   667→

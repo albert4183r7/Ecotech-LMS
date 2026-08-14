@@ -218,7 +218,7 @@ function generateSocialFeed(seed: number, limit: number): SocialActivityItem[] {
 
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
-  const userId = searchParams.get("userId") || "user_demo_001";
+  const userId = searchParams.get("userId") || "user_student_001";
   const limitParam = searchParams.get("limit");
   const limit = Math.min(Math.max(parseInt(limitParam || "10", 10), 1), 20);
 

@@ -130,7 +130,7 @@ function calculateStreak(dailyData: DayEntry[]): {
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const userId = searchParams.get("userId") || "user_demo_001";
+    const userId = searchParams.get("userId") || "user_student_001";
     const weeks = Math.min(Math.max(parseInt(searchParams.get("weeks") || "12", 10), 1), 52);
 
     // Try to get real data from Progress table

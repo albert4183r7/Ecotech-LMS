@@ -17,19 +17,42 @@ async function main() {
   await prisma.user.deleteMany();
 
   // ============================================
-  // Create demo user
+  // Create users (instructor + students)
   // ============================================
   const user = await prisma.user.create({
     data: {
-      id: "user_demo_001",
-      email: "john.employee@company.com",
-      name: "John Employee",
+      id: "user_instructor_001",
+      email: "instructor@ecotech.com",
+      name: "Dr. Sarah Chen",
       avatar: null,
-      role: "employee",
-      department: "Engineering",
+      role: "instructor",
+      department: "Faculty",
     },
   });
   console.log(`👤 Created user: ${user.name}`);
+
+  const student1 = await prisma.user.create({
+    data: {
+      id: "user_student_001",
+      email: "alex.student@ecotech.com",
+      name: "Alex Johnson",
+      avatar: null,
+      role: "student",
+      department: "Computer Science",
+    },
+  });
+
+  const student2 = await prisma.user.create({
+    data: {
+      id: "user_student_002",
+      email: "maria.student@ecotech.com",
+      name: "Maria Garcia",
+      avatar: null,
+      role: "student",
+      department: "Data Science",
+    },
+  });
+  console.log(`👤 Created students: ${student1.name}, ${student2.name}`);
 
   // ============================================
   // Create categories
@@ -395,7 +418,7 @@ async function main() {
         status: "published",
         language: seed.language,
         categoryId: seed.categoryId,
-        creatorId: "user_demo_001",
+        creatorId: "user_instructor_001",
         sections: {
           create: seed.sections.map((sec, index) => ({
             id: sec.id,
@@ -415,7 +438,7 @@ async function main() {
   // ============================================
   await prisma.enrollment.create({
     data: {
-      userId: "user_demo_001",
+      userId: student1.id,
       courseId: "course_001",
       status: "in_progress",
       progresses: {
@@ -429,7 +452,7 @@ async function main() {
 
   await prisma.enrollment.create({
     data: {
-      userId: "user_demo_001",
+      userId: student1.id,
       courseId: "course_003",
       status: "completed",
       completedAt: new Date("2026-07-20"),
@@ -445,14 +468,14 @@ async function main() {
   // Create some favorites
   await prisma.favorite.create({
     data: {
-      userId: "user_demo_001",
+      userId: student1.id,
       courseId: "course_004",
     },
   });
 
   await prisma.favorite.create({
     data: {
-      userId: "user_demo_001",
+      userId: student1.id,
       courseId: "course_002",
     },
   });
@@ -476,7 +499,7 @@ async function main() {
       email: "mike.jones@company.com",
       name: "Mike Jones",
       avatar: null,
-      role: "employee",
+      role: "student",
       department: "Engineering",
     },
   });
@@ -491,14 +514,14 @@ async function main() {
       content: "This section on logical fallacies was incredibly helpful! I never realized how often I encounter ad hominem arguments in meetings. Can anyone recommend additional resources on identifying cognitive biases?",
       courseId: "course_001",
       sectionId: "sec_001",
-      userId: "user_demo_001",
+      userId: student1.id,
       createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
     },
   });
   await prisma.comment.create({
     data: {
       id: "comment_002",
-      content: "Great question, John! I'd recommend Daniel Kahneman's 'Thinking, Fast and Slow' — it covers cognitive biases in depth and is very accessible.",
+      content: "Great question, Alex! I'd recommend Daniel Kahneman's 'Thinking, Fast and Slow' — it covers cognitive biases in depth and is very accessible.",
       courseId: "course_001",
       sectionId: "sec_001",
       userId: "user_demo_002",
@@ -521,7 +544,7 @@ async function main() {
       id: "comment_004",
       content: "Is there a follow-up course that covers more advanced communication topics like cross-cultural communication?",
       courseId: "course_002",
-      userId: "user_demo_001",
+      userId: student1.id,
       createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
     },
   });
@@ -560,7 +583,7 @@ async function main() {
       id: "comment_008",
       content: "The quiz at the end of each section really helps reinforce the concepts. I found myself going back to review slides I thought I already understood.",
       courseId: "course_001",
-      userId: "user_demo_001",
+      userId: student1.id,
       createdAt: new Date(Date.now() - 6 * 60 * 60 * 1000),
     },
   });
@@ -574,7 +597,7 @@ async function main() {
     data: [
       {
         id: "notif_001",
-        userId: "user_demo_001",
+        userId: student1.id,
         title: "New Course Available",
         message: "Advanced TypeScript Patterns has been published. Check it out!",
         type: "course",
@@ -584,7 +607,7 @@ async function main() {
       },
       {
         id: "notif_002",
-        userId: "user_demo_001",
+        userId: student1.id,
         title: "Achievement Unlocked!",
         message: "You completed your first course. Keep up the great work!",
         type: "achievement",
@@ -594,9 +617,9 @@ async function main() {
       },
       {
         id: "notif_003",
-        userId: "user_demo_001",
+        userId: student1.id,
         title: "Enrollment Confirmed",
-        message: "You are now enrolled in Critical Thinking Mastery.",
+        message: "You are now enrolled in Mathematical Thinking.",
         type: "success",
         read: false,
         link: "course-detail:course_001",
@@ -604,7 +627,7 @@ async function main() {
       },
       {
         id: "notif_004",
-        userId: "user_demo_001",
+        userId: student1.id,
         title: "Weekly Learning Reminder",
         message: "You haven't started a course this week. Keep your learning streak going!",
         type: "warning",
@@ -614,17 +637,17 @@ async function main() {
       },
       {
         id: "notif_005",
-        userId: "user_demo_001",
-        title: "Course Updated",
-        message: "React Fundamentals has new content in Chapter 3.",
+        userId: user.id,
+        title: "New Student Enrolled",
+        message: "Alex Johnson enrolled in your course Mathematical Thinking.",
         type: "course",
         read: true,
-        link: "course-detail:course_003",
+        link: "course-detail:course_001",
         createdAt: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000),
       },
       {
         id: "notif_006",
-        userId: "user_demo_001",
+        userId: user.id,
         title: "System Update",
         message: "Ecotech v1.0 is now live with new features and improvements.",
         type: "system",
@@ -634,7 +657,7 @@ async function main() {
       },
       {
         id: "notif_007",
-        userId: "user_demo_001",
+        userId: student2.id,
         title: "Streak Milestone",
         message: "Congratulations! You've maintained a 7-day learning streak.",
         type: "achievement",
@@ -644,9 +667,9 @@ async function main() {
       },
       {
         id: "notif_008",
-        userId: "user_demo_001",
-        title: "New Reply to Your Comment",
-        message: "Sarah Instructor replied to your question in Critical Thinking Mastery.",
+        userId: user.id,
+        title: "New Reply to Student Question",
+        message: "Sarah Chen replied to Alex's question in Mathematical Thinking.",
         type: "info",
         read: true,
         link: "course-detail:course_001",
@@ -657,7 +680,7 @@ async function main() {
   console.log("🔔 Created 8 sample notifications");
 
   console.log("\n✅ Seed completed successfully!");
-  console.log(`   - 3 users, ${categories.length} categories, ${courseSeeds.length} courses`);
+  console.log(`   - 5 users, ${categories.length} categories, ${courseSeeds.length} courses`);
   console.log(`   - 2 enrollments, 2 favorites, 8 comments, 8 notifications created\n`);
 }
 

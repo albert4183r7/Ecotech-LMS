@@ -419,9 +419,7 @@ export function ClassroomPage() {
         <div className="flex items-center gap-3 min-w-0">
           <div className="flex items-center gap-2 shrink-0">
             <img src="/ecotech-logo.png" alt="Ecotech" className="h-7 w-7 rounded-md object-contain" />
-            <span className="hidden sm:inline text-sm font-bold text-primary">
-              Ecotech
-            </span>
+            <img src="/ecotech-name.png" alt="Ecotech" className="h-5 w-auto hidden sm:inline object-contain" />
           </div>
           <Separator orientation="vertical" className="h-5" />
           <div className="min-w-0">

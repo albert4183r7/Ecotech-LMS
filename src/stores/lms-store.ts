@@ -131,10 +131,18 @@ export const useMyLearningStore = create<MyLearningState>((set) => ({
 // ============================================
 interface UserState {
   currentUserId: string;
+  currentRole: "student" | "instructor";
   setCurrentUserId: (id: string) => void;
+  setCurrentRole: (role: "student" | "instructor") => void;
+  switchToInstructor: () => void;
+  switchToStudent: () => void;
 }
 
 export const useUserStore = create<UserState>((set) => ({
-  currentUserId: "user_demo_001",
+  currentUserId: "user_student_001",  // Default to student
+  currentRole: "student" as const,
   setCurrentUserId: (id) => set({ currentUserId: id }),
+  setCurrentRole: (role) => set({ currentRole: role }),
+  switchToInstructor: () => set({ currentUserId: "user_instructor_001", currentRole: "instructor" }),
+  switchToStudent: () => set({ currentUserId: "user_student_001", currentRole: "student" }),
 }));

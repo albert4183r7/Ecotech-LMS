@@ -19,14 +19,15 @@
 ✅ **Phase 11 (Cron Review #10)** — Daily learning challenges system, XP level progression with level titles, social activity feed, enhanced course filter pills (inline category pills + results count), major CSS overhaul (11 new sections 42-52: neon glow, text wave, magnetic hover, particle shimmer, morphing shapes, floating labels, enhanced cards, scroll-triggered animations, interactive toggle switch, tooltip suite, loading enhancements), component styling upgrades (3D card depth, glass-strong footer, neon navbar, gradient-border badges)
 
 ✅ **Phase 12 (Rebrand + PPT)** — Full rebrand from OpenClass → Ecotech, Ecotech logo integration, color scheme update (steel blue #4A6FA5 + teal #5B9A8F from Ecotech website), PPTX generation/download feature for lesson slides, localStorage key migration, voice input verified as not present (only timer chime)
+✅ **Phase 13 (RBAC + Layout Fix)** — Role-based access control (Student/Instructor), new logo/name branding assets, home page spacing bug fix, mobile responsiveness fix
 
 ### Architecture Summary
 - **11 Database Models**: User, Category, Course, Section, Enrollment, Progress, Favorite, Comment, Note, Rating, Notification
 - **9 Frontend Pages**: Home, Courses, My Learning, Profile, Course Detail, Classroom, Create Course, Dashboard, Settings
-- **26 API Endpoints**: Full CRUD for courses, enrollments, progress, favorites, categories, sections, user, leaderboard, AI content generation, achievements, activity, comments (GET/POST/DELETE), notes (GET/POST/PUT/DELETE), ratings (GET/POST), analytics (GET), recommendations (GET), notifications (GET/POST/PUT), progress-timeline (GET), **challenges (GET)**, **xp (GET/POST)**, **social-feed (GET)**
+- **27 API Endpoints**: Full CRUD for courses, enrollments, progress, favorites, categories, sections, user, **users (GET)**, leaderboard, AI content generation, PPTX generation, achievements, activity, comments (GET/POST/DELETE), notes (GET/POST/PUT/DELETE), ratings (GET/POST), analytics (GET), recommendations (GET), notifications (GET/POST/PUT), progress-timeline (GET), challenges (GET), xp (GET/POST), social-feed (GET)
 - **Shared Components**: Navbar (neon glow, real notifications, search, breadcrumbs, online status, 3-way dark mode toggle), Footer (glass-strong, particle shimmer), CourseCard (3D depth), ThemeProvider, SearchAutocomplete, AchievementBadges (gradient border), CertificateModal, DiscussionPanel, ActivityChart, LeaderboardWidget, KeyboardShortcuts, OnboardingTour, AnnouncementBanner, StarRating, StudyTimer, CourseRecommendations, CourseBookmarks, ProgressTimeline, FloatingActions, SkeletonCards, **DailyChallenges**, **XpBar (compact + full)**, **SocialFeed**
-- **4 Zustand Stores**: Navigation, Course, My Learning, User
-- **Seed Data**: 8 courses, 14 sections, 6 categories, 2 enrollments, 2 favorites, 8 comments (with replies), 8 notifications
+- **4 Zustand Stores**: Navigation, Course, My Learning, User (with role: student/instructor)
+- **Seed Data**: 8 courses, 14 sections, 6 categories, 3 users (1 instructor + 2 students), 2 enrollments, 2 favorites, 8 comments (with replies), 8 notifications
 - **CSS Animations Library**: 60+ custom animation classes across 52 sections (3123 lines). Includes: btn-ripple, card-shine, glow-pulse, badge-bounce, confetti, staggered fade-in, typing indicator, animated gradient border, glassmorphism, hover-lift, hover-glow, press-effect, shimmer-border, page-enter, badge-pulse, badge-shine, toast-enter-bounce, content-reveal, card-border-glow, card-inner-shine, gradient-text, timer animations, onboarding animations, announcement animations, hero-orb, typing-cursor, search-glow, category-pill, empty-state, btn-glow, card-img-zoom, stat-pop, view-transition-enter, fab-pulse, focus-ring-animate, loading-dots, tooltip-slide, toggle-glow, number-roll, **neon-glow, neon-text, text-wave, magnetic-hover, particle-shimmer, morph-shape, floating-label, card-spotlight, card-depth-3d, card-breathe, card-gradient-border, card-glass-strong, scroll-fade-up/left/right, scroll-scale-in, toggle-switch, tooltip-glass, tooltip-animated, progress-ring, loading-bar, loading-spinner-ring**
 - **Accessibility**: prefers-reduced-motion support, ARIA labels, keyboard navigation, focus-visible rings
 
@@ -1703,3 +1704,34 @@ Updated OKLCH color system to match Ecotech website (VLM-analyzed screenshot):
 - ✅ Database schema unchanged (no migration needed)
 - ⚠️ Cross-origin warning from preview panel (expected sandbox behavior, not an error)
 - ⚠️ Direct localhost curl connections refused (Caddy sandbox limitation, not application issue)
+
+---
+
+## Phase 13 Changes (RBAC + Layout Fix + Branding Update)
+
+### Overview
+Implemented role-based access control (Student/Instructor), fixed critical home page spacing and mobile responsiveness bugs, and updated branding with new Ecotech logo and name images.
+
+### 1. Role-Based Access Control
+- User role: "student" (default) and "instructor"
+- Instructor: can create courses, view all, view student progress; CANNOT enroll
+- Student: can learn/enroll, view progress; CANNOT create courses
+- Role switcher in navbar (mobile toggle buttons + desktop avatar badge)
+- 3 seed users: Dr. Sarah Chen (instructor), Alex Johnson (student), Maria Garcia (student)
+- New API: GET /api/users
+- Course detail: enroll button hidden for instructors with info message
+
+### 2. Home Page Spacing Fix
+- Reduced hero padding, search/category/tab/stats margins
+- Reduced hero-enhanced CSS min-heights
+
+### 3. Mobile Responsiveness Fix
+- Added overflow-x-hidden, flex-wrap, max-w-full across hero section
+- Button text/padding responsive sizing
+
+### 4. Branding Update
+- New logo (stylized "e") + name ("ECOTECH") images in navbar, footer, certificate, classroom
+
+### Verification
+- Lint 0 errors, dev server running, all routes 200 OK, DB re-seeded
+

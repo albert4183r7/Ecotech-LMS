@@ -262,7 +262,7 @@ function parseNotificationLink(link: string | null): { view: ViewName; courseId?
 
 export function Navbar() {
   const { currentView, navigateTo, openCourseDetail } = useNavigationStore();
-  const currentUserId = useUserStore((s) => s.currentUserId);
+  const { currentUserId, currentRole, switchToStudent, switchToInstructor } = useUserStore();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { theme, setTheme, resolvedTheme } = useTheme();
 
@@ -281,8 +281,10 @@ export function Navbar() {
   // Theme toggle state for cycling animation
   const [themeIconRotating, setThemeIconRotating] = useState(false);
 
-  // Breadcrumb: derive current page label
-  const currentPageLabel = getViewLabel(currentView);
+  // Breadcrumb: derive current page label (role-aware)
+  const currentPageLabel = currentView === "my-learning" && currentRole === "instructor"
+    ? "Student Progress"
+    : getViewLabel(currentView);
 
   // ============================================
   // Fetch notifications from API
@@ -439,10 +441,25 @@ export function Navbar() {
     return name.slice(0, 2).toUpperCase();
   };
 
-  /** Format user id to display name */
-  const displayName = currentUserId.includes("_")
-    ? currentUserId.split("_").filter((p) => !/^\d+$/.test(p) && p.length > 0).map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join(" ")
-    : currentUserId.charAt(0).toUpperCase() + currentUserId.slice(1);
+  /** Role-aware display name */
+  const displayNameMap: Record<string, string> = {
+    user_instructor_001: "Dr. Sarah Chen",
+    user_student_001: "Alex Johnson",
+    user_student_002: "Maria Garcia",
+  };
+  const displayName = displayNameMap[currentUserId] || (
+    currentUserId.includes("_")
+      ? currentUserId.split("_").filter((p) => !/^\d+$/.test(p) && p.length > 0).map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join(" ")
+      : currentUserId.charAt(0).toUpperCase() + currentUserId.slice(1)
+  );
+
+  /** Role-aware visible nav items */
+  const visibleNavItems = NAV_ITEMS.map((item) => {
+    if (item.view === "my-learning" && currentRole === "instructor") {
+      return { ...item, label: "Student Progress" };
+    }
+    return item;
+  });
 
   const handleSearchKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
@@ -496,10 +513,8 @@ export function Navbar() {
             onClick={() => navigateTo("home")}
             aria-label="Go to homepage"
           >
-            <img src="/ecotech-logo.png" alt="Ecotech" className="h-8 w-8 rounded-lg object-contain" />
-            <span className="text-lg font-bold tracking-tight hidden sm:inline gradient-text">
-              Ecotech
-            </span>
+            <img src="/ecotech-logo.png" alt="Ecotech" className="h-8 w-8 rounded-md object-contain" />
+            <img src="/ecotech-name.png" alt="Ecotech" className="h-6 w-auto hidden sm:inline object-contain" />
           </button>
           {/* Breadcrumb: subtle page indicator */}
           {currentView !== "home" && (
@@ -522,7 +537,7 @@ export function Navbar() {
 
         {/* Desktop Navigation */}
         <nav className="hidden md:flex items-center gap-1" aria-label="Main navigation">
-          {NAV_ITEMS.map((item) => (
+          {visibleNavItems.map((item) => (
             <Button
               key={item.view}
               variant="ghost"
@@ -700,29 +715,36 @@ export function Navbar() {
             )}
           </div>
 
-          {/* Create Course Button */}
-          <Button
-            size="sm"
-            className="hidden sm:flex gap-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg shadow-sm transition-all duration-200 hover:shadow-md press-effect"
-            onClick={() => navigateTo("create-course")}
-          >
-            <PlusCircle className="h-4 w-4" />
-            Create Course
-          </Button>
+          {/* Create Course Button - only for instructors */}
+          {currentRole === "instructor" && (
+            <Button
+              size="sm"
+              className="hidden sm:flex gap-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg shadow-sm transition-all duration-200 hover:shadow-md press-effect"
+              onClick={() => navigateTo("create-course")}
+            >
+              <PlusCircle className="h-4 w-4" />
+              Create Course
+            </Button>
+          )}
 
-          {/* User Avatar with Online Status Indicator */}
+          {/* User Avatar with Online Status Indicator + Role Badge */}
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-9 w-9 rounded-full"
+                className="h-9 w-9 rounded-full relative"
                 onClick={() => navigateTo("profile")}
                 aria-label="User profile"
               >
                 <span className="relative">
                   <Avatar className="h-7 w-7 border-2 border-primary/20">
-                    <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
+                    <AvatarFallback className={cn(
+                      "text-xs font-semibold",
+                      currentRole === "instructor"
+                        ? "bg-violet-500/10 text-violet-600 dark:text-violet-400"
+                        : "bg-primary/10 text-primary"
+                    )}>
                       {getInitials(currentUserId)}
                     </AvatarFallback>
                   </Avatar>
@@ -731,12 +753,17 @@ export function Navbar() {
                     aria-hidden="true"
                   />
                 </span>
+                {/* Tiny role indicator dot */}
+                <span className={cn(
+                  "absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full border border-card",
+                  currentRole === "instructor" ? "bg-violet-500" : "bg-emerald-500"
+                )} />
               </Button>
             </TooltipTrigger>
             <TooltipContent>
               <span className="flex items-center gap-1.5">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                Online &middot; Profile
+                {displayName} &middot; {currentRole === "instructor" ? "Instructor" : "Student"}
               </span>
             </TooltipContent>
           </Tooltip>
@@ -761,7 +788,7 @@ export function Navbar() {
       {/* Mobile Navigation Dropdown */}
       {mobileMenuOpen && (
         <nav className="md:hidden border-t border-border/60 bg-card/95 backdrop-blur-lg px-4 py-3 space-y-1 slide-in-left" aria-label="Mobile navigation">
-          {NAV_ITEMS.map((item) => (
+          {visibleNavItems.map((item) => (
             <Button
               key={item.view}
               variant="ghost"
@@ -780,19 +807,52 @@ export function Navbar() {
               {item.label}
             </Button>
           ))}
-          {/* Gradient Create Course CTA */}
-          <div className="pt-2 border-t border-border/60 mt-2">
-            <Button
-              size="sm"
-              className="w-full gap-2 rounded-lg text-white font-semibold shadow-md transition-all duration-200 hover:shadow-lg bg-gradient-to-r from-primary to-primary/70 hover:from-primary/90 hover:to-primary/60"
-              onClick={() => {
-                navigateTo("create-course");
-                setMobileMenuOpen(false);
-              }}
-            >
-              <PlusCircle className="h-4 w-4" />
-              Create Course
-            </Button>
+          {/* Gradient Create Course CTA - only for instructors */}
+          {currentRole === "instructor" && (
+            <div className="pt-2 border-t border-border/60 mt-2">
+              <Button
+                size="sm"
+                className="w-full gap-2 rounded-lg text-white font-semibold shadow-md transition-all duration-200 hover:shadow-lg bg-gradient-to-r from-primary to-primary/70 hover:from-primary/90 hover:to-primary/60"
+                onClick={() => {
+                  navigateTo("create-course");
+                  setMobileMenuOpen(false);
+                }}
+              >
+                <PlusCircle className="h-4 w-4" />
+                Create Course
+              </Button>
+            </div>
+          )}
+          {/* User Info Section at Bottom */}
+            {/* Role Switcher */}
+          <div className="flex items-center gap-2 px-2 py-2">
+            <span className="text-xs font-medium text-muted-foreground">Switch Role:</span>
+            <div className="flex gap-1">
+              <button
+                type="button"
+                onClick={() => { switchToStudent(); setMobileMenuOpen(false); navigateTo("home"); }}
+                className={cn(
+                  "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
+                  currentRole === "student"
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                )}
+              >
+                Student
+              </button>
+              <button
+                type="button"
+                onClick={() => { switchToInstructor(); setMobileMenuOpen(false); navigateTo("home"); }}
+                className={cn(
+                  "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
+                  currentRole === "instructor"
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                )}
+              >
+                Instructor
+              </button>
+            </div>
           </div>
           {/* User Info Section at Bottom */}
           <div className="flex items-center gap-3 rounded-lg bg-muted/40 px-3 py-2.5 mt-2">
@@ -808,7 +868,15 @@ export function Navbar() {
               />
             </span>
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium text-foreground truncate">{displayName}</p>
+              <div className="flex items-center gap-1.5">
+                <p className="text-sm font-medium text-foreground truncate">{displayName}</p>
+                <Badge variant="outline" className={cn(
+                  "text-[9px] px-1.5 py-0 h-4 font-medium shrink-0",
+                  currentRole === "instructor" ? "border-violet-500/50 text-violet-600 dark:text-violet-400" : "border-emerald-500/50 text-emerald-600 dark:text-emerald-400"
+                )}>
+                  {currentRole === "instructor" ? "Instructor" : "Student"}
+                </Badge>
+              </div>
               <p className="text-xs text-muted-foreground truncate">{currentUserId.replace(/_/g, ".")}@ecotech.com</p>
             </div>
             <span className="flex items-center gap-1 text-[10px] font-medium text-emerald-500">

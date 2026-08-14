@@ -53,10 +53,8 @@ export function Footer() {
           {/* Brand Column */}
           <div className="col-span-2 sm:col-span-1">
             <div className="flex items-center gap-2.5 mb-4">
-            <img src="/ecotech-logo.png" alt="Ecotech" className="h-9 w-9 rounded-xl object-contain" />
-              <span className="text-lg font-bold tracking-tight gradient-text">
-                Ecotech
-              </span>
+            <img src="/ecotech-logo.png" alt="Ecotech" className="h-9 w-9 rounded-md object-contain" />
+              <img src="/ecotech-name.png" alt="Ecotech" className="h-6 w-auto object-contain" />
             </div>
             <p className="text-sm leading-relaxed text-muted-foreground max-w-[220px]">
               Empowering teams through knowledge sharing. Built for organizations that invest in their people.

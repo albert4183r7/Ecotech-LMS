@@ -14,7 +14,7 @@ import { LeaderboardWidget } from "@/components/lms/leaderboard-widget";
 import { CourseRecommendations } from "@/components/lms/course-recommendations";
 import { DailyChallenges } from "@/components/lms/daily-challenges";
 import { SocialFeed } from "@/components/lms/social-feed";
-import { useNavigationStore, useCourseStore } from "@/stores/lms-store";
+import { useNavigationStore, useCourseStore, useUserStore } from "@/stores/lms-store";
 import type { CourseItem, CategoryItem, HomeTab } from "@/types/lms";
 
 /** Shape returned by /api/enrollments for continue learning */
@@ -131,6 +131,7 @@ export function HomePage() {
   const { navigateTo, openCourseDetail } = useNavigationStore();
   const { homeTab, categories, courses, setCategories, setCourses, setHomeTab, courseFilters, setCourseFilters, setCreatePrompt } =
     useCourseStore();
+  const currentUserId = useUserStore((s) => s.currentUserId);
 
   const [searchInput, setSearchInput] = useState(courseFilters.search);
   const [loadingCategories, setLoadingCategories] = useState(true);
@@ -212,7 +213,7 @@ export function HomePage() {
     let cancelled = false;
     async function fetchEnrollments() {
       try {
-        const res = await fetch("/api/enrollments?userId=user_demo_001");
+        const res = await fetch(`/api/enrollments?userId=${currentUserId}`);
         const json = await res.json();
         if (!cancelled && json.success) {
           const inProgress = json.data
@@ -228,7 +229,7 @@ export function HomePage() {
     }
     fetchEnrollments();
     return () => { cancelled = true; };
-  }, []);
+  }, [currentUserId]);
 
   // ── Typing animation ──────────────────────────────────────────────
   useEffect(() => {
@@ -306,10 +307,10 @@ export function HomePage() {
   // ── Render helpers ─────────────────────────────────────────────────
 
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col min-h-0 overflow-x-hidden">
       {/* ─── Hero Banner ─────────────────────────────────────────── */}
       <section
-        className="hero-gradient hero-enhanced relative px-4 py-10 sm:px-6 sm:py-14 md:px-8 lg:px-12"
+        className="hero-gradient hero-enhanced relative overflow-hidden px-4 py-6 sm:px-6 sm:py-8 md:px-8 md:py-10 lg:px-12 lg:py-12"
         style={{ '--scroll': scrollY } as React.CSSProperties}
       >
         {/* Floating gradient orbs */}
@@ -342,7 +343,7 @@ export function HomePage() {
         {/* Gradient overlay for depth */}
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/10" />
 
-        <div className="relative z-10 mx-auto max-w-4xl text-center">
+        <div className="relative z-10 mx-auto max-w-4xl max-w-full text-center">
           <h1 className="text-2xl font-bold text-white sm:text-3xl md:text-4xl lg:text-5xl">
             Create Your Course
           </h1>
@@ -360,7 +361,7 @@ export function HomePage() {
           </p>
 
           {/* Create prompt input with glow & gradient border */}
-          <div className="search-glow mt-6 flex items-center gap-2 rounded-xl border-2 border-white/10 sm:mt-8">
+          <div className="search-glow mt-3 flex max-w-full flex-wrap items-center gap-2 rounded-xl border-2 border-white/10 sm:mt-4">
             <div className="relative flex-1">
               <Sparkles className="absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-primary/60" />
               <input
@@ -371,18 +372,18 @@ export function HomePage() {
                 onKeyDown={(e) => {
                   if (e.key === "Enter") handleCreateCourse();
                 }}
-                className="h-12 w-full bg-transparent pl-11 pr-4 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none sm:h-14 sm:text-base"
+                className="min-w-0 h-12 w-full bg-transparent pl-11 pr-4 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none sm:h-14 sm:text-base"
               />
             </div>
             <Button
               onClick={handleCreateCourse}
-              className="btn-glow h-12 shrink-0 rounded-xl bg-white px-6 font-semibold text-primary shadow-md shadow-black/10 transition-all hover:bg-white/90 hover:shadow-lg hover:shadow-black/15 sm:h-14 sm:px-8"
+              className="btn-glow h-12 shrink-0 rounded-xl bg-white px-4 text-xs font-semibold text-primary shadow-md shadow-black/10 transition-all hover:bg-white/90 hover:shadow-lg hover:shadow-black/15 sm:h-14 sm:px-6 sm:text-sm"
             >
               Try Create
             </Button>
             <Button
               onClick={() => navigateTo("courses")}
-              className="btn-glow h-12 shrink-0 rounded-xl border-2 border-white/30 bg-transparent px-5 font-semibold text-white transition-all hover:border-white/50 hover:bg-white/10 sm:h-14 sm:px-6"
+              className="btn-glow h-12 shrink-0 rounded-xl border-2 border-white/30 bg-transparent px-3 text-xs font-semibold text-white transition-all hover:border-white/50 hover:bg-white/10 sm:h-14 sm:px-5 sm:text-sm"
             >
               Get Started
               <ArrowRight className="ml-1.5 h-4 w-4" />
@@ -390,7 +391,7 @@ export function HomePage() {
           </div>
 
           {/* Category quick-access pills */}
-          <div className="mt-5 flex flex-wrap items-center justify-center gap-2 sm:mt-6">
+          <div className="mt-3 flex flex-wrap items-center justify-center gap-2 sm:mt-4">
             <span className="text-xs font-medium text-white/50">Explore:</span>
             {categories.slice(0, 6).map((cat) => (
               <button
@@ -405,7 +406,7 @@ export function HomePage() {
           </div>
 
           {/* Tab buttons with animated underline */}
-          <div className="mt-5 flex items-center justify-center gap-1 sm:mt-6">
+          <div className="mt-3 flex flex-wrap items-center justify-center gap-1 sm:mt-4">
             {TABS.map((tab) => (
               <button
                 key={tab.key}
@@ -422,7 +423,7 @@ export function HomePage() {
           </div>
 
           {/* Stats row in pill badges */}
-          <div className="mt-4 flex flex-wrap items-center justify-center gap-2 sm:mt-5">
+          <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-medium text-white/90 backdrop-blur-sm">
               <GraduationCap className="h-3 w-3" />
               {totalCourseCount} Courses
@@ -442,7 +443,7 @@ export function HomePage() {
       </section>
 
       {/* ─── Quick Stats Dashboard ──────────────────────────────── */}
-      <section className="px-4 py-6 sm:px-6 md:px-8 lg:px-12" ref={statsRef}>
+      <section className="px-4 py-4 sm:px-6 md:px-8 lg:px-12" ref={statsRef}>
         <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
           {QUICK_STATS.map((stat, i) => {
             const Icon = stat.icon;
@@ -473,7 +474,7 @@ export function HomePage() {
       </section>
 
       {/* ─── Content Area: Sidebar + Course Grid ──────────────────── */}
-      <section className="flex flex-1 gap-6 px-4 py-6 sm:px-6 md:px-8 lg:px-12">
+      <section className="flex min-w-0 flex-1 gap-6 px-4 py-4 sm:px-6 md:px-8 lg:px-12">
         {/* ── Desktop Category Sidebar ─────────────────────────────── */}
         <aside className="hidden w-56 shrink-0 md:block">
           <ScrollArea className="h-[calc(100vh-340px)] max-h-[600px]">

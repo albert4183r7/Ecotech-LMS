@@ -1,0 +1,1364 @@
+  1760→  33% { transform: translateY(-20px) rotate(120deg); }
+  1761→  66% { transform: translateY(10px) rotate(240deg); }
+  1762→}
+  1763→
+  1764→.hero-orb {
+  1765→  position: absolute;
+  1766→  border-radius: 50%;
+  1767→  filter: blur(40px);
+  1768→  opacity: 0.3;
+  1769→  animation: float 15s ease-in-out infinite;
+  1770→  pointer-events: none;
+  1771→}
+  1772→
+  1773→.hero-orb-1 {
+  1774→  width: 200px;
+  1775→  height: 200px;
+  1776→  background: oklch(0.50 0.08 230);
+  1777→  top: -40px;
+  1778→  left: -60px;
+  1779→  animation-delay: 0s;
+  1780→}
+  1781→
+  1782→.hero-orb-2 {
+  1783→  width: 160px;
+  1784→  height: 160px;
+  1785→  background: oklch(0.62 0.06 180);
+  1786→  top: 20%;
+  1787→  right: -40px;
+  1788→  animation-delay: -5s;
+  1789→}
+  1790→
+  1791→.hero-orb-3 {
+  1792→  width: 120px;
+  1793→  height: 120px;
+  1794→  background: oklch(0.58 0.06 165);
+  1795→  bottom: -20px;
+  1796→  left: 30%;
+  1797→  animation-delay: -10s;
+  1798→}
+  1799→
+  1800→/* Typing cursor animation */
+  1801→@keyframes typing-cursor {
+  1802→  0%, 100% { border-color: oklch(0.50 0.08 230); }
+  1803→  50% { border-color: transparent; }
+  1804→}
+  1805→
+  1806→.typing-cursor {
+  1807→  border-right: 2px solid oklch(0.50 0.08 230);
+  1808→  animation: typing-cursor 1s step-end infinite;
+  1809→  padding-right: 2px;
+  1810→}
+  1811→
+  1812→/* Counter count-up */
+  1813→@keyframes countUp {
+  1814→  from { opacity: 0; transform: translateY(10px); }
+  1815→  to { opacity: 1; transform: translateY(0); }
+  1816→}
+  1817→
+  1818→.counter-value {
+  1819→  animation: countUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  1820→}
+  1821→
+  1822→/* Search glow */
+  1823→@keyframes searchGlow {
+  1824→  0%, 100% { box-shadow: 0 0 0 0 oklch(0.50 0.08 230 / 0); }
+  1825→  50% { box-shadow: 0 0 20px 2px oklch(0.50 0.08 230 / 0.15); }
+  1826→}
+  1827→
+  1828→.search-glow:focus-within {
+  1829→  animation: searchGlow 2s ease-in-out infinite;
+  1830→  border-color: oklch(0.50 0.08 230) !important;
+  1831→}
+  1832→
+  1833→/* Category pill hover */
+  1834→.category-pill {
+  1835→  transition: all 0.2s ease;
+  1836→}
+  1837→
+  1838→.category-pill:hover {
+  1839→  transform: translateY(-2px);
+  1840→  box-shadow: 0 4px 12px oklch(0.50 0.08 230 / 0.15);
+  1841→}
+  1842→
+  1843→/* Hero parallax scroll effect */
+  1844→.hero-parallax {
+  1845→  transform: translateY(calc(var(--scroll, 0) * 0.3px));
+  1846→  will-change: transform;
+  1847→}
+  1848→
+  1849→/* Hero enhanced gradient overlay */
+  1850→.hero-enhanced {
+  1851→  min-height: 380px;
+  1852→  position: relative;
+  1853→}
+  1854→
+  1855→@media (min-width: 640px) {
+  1856→  .hero-enhanced {
+  1857→    min-height: 440px;
+  1858→  }
+  1859→}
+  1860→
+  1861→@media (min-width: 768px) {
+  1862→  .hero-enhanced {
+  1863→    min-height: 480px;
+  1864→  }
+  1865→}
+  1866→
+  1867→/* ============================================ */
+  1868→/* 31. Enhanced Empty States                       */
+  1869→/* ============================================ */
+  1870→
+  1871→/* Empty state illustration */
+  1872→@keyframes emptyBounce {
+  1873→  0%, 100% { transform: translateY(0); }
+  1874→  50% { transform: translateY(-8px); }
+  1875→}
+  1876→
+  1877→.empty-illustration {
+  1878→  animation: emptyBounce 3s ease-in-out infinite;
+  1879→}
+  1880→
+  1881→/* Empty state fade in */
+  1882→@keyframes emptyFadeIn {
+  1883→  from { opacity: 0; transform: translateY(20px); }
+  1884→  to { opacity: 1; transform: translateY(0); }
+  1885→}
+  1886→
+  1887→.empty-state {
+  1888→  animation: emptyFadeIn 0.5s ease-out forwards;
+  1889→}
+  1890→
+  1891→/* ============================================ */
+  1892→/* 32. Improved Button Micro-interactions          */
+  1893→/* ============================================ */
+  1894→
+  1895→/* Button ripple effect */
+  1896→.btn-ripple {
+  1897→  position: relative;
+  1898→  overflow: hidden;
+  1899→}
+  1900→
+  1901→.btn-ripple::after {
+  1902→  content: '';
+  1903→  position: absolute;
+  1904→  top: 50%;
+  1905→  left: 50%;
+  1906→  width: 0;
+  1907→  height: 0;
+  1908→  border-radius: 50%;
+  1909→  background: oklch(1 0 0 / 0.15);
+  1910→  transform: translate(-50%, -50%);
+  1911→  transition: width 0.4s ease, height 0.4s ease;
+  1912→}
+  1913→
+  1914→.btn-ripple:active::after {
+  1915→  width: 200%;
+  1916→  height: 200%;
+  1917→}
+  1918→
+  1919→/* Button glow on hover */
+  1920→.btn-glow {
+  1921→  transition: box-shadow 0.3s ease, transform 0.15s ease;
+  1922→}
+  1923→
+  1924→.btn-glow:hover {
+  1925→  box-shadow: 0 0 20px oklch(0.50 0.08 230 / 0.2);
+  1926→}
+  1927→
+  1928→.btn-glow:active {
+  1929→  transform: scale(0.97);
+  1930→}
+  1931→
+  1932→/* ============================================ */
+  1933→/* 33. Card Hover Micro-interactions               */
+  1934→/* ============================================ */
+  1935→
+  1936→/* Card content slide up on hover */
+  1937→.card-content-reveal {
+  1938→  transition: transform 0.3s ease;
+  1939→}
+  1940→
+  1941→.card-content-reveal:hover {
+  1942→  transform: translateY(-2px);
+  1943→}
+  1944→
+  1945→/* Image zoom with overlay on hover */
+  1946→.card-img-zoom {
+  1947→  overflow: hidden;
+  1948→}
+  1949→
+  1950→.card-img-zoom img {
+  1951→  transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  1952→}
+  1953→
+  1954→.card-img-zoom:hover img {
+  1955→  transform: scale(1.08);
+  1956→}
+  1957→
+  1958→/* ============================================ */
+  1959→/* 34. Stat Card Animations                        */
+  1960→/* ============================================ */
+  1961→
+  1962→@keyframes statPop {
+  1963→  0% { transform: scale(0.8); opacity: 0; }
+  1964→  50% { transform: scale(1.05); }
+  1965→  100% { transform: scale(1); opacity: 1; }
+  1966→}
+  1967→
+  1968→.stat-pop {
+  1969→  animation: statPop 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  1970→}
+  1971→
+  1972→/* Stagger delays for stat cards */
+  1973→.stat-delay-1 { animation-delay: 0.05s; opacity: 0; }
+  1974→.stat-delay-2 { animation-delay: 0.1s; opacity: 0; }
+  1975→.stat-delay-3 { animation-delay: 0.15s; opacity: 0; }
+  1976→.stat-delay-4 { animation-delay: 0.2s; opacity: 0; }
+  1977→
+  1978→/* ============================================ */
+  1979→/* 35. Notification Appear Animation               */
+  1980→/* ============================================ */
+  1981→@keyframes notifAppear {
+  1982→  0% {
+  1983→    opacity: 0;
+  1984→    transform: translateY(6px) scale(0.98);
+  1985→  }
+  1986→  100% {
+  1987→    opacity: 1;
+  1988→    transform: translateY(0) scale(1);
+  1989→  }
+  1990→}
+  1991→
+  1992→.notif-appear {
+  1993→  animation: notifAppear 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+  1994→}
+  1995→
+  1996→/* Staggered notification appear delays */
+  1997→.notif-appear:nth-child(2) { animation-delay: 0.03s; }
+  1998→.notif-appear:nth-child(3) { animation-delay: 0.06s; }
+  1999→.notif-appear:nth-child(4) { animation-delay: 0.09s; }
+  2000→.notif-appear:nth-child(5) { animation-delay: 0.12s; }
+  2001→.notif-appear:nth-child(6) { animation-delay: 0.15s; }
+  2002→.notif-appear:nth-child(7) { animation-delay: 0.18s; }
+  2003→.notif-appear:nth-child(8) { animation-delay: 0.21s; }
+  2004→
+  2005→/* ============================================ */
+  2006→/* 36. Enhanced View Transitions                */
+  2007→/* ============================================ */
+  2008→
+  2009→@keyframes viewFadeSlideIn {
+  2010→  from {
+  2011→    opacity: 0;
+  2012→    transform: translateY(16px) scale(0.99);
+  2013→    filter: blur(4px);
+  2014→  }
+  2015→  to {
+  2016→    opacity: 1;
+  2017→    transform: translateY(0) scale(1);
+  2018→    filter: blur(0);
+  2019→  }
+  2020→}
+  2021→
+  2022→.view-transition-enter {
+  2023→  animation: viewFadeSlideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  2024→}
+  2025→
+  2026→/* Different slide directions based on navigation */
+  2027→@keyframes viewSlideFromRight {
+  2028→  from { opacity: 0; transform: translateX(30px); }
+  2029→  to { opacity: 1; transform: translateX(0); }
+  2030→}
+  2031→
+  2032→@keyframes viewSlideFromLeft {
+  2033→  from { opacity: 0; transform: translateX(-30px); }
+  2034→  to { opacity: 1; transform: translateX(0); }
+  2035→}
+  2036→
+  2037→.view-slide-right {
+  2038→  animation: viewSlideFromRight 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  2039→}
+  2040→
+  2041→.view-slide-left {
+  2042→  animation: viewSlideFromLeft 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  2043→}
+  2044→
+  2045→/* Reduced motion */
+  2046→@media (prefers-reduced-motion: reduce) {
+  2047→  .view-transition-enter,
+  2048→  .view-slide-right,
+  2049→  .view-slide-left {
+  2050→    animation: none;
+  2051→  }
+  2052→}
+  2053→
+  2054→/* ============================================ */
+  2055→/* 37. Focus Ring Animations                    */
+  2056→/* ============================================ */
+  2057→
+  2058→@keyframes focusRingPulse {
+  2059→  0%, 100% { box-shadow: 0 0 0 2px oklch(0.50 0.08 230 / 0.3); }
+  2060→  50% { box-shadow: 0 0 0 4px oklch(0.50 0.08 230 / 0.15); }
+  2061→}
+  2062→
+  2063→.focus-ring-animate:focus-visible {
+  2064→  animation: focusRingPulse 1.5s ease-in-out infinite;
+  2065→  outline: none;
+  2066→}
+  2067→
+  2068→/* ============================================ */
+  2069→/* 38. Loading Dots Animation                    */
+  2070→/* ============================================ */
+  2071→
+  2072→@keyframes loadingDots {
+  2073→  0%, 80%, 100% { transform: scale(0); opacity: 0.5; }
+  2074→  40% { transform: scale(1); opacity: 1; }
+  2075→}
+  2076→
+  2077→.loading-dots {
+  2078→  display: inline-flex;
+  2079→  gap: 4px;
+  2080→}
+  2081→
+  2082→.loading-dots span {
+  2083→  width: 6px;
+  2084→  height: 6px;
+  2085→  border-radius: 50%;
+  2086→  background: currentColor;
+  2087→  animation: loadingDots 1.4s ease-in-out infinite;
+  2088→}
+  2089→
+  2090→.loading-dots span:nth-child(2) { animation-delay: 0.16s; }
+  2091→.loading-dots span:nth-child(3) { animation-delay: 0.32s; }
+  2092→
+  2093→/* ============================================ */
+  2094→/* 39. Tooltip Enhancement                        */
+  2095→/* ============================================ */
+  2096→
+  2097→.tooltip-slide {
+  2098→  animation: tooltipSlideUp 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  2099→}
+  2100→
+  2101→@keyframes tooltipSlideUp {
+  2102→  from { opacity: 0; transform: translateY(4px) scale(0.96); }
+  2103→  to { opacity: 1; transform: translateY(0) scale(1); }
+  2104→}
+  2105→
+  2106→/* ============================================ */
+  2107→/* 40. Checkbox/Radio Custom Styling               */
+  2108→/* ============================================ */
+  2109→
+  2110→/* Custom toggle switch glow */
+  2111→.toggle-glow:checked {
+  2112→  box-shadow: 0 0 12px oklch(0.50 0.08 230 / 0.3);
+  2113→}
+  2114→
+  2115→/* ============================================ */
+  2116→/* 41. Number Counter Animation                   */
+  2117→/* ============================================ */
+  2118→
+  2119→@keyframes numberRoll {
+  2120→  from { transform: translateY(100%); opacity: 0; }
+  2121→  to { transform: translateY(0); opacity: 1; }
+  2122→}
+  2123→
+  2124→.number-roll {
+  2125→  display: inline-block;
+  2126→  animation: numberRoll 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  2127→}
+  2128→
+  2129→/* FAB pulse animation */
+  2130→@keyframes fab-pulse-anim {
+  2131→  0%, 100% {
+  2132→    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2), 0 0 0 0 rgba(6, 182, 212, 0.4);
+  2133→  }
+  2134→  50% {
+  2135→    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2), 0 0 0 12px rgba(6, 182, 212, 0);
+  2136→  }
+  2137→}
+  2138→
+  2139→.animate-fab-pulse {
+  2140→  animation: fab-pulse-anim 2.5s ease-in-out infinite;
+  2141→}
+  2142→
+  2143→/* ============================================ */
+  2144→/* 42. Neon Glow Effects                         */
+  2145→/* ============================================ */
+  2146→
+  2147→.neon-glow {
+  2148→  transition: box-shadow 0.3s ease;
+  2149→}
+  2150→
+  2151→.neon-glow:hover {
+  2152→  box-shadow: 0 0 15px oklch(0.7 0.15 180 / 0.3), 0 0 30px oklch(0.7 0.15 180 / 0.1);
+  2153→}
+  2154→
+  2155→.neon-glow-strong {
+  2156→  transition: box-shadow 0.3s ease;
+  2157→}
+  2158→
+  2159→.neon-glow-strong:hover {
+  2160→  box-shadow: 0 0 20px oklch(0.7 0.15 180 / 0.5), 0 0 40px oklch(0.7 0.15 180 / 0.25), 0 0 60px oklch(0.7 0.15 180 / 0.1);
+  2161→}
+  2162→
+  2163→.neon-text {
+  2164→  text-shadow: 0 0 8px oklch(0.7 0.15 180 / 0.4), 0 0 20px oklch(0.7 0.15 180 / 0.15);
+  2165→  transition: text-shadow 0.3s ease;
+  2166→}
+  2167→
+  2168→.neon-text:hover {
+  2169→  text-shadow: 0 0 12px oklch(0.7 0.15 180 / 0.6), 0 0 30px oklch(0.7 0.15 180 / 0.25);
+  2170→}
+  2171→
+  2172→.neon-border {
+  2173→  transition: box-shadow 0.3s ease;
+  2174→  box-shadow: 0 0 4px oklch(0.7 0.15 180 / 0.15);
+  2175→}
+  2176→
+  2177→.neon-border:hover {
+  2178→  box-shadow: 0 0 8px oklch(0.7 0.15 180 / 0.3), 0 0 16px oklch(0.7 0.15 180 / 0.15), inset 0 0 8px oklch(0.7 0.15 180 / 0.05);
+  2179→}
+  2180→
+  2181→@media (prefers-reduced-motion: reduce) {
+  2182→  .neon-glow,
+  2183→  .neon-glow-strong,
+  2184→  .neon-text,
+  2185→  .neon-border {
+  2186→    transition: none;
+  2187→  }
+  2188→  .neon-glow:hover,
+  2189→  .neon-glow-strong:hover {
+  2190→    box-shadow: none;
+  2191→  }
+  2192→  .neon-text,
+  2193→  .neon-text:hover {
+  2194→    text-shadow: none;
+  2195→  }
+  2196→  .neon-border,
+  2197→  .neon-border:hover {
+  2198→    box-shadow: none;
+  2199→  }
+  2200→}
+  2201→
+  2202→/* ============================================ */
+  2203→/* 43. Text Wave Animation                       */
+  2204→/* ============================================ */
+  2205→
+  2206→@keyframes textWave {
+  2207→  0%, 100% {
+  2208→    transform: translateY(0);
+  2209→  }
+  2210→  25% {
+  2211→    transform: translateY(-6px);
+  2212→  }
+  2213→  50% {
+  2214→    transform: translateY(0);
+  2215→  }
+  2216→  75% {
+  2217→    transform: translateY(3px);
+  2218→  }
+  2219→}
+  2220→
+  2221→.text-wave {
+  2222→  display: inline-flex;
+  2223→}
+  2224→
+  2225→.text-wave .text-wave-char {
+  2226→  display: inline-block;
+  2227→  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  2228→}
+  2229→
+  2230→.text-wave:hover .text-wave-char {
+  2231→  animation: textWave 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  2232→  animation-delay: var(--wave-delay, 0s);
+  2233→}
+  2234→
+  2235→@media (prefers-reduced-motion: reduce) {
+  2236→  .text-wave:hover .text-wave-char {
+  2237→    animation: none;
+  2238→  }
+  2239→}
+  2240→
+  2241→/* ============================================ */
+  2242→/* 44. Magnetic Hover Effect                     */
+  2243→/* ============================================ */
+  2244→
+  2245→.magnetic-hover {
+  2246→  transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  2247→}
+  2248→
+  2249→.magnetic-hover:hover {
+  2250→  transform: translate(2px, -2px) scale(1.02);
+  2251→}
+  2252→
+  2253→.magnetic-hover-child {
+  2254→  transition: transform 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  2255→}
+  2256→
+  2257→.magnetic-hover:hover .magnetic-hover-child {
+  2258→  transform: translate(1px, -1px);
+  2259→}
+  2260→
+  2261→@media (prefers-reduced-motion: reduce) {
+  2262→  .magnetic-hover,
+  2263→  .magnetic-hover-child {
+  2264→    transition: none;
+  2265→  }
+  2266→  .magnetic-hover:hover {
+  2267→    transform: none;
+  2268→  }
+  2269→  .magnetic-hover:hover .magnetic-hover-child {
+  2270→    transform: none;
+  2271→  }
+  2272→}
+  2273→
+  2274→/* ============================================ */
+  2275→/* 45. Particle Shimmer Overlay                  */
+  2276→/* ============================================ */
+  2277→
+  2278→@keyframes particleShimmer {
+  2279→  0% {
+  2280→    background-position: -200% 0;
+  2281→  }
+  2282→  100% {
+  2283→    background-position: 200% 200%;
+  2284→  }
+  2285→}
+  2286→
+  2287→.particle-shimmer {
+  2288→  position: relative;
+  2289→  overflow: hidden;
+  2290→}
+  2291→
+  2292→.particle-shimmer::after {
+  2293→  content: '';
+  2294→  position: absolute;
+  2295→  inset: 0;
+  2296→  background-image:
+  2297→    radial-gradient(1.5px 1.5px at 10% 20%, oklch(1 0 0 / 0.6) 50%, transparent 50%),
+  2298→    radial-gradient(1px 1px at 30% 60%, oklch(1 0 0 / 0.4) 50%, transparent 50%),
+  2299→    radial-gradient(2px 2px at 50% 10%, oklch(1 0 0 / 0.5) 50%, transparent 50%),
+  2300→    radial-gradient(1px 1px at 70% 80%, oklch(1 0 0 / 0.35) 50%, transparent 50%),
+  2301→    radial-gradient(1.5px 1.5px at 90% 40%, oklch(1 0 0 / 0.45) 50%, transparent 50%),
+  2302→    radial-gradient(1px 1px at 20% 90%, oklch(1 0 0 / 0.3) 50%, transparent 50%),
+  2303→    radial-gradient(2px 2px at 80% 15%, oklch(1 0 0 / 0.5) 50%, transparent 50%),
+  2304→    radial-gradient(1px 1px at 45% 70%, oklch(1 0 0 / 0.4) 50%, transparent 50%),
+  2305→    radial-gradient(1.5px 1.5px at 65% 50%, oklch(1 0 0 / 0.35) 50%, transparent 50%),
+  2306→    radial-gradient(1px 1px at 15% 45%, oklch(1 0 0 / 0.5) 50%, transparent 50%);
+  2307→  background-size: 200% 200%;
+  2308→  animation: particleShimmer 6s linear infinite;
+  2309→  pointer-events: none;
+  2310→  z-index: 1;
+  2311→}
+  2312→
+  2313→.particle-shimmer-slow::after {
+  2314→  animation-duration: 12s;
+  2315→  opacity: 0.6;
+  2316→}
+  2317→
+  2318→.particle-shimmer-fast::after {
+  2319→  animation-duration: 3s;
+  2320→}
+  2321→
+  2322→.dark .particle-shimmer::after,
+  2323→.dark .particle-shimmer-slow::after,
+  2324→.dark .particle-shimmer-fast::after {
+  2325→  background-image:
+  2326→    radial-gradient(1.5px 1.5px at 10% 20%, oklch(0.9 0.05 180 / 0.4) 50%, transparent 50%),
+  2327→    radial-gradient(1px 1px at 30% 60%, oklch(0.9 0.05 180 / 0.25) 50%, transparent 50%),
+  2328→    radial-gradient(2px 2px at 50% 10%, oklch(0.9 0.05 180 / 0.35) 50%, transparent 50%),
+  2329→    radial-gradient(1px 1px at 70% 80%, oklch(0.9 0.05 180 / 0.2) 50%, transparent 50%),
+  2330→    radial-gradient(1.5px 1.5px at 90% 40%, oklch(0.9 0.05 180 / 0.3) 50%, transparent 50%),
+  2331→    radial-gradient(1px 1px at 20% 90%, oklch(0.9 0.05 180 / 0.2) 50%, transparent 50%),
+  2332→    radial-gradient(2px 2px at 80% 15%, oklch(0.9 0.05 180 / 0.35) 50%, transparent 50%),
+  2333→    radial-gradient(1px 1px at 45% 70%, oklch(0.9 0.05 180 / 0.25) 50%, transparent 50%),
+  2334→    radial-gradient(1.5px 1.5px at 65% 50%, oklch(0.9 0.05 180 / 0.2) 50%, transparent 50%),
+  2335→    radial-gradient(1px 1px at 15% 45%, oklch(0.9 0.05 180 / 0.35) 50%, transparent 50%);
+  2336→}
+  2337→
+  2338→@media (prefers-reduced-motion: reduce) {
+  2339→  .particle-shimmer::after,
+  2340→  .particle-shimmer-slow::after,
+  2341→  .particle-shimmer-fast::after {
+  2342→    animation: none;
+  2343→  }
+  2344→}
+  2345→
+  2346→/* ============================================ */
+  2347→/* 46. Morphing Shape Backgrounds                */
+  2348→/* ============================================ */
+  2349→
+  2350→@keyframes morphBlob {
+  2351→  0%, 100% {
+  2352→    border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;
+  2353→  }
+  2354→  25% {
+  2355→    border-radius: 30% 60% 70% 40% / 50% 60% 30% 60%;
+  2356→  }
+  2357→  50% {
+  2358→    border-radius: 50% 60% 30% 60% / 30% 60% 70% 40%;
+  2359→  }
+  2360→  75% {
+  2361→    border-radius: 60% 30% 60% 40% / 70% 40% 50% 60%;
+  2362→  }
+  2363→}
+  2364→
+  2365→.morph-shape {
+  2366→  border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;
+  2367→  animation: morphBlob 12s ease-in-out infinite;
+  2368→}
+  2369→
+  2370→.morph-1 {
+  2371→  animation-duration: 10s;
+  2372→}
+  2373→
+  2374→.morph-2 {
+  2375→  animation-duration: 16s;
+  2376→  animation-delay: -4s;
+  2377→}
+  2378→
+  2379→.morph-3 {
+  2380→  animation-duration: 20s;
+  2381→  animation-delay: -8s;
+  2382→}
+  2383→
+  2384→@media (prefers-reduced-motion: reduce) {
+  2385→  .morph-shape,
+  2386→  .morph-1,
+  2387→  .morph-2,
+  2388→  .morph-3 {
+  2389→    animation: none;
+  2390→    border-radius: 50%;
+  2391→  }
+  2392→}
+  2393→
+  2394→/* ============================================ */
+  2395→/* 47. Floating Label Inputs                     */
+  2396→/* ============================================ */
+  2397→
+  2398→.floating-label {
+  2399→  position: relative;
+  2400→}
+  2401→
+  2402→.floating-label input {
+  2403→  width: 100%;
+  2404→  padding: 1.25rem 0.75rem 0.5rem;
+  2405→  border: 1px solid oklch(0.8 0.01 260 / 0.5);
+  2406→  border-radius: 0.5rem;
+  2407→  background: oklch(1 0 0 / 1);
+  2408→  font-size: 0.875rem;
+  2409→  outline: none;
+  2410→  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  2411→}
+  2412→
+  2413→.floating-label input::placeholder {
+  2414→  color: transparent;
+  2415→}
+  2416→
+  2417→.floating-label label {
+  2418→  position: absolute;
+  2419→  top: 50%;
+  2420→  left: 0.75rem;
+  2421→  transform: translateY(-50%);
+  2422→  font-size: 0.875rem;
+  2423→  color: oklch(0.55 0.02 260 / 0.8);
+  2424→  pointer-events: none;
+  2425→  transition: all 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  2426→  transform-origin: left center;
+  2427→}
+  2428→
+  2429→.floating-label input:focus + label,
+  2430→.floating-label input:not(:placeholder-shown) + label {
+  2431→  top: 0.5rem;
+  2432→  transform: translateY(0);
+  2433→  font-size: 0.625rem;
+  2434→  font-weight: 600;
+  2435→  letter-spacing: 0.025em;
+  2436→  color: oklch(0.55 0.18 180);
+  2437→}
+  2438→
+  2439→.floating-label input:focus {
+  2440→  border-color: oklch(0.55 0.18 180);
+  2441→  box-shadow: 0 0 0 3px oklch(0.55 0.18 180 / 0.12);
+  2442→}
+  2443→
+  2444→/* Textarea variant */
+  2445→.floating-label textarea {
+  2446→  width: 100%;
+  2447→  padding: 1.5rem 0.75rem 0.5rem;
+  2448→  border: 1px solid oklch(0.8 0.01 260 / 0.5);
+  2449→  border-radius: 0.5rem;
+  2450→  background: oklch(1 0 0 / 1);
+  2451→  font-size: 0.875rem;
+  2452→  outline: none;
+  2453→  resize: vertical;
+  2454→  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  2455→}
+  2456→
+  2457→.floating-label textarea::placeholder {
+  2458→  color: transparent;
+  2459→}
+  2460→
+  2461→.floating-label textarea:focus + label,
+  2462→.floating-label textarea:not(:placeholder-shown) + label {
+  2463→  top: 0.5rem;
+  2464→  transform: translateY(0);
+  2465→  font-size: 0.625rem;
+  2466→  font-weight: 600;
+  2467→  letter-spacing: 0.025em;
+  2468→  color: oklch(0.55 0.18 180);
+  2469→}
+  2470→
+  2471→.floating-label textarea:focus {
+  2472→  border-color: oklch(0.55 0.18 180);
+  2473→  box-shadow: 0 0 0 3px oklch(0.55 0.18 180 / 0.12);
+  2474→}
+  2475→
+  2476→/* Select variant */
+  2477→.floating-label select {
+  2478→  width: 100%;
+  2479→  padding: 1.25rem 0.75rem 0.5rem;
+  2480→  border: 1px solid oklch(0.8 0.01 260 / 0.5);
+  2481→  border-radius: 0.5rem;
+  2482→  background: oklch(1 0 0 / 1);
+  2483→  font-size: 0.875rem;
+  2484→  outline: none;
+  2485→  appearance: none;
+  2486→  cursor: pointer;
+  2487→  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  2488→}
+  2489→
+  2490→.floating-label select:focus + label {
+  2491→  top: 0.5rem;
+  2492→  transform: translateY(0);
+  2493→  font-size: 0.625rem;
+  2494→  font-weight: 600;
+  2495→  letter-spacing: 0.025em;
+  2496→  color: oklch(0.55 0.18 180);
+  2497→}
+  2498→
+  2499→.floating-label select:focus {
+  2500→  border-color: oklch(0.55 0.18 180);
+  2501→  box-shadow: 0 0 0 3px oklch(0.55 0.18 180 / 0.12);
+  2502→}
+  2503→
+  2504→/* Dark mode */
+  2505→.dark .floating-label input,
+  2506→.dark .floating-label textarea,
+  2507→.dark .floating-label select {
+  2508→  background: oklch(0.2 0.01 260 / 1);
+  2509→  border-color: oklch(0.35 0.01 260 / 0.6);
+  2510→  color: oklch(0.9 0.01 260);
+  2511→}
+  2512→
+  2513→.dark .floating-label label {
+  2514→  color: oklch(0.55 0.02 260 / 0.7);
+  2515→}
+  2516→
+  2517→.dark .floating-label input:focus + label,
+  2518→.dark .floating-label input:not(:placeholder-shown) + label,
+  2519→.dark .floating-label textarea:focus + label,
+  2520→.dark .floating-label textarea:not(:placeholder-shown) + label,
+  2521→.dark .floating-label select:focus + label {
+  2522→  color: oklch(0.7 0.15 180);
+  2523→}
+  2524→
+  2525→.dark .floating-label input:focus,
+  2526→.dark .floating-label textarea:focus,
+  2527→.dark .floating-label select:focus {
+  2528→  border-color: oklch(0.7 0.15 180);
+  2529→  box-shadow: 0 0 0 3px oklch(0.7 0.15 180 / 0.12);
+  2530→}
+  2531→
+  2532→/* ============================================ */
+  2533→/* 48. Enhanced Card Effects                     */
+  2534→/* ============================================ */
+  2535→
+  2536→/* Card spotlight — radial gradient follows cursor via custom property */
+  2537→.card-spotlight {
+  2538→  position: relative;
+  2539→  overflow: hidden;
+  2540→  --mouse-x: 50%;
+  2541→  --mouse-y: 50%;
+  2542→  transition: box-shadow 0.3s ease;
+  2543→}
+  2544→
+  2545→.card-spotlight::before {
+  2546→  content: '';
+  2547→  position: absolute;
+  2548→  inset: 0;
+  2549→  background: radial-gradient(400px circle at var(--mouse-x) var(--mouse-y), oklch(0.7 0.15 180 / 0.08), transparent 60%);
+  2550→  opacity: 0;
+  2551→  transition: opacity 0.3s ease;
+  2552→  pointer-events: none;
+  2553→  z-index: 1;
+  2554→}
+  2555→
+  2556→.card-spotlight:hover::before {
+  2557→  opacity: 1;
+  2558→}
+  2559→
+  2560→/* 3D perspective tilt on hover */
+  2561→.card-depth-3d {
+  2562→  perspective: 800px;
+  2563→  transform-style: preserve-3d;
+  2564→  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  2565→}
+  2566→
+  2567→.card-depth-3d:hover {
+  2568→  transform: rotateX(2deg) rotateY(-2deg) translateY(-4px);
+  2569→  box-shadow: 0 20px 40px oklch(0 0 0 / 0.08), 0 8px 16px oklch(0 0 0 / 0.06);
+  2570→}
+  2571→
+  2572→.dark .card-depth-3d:hover {
+  2573→  box-shadow: 0 20px 40px oklch(0 0 0 / 0.3), 0 8px 16px oklch(0 0 0 / 0.2);
+  2574→}
+  2575→
+  2576→/* Breathing scale for featured cards */
+  2577→@keyframes cardBreathe {
+  2578→  0%, 100% { transform: scale(1); }
+  2579→  50% { transform: scale(1.02); }
+  2580→}
+  2581→
+  2582→.card-breathe {
+  2583→  animation: cardBreathe 4s ease-in-out infinite;
+  2584→}
+  2585→
+  2586→/* Animated rotating gradient border */
+  2587→@keyframes gradientBorderRotate {
+  2588→  0% { --border-angle: 0deg; }
+  2589→  100% { --border-angle: 360deg; }
+  2590→}
+  2591→
+  2592→@property --border-angle {
+  2593→  syntax: '<angle>';
+  2594→  initial-value: 0deg;
+  2595→  inherits: false;
+  2596→}
+  2597→
+  2598→.card-gradient-border {
+  2599→  position: relative;
+  2600→  --border-angle: 0deg;
+  2601→  border: 2px solid transparent;
+  2602→  background-clip: padding-box;
+  2603→  animation: gradientBorderRotate 3s linear infinite;
+  2604→}
+  2605→
+  2606→.card-gradient-border::before {
+  2607→  content: '';
+  2608→  position: absolute;
+  2609→  inset: -2px;
+  2610→  border-radius: inherit;
+  2611→  background: conic-gradient(
+  2612→    from var(--border-angle),
+  2613→    oklch(0.7 0.15 180),
+  2614→    oklch(0.75 0.10 220),
+  2615→    oklch(0.65 0.2 165),
+  2616→    oklch(0.7 0.15 180)
+  2617→  );
+  2618→  z-index: -1;
+  2619→  animation: gradientBorderRotate 3s linear infinite;
+  2620→}
+  2621→
+  2622→.dark .card-gradient-border::before {
+  2623→  background: conic-gradient(
+  2624→    from var(--border-angle),
+  2625→    oklch(0.55 0.18 180),
+  2626→    oklch(0.6 0.12 220),
+  2627→    oklch(0.5 0.22 165),
+  2628→    oklch(0.55 0.18 180)
+  2629→  );
+  2630→}
+  2631→
+  2632→/* Stronger glassmorphism */
+  2633→.card-glass-strong {
+  2634→  background: oklch(0.98 0.003 220 / 0.75);
+  2635→  backdrop-filter: blur(20px) saturate(1.3);
+  2636→  -webkit-backdrop-filter: blur(20px) saturate(1.3);
+  2637→  border: 1px solid oklch(0.85 0.005 220 / 0.4);
+  2638→}
+  2639→
+  2640→.dark .card-glass-strong {
+  2641→  background: oklch(0.18 0.008 245 / 0.7);
+  2642→  border-color: oklch(0.35 0.008 245 / 0.3);
+  2643→}
+  2644→
+  2645→@media (prefers-reduced-motion: reduce) {
+  2646→  .card-breathe {
+  2647→    animation: none;
+  2648→  }
+  2649→  .card-depth-3d:hover {
+  2650→    transform: none;
+  2651→  }
+  2652→  .card-gradient-border,
+  2653→  .card-gradient-border::before {
+  2654→    animation: none;
+  2655→  }
+  2656→}
+  2657→
+  2658→/* ============================================ */
+  2659→/* 49. Scroll-Triggered Animations               */
+  2660→/* ============================================ */
+  2661→
+  2662→@keyframes scrollFadeUp {
+  2663→  from {
+  2664→    opacity: 0;
+  2665→    transform: translateY(24px);
+  2666→  }
+  2667→  to {
+  2668→    opacity: 1;
+  2669→    transform: translateY(0);
+  2670→  }
+  2671→}
+  2672→
+  2673→@keyframes scrollFadeLeft {
+  2674→  from {
+  2675→    opacity: 0;
+  2676→    transform: translateX(-24px);
+  2677→  }
+  2678→  to {
+  2679→    opacity: 1;
+  2680→    transform: translateX(0);
+  2681→  }
+  2682→}
+  2683→
+  2684→@keyframes scrollFadeRight {
+  2685→  from {
+  2686→    opacity: 0;
+  2687→    transform: translateX(24px);
+  2688→  }
+  2689→  to {
+  2690→    opacity: 1;
+  2691→    transform: translateX(0);
+  2692→  }
+  2693→}
+  2694→
+  2695→@keyframes scrollScaleIn {
+  2696→  from {
+  2697→    opacity: 0;
+  2698→    transform: scale(0.9);
+  2699→  }
+  2700→  to {
+  2701→    opacity: 1;
+  2702→    transform: scale(1);
+  2703→  }
+  2704→}
+  2705→
+  2706→/* Base: hidden until animated */
+  2707→.scroll-fade-up,
+  2708→.scroll-fade-left,
+  2709→.scroll-fade-right,
+  2710→.scroll-scale-in {
+  2711→  opacity: 0;
+  2712→}
+  2713→
+  2714→/* Active state — toggled via JS intersection observer */
+  2715→.scroll-fade-up.is-visible {
+  2716→  animation: scrollFadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  2717→}
+  2718→
+  2719→.scroll-fade-left.is-visible {
+  2720→  animation: scrollFadeLeft 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  2721→}
+  2722→
+  2723→.scroll-fade-right.is-visible {
+  2724→  animation: scrollFadeRight 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  2725→}
+  2726→
+  2727→.scroll-scale-in.is-visible {
+  2728→  animation: scrollScaleIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  2729→}
+  2730→
+  2731→/* Native animation-timeline support */
+  2732→@supports (animation-timeline: view()) {
+  2733→  .scroll-fade-up {
+  2734→    opacity: 0;
+  2735→    animation: scrollFadeUp linear both;
+  2736→    animation-timeline: view();
+  2737→    animation-range: entry 0% entry 100%;
+  2738→  }
+  2739→
+  2740→  .scroll-fade-left {
+  2741→    opacity: 0;
+  2742→    animation: scrollFadeLeft linear both;
+  2743→    animation-timeline: view();
+  2744→    animation-range: entry 0% entry 100%;
+  2745→  }
+  2746→
+  2747→  .scroll-fade-right {
+  2748→    opacity: 0;
+  2749→    animation: scrollFadeRight linear both;
+  2750→    animation-timeline: view();
+  2751→    animation-range: entry 0% entry 100%;
+  2752→  }
+  2753→
+  2754→  .scroll-scale-in {
+  2755→    opacity: 0;
+  2756→    animation: scrollScaleIn linear both;
+  2757→    animation-timeline: view();
+  2758→    animation-range: entry 0% entry 100%;
+  2759→  }
+  2760→
+  2761→  /* Override JS-toggled visible state when native timeline is used */
+  2762→  .scroll-fade-up.is-visible,
+  2763→  .scroll-fade-left.is-visible,
+  2764→  .scroll-fade-right.is-visible,
+  2765→  .scroll-scale-in.is-visible {
+  2766→    animation: none;
+  2767→  }
+  2768→
+  2769→  .scroll-fade-up {
+  2770→    animation: scrollFadeUp linear both;
+  2771→    animation-timeline: view();
+  2772→    animation-range: entry 0% entry 100%;
+  2773→  }
+  2774→  .scroll-fade-left {
+  2775→    animation: scrollFadeLeft linear both;
+  2776→    animation-timeline: view();
+  2777→    animation-range: entry 0% entry 100%;
+  2778→  }
+  2779→  .scroll-fade-right {
+  2780→    animation: scrollFadeRight linear both;
+  2781→    animation-timeline: view();
+  2782→    animation-range: entry 0% entry 100%;
+  2783→  }
+  2784→  .scroll-scale-in {
+  2785→    animation: scrollScaleIn linear both;
+  2786→    animation-timeline: view();
+  2787→    animation-range: entry 0% entry 100%;
+  2788→  }
+  2789→}
+  2790→
+  2791→@media (prefers-reduced-motion: reduce) {
+  2792→  .scroll-fade-up,
+  2793→  .scroll-fade-left,
+  2794→  .scroll-fade-right,
+  2795→  .scroll-scale-in {
+  2796→    opacity: 1;
+  2797→    animation: none;
+  2798→  }
+  2799→}
+  2800→
+  2801→/* ============================================ */
+  2802→/* 50. Interactive Toggle Switch                 */
+  2803→/* ============================================ */
+  2804→
+  2805→.toggle-switch {
+  2806→  display: inline-flex;
+  2807→  align-items: center;
+  2808→  gap: 0.5rem;
+  2809→  cursor: pointer;
+  2810→  user-select: none;
+  2811→}
+  2812→
+  2813→.toggle-track {
+  2814→  position: relative;
+  2815→  width: 2.75rem;
+  2816→  height: 1.5rem;
+  2817→  border-radius: 9999px;
+  2818→  background: oklch(0.82 0.01 260 / 1);
+  2819→  border: 1px solid oklch(0.75 0.01 260 / 0.6);
+  2820→  transition: background 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+  2821→              border-color 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+  2822→              box-shadow 0.25s ease;
+  2823→}
+  2824→
+  2825→.toggle-switch input:checked + .toggle-track {
+  2826→  background: oklch(0.55 0.18 180);
+  2827→  border-color: oklch(0.5 0.18 180);
+  2828→}
+  2829→
+  2830→.toggle-thumb {
+  2831→  position: absolute;
+  2832→  top: 2px;
+  2833→  left: 2px;
+  2834→  width: 1.125rem;
+  2835→  height: 1.125rem;
+  2836→  border-radius: 9999px;
+  2837→  background: oklch(1 0 0 / 1);
+  2838→  box-shadow: 0 1px 3px oklch(0 0 0 / 0.15);
+  2839→  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+  2840→              box-shadow 0.25s ease;
+  2841→}
+  2842→
+  2843→.toggle-switch input:checked + .toggle-track .toggle-thumb {
+  2844→  transform: translateX(1.25rem);
+  2845→}
+  2846→
+  2847→.toggle-glow input:checked + .toggle-track {
+  2848→  box-shadow: 0 0 12px oklch(0.55 0.18 180 / 0.35), 0 0 24px oklch(0.55 0.18 180 / 0.15);
+  2849→}
+  2850→
+  2851→.toggle-label {
+  2852→  font-size: 0.8125rem;
+  2853→  font-weight: 500;
+  2854→  color: oklch(0.4 0.01 260);
+  2855→  transition: color 0.2s ease;
+  2856→}
+  2857→
+  2858→.toggle-switch input:checked ~ .toggle-label {
+  2859→  color: oklch(0.55 0.18 180);
+  2860→}
+  2861→
+  2862→/* Dark mode */
+  2863→.dark .toggle-track {
+  2864→  background: oklch(0.3 0.01 260 / 1);
+  2865→  border-color: oklch(0.35 0.01 260 / 0.6);
+  2866→}
+  2867→
+  2868→.dark .toggle-switch input:checked + .toggle-track {
+  2869→  background: oklch(0.55 0.18 180);
+  2870→  border-color: oklch(0.6 0.18 180);
+  2871→}
+  2872→
+  2873→.dark .toggle-thumb {
+  2874→  background: oklch(0.95 0.01 260);
+  2875→  box-shadow: 0 1px 3px oklch(0 0 0 / 0.3);
+  2876→}
+  2877→
+  2878→.dark .toggle-label {
+  2879→  color: oklch(0.65 0.02 260);
+  2880→}
+  2881→
+  2882→.dark .toggle-switch input:checked ~ .toggle-label {
+  2883→  color: oklch(0.7 0.15 180);
+  2884→}
+  2885→
+  2886→@media (prefers-reduced-motion: reduce) {
+  2887→  .toggle-track,
+  2888→  .toggle-thumb,
+  2889→  .toggle-label {
+  2890→    transition: none;
+  2891→  }
+  2892→}
+  2893→
+  2894→/* ============================================ */
+  2895→/* 51. Tooltip Enhancement Suite                 */
+  2896→/* ============================================ */
+  2897→
+  2898→@keyframes tooltipPop {
+  2899→  0% {
+  2900→    opacity: 0;
+  2901→    transform: scale(0.92) translateY(4px);
+  2902→  }
+  2903→  60% {
+  2904→    transform: scale(1.02) translateY(0);
+  2905→  }
+  2906→  100% {
+  2907→    opacity: 1;
+  2908→    transform: scale(1) translateY(0);
+  2909→  }
+  2910→}
+  2911→
+  2912→/* Tooltip with CSS arrow */
+  2913→.tooltip-arrow {
+  2914→  position: relative;
+  2915→}
+  2916→
+  2917→.tooltip-arrow::after {
+  2918→  content: '';
+  2919→  position: absolute;
+  2920→  bottom: -5px;
+  2921→  left: 50%;
+  2922→  transform: translateX(-50%);
+  2923→  width: 0;
+  2924→  height: 0;
+  2925→  border-left: 6px solid transparent;
+  2926→  border-right: 6px solid transparent;
+  2927→  border-top: 6px solid oklch(0.25 0.01 260);
+  2928→}
+  2929→
+  2930→.dark .tooltip-arrow::after {
+  2931→  border-top-color: oklch(0.2 0.01 260);
+  2932→}
+  2933→
+  2934→/* Dark tooltip variant */
+  2935→.tooltip-dark {
+  2936→  background: oklch(0.2 0.01 260 / 0.95) !important;
+  2937→  color: oklch(0.95 0 0) !important;
+  2938→  border: 1px solid oklch(0.3 0.01 260 / 0.5);
+  2939→}
+  2940→
+  2941→/* Glassmorphism tooltip */
+  2942→.tooltip-glass {
+  2943→  background: oklch(0.97 0.005 260 / 0.8) !important;
+  2944→  backdrop-filter: blur(12px) saturate(1.2);
+  2945→  -webkit-backdrop-filter: blur(12px) saturate(1.2);
+  2946→  border: 1px solid oklch(0.85 0.01 260 / 0.5);
+  2947→  box-shadow: 0 4px 16px oklch(0 0 0 / 0.08);
+  2948→}
+  2949→
+  2950→.dark .tooltip-glass {
+  2951→  background: oklch(0.2 0.01 260 / 0.8) !important;
+  2952→  border-color: oklch(0.35 0.01 260 / 0.4);
+  2953→  box-shadow: 0 4px 16px oklch(0 0 0 / 0.25);
+  2954→}
+  2955→
+  2956→/* Animated tooltip entrance */
+  2957→.tooltip-animated {
+  2958→  animation: tooltipPop 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  2959→}
+  2960→
+  2961→@media (prefers-reduced-motion: reduce) {
+  2962→  .tooltip-animated {
+  2963→    animation: none;
+  2964→    opacity: 1;
+  2965→  }
+  2966→}
+  2967→
+  2968→/* ============================================ */
+  2969→/* 52. Loading & Progress Enhancements           */
+  2970→/* ============================================ */
+  2971→
+  2972→/* Circular progress ring using conic-gradient */
+  2973→.progress-ring {
+  2974→  --progress: 0%;
+  2975→  width: 3rem;
+  2976→  height: 3rem;
+  2977→  border-radius: 50%;
+  2978→  background: conic-gradient(
+  2979→    oklch(0.55 0.18 180) calc(var(--progress) * 1%),
+  2980→    oklch(0.9 0.01 260 / 0.2) calc(var(--progress) * 1%)
+  2981→  );
+  2982→  display: flex;
+  2983→  align-items: center;
+  2984→  justify-content: center;
+  2985→  transition: background 0.4s ease;
+  2986→}
+  2987→
+  2988→.progress-ring::after {
+  2989→  content: '';
+  2990→  width: 2.25rem;
+  2991→  height: 2.25rem;
+  2992→  border-radius: 50%;
+  2993→  background: oklch(1 0 0 / 1);
+  2994→}
+  2995→
+  2996→.dark .progress-ring {
+  2997→  background: conic-gradient(
+  2998→    oklch(0.65 0.15 180) calc(var(--progress) * 1%),
+  2999→    oklch(0.25 0.01 260 / 0.3) calc(var(--progress) * 1%)
+  3000→  );
+  3001→}
+  3002→
+  3003→.dark .progress-ring::after {
+  3004→  background: oklch(0.15 0.01 260);
+  3005→}
+  3006→
+  3007→/* Enhanced skeleton with pulse overlay */
+  3008→.loading-skeleton-pulse {
+  3009→  position: relative;
+  3010→  overflow: hidden;
+  3011→}
+  3012→
+  3013→.loading-skeleton-pulse::after {
+  3014→  content: '';
+  3015→  position: absolute;
+  3016→  inset: 0;
+  3017→  background: linear-gradient(
+  3018→    90deg,
+  3019→    transparent,
+  3020→    oklch(1 0 0 / 0.4),
+  3021→    transparent
+  3022→  );
+  3023→  animation: skeletonPulse 1.5s ease-in-out infinite;
+  3024→}
+  3025→
+  3026→@keyframes skeletonPulse {
+  3027→  0% { transform: translateX(-100%); }
+  3028→  100% { transform: translateX(100%); }
+  3029→}
+  3030→
+  3031→/* Top-of-page loading bar */
+  3032→@keyframes loadingBarMove {
+  3033→  0% {
+  3034→    transform: translateX(-100%);
+  3035→    width: 40%;
+  3036→  }
+  3037→  50% {
+  3038→    transform: translateX(0%);
+  3039→    width: 60%;
+  3040→  }
+  3041→  100% {
+  3042→    transform: translateX(100%);
+  3043→    width: 40%;
+  3044→  }
+  3045→}
+  3046→
+  3047→.loading-bar {
+  3048→  position: fixed;
+  3049→  top: 0;
+  3050→  left: 0;
+  3051→  height: 2px;
+  3052→  background: linear-gradient(90deg, oklch(0.55 0.10 180), oklch(0.58 0.08 220), oklch(0.55 0.10 180));
+  3053→  z-index: 9999;
+  3054→  animation: loadingBarMove 1.5s ease-in-out infinite;
+  3055→  pointer-events: none;
+  3056→}
+  3057→
+  3058→/* Double-ring spinner */
+  3059→@keyframes spinnerRingRotate {
+  3060→  0% { transform: rotate(0deg); }
+  3061→  100% { transform: rotate(360deg); }
+  3062→}
+  3063→
+  3064→@keyframes spinnerRingCounterRotate {
+  3065→  0% { transform: rotate(0deg); }
+  3066→  100% { transform: rotate(-360deg); }
+  3067→}
+  3068→
+  3069→.loading-spinner-ring {
+  3070→  position: relative;
+  3071→  width: 2rem;
+  3072→  height: 2rem;
+  3073→}
+  3074→
+  3075→.loading-spinner-ring::before,
+  3076→.loading-spinner-ring::after {
+  3077→  content: '';
+  3078→  position: absolute;
+  3079→  inset: 0;
+  3080→  border-radius: 50%;
+  3081→  border: 2.5px solid transparent;
+  3082→}
+  3083→
+  3084→.loading-spinner-ring::before {
+  3085→  border-top-color: oklch(0.55 0.18 180);
+  3086→  border-right-color: oklch(0.55 0.18 180 / 0.3);
+  3087→  animation: spinnerRingRotate 0.8s linear infinite;
+  3088→}
+  3089→
+  3090→.loading-spinner-ring::after {
+  3091→  inset: 3px;
+  3092→  border-bottom-color: oklch(0.65 0.08 220);
+  3093→  border-left-color: oklch(0.65 0.08 220 / 0.3);
+  3094→  animation: spinnerRingCounterRotate 0.6s linear infinite;
+  3095→}
+  3096→
+  3097→.dark .loading-spinner-ring::before {
+  3098→  border-top-color: oklch(0.7 0.15 180);
+  3099→  border-right-color: oklch(0.7 0.15 180 / 0.3);
+  3100→}
+  3101→
+  3102→.dark .loading-spinner-ring::after {
+  3103→  border-bottom-color: oklch(0.75 0.08 220);
+  3104→  border-left-color: oklch(0.75 0.08 220 / 0.3);
+  3105→}
+  3106→
+  3107→@media (prefers-reduced-motion: reduce) {
+  3108→  .loading-bar {
+  3109→    animation: none;
+  3110→    display: none;
+  3111→  }
+  3112→  .loading-skeleton-pulse::after {
+  3113→    animation: none;
+  3114→  }
+  3115→  .loading-spinner-ring::before,
+  3116→  .loading-spinner-ring::after {
+  3117→    animation: none;
+  3118→  }
+  3119→  .progress-ring {
+  3120→    transition: none;
+  3121→  }
+  3122→}
+  3123→

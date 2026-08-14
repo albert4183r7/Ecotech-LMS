@@ -129,7 +129,7 @@ function generateMockHistory(userId: string): XpHistoryEntry[] {
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId') || 'user_demo_001';
+    const userId = searchParams.get('userId') || 'user_student_001';
 
     // Generate mock total XP in 150-600 range, seeded by userId
     const rand = seededRandom(Math.abs(hashUserId(userId)));

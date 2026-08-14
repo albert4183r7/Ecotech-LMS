@@ -146,7 +146,7 @@ function shuffleArray<T>(arr: T[], rand: () => number): T[] {
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId') || 'user_demo_001';
+    const userId = searchParams.get('userId') || 'user_student_001';
 
     const seed = getDaySeed();
     const rand = seededRandom(seed);
