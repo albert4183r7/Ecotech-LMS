@@ -16,6 +16,7 @@ import {
   BookmarkCheck,
   Trash2,
   Send,
+  FileDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -66,6 +67,7 @@ export function ClassroomPage() {
   // ─── Keyboard Hint Fade ────────────────────────
   const [showKeyboardHint, setShowKeyboardHint] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
+  const [downloadingPptx, setDownloadingPptx] = useState(false);
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 1023px)");
@@ -318,6 +320,45 @@ export function ClassroomPage() {
     );
   }, []);
 
+  // ─── Download as PPTX ─────────────────────────────
+  const handleDownloadPptx = useCallback(async () => {
+    if (!localState || localState.slides.length === 0 || downloadingPptx) return;
+    setDownloadingPptx(true);
+    try {
+      const res = await fetch('/api/generate-pptx', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          slides: localState.slides,
+          courseName: localState.courseTitle,
+        }),
+      });
+      if (!res.ok) {
+        toast.error('Failed to generate PPT');
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const safeName = localState.courseTitle
+        .replace(/[^a-zA-Z0-9\s-]/g, '')
+        .replace(/\s+/g, '-')
+        .toLowerCase()
+        .slice(0, 60);
+      a.download = `${safeName}.pptx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast.success('PPT downloaded successfully!');
+    } catch {
+      toast.error('Failed to download PPT');
+    } finally {
+      setDownloadingPptx(false);
+    }
+  }, [localState, downloadingPptx]);
+
   // ─── No state guard ─────────────────────────────
   if (!localState) {
     return (
@@ -377,11 +418,9 @@ export function ClassroomPage() {
         {/* Logo, Section Title, Course Title */}
         <div className="flex items-center gap-3 min-w-0">
           <div className="flex items-center gap-2 shrink-0">
-            <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary">
-              <GraduationCap className="h-4 w-4 text-primary-foreground" />
-            </div>
+            <img src="/ecotech-logo.png" alt="Ecotech" className="h-7 w-7 rounded-md object-contain" />
             <span className="hidden sm:inline text-sm font-bold text-primary">
-              OpenClass
+              Ecotech
             </span>
           </div>
           <Separator orientation="vertical" className="h-5" />
@@ -568,6 +607,25 @@ export function ClassroomPage() {
                 </Button>
               </TooltipTrigger>
               <TooltipContent>Reset Zoom</TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={handleDownloadPptx}
+                  disabled={downloadingPptx || localState.slides.length === 0}
+                >
+                  {downloadingPptx ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <FileDown className="h-4 w-4" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Download as PPT</TooltipContent>
             </Tooltip>
           </div>
 

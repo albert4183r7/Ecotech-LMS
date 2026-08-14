@@ -496,11 +496,9 @@ export function Navbar() {
             onClick={() => navigateTo("home")}
             aria-label="Go to homepage"
           >
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary shadow-sm">
-              <GraduationCap className="h-5 w-5 text-primary-foreground" />
-            </div>
+            <img src="/ecotech-logo.png" alt="Ecotech" className="h-8 w-8 rounded-lg object-contain" />
             <span className="text-lg font-bold tracking-tight hidden sm:inline gradient-text">
-              OpenClass
+              Ecotech
             </span>
           </button>
           {/* Breadcrumb: subtle page indicator */}
@@ -811,7 +809,7 @@ export function Navbar() {
             </span>
             <div className="min-w-0 flex-1">
               <p className="text-sm font-medium text-foreground truncate">{displayName}</p>
-              <p className="text-xs text-muted-foreground truncate">{currentUserId.replace(/_/g, ".")}@openclass.com</p>
+              <p className="text-xs text-muted-foreground truncate">{currentUserId.replace(/_/g, ".")}@ecotech.com</p>
             </div>
             <span className="flex items-center gap-1 text-[10px] font-medium text-emerald-500">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />

@@ -20,7 +20,7 @@ interface TimerState {
   totalCompletedMinutes: number;
 }
 
-const STORAGE_KEY = "openclass-study-timer";
+const STORAGE_KEY = "ecotech-study-timer";
 
 const FOCUS_OPTIONS = [15, 25, 30, 45, 60];
 const SHORT_BREAK_DURATION = 5 * 60;

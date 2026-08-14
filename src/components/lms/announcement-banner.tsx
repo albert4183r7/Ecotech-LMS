@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useSyncExternalStore } from "react";
 import { Info, CheckCircle2, AlertTriangle, X } from "lucide-react";
 
-const STORAGE_PREFIX = "openclass_dismissed_ann_";
+const STORAGE_PREFIX = "ecotech_dismissed_ann_";
 
 type BannerType = "info" | "success" | "warning";
 

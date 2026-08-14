@@ -15,11 +15,11 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "OpenClass - Employee Learning Management System",
+  title: "Ecotech - Learning Management System",
   description:
-    "Internal LMS platform for employee training, skill development, and knowledge sharing. Built for teams that learn together.",
+    "Ecotech LMS platform for employee training, skill development, and knowledge sharing.",
   icons: {
-    icon: "https://z-cdn.chatglm.cn/z-ai/static/logo.svg",
+    icon: "/ecotech-logo.png",
   },
 };
 

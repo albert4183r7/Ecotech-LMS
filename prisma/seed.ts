@@ -626,7 +626,7 @@ async function main() {
         id: "notif_006",
         userId: "user_demo_001",
         title: "System Update",
-        message: "OpenClass v1.0 is now live with new features and improvements.",
+        message: "Ecotech v1.0 is now live with new features and improvements.",
         type: "system",
         read: true,
         link: null,

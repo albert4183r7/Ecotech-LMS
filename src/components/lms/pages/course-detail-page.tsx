@@ -15,6 +15,7 @@ import {
   CheckCircle2,
   Clock,
   PlayCircle,
+  FileDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -69,6 +70,7 @@ export function CourseDetailPage() {
   const [sectionProgress, setSectionProgress] = useState<SectionProgress[]>([]);
   const [userRating, setUserRating] = useState<number | null>(null);
   const [ratingCount, setRatingCount] = useState(0);
+  const [downloadingPptx, setDownloadingPptx] = useState(false);
 
   /** Fetch course detail from API */
   const fetchCourse = useCallback(async () => {
@@ -209,6 +211,60 @@ export function CourseDetailPage() {
       setTogglingFav(false);
     }
   };
+
+  /** Download entire course as PPTX */
+  const handleDownloadCoursePptx = useCallback(async () => {
+    if (!course || downloadingPptx) return;
+    setDownloadingPptx(true);
+    try {
+      // Fetch all sections' content
+      const allSlides: SlideContent[] = [];
+      for (const section of course.sections) {
+        try {
+          const res = await fetch(`/api/sections/${section.id}`);
+          if (!res.ok) continue;
+          const json = await res.json();
+          if (json.success && json.data.content && Array.isArray(json.data.content)) {
+            allSlides.push(...json.data.content);
+          }
+        } catch {
+          // Skip sections that fail to load
+        }
+      }
+      if (allSlides.length === 0) {
+        toast.error('No slide content available for download.');
+        return;
+      }
+      const res = await fetch('/api/generate-pptx', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slides: allSlides, courseName: course.title }),
+      });
+      if (!res.ok) {
+        toast.error('Failed to generate PPT');
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const safeName = course.title
+        .replace(/[^a-zA-Z0-9\s-]/g, '')
+        .replace(/\s+/g, '-')
+        .toLowerCase()
+        .slice(0, 60);
+      a.download = `${safeName}.pptx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast.success('Course PPT downloaded successfully!');
+    } catch {
+      toast.error('Failed to download course PPT.');
+    } finally {
+      setDownloadingPptx(false);
+    }
+  }, [course, downloadingPptx]);
 
   /** Handle share button */
   const handleShare = async () => {
@@ -531,6 +587,22 @@ export function CourseDetailPage() {
             <Share2 className="h-4 w-4 text-muted-foreground" />
           </Button>
         </div>
+
+        {/* Download as PPT - Outline Button */}
+        <Button
+          variant="outline"
+          size="lg"
+          className="gap-2 font-medium text-sm px-5 py-6"
+          onClick={handleDownloadCoursePptx}
+          disabled={downloadingPptx || course.sections.length === 0}
+        >
+          {downloadingPptx ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <FileDown className="h-4 w-4" />
+          )}
+          Download as PPT
+        </Button>
 
         {/* Start / Continue Learning Button - Prominent */}
         <Button

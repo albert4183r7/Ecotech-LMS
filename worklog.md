@@ -1,7 +1,7 @@
 # LMS Project Worklog
 
 ## Project Overview
-**OpenClass** - Internal Employee Learning Management System (LMS) built with Next.js 16, TypeScript, Tailwind CSS 4, shadcn/ui, and Prisma (SQLite).
+**Ecotech** - Learning Management System (LMS) built with Next.js 16, TypeScript, Tailwind CSS 4, shadcn/ui, and Prisma (SQLite).
 
 ---
 
@@ -17,6 +17,8 @@
 ✅ **Phase 9 (Cron Review #8)** — Analytics dashboard, course recommendations engine, notification center with persistent DB storage, 3-way dark mode toggle (light/dark/system), home page hero overhaul (floating orbs, typing animation, CSS parallax, animated counters, category pills), empty states polish, button ripple/glow effects, card hover micro-interactions
 ✅ **Phase 10 (Cron Review #9)** — Settings page (appearance/notifications/learning/privacy/data management), course bookmark collections, floating action button (FAB) with scroll-to-top, course progress timeline visualization, dashboard visual polish (sparklines, donut chart, weekly heatmap), enhanced view transitions (fade+slide+blur), reusable skeleton card components, micro-interaction CSS (focus ring pulse, loading dots, tooltip slide, toggle glow, number roll)
 ✅ **Phase 11 (Cron Review #10)** — Daily learning challenges system, XP level progression with level titles, social activity feed, enhanced course filter pills (inline category pills + results count), major CSS overhaul (11 new sections 42-52: neon glow, text wave, magnetic hover, particle shimmer, morphing shapes, floating labels, enhanced cards, scroll-triggered animations, interactive toggle switch, tooltip suite, loading enhancements), component styling upgrades (3D card depth, glass-strong footer, neon navbar, gradient-border badges)
+
+✅ **Phase 12 (Rebrand + PPT)** — Full rebrand from OpenClass → Ecotech, Ecotech logo integration, color scheme update (steel blue #4A6FA5 + teal #5B9A8F from Ecotech website), PPTX generation/download feature for lesson slides, localStorage key migration, voice input verified as not present (only timer chime)
 
 ### Architecture Summary
 - **11 Database Models**: User, Category, Course, Section, Enrollment, Progress, Favorite, Comment, Note, Rating, Notification
@@ -1624,11 +1626,80 @@ Phase 11 combined 3 parallel subagent tasks with manual integration to deliver g
 4. **Challenge completion**: Challenge completion status is mock (hash-based). Real tracking needs progress logging.
 5. **Social feed data**: Mock data only with seeded PRNG. Real social features need user activity logging.
 
-### Priority Recommendations for Phase 12
+### Priority Recommendations for Phase 13
 1. **Database-backed XP/Challenges**: Add `UserXp` and `DailyChallenge` models to Prisma schema for real persistence
 2. **Collaborative Learning Features**: Study groups, shared notes, peer review system
 3. **Mobile PWA Support**: Service worker, offline caching, install prompt, push notifications
 4. **AI-Powered Smart Search**: Natural language course search using z-ai-web-dev-sdk LLM
 5. **Learning Path System**: Structured multi-course learning paths with prerequisites and milestones
-6. **Performance Optimization**: Code splitting, lazy loading for heavy pages, image optimization with next/image
-7. **Admin Dashboard**: Course management, user analytics, reporting for instructors/admins
+
+---
+
+## Phase 12 Changes (Rebrand + PPT Generation)
+
+### Overview
+Major rebranding from OpenClass to Ecotech with new color scheme, logo, and PPT generation feature. All changes verified: lint 0 errors, dev server running, all API routes 200 OK.
+
+### 1. Full Rebrand: OpenClass → Ecotech
+**17+ source files updated:**
+- `layout.tsx`: Title → "Ecotech - Learning Management System", favicon → `/ecotech-logo.png`
+- `navbar.tsx`: Brand text + email domain → `@ecotech.com`
+- `footer.tsx`: Copyright → "© Ecotech", team attribution → "Ecotech Team"
+- `certificate-modal.tsx`: Issuer → "Ecotech", footer text → "Ecotech — Learning Management Platform"
+- `onboarding-tour.tsx`: Welcome → "Welcome to Ecotech!"
+- `announcement-banner.tsx`: Storage prefix → `ecotech_dismissed_ann_`
+- `study-timer.tsx`: Storage key → `ecotech-study-timer`
+- `search-autocomplete.tsx`: Storage key → `ecotech_recent_searches`
+- `course-bookmarks.tsx`: Storage key → `ecotech_collections`
+- `keyboard-shortcuts.tsx`: Help text → "navigate quickly around Ecotech"
+- `classroom-page.tsx`: Brand text → "Ecotech"
+- `settings-page.tsx`: Storage prefix → `ecotech_settings_`, function → `clearEcotechKeys()`, all references
+- `profile-page.tsx`: Storage key → `ecotech_onboarding_done`
+- `seed.ts`: System message → "Ecotech v1.0"
+- **Note**: `openClassroom()` function name in Zustand store kept as internal identifier (not user-facing)
+
+### 2. Ecotech Logo Integration
+- Ecotech logo saved to `/public/ecotech-logo.png` (60KB PNG, transparent background)
+- Replaced GraduationCap icon in 4 brand-critical locations:
+  - **Navbar**: `<img>` tag replacing icon box
+  - **Footer**: `<img>` tag replacing icon box
+  - **Certificate Modal**: `<img>` tag replacing gradient icon box
+  - **Classroom Page Header**: `<img>` tag replacing icon box
+- Cleaned up unused GraduationCap imports from footer.tsx and certificate-modal.tsx
+- Contextual GraduationCap icons kept in: navbar "My Learning" nav item, hero stats, dashboard/my-learning empty states (these represent learning concepts, not brand identity)
+
+### 3. Color Scheme Update (globals.css)
+Updated OKLCH color system to match Ecotech website (VLM-analyzed screenshot):
+- **Primary**: oklch(0.45 0.18 250) → oklch(0.48 0.08 245) — steel blue #4A6FA5
+- **Accent**: oklch(0.82 0.10 175) → oklch(0.78 0.07 180) — teal #5B9A8F
+- **Muted foreground**: oklch(0.50 0.02 250) → oklch(0.48 0.03 250) — slate gray body text
+- **Background**: oklch(0.985 0.002 200) → oklch(0.975 0.003 220) — blue-tinted white
+- **Ring/Borders**: Updated to match new steel blue hue
+- **Chart colors**: Updated to use new brand palette
+- **Gradient text**: Steel blue → teal green gradient
+- **Dark mode**: All values adjusted proportionally
+- **60+ hardcoded OKLCH values** updated throughout all CSS sections (scrollbar, shimmer, glow effects, glassmorphism, hover states, animations)
+
+### 4. PPTX Generation Feature
+- **New dependency**: `pptxgenjs@4.0.1` installed
+- **New API route**: `POST /api/generate-pptx`
+  - Accepts `{ slides: SlideContent[], courseName: string }`
+  - Generates professional 16:9 PPTX with Ecotech branding
+  - Slide types: title (accent bars + centered text), content (headings + body), list (teal markers), table (blue headers, alternating rows), code (dark background, monospace), quiz (A/B/C/D cards, correct answer highlighted in teal)
+  - Every non-title slide has: primary blue accent bar, slide number, "Ecotech" brand text
+  - Returns downloadable `.pptx` file as binary blob
+- **Classroom page**: "Download as PPT" button added to toolbar (near zoom controls) with loading state + toast
+- **Course detail page**: "Download as PPT" outline button added to action bar, fetches all sections' content into single PPTX
+
+### 5. Voice Input Status
+- **Confirmed**: No voice input / ASR / speech recognition code exists in the codebase
+- Only audio: Web Audio API chime in study-timer.tsx (C5-E5-G5 triad when focus timer ends)
+- User request to "remove voice input" is already satisfied — there was nothing to remove
+
+### Verification Results
+- ✅ `bun run lint` — 0 errors
+- ✅ Dev server running on port 3000 (all routes 200 OK)
+- ✅ All API routes functional (categories, enrollments, notifications, recommendations, courses, social-feed, challenges, leaderboard)
+- ✅ Database schema unchanged (no migration needed)
+- ⚠️ Cross-origin warning from preview panel (expected sandbox behavior, not an error)
+- ⚠️ Direct localhost curl connections refused (Caddy sandbox limitation, not application issue)

@@ -1,6 +1,6 @@
 "use client";
 
-import { Download, GraduationCap, X } from "lucide-react";
+import { Download, X } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -48,7 +48,7 @@ function handleDownloadCertificate(
     `|${mid}|`,
     `|  Completion Date: ${formattedDate.padEnd(33)}|`,
     `|${mid}|`,
-    `|  Issued by OpenClass${" ".repeat(38)}|`,
+    `|  Issued by Ecotech${" ".repeat(40)}|`,
     `|  Internal Employee Learning Management System${" ".repeat(10)}|`,
     `|${mid}|`,
     `+${border}+`,
@@ -104,14 +104,9 @@ export function CertificateModal({
               <div className="flex flex-col items-center text-center">
                 {/* Logo and Brand */}
                 <div className="mb-4 flex items-center gap-2">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500 to-teal-500 shadow-md">
-                    <GraduationCap
-                      className="h-6 w-6 text-white"
-                      aria-hidden="true"
-                    />
-                  </div>
+                  <img src="/ecotech-logo.png" alt="Ecotech" className="h-10 w-10 rounded-xl object-contain" />
                   <span className="text-sm font-bold tracking-wide text-cyan-600 dark:text-cyan-400">
-                    OpenClass
+                    Ecotech
                   </span>
                 </div>
 
@@ -166,7 +161,7 @@ export function CertificateModal({
 
                 {/* Footer */}
                 <p className="mt-3 text-[10px] tracking-wider text-muted-foreground/70 uppercase">
-                  OpenClass &mdash; Internal Employee Learning Platform
+                  Ecotech &mdash; Learning Management Platform
                 </p>
               </div>
             </div>

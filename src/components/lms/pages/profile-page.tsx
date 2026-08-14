@@ -1219,7 +1219,7 @@ export function ProfilePage() {
             <button
               className="group flex w-full items-center gap-4 rounded-xl border border-border/50 bg-gradient-to-r from-violet-600/5 to-purple-500/5 p-4 text-left transition-all duration-200 hover:border-violet-500/30 hover:bg-gradient-to-r hover:from-violet-600/10 hover:to-purple-500/10 hover:shadow-sm"
               onClick={() => {
-                localStorage.removeItem("openclass_onboarding_done");
+                localStorage.removeItem("ecotech_onboarding_done");
                 toast.success("Tour will show on next page refresh!");
               }}
             >

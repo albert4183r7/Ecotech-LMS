@@ -23,7 +23,7 @@ import {
   Sparkles,
 } from "lucide-react";
 
-const STORAGE_KEY = "openclass_onboarding_done";
+const STORAGE_KEY = "ecotech_onboarding_done";
 
 interface TourStep {
   title: string;
@@ -34,7 +34,7 @@ interface TourStep {
 
 const tourSteps: TourStep[] = [
   {
-    title: "Welcome to OpenClass!",
+    title: "Welcome to Ecotech!",
     description:
       "Your personalized learning platform is ready. Discover courses, track your progress, and achieve your professional goals — all in one place.",
     icon: <GraduationCap className="w-20 h-20" />,

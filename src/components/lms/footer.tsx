@@ -1,6 +1,6 @@
 "use client";
 
-import { GraduationCap, BookOpen, Heart, ExternalLink } from "lucide-react";
+import { BookOpen, Heart, ExternalLink } from "lucide-react";
 
 /** Footer link configuration */
 interface FooterLink {
@@ -53,11 +53,9 @@ export function Footer() {
           {/* Brand Column */}
           <div className="col-span-2 sm:col-span-1">
             <div className="flex items-center gap-2.5 mb-4">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary shadow-sm">
-                <GraduationCap className="h-5 w-5 text-primary-foreground" />
-              </div>
+            <img src="/ecotech-logo.png" alt="Ecotech" className="h-9 w-9 rounded-xl object-contain" />
               <span className="text-lg font-bold tracking-tight gradient-text">
-                OpenClass
+                Ecotech
               </span>
             </div>
             <p className="text-sm leading-relaxed text-muted-foreground max-w-[220px]">
@@ -96,7 +94,7 @@ export function Footer() {
         <div className="mt-10 flex flex-col items-center justify-between gap-3 border-t border-border/40 pt-6 sm:flex-row">
           {/* Copyright + Tech */}
           <div className="flex items-center gap-3 text-xs text-muted-foreground/70">
-            <span>&copy; {new Date().getFullYear()} OpenClass</span>
+            <span>&copy; {new Date().getFullYear()} Ecotech</span>
             <span className="hidden sm:inline text-border">·</span>
             <span className="hidden sm:inline">Built for teams that learn together</span>
           </div>
@@ -108,7 +106,7 @@ export function Footer() {
               v1.0.0
             </span>
             <span className="inline-flex items-center gap-1">
-              Made with <Heart className="h-3 w-3 fill-red-400 text-red-400" /> by the OpenClass Team
+              Made with <Heart className="h-3 w-3 fill-red-400 text-red-400" /> by the Ecotech Team
             </span>
           </div>
         </div>

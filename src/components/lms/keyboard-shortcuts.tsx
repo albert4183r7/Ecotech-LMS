@@ -225,7 +225,7 @@ export function KeyboardShortcuts() {
               Keyboard Shortcuts
             </DialogTitle>
             <DialogDescription>
-              Use these shortcuts to navigate quickly around OpenClass.
+              Use these shortcuts to navigate quickly around Ecotech.
             </DialogDescription>
           </DialogHeader>
 

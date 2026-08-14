@@ -44,7 +44,7 @@ interface BookmarkCollection {
   courses: BookmarkedCourse[];
 }
 
-const STORAGE_KEY = "openclass_collections";
+const STORAGE_KEY = "ecotech_collections";
 
 /* ------------------------------------------------------------------ */
 /*  localStorage helpers                                               */

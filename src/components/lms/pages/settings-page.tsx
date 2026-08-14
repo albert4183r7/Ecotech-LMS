@@ -47,7 +47,7 @@ import { useTheme } from "next-themes";
 /*  localStorage helpers                                              */
 /* ------------------------------------------------------------------ */
 
-const PREFIX = "openclass_settings_";
+const PREFIX = "ecotech_settings_";
 
 function getSetting<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
@@ -63,11 +63,11 @@ function setSetting(key: string, value: unknown) {
   localStorage.setItem(PREFIX + key, JSON.stringify(value));
 }
 
-function clearOpenClassKeys() {
+function clearEcotechKeys() {
   const keys: string[] = [];
   for (let i = 0; i < localStorage.length; i++) {
     const k = localStorage.key(i);
-    if (k && k.startsWith("openclass_")) keys.push(k);
+    if (k && k.startsWith("ecotech_")) keys.push(k);
   }
   keys.forEach((k) => localStorage.removeItem(k));
 }
@@ -117,22 +117,22 @@ export function SettingsPage() {
 
   /* Data actions */
   const handleClearSearchHistory = () => {
-    localStorage.removeItem("openclass_recent_searches");
+    localStorage.removeItem("ecotech_recent_searches");
     toast.success("Search history cleared");
   };
 
   const handleResetTour = () => {
-    localStorage.removeItem("openclass_onboarding_done");
+    localStorage.removeItem("ecotech_onboarding_done");
     toast.success("Tour has been reset. It will appear on next page refresh.");
   };
 
   const handleDismissAnnouncements = () => {
-    clearKeyPattern("openclass_dismissed_ann_");
+    clearKeyPattern("ecotech_dismissed_ann_");
     toast.success("All announcements have been restored");
   };
 
   const handleClearAll = () => {
-    clearOpenClassKeys();
+    clearEcotechKeys();
     toast.success("All local data has been cleared");
     // Re-set settings that should have defaults
     setCompactMode(false);
@@ -477,7 +477,7 @@ export function SettingsPage() {
                   Clear All Local Data
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Remove all OpenClass data stored on this device
+                  Remove all Ecotech data stored on this device
                 </p>
               </div>
               <AlertDialogTrigger asChild>
@@ -491,7 +491,7 @@ export function SettingsPage() {
               <AlertDialogHeader>
                 <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  This will permanently delete all OpenClass data stored on this
+                  This will permanently delete all Ecotech data stored on this
                   device, including your preferences, search history, onboarding
                   progress, and dismissed announcements. This action cannot be
                   undone.

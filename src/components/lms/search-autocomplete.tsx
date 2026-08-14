@@ -17,7 +17,7 @@ import type { CourseItem, CategoryItem } from "@/types/lms";
 // ============================================
 // Constants
 // ============================================
-const RECENT_SEARCHES_KEY = "openclass_recent_searches";
+const RECENT_SEARCHES_KEY = "ecotech_recent_searches";
 const MAX_RECENT = 5;
 const MAX_COURSE_SUGGESTIONS = 3;
 const MAX_CATEGORY_SUGGESTIONS = 3;
