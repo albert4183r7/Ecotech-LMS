@@ -138,6 +138,7 @@ function CircularProgress({ percentage }: { percentage: number }) {
 
 function useAnimatedCounter(target: number, duration = 800) {
   const [count, setCount] = useState(target);
+  const frameRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (target === 0) return;
@@ -154,7 +155,9 @@ function useAnimatedCounter(target: number, duration = 800) {
       }
     };
     frameRef.current = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(frameRef.current);
+    return () => {
+      if (frameRef.current) cancelAnimationFrame(frameRef.current);
+    };
   }, [target, duration]);
 
   return count;

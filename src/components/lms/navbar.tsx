@@ -606,6 +606,7 @@ export function Navbar() {
                 className="h-9 w-9 rounded-lg"
                 onClick={cycleTheme}
                 aria-label={`Current: ${getThemeTooltip()}. Click to switch.`}
+                suppressHydrationWarning
               >
                 <ThemeIcon />
               </Button>
