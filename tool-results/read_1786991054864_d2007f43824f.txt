@@ -1,0 +1,862 @@
+   350→      document.body.appendChild(a);
+   351→      a.click();
+   352→      a.remove();
+   353→      URL.revokeObjectURL(url);
+   354→      toast.success('PPT downloaded successfully!');
+   355→    } catch {
+   356→      toast.error('Failed to download PPT');
+   357→    } finally {
+   358→      setDownloadingPptx(false);
+   359→    }
+   360→  }, [localState, downloadingPptx]);
+   361→
+   362→  // ─── No state guard ─────────────────────────────
+   363→  if (!localState) {
+   364→    return (
+   365→      <div className="flex h-screen items-center justify-center bg-muted/30">
+   366→        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+   367→      </div>
+   368→    );
+   369→  }
+   370→
+   371→  const currentSlide =
+   372→    localState.slides[localState.currentSlide] ?? null;
+   373→  const isFirst = localState.currentSlide === 0;
+   374→  const isLast = localState.currentSlide >= localState.totalPages - 1;
+   375→  const progressPercent = localState.totalPages > 1
+   376→    ? Math.round(((localState.currentSlide + 1) / localState.totalPages) * 100)
+   377→    : 100;
+   378→
+   379→  return (
+   380→    <div className="flex h-screen flex-col bg-muted/30 relative">
+   381→      {/* ─── Mobile Notes Sheet ──────────────────── */}
+   382→      <Sheet open={notesSidebarOpen && isMobile} onOpenChange={(open) => { if (!open) setNotesSidebarOpen(false); }}>
+   383→        <SheetContent side="right" className="w-full sm:max-w-sm p-0">
+   384→          <SheetHeader className="px-4 pt-4 pb-0">
+   385→            <SheetTitle className="flex items-center gap-2 text-base">
+   386→              <StickyNote className="h-4 w-4" />
+   387→              Notes
+   388→            </SheetTitle>
+   389→            <SheetDescription>
+   390→              Notes for slide {localState.currentSlide + 1} of {localState.totalPages}
+   391→            </SheetDescription>
+   392→          </SheetHeader>
+   393→          <NotesSidebarContent
+   394→            notes={notes}
+   395→            currentSlide={localState.currentSlide}
+   396→            newNoteContent={newNoteContent}
+   397→            savingNote={savingNote}
+   398→            onContentChange={setNewNoteContent}
+   399→            onCreate={createNote}
+   400→            onDelete={deleteNote}
+   401→            onToggleBookmark={toggleBookmark}
+   402→            endRef={notesEndRef}
+   403→          />
+   404→        </SheetContent>
+   405→      </Sheet>
+   406→      {/* ─── Confetti Celebration Overlay ─────── */}
+   407→      {showConfetti && <ConfettiCelebration />}
+   408→      {/* ─── Top Progress Bar ─────────────────────── */}
+   409→      <div className="shrink-0 h-1 w-full bg-muted overflow-hidden">
+   410→        <div
+   411→          className="h-full bg-gradient-to-r from-primary to-accent transition-all duration-500 ease-out"
+   412→          style={{ width: `${progressPercent}%` }}
+   413→        />
+   414→      </div>
+   415→
+   416→      {/* ─── Top Bar ──────────────────────────────── */}
+   417→      <header className="flex h-14 shrink-0 items-center justify-between border-b bg-card px-4 sm:px-6">
+   418→        {/* Logo, Section Title, Course Title */}
+   419→        <div className="flex items-center gap-3 min-w-0">
+   420→          <div className="flex items-center gap-2 shrink-0">
+   421→            <img src="/ecotech-logo.png" alt="Ecotech" className="h-7 w-7 rounded-md object-contain" />
+   422→            <img src="/ecotech-name.png" alt="Ecotech" className="h-5 w-auto hidden sm:inline object-contain" />
+   423→          </div>
+   424→          <Separator orientation="vertical" className="h-5" />
+   425→          <div className="min-w-0">
+   426→            <h2 className="text-sm font-medium text-foreground truncate leading-tight">
+   427→              {localState.sectionTitle}
+   428→            </h2>
+   429→            <p className="text-xs text-muted-foreground truncate leading-tight">
+   430→              {localState.courseTitle}
+   431→            </p>
+   432→          </div>
+   433→        </div>
+   434→
+   435→        {/* Slide Counter - Enhanced */}
+   436→        <span className="shrink-0 inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-sm text-primary tabular-nums">
+   437→          <span className="font-semibold">Slide {localState.currentSlide + 1}</span>
+   438→          <span className="text-primary/40 font-normal">of</span>
+   439→          <span className="font-semibold">{localState.totalPages}</span>
+   440→        </span>
+   441→      </header>
+   442→
+   443→      {/* ─── Main Layout: Slide + Desktop Notes Sidebar ── */}
+   444→      <div className="flex flex-1 overflow-hidden">
+   445→      {/* ─── Slide Content Area ────────────────────── */}
+   446→      <div className="flex-1 overflow-auto flex flex-col items-center py-8 px-4 sm:px-6">
+   447→        <div
+   448→          className={`
+   449→            bg-card rounded-2xl shadow-lg border w-full max-w-3xl
+   450→            ring-1 ring-black/5
+   451→            dark:ring-white/5
+   452→            paper-texture
+   453→            ${isAnimating
+   454→              ? (slideDirection === "forward" ? "slide-exit" : "opacity-0 -translate-x-2 transition-all duration-150")
+   455→              : "slide-enter"
+   456→            }
+   457→          `}
+   458→          style={{
+   459→            transform: `scale(${zoom / 100})`,
+   460→            transformOrigin: "top center",
+   461→          }}
+   462→        >
+   463→          {loadingSlides ? (
+   464→            <div className="flex items-center justify-center py-32">
+   465→              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+   466→            </div>
+   467→          ) : currentSlide ? (
+   468→            <div className="p-8 sm:p-12 max-w-2xl mx-auto">
+   469→              <SlideRenderer slide={currentSlide} />
+   470→            </div>
+   471→          ) : (
+   472→            <div className="flex items-center justify-center py-32 text-muted-foreground">
+   473→              <p>No slide content available.</p>
+   474→            </div>
+   475→          )}
+   476→        </div>
+   477→
+   478→        {/* ─── Slide Progress Dots ────────────────── */}
+   479→        <div className="slide-progress-indicator mt-6 shrink-0">
+   480→          {Array.from({ length: localState.totalPages }, (_, i) => {
+   481→            const isCompleted = i < localState.currentSlide;
+   482→            const isActive = i === localState.currentSlide;
+   483→            return (
+   484→              <button
+   485→                key={i}
+   486→                className={`dot ${isActive ? "active" : ""} ${isCompleted ? "completed" : ""}`}
+   487→                onClick={() => goToSlide(i)}
+   488→                aria-label={`Go to slide ${i + 1}`}
+   489→              />
+   490→            );
+   491→          })}
+   492→        </div>
+   493→      </div>
+   494→
+   495→      {/* ─── Desktop Notes Sidebar (slide-in panel) ── */}
+   496→      <aside
+   497→        className={`hidden lg:flex flex-col shrink-0 border-l bg-card transition-all duration-300 ease-in-out overflow-hidden ${
+   498→          notesSidebarOpen ? "w-80 opacity-100" : "w-0 opacity-0 border-l-0"
+   499→        }`}
+   500→      >
+   501→        <div className="flex flex-col h-full w-80">
+   502→          {/* Sidebar Header */}
+   503→          <div className="flex items-center justify-between px-4 py-3 border-b">
+   504→            <div className="flex items-center gap-2">
+   505→              <StickyNote className="h-4 w-4 text-primary" />
+   506→              <span className="text-sm font-semibold">Notes</span>
+   507→            </div>
+   508→            <Button
+   509→              variant="ghost"
+   510→              size="icon"
+   511→              className="h-7 w-7"
+   512→              onClick={() => setNotesSidebarOpen(false)}
+   513→            >
+   514→              <X className="h-4 w-4" />
+   515→            </Button>
+   516→          </div>
+   517→          <NotesSidebarContent
+   518→            notes={notes}
+   519→            currentSlide={localState.currentSlide}
+   520→            newNoteContent={newNoteContent}
+   521→            savingNote={savingNote}
+   522→            onContentChange={setNewNoteContent}
+   523→            onCreate={createNote}
+   524→            onDelete={deleteNote}
+   525→            onToggleBookmark={toggleBookmark}
+   526→            endRef={notesEndRef}
+   527→          />
+   528→        </div>
+   529→      </aside>
+   530→      </div>
+   531→
+   532→      {/* ─── Keyboard Shortcuts Hint (auto-fades) ── */}
+   533→      <div
+   534→        className={`shrink-0 frosted-glass border-t px-4 py-1.5 text-center transition-opacity duration-700 ${
+   535→          showKeyboardHint ? "opacity-100" : "opacity-0 pointer-events-none h-0 py-0 overflow-hidden"
+   536→        }`}
+   537→      >
+   538→        <p className="text-xs text-muted-foreground/70 tracking-wide">
+   539→          ← → Navigate&nbsp;&nbsp;|&nbsp;&nbsp;Space: Next&nbsp;&nbsp;|&nbsp;&nbsp;Esc: Exit
+   540→        </p>
+   541→      </div>
+   542→
+   543→      {/* ─── Bottom Controls (Frosted Glass) ───────── */}
+   544→      <footer className="shrink-0 border-t frosted-glass">
+   545→        <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-4 sm:px-6">
+   546→          {/* Zoom Controls */}
+   547→          <div className="flex items-center gap-1">
+   548→            <Tooltip>
+   549→              <TooltipTrigger asChild>
+   550→                <Button
+   551→                  variant="ghost"
+   552→                  size="icon"
+   553→                  className="h-8 w-8"
+   554→                  onClick={zoomOut}
+   555→                  disabled={zoom <= MIN_ZOOM}
+   556→                >
+   557→                  <ZoomOut className="h-4 w-4" />
+   558→                </Button>
+   559→              </TooltipTrigger>
+   560→              <TooltipContent>Zoom Out</TooltipContent>
+   561→            </Tooltip>
+   562→
+   563→            <span className="w-12 text-center text-xs font-medium text-muted-foreground tabular-nums">
+   564→              {zoom}%
+   565→            </span>
+   566→
+   567→            <Tooltip>
+   568→              <TooltipTrigger asChild>
+   569→                <Button
+   570→                  variant="ghost"
+   571→                  size="icon"
+   572→                  className="h-8 w-8"
+   573→                  onClick={zoomIn}
+   574→                  disabled={zoom >= MAX_ZOOM}
+   575→                >
+   576→                  <ZoomIn className="h-4 w-4" />
+   577→                </Button>
+   578→              </TooltipTrigger>
+   579→              <TooltipContent>Zoom In</TooltipContent>
+   580→            </Tooltip>
+   581→
+   582→            <Tooltip>
+   583→              <TooltipTrigger asChild>
+   584→                <Button
+   585→                  variant="ghost"
+   586→                  size="icon"
+   587→                  className="h-8 w-8"
+   588→                  onClick={zoomFit}
+   589→                >
+   590→                  <Maximize2 className="h-4 w-4" />
+   591→                </Button>
+   592→              </TooltipTrigger>
+   593→              <TooltipContent>Fit Width</TooltipContent>
+   594→            </Tooltip>
+   595→
+   596→            <Tooltip>
+   597→              <TooltipTrigger asChild>
+   598→                <Button
+   599→                  variant="ghost"
+   600→                  size="icon"
+   601→                  className="h-8 w-8"
+   602→                  onClick={zoomFit}
+   603→                >
+   604→                  <RotateCcw className="h-4 w-4" />
+   605→                </Button>
+   606→              </TooltipTrigger>
+   607→              <TooltipContent>Reset Zoom</TooltipContent>
+   608→            </Tooltip>
+   609→
+   610→            <Tooltip>
+   611→              <TooltipTrigger asChild>
+   612→                <Button
+   613→                  variant="ghost"
+   614→                  size="icon"
+   615→                  className="h-8 w-8"
+   616→                  onClick={handleDownloadPptx}
+   617→                  disabled={downloadingPptx || localState.slides.length === 0}
+   618→                >
+   619→                  {downloadingPptx ? (
+   620→                    <Loader2 className="h-4 w-4 animate-spin" />
+   621→                  ) : (
+   622→                    <FileDown className="h-4 w-4" />
+   623→                  )}
+   624→                </Button>
+   625→              </TooltipTrigger>
+   626→              <TooltipContent>Download as PPT</TooltipContent>
+   627→            </Tooltip>
+   628→          </div>
+   629→
+   630→          {/* Navigation Buttons with labels on desktop */}
+   631→          <div className="flex items-center gap-2">
+   632→            <Button
+   633→              variant="outline"
+   634→              size="sm"
+   635→              className={`gap-1.5 transition-opacity ${isFirst ? "opacity-40 cursor-not-allowed" : ""}`}
+   636→              onClick={goPrev}
+   637→              disabled={isFirst}
+   638→            >
+   639→              <ChevronLeft className="h-4 w-4" />
+   640→              <span className="hidden sm:inline">Previous</span>
+   641→            </Button>
+   642→
+   643→            <Button
+   644→              variant="outline"
+   645→              size="sm"
+   646→              className={`gap-1.5 transition-opacity ${isLast ? "opacity-40 cursor-not-allowed" : ""}`}
+   647→              onClick={goNext}
+   648→              disabled={isLast}
+   649→            >
+   650→              <span className="hidden sm:inline">Next</span>
+   651→              <ChevronRight className="h-4 w-4" />
+   652→            </Button>
+   653→          </div>
+   654→
+   655→          {/* Close + Keyboard Hint */}
+   656→          <div className="flex items-center gap-3">
+   657→            <Tooltip>
+   658→              <TooltipTrigger asChild>
+   659→                <Button
+   660→                  variant={notesSidebarOpen ? "secondary" : "ghost"}
+   661→                  size="icon"
+   662→                  className="h-8 w-8"
+   663→                  onClick={() => setNotesSidebarOpen((v) => !v)}
+   664→                >
+   665→                  <StickyNote className="h-4 w-4" />
+   666→                </Button>
+   667→              </TooltipTrigger>
+   668→              <TooltipContent>Notes</TooltipContent>
+   669→            </Tooltip>
+   670→            <span className="hidden lg:inline text-xs text-muted-foreground">
+   671→              ← → navigate, ESC exit
+   672→            </span>
+   673→            <Button
+   674→              variant="ghost"
+   675→              size="sm"
+   676→              className="gap-1.5 text-muted-foreground hover:text-foreground"
+   677→              onClick={goBack}
+   678→            >
+   679→              <X className="h-4 w-4" />
+   680→              <span className="hidden sm:inline">Close</span>
+   681→            </Button>
+   682→          </div>
+   683→        </div>
+   684→      </footer>
+   685→
+   686→      {/* ─── Study Timer (floating panel) ────────── */}
+   687→      <StudyTimer />
+   688→    </div>
+   689→  );
+   690→}
+   691→
+   692→// ============================================
+   693→// Notes Sidebar Content (shared between desktop & mobile)
+   694→// ============================================
+   695→
+   696→interface NotesSidebarContentProps {
+   697→  notes: { id: string; content: string; slideNumber: number; bookmarked: boolean; createdAt?: string }[];
+   698→  currentSlide: number;
+   699→  newNoteContent: string;
+   700→  savingNote: boolean;
+   701→  onContentChange: (v: string) => void;
+   702→  onCreate: () => void;
+   703→  onDelete: (id: string) => void;
+   704→  onToggleBookmark: (id: string) => void;
+   705→  endRef: React.RefObject<HTMLDivElement | null>;
+   706→}
+   707→
+   708→function NotesSidebarContent({
+   709→  notes,
+   710→  currentSlide,
+   711→  newNoteContent,
+   712→  savingNote,
+   713→  onContentChange,
+   714→  onCreate,
+   715→  onDelete,
+   716→  onToggleBookmark,
+   717→  endRef,
+   718→}: NotesSidebarContentProps) {
+   719→  const handleKeyDown = (e: React.KeyboardEvent) => {
+   720→    if (e.key === "Enter" && !e.shiftKey) {
+   721→      e.preventDefault();
+   722→      onCreate();
+   723→    }
+   724→  };
+   725→
+   726→  return (
+   727→    <>
+   728→      {/* Notes List */}
+   729→      <ScrollArea className="flex-1">
+   730→        <div className="flex flex-col gap-2 p-3">
+   731→          {notes.length === 0 && (
+   732→            <div className="flex flex-col items-center justify-center py-12 text-center">
+   733→              <StickyNote className="h-8 w-8 text-muted-foreground/30 mb-2" />
+   734→              <p className="text-xs text-muted-foreground">No notes yet.</p>
+   735→              <p className="text-xs text-muted-foreground/60">
+   736→                Add a note for slide {currentSlide + 1}.
+   737→              </p>
+   738→            </div>
+   739→          )}
+   740→          {notes.map((note) => (
+   741→            <div
+   742→              key={note.id}
+   743→              className="group relative rounded-lg border bg-background p-3 text-sm transition-colors hover:bg-muted/40"
+   744→            >
+   745→              {/* Slide badge */}
+   746→              <div className="flex items-center justify-between mb-1">
+   747→                <span className="inline-flex items-center rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+   748→                  Slide {note.slideNumber}
+   749→                </span>
+   750→                <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+   751→                  <button
+   752→                    type="button"
+   753→                    className="p-1 rounded hover:bg-muted transition-colors"
+   754→                    onClick={() => onToggleBookmark(note.id)}
+   755→                    aria-label={note.bookmarked ? "Remove bookmark" : "Bookmark note"}
+   756→                  >
+   757→                    {note.bookmarked ? (
+   758→                      <BookmarkCheck className="h-3.5 w-3.5 text-amber-500" />
+   759→                    ) : (
+   760→                      <Bookmark className="h-3.5 w-3.5 text-muted-foreground" />
+   761→                    )}
+   762→                  </button>
+   763→                  <button
+   764→                    type="button"
+   765→                    className="p-1 rounded hover:bg-destructive/10 transition-colors"
+   766→                    onClick={() => onDelete(note.id)}
+   767→                    aria-label="Delete note"
+   768→                  >
+   769→                    <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
+   770→                  </button>
+   771→                </div>
+   772→              </div>
+   773→              <p className="text-xs text-foreground/80 leading-relaxed whitespace-pre-line">
+   774→                {note.content}
+   775→              </p>
+   776→            </div>
+   777→          ))}
+   778→          <div ref={endRef} />
+   779→        </div>
+   780→      </ScrollArea>
+   781→
+   782→      {/* New Note Input */}
+   783→      <div className="shrink-0 border-t p-3">
+   784→        <div className="flex gap-2">
+   785→          <textarea
+   786→            value={newNoteContent}
+   787→            onChange={(e) => onContentChange(e.target.value)}
+   788→            onKeyDown={handleKeyDown}
+   789→            placeholder={`Add a note for slide ${currentSlide + 1}…`}
+   790→            rows={2}
+   791→            className="flex-1 resize-none rounded-lg border bg-background px-3 py-2 text-xs placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/20"
+   792→          />
+   793→          <Button
+   794→            size="icon"
+   795→            className="h-auto w-9 shrink-0 self-end"
+   796→            onClick={onCreate}
+   797→            disabled={savingNote || !newNoteContent.trim()}
+   798→          >
+   799→            {savingNote ? (
+   800→              <Loader2 className="h-4 w-4 animate-spin" />
+   801→            ) : (
+   802→              <Send className="h-4 w-4" />
+   803→            )}
+   804→          </Button>
+   805→        </div>
+   806→      </div>
+   807→    </>
+   808→  );
+   809→}
+   810→
+   811→// ============================================
+   812→// Confetti Celebration Component
+   813→// ============================================
+   814→
+   815→/** LMS color palette for confetti particles */
+   816→const CONFETTI_COLORS = [
+   817→  "#3882f6", // blue
+   818→  "#14b8a6", // teal
+   819→  "#22d3ee", // cyan
+   820→  "#10b981", // emerald
+   821→  "#f59e0b", // amber
+   822→  "#6366f1", // indigo accent
+   823→  "#8b5cf6", // violet accent
+   824→  "#ec4899", // pink accent
+   825→];
+   826→
+   827→type ParticleShape = "circle" | "rectangle" | "triangle";
+   828→
+   829→interface ConfettiParticle {
+   830→  id: number;
+   831→  left: number;
+   832→  color: string;
+   833→  shape: ParticleShape;
+   834→  size: number;
+   835→  fallDuration: string;
+   836→  fallDelay: string;
+   837→  drift: string;
+   838→  spin: string;
+   839→}
+   840→
+   841→function ConfettiCelebration() {
+   842→  const particles = useMemo<ConfettiParticle[]>(() => {
+   843→    const result: ConfettiParticle[] = [];
+   844→    const shapes: ParticleShape[] = ["circle", "rectangle", "triangle"];
+   845→    const count = 80;
+   846→
+   847→    for (let i = 0; i < count; i++) {
+   848→      const shape = shapes[i % 3 === 0 ? 0 : i % 3 === 1 ? 1 : 2];
+   849→      result.push({
+   850→        id: i,
+   851→        left: Math.random() * 100,
+   852→        color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+   853→        shape,
+   854→        size: Math.floor(Math.random() * 8) + 6, // 6-14px
+   855→        fallDuration: `${(Math.random() * 1.5 + 2).toFixed(2)}s`, // 2-3.5s
+   856→        fallDelay: `${(Math.random() * 0.8).toFixed(2)}s`, // 0-0.8s
+   857→        drift: `${(Math.random() * 120 - 60).toFixed(0)}px`, // -60 to +60px
+   858→        spin: `${Math.floor(Math.random() * 720 + 360)}deg`, // 360-1080deg
+   859→      });
+   860→    }
+   861→    return result;
+   862→  }, []);
+   863→
+   864→  return (
+   865→    <>
+   866→      {/* Confetti particles layer */}
+   867→      <div className="confetti-container" aria-hidden="true">
+   868→        {particles.map((p) => {
+   869→          if (p.shape === "triangle") {
+   870→            return (
+   871→              <div
+   872→                key={p.id}
+   873→                className="confetti-particle confetti-triangle"
+   874→                style={{
+   875→                  left: `${p.left}%`,
+   876→                  "--confetti-color": p.color,
+   877→                  "--tri-size": `${p.size}px`,
+   878→                  "--fall-duration": p.fallDuration,
+   879→                  "--fall-delay": p.fallDelay,
+   880→                  "--drift": p.drift,
+   881→                  "--spin": p.spin,
+   882→                } as React.CSSProperties}
+   883→              />
+   884→            );
+   885→          }
+   886→          return (
+   887→            <div
+   888→              key={p.id}
+   889→              className={`confetti-particle ${p.shape === "circle" ? "confetti-circle" : "confetti-rectangle"}`}
+   890→              style={{
+   891→                left: `${p.left}%`,
+   892→                width: p.shape === "rectangle" ? `${p.size * 1.4}px` : `${p.size}px`,
+   893→                height: `${p.size}px`,
+   894→                backgroundColor: p.color,
+   895→                "--fall-duration": p.fallDuration,
+   896→                "--fall-delay": p.fallDelay,
+   897→                "--drift": p.drift,
+   898→                "--spin": p.spin,
+   899→              } as React.CSSProperties}
+   900→            />
+   901→          );
+   902→        })}
+   903→      </div>
+   904→
+   905→      {/* Congratulations message */}
+   906→      <div className="confetti-message" role="status" aria-label="Congratulations!">
+   907→        <div className="confetti-message-text flex flex-col items-center gap-3">
+   908→          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/90 dark:bg-zinc-800/90 shadow-lg">
+   909→            <span className="text-4xl">🎉</span>
+   910→          </div>
+   911→          <div className="rounded-2xl bg-white/90 dark:bg-zinc-800/90 px-8 py-5 shadow-xl text-center">
+   912→            <h2 className="text-2xl sm:text-3xl font-bold text-foreground">
+   913→              🎉 Congratulations!
+   914→            </h2>
+   915→            <p className="mt-2 text-sm text-muted-foreground">
+   916→              You&apos;ve completed this section!
+   917→            </p>
+   918→          </div>
+   919→        </div>
+   920→      </div>
+   921→    </>
+   922→  );
+   923→}
+   924→
+   925→// ============================================
+   926→// Slide Content Renderer
+   927→// ============================================
+   928→
+   929→function SlideRenderer({ slide }: { slide: SlideContent }) {
+   930→  switch (slide.type) {
+   931→    case "title":
+   932→      return <TitleSlide slide={slide} />;
+   933→    case "content":
+   934→      return <ContentSlide slide={slide} />;
+   935→    case "table":
+   936→      return <TableSlide slide={slide} />;
+   937→    case "list":
+   938→      return <ListSlide slide={slide} />;
+   939→    case "code":
+   940→      return <CodeSlide slide={slide} />;
+   941→    case "quiz":
+   942→      return <QuizSlide slide={slide} />;
+   943→    default:
+   944→      return <FallbackSlide slide={slide} />;
+   945→  }
+   946→}
+   947→
+   948→// ─── Title Slide ──────────────────────────────────
+   949→function TitleSlide({ slide }: { slide: SlideContent }) {
+   950→  return (
+   951→    <div className="flex min-h-[300px] flex-col items-center justify-center text-center">
+   952→      <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/10 to-accent/10">
+   953→        <GraduationCap className="h-8 w-8 text-primary" />
+   954→      </div>
+   955→      <h1 className="text-3xl sm:text-4xl font-bold text-foreground mb-4 leading-tight">
+   956→        {slide.title}
+   957→      </h1>
+   958→      {slide.subtitle && (
+   959→        <p className="text-lg text-muted-foreground max-w-xl leading-relaxed">
+   960→          {slide.subtitle}
+   961→        </p>
+   962→      )}
+   963→    </div>
+   964→  );
+   965→}
+   966→
+   967→// ─── Content Slide ────────────────────────────────
+   968→function ContentSlide({ slide }: { slide: SlideContent }) {
+   969→  return (
+   970→    <div>
+   971→      <div className="mb-6 flex items-center gap-3">
+   972→        <div className="h-1 w-8 rounded-full bg-gradient-to-r from-primary to-accent" />
+   973→        <h2 className="text-2xl font-bold text-foreground">{slide.title}</h2>
+   974→      </div>
+   975→      {slide.items && slide.items.length > 0 && (
+   976→        <div className="space-y-5">
+   977→          {slide.items.map((item, i) => (
+   978→            <div key={i} className="rounded-lg bg-muted/40 p-4 transition-colors hover:bg-muted/60">
+   979→              {item.heading && (
+   980→                <h3 className="text-base font-semibold text-foreground mb-1.5">
+   981→                  {item.heading}
+   982→                </h3>
+   983→              )}
+   984→              <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
+   985→                {item.text}
+   986→              </p>
+   987→            </div>
+   988→          ))}
+   989→        </div>
+   990→      )}
+   991→    </div>
+   992→  );
+   993→}
+   994→
+   995→// ─── Table Slide ──────────────────────────────────
+   996→function TableSlide({ slide }: { slide: SlideContent }) {
+   997→  if (!slide.tableData) return <FallbackSlide slide={slide} />;
+   998→  const { headers, rows } = slide.tableData;
+   999→
+  1000→  return (
+  1001→    <div>
+  1002→      <div className="mb-6 flex items-center gap-3">
+  1003→        <div className="h-1 w-8 rounded-full bg-gradient-to-r from-primary to-accent" />
+  1004→        <h2 className="text-2xl font-bold text-foreground">{slide.title}</h2>
+  1005→      </div>
+  1006→      <div className="overflow-x-auto rounded-lg border border-border">
+  1007→        <table className="w-full text-sm">
+  1008→          <thead>
+  1009→            <tr className="bg-muted/60 border-b border-border">
+  1010→              {headers.map((header, i) => (
+  1011→                <th
+  1012→                  key={i}
+  1013→                  className="px-4 py-3 text-left font-semibold text-foreground whitespace-nowrap"
+  1014→                >
+  1015→                  {header}
+  1016→                </th>
+  1017→              ))}
+  1018→            </tr>
+  1019→          </thead>
+  1020→          <tbody>
+  1021→            {rows.map((row, ri) => (
+  1022→              <tr
+  1023→                key={ri}
+  1024→                className={ri < rows.length - 1 ? "border-b border-border" : ""}
+  1025→              >
+  1026→                {row.map((cell, ci) => (
+  1027→                  <td key={ci} className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+  1028→                    {cell}
+  1029→                  </td>
+  1030→                ))}
+  1031→              </tr>
+  1032→            ))}
+  1033→          </tbody>
+  1034→        </table>
+  1035→      </div>
+  1036→    </div>
+  1037→  );
+  1038→}
+  1039→
+  1040→// ─── List Slide ───────────────────────────────────
+  1041→function ListSlide({ slide }: { slide: SlideContent }) {
+  1042→  return (
+  1043→    <div>
+  1044→      <div className="mb-6 flex items-center gap-3">
+  1045→        <div className="h-1 w-8 rounded-full bg-gradient-to-r from-primary to-accent" />
+  1046→        <h2 className="text-2xl font-bold text-foreground">{slide.title}</h2>
+  1047→      </div>
+  1048→      {slide.items && slide.items.length > 0 && (
+  1049→        <ul className="space-y-3">
+  1050→          {slide.items.map((item, i) => (
+  1051→            <li key={i} className="flex items-start gap-3 rounded-lg bg-muted/40 p-3 transition-colors hover:bg-muted/60">
+  1052→              <span className="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+  1053→                {i + 1}
+  1054→              </span>
+  1055→              <div>
+  1056→                {item.heading && (
+  1057→                  <span className="font-semibold text-foreground text-sm">
+  1058→                    {item.heading}{" "}
+  1059→                  </span>
+  1060→                )}
+  1061→                <span className="text-sm text-muted-foreground leading-relaxed">
+  1062→                  {item.text}
+  1063→                </span>
+  1064→              </div>
+  1065→            </li>
+  1066→          ))}
+  1067→        </ul>
+  1068→      )}
+  1069→    </div>
+  1070→  );
+  1071→}
+  1072→
+  1073→// ─── Code Slide ───────────────────────────────────
+  1074→function CodeSlide({ slide }: { slide: SlideContent }) {
+  1075→  if (!slide.codeBlock) return <FallbackSlide slide={slide} />;
+  1076→
+  1077→  return (
+  1078→    <div>
+  1079→      <div className="mb-6 flex items-center gap-3">
+  1080→        <div className="h-1 w-8 rounded-full bg-gradient-to-r from-primary to-accent" />
+  1081→        <h2 className="text-2xl font-bold text-foreground">{slide.title}</h2>
+  1082→      </div>
+  1083→      <div className="rounded-lg border border-border bg-zinc-900 overflow-hidden shadow-inner">
+  1084→        <div className="flex items-center justify-between border-b border-zinc-700 px-4 py-2">
+  1085→          <span className="text-xs font-medium text-zinc-400">
+  1086→            {slide.codeBlock.language}
+  1087→          </span>
+  1088→          <div className="flex gap-1.5">
+  1089→            <span className="h-3 w-3 rounded-full bg-red-500/60" />
+  1090→            <span className="h-3 w-3 rounded-full bg-yellow-500/60" />
+  1091→            <span className="h-3 w-3 rounded-full bg-green-500/60" />
+  1092→          </div>
+  1093→        </div>
+  1094→        <pre className="overflow-x-auto p-4 text-sm leading-relaxed">
+  1095→          <code className="text-zinc-100 font-mono">
+  1096→            {slide.codeBlock.code}
+  1097→          </code>
+  1098→        </pre>
+  1099→      </div>
+  1100→    </div>
+  1101→  );
+  1102→}
+  1103→
+  1104→// ─── Quiz Slide (Interactive) ────────────────────
+  1105→function QuizSlide({ slide }: { slide: SlideContent }) {
+  1106→  const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
+  1107→  const hasSubmitted = selectedIdx !== null;
+  1108→
+  1109→  // Determine correct answer: look for item with icon === "check" or first item
+  1110→  const correctIdx = slide.items?.findIndex((item) => item.icon === "check") ?? 0;
+  1111→  const isCorrect = selectedIdx === correctIdx;
+  1112→
+  1113→  return (
+  1114→    <div>
+  1115→      <div className="mb-6 flex items-center gap-3">
+  1116→        <div className="h-1 w-8 rounded-full bg-gradient-to-r from-primary to-accent" />
+  1117→        <h2 className="text-2xl font-bold text-foreground">{slide.title}</h2>
+  1118→      </div>
+  1119→      {slide.items && slide.items.length > 0 && (
+  1120→        <div className="space-y-3">
+  1121→          {slide.items.map((item, i) => {
+  1122→            const letter = String.fromCharCode(65 + i);
+  1123→            const isSelected = selectedIdx === i;
+  1124→            let borderColor = "border-border hover:border-primary/30 hover:bg-primary/5";
+  1125→            if (hasSubmitted) {
+  1126→              if (i === correctIdx) borderColor = "border-emerald-500 bg-emerald-500/10";
+  1127→              else if (isSelected && !isCorrect) borderColor = "border-red-400 bg-red-400/10";
+  1128→              else borderColor = "border-border opacity-60";
+  1129→            } else if (isSelected) {
+  1130→              borderColor = "border-primary bg-primary/10";
+  1131→            }
+  1132→
+  1133→            return (
+  1134→              <button
+  1135→                key={i}
+  1136→                type="button"
+  1137→                className={`w-full rounded-lg border p-4 text-left transition-all duration-200 ${borderColor}`}
+  1138→                onClick={() => {
+  1139→                  if (!hasSubmitted) setSelectedIdx(i);
+  1140→                }}
+  1141→                disabled={hasSubmitted}
+  1142→              >
+  1143→                <div className="flex items-start gap-3">
+  1144→                  <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+  1145→                    hasSubmitted && i === correctIdx
+  1146→                      ? "bg-emerald-500 text-white"
+  1147→                      : hasSubmitted && isSelected && !isCorrect
+  1148→                        ? "bg-red-400 text-white"
+  1149→                        : "bg-primary/10 text-primary"
+  1150→                  }`}>
+  1151→                    {hasSubmitted && i === correctIdx ? "✓" : hasSubmitted && isSelected && !isCorrect ? "✗" : letter}
+  1152→                  </span>
+  1153→                  <div className="flex-1">
+  1154→                    <p className="text-sm font-medium text-foreground">
+  1155→                      {item.heading || item.text}
+  1156→                    </p>
+  1157→                    {item.heading && item.text !== item.heading && (
+  1158→                      <p className="text-xs text-muted-foreground mt-1">{item.text}</p>
+  1159→                    )}
+  1160→                  </div>
+  1161→                </div>
+  1162→              </button>
+  1163→            );
+  1164→          })}
+  1165→
+  1166→          {/* Feedback after selection */}
+  1167→          {hasSubmitted && (
+  1168→            <div className={`mt-4 rounded-lg border p-4 ${
+  1169→              isCorrect
+  1170→                ? "border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/50"
+  1171→                : "border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/50"
+  1172→            }`}>
+  1173→              <p className={`text-sm font-semibold ${
+  1174→                isCorrect ? "text-emerald-700 dark:text-emerald-400" : "text-amber-700 dark:text-amber-400"
+  1175→              }`}>
+  1176→                {isCorrect ? "🎉 Correct! Well done!" : "❌ Not quite right."}
+  1177→              </p>
+  1178→              {!isCorrect && (
+  1179→                <p className="mt-1 text-xs text-muted-foreground">
+  1180→                  The correct answer is <strong>{String.fromCharCode(65 + correctIdx)}</strong>.
+  1181→                </p>
+  1182→              )}
+  1183→            </div>
+  1184→          )}
+  1185→        </div>
+  1186→      )}
+  1187→    </div>
+  1188→  );
+  1189→}
+  1190→
+  1191→// ─── Fallback Slide ───────────────────────────────
+  1192→function FallbackSlide({ slide }: { slide: SlideContent }) {
+  1193→  return (
+  1194→    <div>
+  1195→      <div className="mb-6 flex items-center gap-3">
+  1196→        <div className="h-1 w-8 rounded-full bg-gradient-to-r from-primary to-accent" />
+  1197→        <h2 className="text-2xl font-bold text-foreground">{slide.title}</h2>
+  1198→      </div>
+  1199→      {slide.subtitle && (
+  1200→        <p className="text-muted-foreground mb-4">{slide.subtitle}</p>
+  1201→      )}
+  1202→      {slide.items?.map((item, i) => (
+  1203→        <p key={i} className="text-sm text-muted-foreground mb-2">
+  1204→          {item.heading && <span className="font-semibold text-foreground">{item.heading}: </span>}
+  1205→          {item.text}
+  1206→        </p>
+  1207→      ))}
+  1208→    </div>
+  1209→  );
+  1210→}
+  1211→
