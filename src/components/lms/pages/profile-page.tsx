@@ -867,7 +867,7 @@ function ProfileSkeleton() {
 /* ------------------------------------------------------------------ */
 
 export function ProfilePage() {
-  const { currentUserId } = useUserStore();
+  const { currentUserId, currentRole, logout } = useUserStore();
   const { navigateTo } = useNavigationStore();
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -1086,7 +1086,8 @@ export function ProfilePage() {
 
       {/* Stats + Quick Actions */}
       <div className="grid gap-6 md:grid-cols-2">
-        {/* Stats Panel */}
+        {/* Stats Panel - STUDENT ONLY */}
+        {currentRole === "student" && (
         <Card className="border-border/50">
           <CardHeader className="pb-4">
             <CardTitle className="text-base font-semibold">
@@ -1125,6 +1126,7 @@ export function ProfilePage() {
             </div>
           </CardContent>
         </Card>
+        )}
 
         {/* Quick Actions */}
         <Card className="border-border/50">
@@ -1134,7 +1136,8 @@ export function ProfilePage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {/* Create Course */}
+            {/* Create Course - INSTRUCTOR ONLY */}
+            {currentRole === "instructor" && (
             <button
               className="group flex w-full items-center gap-4 rounded-xl border border-border/50 bg-gradient-to-r from-cyan-600/5 to-teal-500/5 p-4 text-left transition-all duration-200 hover:border-cyan-500/30 hover:bg-gradient-to-r hover:from-cyan-600/10 hover:to-teal-500/10 hover:shadow-sm"
               onClick={() => navigateTo("create-course")}
@@ -1152,6 +1155,7 @@ export function ProfilePage() {
               </div>
               <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-primary" />
             </button>
+            )}
 
             {/* Browse Courses */}
             <button
@@ -1172,7 +1176,8 @@ export function ProfilePage() {
               <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-primary" />
             </button>
 
-            {/* View Certificate */}
+            {/* View Certificate - STUDENT ONLY */}
+            {currentRole === "student" && (
             <button
               className="group flex w-full items-center gap-4 rounded-xl border border-border/50 bg-gradient-to-r from-cyan-600/5 to-teal-500/5 p-4 text-left transition-all duration-200 hover:border-cyan-500/30 hover:bg-gradient-to-r hover:from-cyan-600/10 hover:to-teal-500/10 hover:shadow-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:from-cyan-600/5 disabled:hover:to-teal-500/5 disabled:hover:border-border/50 disabled:hover:shadow-none"
               onClick={() => {
@@ -1198,8 +1203,10 @@ export function ProfilePage() {
               </div>
               <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-primary" />
             </button>
+            )}
 
-            {/* My Learning */}
+            {/* My Learning - STUDENT ONLY */}
+            {currentRole === "student" && (
             <button
               className="group flex w-full items-center gap-4 rounded-xl border border-border/50 bg-gradient-to-r from-amber-600/5 to-orange-500/5 p-4 text-left transition-all duration-200 hover:border-amber-500/30 hover:bg-gradient-to-r hover:from-amber-600/10 hover:to-orange-500/10 hover:shadow-sm"
               onClick={() => navigateTo("my-learning")}
@@ -1217,6 +1224,7 @@ export function ProfilePage() {
               </div>
               <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-primary" />
             </button>
+            )}
 
             {/* Retake Tour */}
             <button
@@ -1247,8 +1255,8 @@ export function ProfilePage() {
               variant="destructive"
               className="w-full"
               onClick={() => {
+                logout();
                 toast.success("You have been logged out.");
-                navigateTo("home");
               }}
             >
               <LogOut className="mr-2 h-4 w-4" />
@@ -1258,9 +1266,12 @@ export function ProfilePage() {
         </Card>
       </div>
 
-      {/* Course Bookmark Collections */}
-      <CourseBookmarks />
+      {/* Course Bookmark Collections - STUDENT ONLY */}
+      {currentRole === "student" && <CourseBookmarks />}
 
+      {/* Student-only widgets */}
+      {currentRole === "student" && (
+      <>
       {/* XP Display + Streak Calendar */}
       <div className="grid gap-6 md:grid-cols-2">
         <XPDisplay totalXP={totalXP} level={level} progressToNext={progressToNext} />
@@ -1289,11 +1300,12 @@ export function ProfilePage() {
       <TeamLeaderboardCard />
 
       {/* Achievement Badges */}
-      {profile && (
-        <AchievementBadges stats={profile.stats} />
+      <AchievementBadges stats={profile.stats} />
+      </>
       )}
 
-      {/* Certificate Modal */}
+      {/* Certificate Modal - STUDENT ONLY */}
+      {currentRole === "student" && (
       <CertificateModal
         open={certificateOpen}
         onOpenChange={setCertificateOpen}
@@ -1301,6 +1313,7 @@ export function ProfilePage() {
         courseName={firstCompletedCourse || "Course"}
         completionDate={completedDate || new Date().toISOString()}
       />
+      )}
     </div>
   );
 }

@@ -1,0 +1,701 @@
+     1→"use client";
+     2→
+     3→import { useState, useEffect, useCallback, type FormEvent } from "react";
+     4→import {
+     5→  GraduationCap,
+     6→  BookOpen,
+     7→  Trophy,
+     8→  Users,
+     9→  Eye,
+    10→  EyeOff,
+    11→  Mail,
+    12→  Lock,
+    13→  User,
+    14→  Loader2,
+    15→  Chrome,
+    16→  Github,
+    17→  Apple,
+    18→  Sparkles,
+    19→  ArrowRight,
+    20→  CheckCircle2,
+    21→} from "lucide-react";
+    22→import { Button } from "@/components/ui/button";
+    23→import { Input } from "@/components/ui/input";
+    24→import { Label } from "@/components/ui/label";
+    25→import { Checkbox } from "@/components/ui/checkbox";
+    26→import { Separator } from "@/components/ui/separator";
+    27→import {
+    28→  Card,
+    29→  CardContent,
+    30→  CardDescription,
+    31→  CardFooter,
+    32→  CardHeader,
+    33→  CardTitle,
+    34→} from "@/components/ui/card";
+    35→
+    36→/* -------------------------------------------------------------------------- */
+    37→/*  Types                                                                     */
+    38→/* -------------------------------------------------------------------------- */
+    39→
+    40→type AuthMode = "login" | "signup";
+    41→type FormStatus = "idle" | "loading" | "success" | "error";
+    42→
+    43→interface AuthFormState {
+    44→  name: string;
+    45→  email: string;
+    46→  password: string;
+    47→  confirmPassword: string;
+    48→  rememberMe: boolean;
+    49→  agreeTerms: boolean;
+    50→}
+    51→
+    52→interface SocialProvider {
+    53→  name: string;
+    54→  icon: React.ReactNode;
+    55→  onClick: () => void;
+    56→}
+    57→
+    58→/* -------------------------------------------------------------------------- */
+    59→/*  Constants                                                                 */
+    60→/* -------------------------------------------------------------------------- */
+    61→
+    62→const INITIAL_FORM: AuthFormState = {
+    63→  name: "",
+    64→  email: "",
+    65→  password: "",
+    66→  confirmPassword: "",
+    67→  rememberMe: false,
+    68→  agreeTerms: false,
+    69→};
+    70→
+    71→const FEATURES = [
+    72→  {
+    73→    icon: <BookOpen className="size-5 text-emerald-500" />,
+    74→    title: "500+ Courses",
+    75→    desc: "Expert-led content across every topic",
+    76→  },
+    77→  {
+    78→    icon: <Trophy className="size-5 text-amber-500" />,
+    79→    title: "Earn Certificates",
+    80→    desc: "Recognized credentials for your career",
+    81→  },
+    82→  {
+    83→    icon: <Users className="size-5 text-sky-500" />,
+    84→    title: "Community",
+    85→    desc: "Join 50,000+ learners worldwide",
+    86→  },
+    87→  {
+    88→    icon: <Sparkles className="size-5 text-violet-500" />,
+    89→    title: "AI-Powered",
+    90→    desc: "Personalized learning paths for you",
+    91→  },
+    92→];
+    93→
+    94→const TESTIMONIALS = [
+    95→  {
+    96→    quote: "This platform completely changed how I approach learning. The courses are top-notch!",
+    97→    author: "Sarah Chen",
+    98→    role: "Software Engineer at Google",
+    99→    avatar: "SC",
+   100→  },
+   101→  {
+   102→    quote: "I earned three certifications in six months. The structured paths made it easy.",
+   103→    author: "Marcus Johnson",
+   104→    role: "Product Designer at Figma",
+   105→    avatar: "MJ",
+   106→  },
+   107→  {
+   108→    quote: "Best investment in my career. The community support is incredible.",
+   109→    author: "Priya Patel",
+   110→    role: "Data Scientist at Netflix",
+   111→    avatar: "PP",
+   112→  },
+   113→];
+   114→
+   115→/* -------------------------------------------------------------------------- */
+   116→/*  Component                                                                 */
+   117→/* -------------------------------------------------------------------------- */
+   118→
+   119→export function AuthPage() {
+   120→  /* ---- state ---- */
+   121→  const [mode, setMode] = useState<AuthMode>("login");
+   122→  const [form, setForm] = useState<AuthFormState>(INITIAL_FORM);
+   123→  const [status, setStatus] = useState<FormStatus>("idle");
+   124→  const [showPassword, setShowPassword] = useState(false);
+   125→  const [showConfirm, setShowConfirm] = useState(false);
+   126→  const [activeTestimonial, setActiveTestimonial] = useState(0);
+   127→  const [errorMsg, setErrorMsg] = useState("");
+   128→
+   129→  /* ---- testimonials rotation ---- */
+   130→  useEffect(() => {
+   131→    const timer = setInterval(() => {
+   132→      setActiveTestimonial((prev) => (prev + 1) % TESTIMONIALS.length);
+   133→    }, 5000);
+   134→    return () => clearInterval(timer);
+   135→  }, []);
+   136→
+   137→  /* ---- helpers ---- */
+   138→  const updateField = useCallback(
+   139→    (field: keyof AuthFormState, value: string | boolean) => {
+   140→      setForm((prev) => ({ ...prev, [field]: value }));
+   141→      if (status === "error") {
+   142→        setStatus("idle");
+   143→        setErrorMsg("");
+   144→      }
+   145→    },
+   146→    [status]
+   147→  );
+   148→
+   149→  const validate = useCallback((): string | null => {
+   150→    if (!form.email.trim()) return "Email is required.";
+   151→    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email))
+   152→      return "Please enter a valid email address.";
+   153→    if (!form.password) return "Password is required.";
+   154→    if (form.password.length < 8)
+   155→      return "Password must be at least 8 characters.";
+   156→    if (mode === "signup") {
+   157→      if (!form.name.trim()) return "Full name is required.";
+   158→      if (!form.confirmPassword) return "Please confirm your password.";
+   159→      if (form.password !== form.confirmPassword)
+   160→        return "Passwords do not match.";
+   161→      if (!form.agreeTerms)
+   162→        return "You must agree to the terms and conditions.";
+   163→    }
+   164→    return null;
+   165→  }, [form, mode]);
+   166→
+   167→  const handleSubmit = useCallback(
+   168→    (e: FormEvent) => {
+   169→      e.preventDefault();
+   170→      const error = validate();
+   171→      if (error) {
+   172→        setStatus("error");
+   173→        setErrorMsg(error);
+   174→        return;
+   175→      }
+   176→      setStatus("loading");
+   177→      // Simulate API call
+   178→      setTimeout(() => {
+   179→        setStatus("success");
+   180→      }, 1500);
+   181→    },
+   182→    [validate]
+   183→  );
+   184→
+   185→  /* ---- social providers ---- */
+   186→  const socialProviders: SocialProvider[] = [
+   187→    {
+   188→      name: "Google",
+   189→      icon: <Chrome className="size-4" />,
+   190→      onClick: () => {
+   191→        /* noop placeholder */
+   192→      },
+   193→    },
+   194→    {
+   195→      name: "GitHub",
+   196→      icon: <Github className="size-4" />,
+   197→      onClick: () => {
+   198→        /* noop placeholder */
+   199→      },
+   200→    },
+   201→    {
+   202→      name: "Apple",
+   203→      icon: <Apple className="size-4" />,
+   204→      onClick: () => {
+   205→        /* noop placeholder */
+   206→      },
+   207→    },
+   208→  ];
+   209→
+   210→  /* ---- success view ---- */
+   211→  if (status === "success") {
+   212→    return (
+   213→      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-white to-emerald-50 dark:from-slate-950 dark:via-slate-900 dark:to-emerald-950 p-4">
+   214→        <Card className="w-full max-w-md border-0 shadow-xl">
+   215→          <CardContent className="flex flex-col items-center gap-4 pt-10 pb-10">
+   216→            <div className="rounded-full bg-emerald-100 dark:bg-emerald-900/40 p-4">
+   217→              <CheckCircle2 className="size-10 text-emerald-600 dark:text-emerald-400" />
+   218→            </div>
+   219→            <h2 className="text-2xl font-bold tracking-tight">
+   220→              {mode === "login" ? "Welcome back!" : "Account created!"}
+   221→            </h2>
+   222→            <p className="text-center text-muted-foreground max-w-xs">
+   223→              {mode === "login"
+   224→                ? "You've successfully signed in. Redirecting to your dashboard..."
+   225→                : "Your account has been created. Check your email to verify your account."}
+   226→            </p>
+   227→            <Button
+   228→              className="mt-2 w-full max-w-xs"
+   229→              size="lg"
+   230→              onClick={() => {
+   231→                setStatus("idle");
+   232→                setForm(INITIAL_FORM);
+   233→              }}
+   234→            >
+   235→              Continue
+   236→              <ArrowRight className="size-4" />
+   237→            </Button>
+   238→          </CardContent>
+   239→        </Card>
+   240→      </div>
+   241→    );
+   242→  }
+   243→
+   244→  /* ---- main view ---- */
+   245→  return (
+   246→    <div className="min-h-screen flex flex-col lg:flex-row">
+   247→      {/* Left Panel - Hero / Branding (hidden on mobile, visible on lg+) */}
+   248→      <aside className="hidden lg:flex lg:w-[55%] relative flex-col justify-between overflow-hidden bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-800 text-white p-10 xl:p-16">
+   249→        {/* Decorative blobs */}
+   250→        <div className="pointer-events-none absolute -top-24 -left-24 size-96 rounded-full bg-white/5 blur-3xl" />
+   251→        <div className="pointer-events-none absolute -bottom-32 -right-32 size-[28rem] rounded-full bg-white/5 blur-3xl" />
+   252→        <div className="pointer-events-none absolute top-1/2 left-1/3 size-64 rounded-full bg-teal-400/10 blur-2xl" />
+   253→
+   254→        {/* Logo & tagline */}
+   255→        <div className="relative z-10">
+   256→          <div className="flex items-center gap-3 mb-6">
+   257→            <div className="flex size-11 items-center justify-center rounded-xl bg-white/20 backdrop-blur-sm">
+   258→              <GraduationCap className="size-6" />
+   259→            </div>
+   260→            <span className="text-2xl font-bold tracking-tight">LearnHub</span>
+   261→          </div>
+   262→          <h1 className="text-4xl xl:text-5xl font-extrabold leading-tight max-w-lg">
+   263→            Unlock your potential with{" "}
+   264→            <span className="text-emerald-200">world-class</span> learning
+   265→          </h1>
+   266→          <p className="mt-4 text-emerald-100 text-lg max-w-md leading-relaxed">
+   267→            Join thousands of professionals advancing their careers through
+   268→            expert-led courses, hands-on projects, and a supportive community.
+   269→          </p>
+   270→        </div>
+   271→
+   272→        {/* Features grid */}
+   273→        <div className="relative z-10 grid grid-cols-2 gap-4 my-8">
+   274→          {FEATURES.map((f) => (
+   275→            <div
+   276→              key={f.title}
+   277→              className="rounded-xl bg-white/10 backdrop-blur-sm border border-white/10 p-4 transition-transform hover:scale-[1.02]"
+   278→            >
+   279→              <div className="mb-2 rounded-lg bg-white/10 w-fit p-2">
+   280→                {f.icon}
+   281→              </div>
+   282→              <h3 className="font-semibold text-sm">{f.title}</h3>
+   283→              <p className="text-emerald-200 text-xs mt-0.5 leading-relaxed">
+   284→                {f.desc}
+   285→              </p>
+   286→            </div>
+   287→          ))}
+   288→        </div>
+   289→
+   290→        {/* Testimonial carousel */}
+   291→        <div className="relative z-10">
+   292→          <div className="rounded-xl bg-white/10 backdrop-blur-sm border border-white/10 p-6">
+   293→            <p className="text-sm leading-relaxed text-emerald-50 italic min-h-[3rem]">
+   294→              &ldquo;{TESTIMONIALS[activeTestimonial].quote}&rdquo;
+   295→            </p>
+   296→            <div className="mt-4 flex items-center gap-3">
+   297→              <div className="flex size-9 items-center justify-center rounded-full bg-white/20 text-xs font-bold">
+   298→                {TESTIMONIALS[activeTestimonial].avatar}
+   299→              </div>
+   300→              <div>
+   301→                <p className="text-sm font-medium">
+   302→                  {TESTIMONIALS[activeTestimonial].author}
+   303→                </p>
+   304→                <p className="text-xs text-emerald-200">
+   305→                  {TESTIMONIALS[activeTestimonial].role}
+   306→                </p>
+   307→              </div>
+   308→            </div>
+   309→            {/* Dots indicator */}
+   310→            <div className="mt-4 flex gap-1.5">
+   311→              {TESTIMONIALS.map((_, i) => (
+   312→                <button
+   313→                  key={i}
+   314→                  type="button"
+   315→                  aria-label={`Go to testimonial ${i + 1}`}
+   316→                  onClick={() => setActiveTestimonial(i)}
+   317→                  className={`h-1.5 rounded-full transition-all duration-300 ${
+   318→                    i === activeTestimonial
+   319→                      ? "w-6 bg-white"
+   320→                      : "w-1.5 bg-white/40 hover:bg-white/60"
+   321→                  }`}
+   322→                />
+   323→              ))}
+   324→            </div>
+   325→          </div>
+   326→        </div>
+   327→
+   328→        {/* Stats bar */}
+   329→        <div className="relative z-10 mt-8 flex items-center gap-8 text-sm">
+   330→          <div>
+   331→            <span className="text-2xl font-bold">50K+</span>
+   332→            <p className="text-emerald-200">Learners</p>
+   333→          </div>
+   334→          <div className="h-8 w-px bg-white/20" />
+   335→          <div>
+   336→            <span className="text-2xl font-bold">500+</span>
+   337→            <p className="text-emerald-200">Courses</p>
+   338→          </div>
+   339→          <div className="h-8 w-px bg-white/20" />
+   340→          <div>
+   341→            <span className="text-2xl font-bold">4.9</span>
+   342→            <p className="text-emerald-200">Rating</p>
+   343→          </div>
+   344→        </div>
+   345→      </aside>
+   346→
+   347→      {/* Right Panel - Auth Form */}
+   348→      <main className="flex-1 flex flex-col items-center justify-center p-4 sm:p-6 lg:p-10 bg-gradient-to-br from-slate-50 via-white to-emerald-50/40 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 min-h-screen">
+   349→        {/* Mobile logo – only visible on small screens */}
+   350→        <div className="lg:hidden flex items-center gap-2.5 mb-8">
+   351→          <div className="flex size-10 items-center justify-center rounded-xl bg-emerald-600 text-white">
+   352→            <GraduationCap className="size-5" />
+   353→          </div>
+   354→          <span className="text-xl font-bold tracking-tight">LearnHub</span>
+   355→        </div>
+   356→
+   357→        <Card className="w-full max-w-md border-0 shadow-lg sm:shadow-xl">
+   358→ <CardHeader className="gap-1 text-center pb-2">
+   359→            <CardTitle className="text-2xl font-bold tracking-tight">
+   360→              {mode === "login" ? "Welcome back" : "Create your account"}
+   361→            </CardTitle>
+   362→            <CardDescription className="text-balance">
+   363→              {mode === "login"
+   364→                ? "Sign in to continue your learning journey"
+   365→                : "Start learning with a free account today"}
+   366→            </CardDescription>
+   367→          </CardHeader>
+   368→
+   369→          <CardContent>
+   370→            {/* Social login buttons */}
+   371→            <div className="grid grid-cols-3 gap-3">
+   372→              {socialProviders.map((provider) => (
+   373→                <Button
+   374→                  key={provider.name}
+   375→                  variant="outline"
+   376→                  className="h-10 w-full"
+   377→                  type="button"
+   378→                  onClick={provider.onClick}
+   379→                  aria-label={`Continue with ${provider.name}`}
+   380→                >
+   381→                  {provider.icon}
+   382→                  <span className="sr-only">{provider.name}</span>
+   383→                </Button>
+   384→              ))}
+   385→            </div>
+   386→            <p className="text-xs text-center text-muted-foreground mt-3">
+   387→              or continue with email
+   388→            </p>
+   389→
+   390→            <Separator className="my-5" />
+   391→
+   392→            {/* Form */}
+   393→            <form onSubmit={handleSubmit} className="grid gap-4" noValidate>
+   394→              {/* Name (signup only) */}
+   395→              {mode === "signup" && (
+   396→                <div className="grid gap-2">
+   397→                  <Label htmlFor="auth-name">Full name</Label>
+   398→                  <div className="relative">
+   399→                    <User className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+   400→                    <Input
+   401→                      id="auth-name"
+   402→                      type="text"
+   403→                      placeholder="John Doe"
+   404→                      className="pl-9"
+   405→                      value={form.name}
+   406→                      onChange={(e) => updateField("name", e.target.value)}
+   407→                      autoComplete="name"
+   408→                      disabled={status === "loading"}
+   409→                    />
+   410→                  </div>
+   411→                </div>
+   412→              )}
+   413→
+   414→              {/* Email */}
+   415→              <div className="grid gap-2">
+   416→                <Label htmlFor="auth-email">Email address</Label>
+   417→                <div className="relative">
+   418→                  <Mail className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+   419→                  <Input
+   420→                    id="auth-email"
+   421→                    type="email"
+   422→                    placeholder="you@example.com"
+   423→                    className="pl-9"
+   424→                    value={form.email}
+   425→                    onChange={(e) => updateField("email", e.target.value)}
+   426→                    autoComplete={mode === "login" ? "email" : "email"}
+   427→                    disabled={status === "loading"}
+   428→                    aria-invalid={status === "error"}
+   429→                  />
+   430→                </div>
+   431→              </div>
+   432→
+   433→              {/* Password */}
+   434→              <div className="grid gap-2">
+   435→                <div className="flex items-center justify-between">
+   436→                  <Label htmlFor="auth-password">Password</Label>
+   437→                  {mode === "login" && (
+   438→                    <button
+   439→                      type="button"
+   440→                      className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+   441→                      onClick={() => {
+   442→                        /* TODO: handle forgot password */
+   443→                      }}
+   444→                    >
+   445→                      Forgot password?
+   446→                    </button>
+   447→                  )}
+   448→                </div>
+   449→                <div className="relative">
+   450→                  <Lock className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+   451→                  <Input
+   452→                    id="auth-password"
+   453→                    type={showPassword ? "text" : "password"}
+   454→                    placeholder="••••••••"
+   455→                    className="pl-9 pr-10"
+   456→                    value={form.password}
+   457→                    onChange={(e) => updateField("password", e.target.value)}
+   458→                    autoComplete={
+   459→                      mode === "login" ? "current-password" : "new-password"
+   460→                    }
+   461→                    disabled={status === "loading"}
+   462→                    aria-invalid={status === "error"}
+   463→                  />
+   464→                  <button
+   465→                    type="button"
+   466→                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+   467→                    onClick={() => setShowPassword((v) => !v)}
+   468→                    aria-label={showPassword ? "Hide password" : "Show password"}
+   469→                  >
+   470→                    {showPassword ? (
+   471→                      <EyeOff className="size-4" />
+   472→                    ) : (
+   473→                      <Eye className="size-4" />
+   474→                    )}
+   475→                  </button>
+   476→                </div>
+   477→                {/* Password strength (signup only) */}
+   478→                {mode === "signup" && form.password && (
+   479→                  <PasswordStrength password={form.password} />
+   480→                )}
+   481→              </div>
+   482→
+   483→              {/* Confirm Password (signup only) */}
+   484→              {mode === "signup" && (
+   485→                <div className="grid gap-2">
+   486→                  <Label htmlFor="auth-confirm">Confirm password</Label>
+   487→                  <div className="relative">
+   488→                    <Lock className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+   489→                    <Input
+   490→                      id="auth-confirm"
+   491→                      type={showConfirm ? "text" : "password"}
+   492→                      placeholder="••••••••"
+   493→                      className="pl-9 pr-10"
+   494→                      value={form.confirmPassword}
+   495→                      onChange={(e) => updateField("confirmPassword", e.target.value)}
+   496→                      autoComplete="new-password"
+   497→                      disabled={status === "loading"}
+   498→                      aria-invalid={
+   499→                        status === "error" && form.confirmPassword !== form.password
+   500→                      }
+   501→                    />
+   502→                    <button
+   503→                      type="button"
+   504→                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+   505→                      onClick={() => setShowConfirm((v) => !v)}
+   506→                      aria-label={
+   507→                        showConfirm ? "Hide confirm password" : "Show confirm password"
+   508→                      }
+   509→                    >
+   510→                      {showConfirm ? (
+   511→                        <EyeOff className="size-4" />
+   512→                      ) : (
+   513→                        <Eye className="size-4" />
+   514→                      )}
+   515→                    </button>
+   516→                  </div>
+   517→                </div>
+   518→              )}
+   519→
+   520→              {/* Remember me (login) / Agree terms (signup) */}
+   521→              <div className="flex items-start gap-2">
+   522→                <Checkbox
+   523→                  id={
+   524→                    mode === "login" ? "auth-remember" : "auth-terms"
+   525→                  }
+   526→                  checked={
+   527→                    mode === "login" ? form.rememberMe : form.agreeTerms
+   528→                  }
+   529→                  onCheckedChange={(checked) =>
+   530→                    updateField(
+   531→                      mode === "login" ? "rememberMe" : "agreeTerms",
+   532→                      !!checked
+   533→                    )
+   534→                  }
+   535→                  disabled={status === "loading"}
+   536→                  className="mt-0.5"
+   537→                />
+   538→                <Label
+   539→                  htmlFor={
+   540→                    mode === "login" ? "auth-remember" : "auth-terms"
+   541→                  }
+   542→                  className="text-sm font-normal leading-snug text-muted-foreground cursor-pointer"
+   543→                >
+   544→                  {mode === "login" ? (
+   545→                    "Keep me signed in for 30 days"
+   546→                  ) : (
+   547→                    <>
+   548→                      I agree to the{" "}
+   549→                      <button
+   550→                        type="button"
+   551→                        className="text-foreground underline underline-offset-2 hover:text-emerald-600 transition-colors"
+   552→                      >
+   553→                        Terms of Service
+   554→                      </button>{" "}
+   555→                      and{" "}
+   556→                      <button
+   557→                        type="button"
+   558→                        className="text-foreground underline underline-offset-2 hover:text-emerald-600 transition-colors"
+   559→                      >
+   560→                        Privacy Policy
+   561→                      </button>
+   562→                    </>
+   563→                  )}
+   564→                </Label>
+   565→              </div>
+   566→
+   567→              {/* Error message */}
+   568→              {status === "error" && errorMsg && (
+   569→                <div
+   570→                  role="alert"
+   571→                  className="rounded-lg border border-red-200 bg-red-50 dark:border-red-800/40 dark:bg-red-950/40 px-4 py-3 text-sm text-red-700 dark:text-red-300"
+   572→                >
+   573→                  {errorMsg}
+   574→                </div>
+   575→              )}
+   576→
+   577→              {/* Submit */}
+   578→              <Button
+   579→                type="submit"
+   580→                className="w-full h-11 text-base font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-md hover:shadow-lg transition-all"
+   581→                size="lg"
+   582→                disabled={status === "loading"}
+   583→              >
+   584→                {status === "loading" ? (
+   585→                  <Loader2 className="size-4 animate-spin" />
+   586→                ) : null}
+   587→                {mode === "login" ? "Sign in" : "Create account"}
+   588→                {status !== "loading" && (
+   589→                  <ArrowRight className="size-4" />
+   590→                )}
+   591→              </Button>
+   592→            </form>
+   593→          </CardContent>
+   594→
+   595→          <CardFooter className="justify-center pb-6">
+   596→            <p className="text-sm text-muted-foreground">
+   597→              {mode === "login"
+   598→                ? "Don't have an account?"
+   599→                : "Already have an account?"}{" "}
+   600→              <button
+   601→                type="button"
+   602→                className="font-semibold text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300 transition-colors"
+   603→                onClick={() => {
+   604→                  setMode((m) => (m === "login" ? "signup" : "login"));
+   605→                  setForm(INITIAL_FORM);
+   606→                  setStatus("idle");
+   607→                  setErrorMsg("");
+   608→                }}
+   609→              >
+   610→                {mode === "login" ? "Sign up for free" : "Sign in"}
+   611→              </button>
+   612→            </p>
+   613→          </CardFooter>
+   614→        </Card>
+   615→
+   616→        {/* Mobile testimonial (visible only on small screens) */}
+   617→        <div className="lg:hidden mt-8 max-w-md text-center">
+   618→          <p className="text-sm text-muted-foreground italic">
+   619→            &ldquo;{TESTIMONIALS[activeTestimonial].quote}&rdquo;
+   620→          </p>
+   621→          <p className="mt-2 text-xs font-medium text-muted-foreground">
+   622→            — {TESTIMONIALS[activeTestimonial].author},{" "}
+   623→            {TESTIMONIALS[activeTestimonial].role}
+   624→          </p>
+   625→          <div className="mt-3 flex justify-center gap-1.5">
+   626→            {TESTIMONIALS.map((_, i) => (
+   627→              <button
+   628→                key={i}
+   629→                type="button"
+   630→                aria-label={`Go to testimonial ${i + 1}`}
+   631→                onClick={() => setActiveTestimonial(i)}
+   632→                className={`h-1.5 rounded-full transition-all duration-300 ${
+   633→                  i === activeTestimonial
+   634→                    ? "w-6 bg-emerald-500"
+   635→                    : "w-1.5 bg-muted-foreground/30"
+   636→                }`}
+   637→              />
+   638→            ))}
+   639→          </div>
+   640→        </div>
+   641→
+   642→        {/* Footer */}
+   643→        <p className="mt-8 text-xs text-center text-muted-foreground">
+   644→          &copy; {new Date().getFullYear()} LearnHub. All rights reserved.
+   645→        </p>
+   646→      </main>
+   647→    </div>
+   648→  );
+   649→}
+   650→
+   651→/* -------------------------------------------------------------------------- */
+   652→/*  Sub-components                                                            */
+   653→/* -------------------------------------------------------------------------- */
+   654→
+   655→function PasswordStrength({ password }: { password: string }) {
+   656→  const score = getStrengthScore(password);
+   657→  const label = STRENGTH_LEVELS[score].label;
+   658→  const color = STRENGTH_LEVELS[score].color;
+   659→
+   660→  return (
+   661→    <div className="space-y-1.5">
+   662→      <div className="flex gap-1">
+   663→        {Array.from({ length: 4 }).map((_, i) => (
+   664→          <div
+   665→            key={i}
+   666→            className="h-1 flex-1 rounded-full transition-colors duration-300"
+   667→            style={{
+   668→              backgroundColor: i < score ? color : "hsl(var(--muted))",
+   669→            }}
+   670→          />
+   671→        ))}
+   672→      </div>
+   673→      <p className="text-xs text-muted-foreground">{label}</p>
+   674→    </div>
+   675→  );
+   676→}
+   677→
+   678→/* -------------------------------------------------------------------------- */
+   679→/*  Utilities                                                                 */
+   680→/* -------------------------------------------------------------------------- */
+   681→
+   682→function getStrengthScore(pw: string): number {
+   683→  let score = 0;
+   684→  if (pw.length >= 8) score++;
+   685→  if (/[A-Z]/.test(pw) && /[a-z]/.test(pw)) score++;
+   686→  if (/[0-9]/.test(pw)) score++;
+   687→  if (/[^A-Za-z0-9]/.test(pw)) score++;
+   688→  return score;
+   689→}
+   690→
+   691→const STRENGTH_LEVELS: Record<
+   692→  number,
+   693→  { label: string; color: string }
+   694→> = {
+   695→  0: { label: "Too short", color: "hsl(var(--destructive))" },
+   696→  1: { label: "Weak", color: "hsl(var(--destructive))" },
+   697→  2: { label: "Fair", color: "hsl(38 92% 50%)" },
+   698→  3: { label: "Good", color: "hsl(var(--primary))" },
+   699→  4: { label: "Strong", color: "hsl(142 71% 45%)" },
+   700→};
+   701→

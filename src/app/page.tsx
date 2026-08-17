@@ -1,10 +1,11 @@
 "use client";
 
-import { useNavigationStore } from "@/stores/lms-store";
+import { useNavigationStore, useUserStore } from "@/stores/lms-store";
 import { Navbar } from "@/components/lms/navbar";
 import { Footer } from "@/components/lms/footer";
 import { OnboardingTour } from "@/components/lms/onboarding-tour";
 import { AnnouncementBanner } from "@/components/lms/announcement-banner";
+import { AuthPage } from "@/components/lms/pages/auth-page";
 import { HomePage } from "@/components/lms/pages/home-page";
 import { CoursesPage } from "@/components/lms/pages/courses-page";
 import { MyLearningPage } from "@/components/lms/pages/my-learning-page";
@@ -17,16 +18,23 @@ import { SettingsPage } from "@/components/lms/pages/settings-page";
 import { FloatingActions } from "@/components/lms/floating-actions";
 import { KeyboardShortcuts } from "@/components/lms/keyboard-shortcuts";
 
-/**
- * Root page component that acts as the SPA router.
- * Uses Zustand navigation store to switch between views.
- * Only the "/" route exists in the App Router.
- */
 export default function AppPage() {
   const { currentView } = useNavigationStore();
+  const isAuthenticated = useUserStore((s) => s.isAuthenticated);
+  const currentRole = useUserStore((s) => s.currentRole);
 
-  /** Render the active view based on navigation state.
-   *  Classroom uses full-screen mode (no footer). */
+  if (!isAuthenticated || currentView === "auth") {
+    return (
+      <div className="min-h-screen flex flex-col bg-background">
+        <Navbar />
+        <main className="flex-1">
+          <AuthPage />
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+
   const isFullView = currentView === "classroom";
 
   const renderView = () => {
@@ -34,10 +42,12 @@ export default function AppPage() {
       case "home":
         return <HomePage />;
       case "dashboard":
+        if (currentRole !== "instructor") return <HomePage />;
         return <DashboardPage />;
       case "courses":
         return <CoursesPage />;
       case "my-learning":
+        if (currentRole !== "student") return <HomePage />;
         return <MyLearningPage />;
       case "profile":
         return <ProfilePage />;
@@ -46,6 +56,7 @@ export default function AppPage() {
       case "classroom":
         return <ClassroomPage />;
       case "create-course":
+        if (currentRole !== "instructor") return <HomePage />;
         return <CreateCoursePage />;
       case "settings":
         return <SettingsPage />;

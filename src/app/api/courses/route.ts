@@ -149,7 +149,7 @@ export async function POST(request: NextRequest) {
         language: language || 'english',
         creatorId,
         coverImage: coverImage || null,
-        status: 'published',
+        status: 'draft',
         sections: sections
           ? {
               create: sections.map(

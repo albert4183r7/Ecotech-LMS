@@ -56,7 +56,6 @@ export const useNavigationStore = create<NavigationState>((set) => ({
     set((state) => ({
       currentView: state.previousView || "home",
       previousView: null,
-      // Preserve selectedCourseId when going back (never clear it)
     })),
 }));
 
@@ -130,19 +129,21 @@ export const useMyLearningStore = create<MyLearningState>((set) => ({
 // User Store
 // ============================================
 interface UserState {
+  isAuthenticated: boolean;
   currentUserId: string;
   currentRole: "student" | "instructor";
   setCurrentUserId: (id: string) => void;
   setCurrentRole: (role: "student" | "instructor") => void;
-  switchToInstructor: () => void;
-  switchToStudent: () => void;
+  login: (id: string, role: "student" | "instructor") => void;
+  logout: () => void;
 }
 
 export const useUserStore = create<UserState>((set) => ({
-  currentUserId: "user_student_001",  // Default to student
+  isAuthenticated: false,
+  currentUserId: "",
   currentRole: "student" as const,
   setCurrentUserId: (id) => set({ currentUserId: id }),
   setCurrentRole: (role) => set({ currentRole: role }),
-  switchToInstructor: () => set({ currentUserId: "user_instructor_001", currentRole: "instructor" }),
-  switchToStudent: () => set({ currentUserId: "user_student_001", currentRole: "student" }),
+  login: (id, role) => set({ isAuthenticated: true, currentUserId: id, currentRole: role }),
+  logout: () => set({ isAuthenticated: false, currentUserId: "", currentRole: "student" as const }),
 }));

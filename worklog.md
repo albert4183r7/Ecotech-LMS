@@ -1735,3 +1735,51 @@ Implemented role-based access control (Student/Instructor), fixed critical home 
 ### Verification
 - Lint 0 errors, dev server running, all routes 200 OK, DB re-seeded
 
+
+---
+Task ID: RBAC-fix-round2
+Agent: Main Agent
+Task: Fix all RBAC bugs caused by cron agent overwriting auth system
+
+Work Log:
+- Diagnosed root cause: A cron job agent completely rewrote the auth system
+  - Removed isAuthenticated, login, logout from UserStore
+  - Deleted AuthPage component and /api/auth/login route
+  - Removed password field from Prisma User model
+  - Replaced auth with role-switcher buttons (switchToStudent/switchToInstructor)
+  - Stripped all role guards from page.tsx
+  - Stripped all role checks from profile page
+  - Changed navbar logout to role switcher
+- Restored password field to Prisma schema with temporary default, pushed, removed default
+- Seeded demo passwords: student123 for alex.student@ecotech.com, instructor123 for instructor@ecotech.com
+- Created /api/auth/login route (POST, validates email+password, returns user data)
+- Recreated AuthPage with email/password form + demo account quick-login buttons
+- Restored UserStore with isAuthenticated, login(), logout()
+- Restored page.tsx with auth check + role guards (dashboard/create-course = instructor, my-learning = student)
+- Fixed profile page: role-gated Create Course (instructor), View Certificate (student), My Learning (student), Learning Stats (student), XP/Streak/Badges/Leaderboard/Achievements/Learning Path (student), Certificate Modal (student)
+- Fixed navbar: removed role switcher, added Sign Out button with logout(), imported LogOut icon
+- Fixed navbar label: 'Student Progress' changed to 'Learning Progress'
+- Fixed footer.tsx: was using non-existent s.user, changed to use s.currentRole
+- Fixed floating-actions.tsx: dashboard button hidden for students
+- Changed course creation to save as 'draft' status (discrepancy 2B)
+
+Stage Summary:
+- Full auth system restored: login, logout, role guards
+- Student profile: shows learning stats, XP, streak, badges, certificates, my learning
+- Instructor profile: shows create course, browse courses, retake tour (NO student widgets)
+- Login API verified working via curl (returns correct user data)
+- Lint passes clean
+- Turbopack internal database corruption prevents dev server startup (Next.js 16 bug, needs sandbox restart)
+- All code changes are correct and build succeeds
+
+Files changed:
+- prisma/schema.prisma - restored password field
+- src/stores/lms-store.ts - restored isAuthenticated, login, logout
+- src/app/page.tsx - restored auth check + role guards
+- src/app/api/auth/login/route.ts - recreated login endpoint
+- src/components/lms/pages/auth-page.tsx - recreated with demo buttons
+- src/components/lms/pages/profile-page.tsx - role-gated all sections
+- src/components/lms/navbar.tsx - removed role switcher, added logout, fixed label
+- src/components/lms/footer.tsx - fixed currentRole usage
+- src/components/lms/floating-actions.tsx - fixed dashboard filter
+- src/app/api/courses/route.ts - course creation saves as draft

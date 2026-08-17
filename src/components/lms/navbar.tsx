@@ -20,6 +20,7 @@ import {
   Trophy,
   Settings,
   Search,
+  LogOut,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -262,7 +263,7 @@ function parseNotificationLink(link: string | null): { view: ViewName; courseId?
 
 export function Navbar() {
   const { currentView, navigateTo, openCourseDetail } = useNavigationStore();
-  const { currentUserId, currentRole, switchToStudent, switchToInstructor } = useUserStore();
+  const { currentUserId, currentRole, isAuthenticated, logout } = useUserStore();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { theme, setTheme, resolvedTheme } = useTheme();
 
@@ -283,7 +284,7 @@ export function Navbar() {
 
   // Breadcrumb: derive current page label (role-aware)
   const currentPageLabel = currentView === "my-learning" && currentRole === "instructor"
-    ? "Student Progress"
+    ? "Learning Progress"
     : getViewLabel(currentView);
 
   // ============================================
@@ -456,7 +457,7 @@ export function Navbar() {
   /** Role-aware visible nav items */
   const visibleNavItems = NAV_ITEMS.map((item) => {
     if (item.view === "my-learning" && currentRole === "instructor") {
-      return { ...item, label: "Student Progress" };
+      return { ...item, label: "Learning Progress" };
     }
     return item;
   });
@@ -825,37 +826,6 @@ export function Navbar() {
             </div>
           )}
           {/* User Info Section at Bottom */}
-            {/* Role Switcher */}
-          <div className="flex items-center gap-2 px-2 py-2">
-            <span className="text-xs font-medium text-muted-foreground">Switch Role:</span>
-            <div className="flex gap-1">
-              <button
-                type="button"
-                onClick={() => { switchToStudent(); setMobileMenuOpen(false); navigateTo("home"); }}
-                className={cn(
-                  "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
-                  currentRole === "student"
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-muted-foreground hover:bg-muted/80"
-                )}
-              >
-                Student
-              </button>
-              <button
-                type="button"
-                onClick={() => { switchToInstructor(); setMobileMenuOpen(false); navigateTo("home"); }}
-                className={cn(
-                  "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
-                  currentRole === "instructor"
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-muted-foreground hover:bg-muted/80"
-                )}
-              >
-                Instructor
-              </button>
-            </div>
-          </div>
-          {/* User Info Section at Bottom */}
           <div className="flex items-center gap-3 rounded-lg bg-muted/40 px-3 py-2.5 mt-2">
             <span className="relative">
               <Avatar className="h-9 w-9 border-2 border-primary/20">
@@ -885,6 +855,15 @@ export function Navbar() {
               Online
             </span>
           </div>
+          {/* Logout Button */}
+          <button
+            type="button"
+            onClick={() => { logout(); setMobileMenuOpen(false); }}
+            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 mt-2 text-sm font-medium text-destructive hover:bg-destructive/10 transition-colors"
+          >
+            <LogOut className="h-4 w-4" />
+            Sign Out
+          </button>
         </nav>
       )}
     </header>
