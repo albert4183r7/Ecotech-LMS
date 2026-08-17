@@ -41,7 +41,7 @@ import { useNavigationStore, useUserStore } from "@/stores/lms-store";
 import { DiscussionPanel } from "@/components/lms/discussion-panel";
 import { ProgressTimeline } from "@/components/lms/progress-timeline";
 import { StarRating } from "@/components/lms/star-rating";
-import type { CourseItem, SectionItem, ClassroomState, SlideContent } from "@/types/lms";
+import type { CourseItem, SectionItem, ClassroomState } from "@/types/lms";
 
 type SectionProgress = {
   sectionId: string;
@@ -218,28 +218,28 @@ export function CourseDetailPage() {
     if (!course || downloadingPptx) return;
     setDownloadingPptx(true);
     try {
-      // Fetch all sections' content
-      const allSlides: SlideContent[] = [];
+      // Fetch all sections' HTML content
+      const sectionHtmlBodies: { title: string; htmlBody: string }[] = [];
       for (const section of course.sections) {
         try {
           const res = await fetch(`/api/sections/${section.id}`);
           if (!res.ok) continue;
           const json = await res.json();
-          if (json.success && json.data.content && Array.isArray(json.data.content)) {
-            allSlides.push(...json.data.content);
+          if (json.success && json.data.htmlBody) {
+            sectionHtmlBodies.push({ title: section.title, htmlBody: json.data.htmlBody });
           }
         } catch {
           // Skip sections that fail to load
         }
       }
-      if (allSlides.length === 0) {
-        toast.error('No slide content available for download.');
+      if (sectionHtmlBodies.length === 0) {
+        toast.error('No content available for download.');
         return;
       }
       const res = await fetch('/api/generate-pptx', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slides: allSlides, courseName: course.title }),
+        body: JSON.stringify({ sections: sectionHtmlBodies, courseName: course.title }),
       });
       if (!res.ok) {
         toast.error('Failed to generate PPT');
@@ -287,21 +287,21 @@ export function CourseDetailPage() {
       const res = await fetch(`/api/sections/${section.id}`);
       if (!res.ok) return;
       const json = await res.json();
-      if (json.success && json.data.content) {
-        const slides: SlideContent[] = Array.isArray(json.data.content)
-          ? json.data.content
-          : [];
-        const classroomState: ClassroomState = {
-          courseId: course.id,
-          courseTitle: course.title,
-          sectionId: section.id,
-          sectionTitle: section.title,
-          slides,
-          currentSlide: 0,
-          totalPages: slides.length || section.totalPages,
-        };
-        openClassroom(classroomState);
-      }
+      const htmlBody = json.success && json.data.htmlBody
+        ? json.data.htmlBody
+        : '<div class="flex items-center justify-center h-full"><p class="text-gray-500">No content available.</p></div>';
+      const allSectionIds = course.sections.map((s) => s.id);
+      const currentSectionIndex = allSectionIds.indexOf(section.id);
+      const classroomState: ClassroomState = {
+        courseId: course.id,
+        courseTitle: course.title,
+        sectionId: section.id,
+        sectionTitle: section.title,
+        htmlBody,
+        allSectionIds,
+        currentSectionIndex,
+      };
+      openClassroom(classroomState);
     } catch {
       // Silently fail
     }

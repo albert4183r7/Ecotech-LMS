@@ -10,21 +10,27 @@ export async function GET(
 
     const section = await db.section.findUnique({
       where: { id },
-      include: {
-        course: {
-          select: { id: true, title: true },
-        },
+      select: {
+        id: true,
+        title: true,
+        content: true,
+        htmlBody: true,
+        order: true,
+        totalPages: true,
+        createdAt: true,
+        updatedAt: true,
+        courseId: true,
       },
     });
 
     if (!section) {
       return NextResponse.json(
         { success: false, error: 'Section not found' },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
-    // Parse slide content from JSON string
+    // Parse legacy slide content from JSON string
     let parsedContent = null;
     if (section.content) {
       try {
@@ -38,6 +44,7 @@ export async function GET(
       id: section.id,
       title: section.title,
       content: parsedContent,
+      htmlBody: section.htmlBody,
       order: section.order,
       totalPages: section.totalPages,
       createdAt: section.createdAt,
@@ -50,7 +57,7 @@ export async function GET(
     console.error('Error fetching section:', error);
     return NextResponse.json(
       { success: false, error: 'Failed to fetch section' },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

@@ -77,7 +77,8 @@ model Course {
 model Section {
   id          String   @id @default(cuid())
   title       String
-  content     String?  // JSON string for slide content
+  content     String?  // DEPRECATED: legacy JSON blob for backward compat
+  htmlBody    String?  // Sanitized HTML+Tailwind for iframe renderer
   order       Int      @default(0)
   totalPages  Int      @default(0) // Number of slides/pages
   createdAt   DateTime @default(now())

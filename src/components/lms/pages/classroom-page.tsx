@@ -9,7 +9,6 @@ import {
   ChevronLeft,
   ChevronRight,
   X,
-  GraduationCap,
   Loader2,
   StickyNote,
   Bookmark,
@@ -31,7 +30,7 @@ import {
 } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useNavigationStore, useUserStore } from "@/stores/lms-store";
-import type { SlideContent, ClassroomState } from "@/types/lms";
+import type { ClassroomState } from "@/types/lms";
 import { StudyTimer } from "@/components/lms/study-timer";
 
 const MIN_ZOOM = 50;
@@ -43,10 +42,7 @@ export function ClassroomPage() {
   const userId = useUserStore((s) => s.currentUserId);
   const [localState, setLocalState] = useState<ClassroomState | null>(null);
   const [zoom, setZoom] = useState(100);
-  const [loadingSlides, setLoadingSlides] = useState(false);
-  const [slideDirection, setSlideDirection] = useState<"forward" | "back">("forward");
-  const [isAnimating, setIsAnimating] = useState(false);
-  const hasFetchedRef = useRef(false);
+  const [navigating, setNavigating] = useState(false);
   const confettiShownRef = useRef(false);
   const [showConfetti, setShowConfetti] = useState(false);
 
@@ -77,73 +73,59 @@ export function ClassroomPage() {
     return () => mq.removeEventListener("change", handler);
   }, []);
 
-  // Keep a working copy of classroomState so we can mutate currentSlide
+  // Keep a working copy of classroomState
   useEffect(() => {
     if (classroomState) {
       setLocalState({ ...classroomState });
       setZoom(100);
-      hasFetchedRef.current = false;
+      confettiShownRef.current = false;
+      setShowConfetti(false);
     }
   }, [classroomState]);
 
-  // If slides were empty initially, try fetching them
-  useEffect(() => {
-    if (!localState || localState.slides.length > 0 || hasFetchedRef.current) return;
-    hasFetchedRef.current = true;
-    const fetchSlides = async () => {
-      setLoadingSlides(true);
+  // ─── Section Navigation ─────────────────────────
+  const goToSection = useCallback(
+    async (index: number) => {
+      if (!localState || index < 0 || index >= localState.allSectionIds.length) return;
+      const sectionId = localState.allSectionIds[index];
       try {
-        const res = await fetch(`/api/sections/${localState.sectionId}`);
+        setNavigating(true);
+        const res = await fetch(`/api/sections/${sectionId}`);
         if (!res.ok) return;
         const json = await res.json();
-        if (json.success && json.data.content) {
-          const slides: SlideContent[] = Array.isArray(json.data.content)
-            ? json.data.content
-            : [];
-          setLocalState((prev) =>
-            prev
-              ? {
-                  ...prev,
-                  slides,
-                  totalPages: slides.length || prev.totalPages,
-                }
-              : prev
-          );
-        }
-      } catch {
-        // Silently fail
-      } finally {
-        setLoadingSlides(false);
-      }
-    };
-    fetchSlides();
-  }, [localState?.sectionId, localState?.slides.length]);
-
-  /** Navigate slides with transition animation */
-  const goToSlide = useCallback(
-    (index: number) => {
-      if (!localState || isAnimating) return;
-      const next = Math.max(0, Math.min(index, localState.totalPages - 1));
-      if (next === localState.currentSlide) return;
-      setSlideDirection(next > localState.currentSlide ? "forward" : "back");
-      setIsAnimating(true);
-      // Small delay for exit animation, then update slide
-      setTimeout(() => {
+        const htmlBody =
+          json.success && json.data.htmlBody
+            ? json.data.htmlBody
+            : '<div class="flex items-center justify-center h-full"><p class="text-gray-500">No content available.</p></div>';
+        const sectionTitle =
+          json.success && json.data.title
+            ? json.data.title
+            : `Section ${index + 1}`;
         setLocalState((prev) =>
-          prev ? { ...prev, currentSlide: next } : prev
+          prev
+            ? {
+                ...prev,
+                sectionId,
+                sectionTitle,
+                htmlBody,
+                currentSectionIndex: index,
+              }
+            : prev
         );
-        setIsAnimating(false);
-      }, 150);
+      } catch {
+        /* silently fail */
+      } finally {
+        setNavigating(false);
+      }
     },
-    [localState, isAnimating]
+    [localState]
   );
 
-  /** Persist progress to API when slide changes */
-  useEffect(() => {
-    if (!localState || !userId) return;
-    const saveProgress = async () => {
+  /** Mark section as completed and save progress */
+  const markSectionCompleted = useCallback(
+    async (sectionId: string) => {
+      if (!userId || !localState) return;
       try {
-        // Get enrollment ID from the API
         const enrollRes = await fetch(`/api/enrollments?userId=${userId}`);
         const enrollJson = await enrollRes.json();
         if (enrollJson.success && Array.isArray(enrollJson.data)) {
@@ -151,30 +133,42 @@ export function ClassroomPage() {
             (e: Record<string, unknown>) => e.courseId === localState.courseId
           );
           if (enrollment) {
-            const completed = localState.currentSlide >= localState.totalPages - 1;
             await fetch("/api/progress", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 enrollmentId: enrollment.id,
-                sectionId: localState.sectionId,
-                currentPage: localState.currentSlide + 1,
-                completed,
+                sectionId,
+                currentPage: 1,
+                completed: true,
               }),
             });
           }
         }
       } catch {
-        // Progress saving is best-effort
+        /* best-effort */
       }
-    };
-    // Debounce to avoid excessive API calls
-    const timer = setTimeout(saveProgress, 500);
-    return () => clearTimeout(timer);
-  }, [localState?.currentSlide]);
+    },
+    [userId, localState]
+  );
 
-  const goPrev = () => goToSlide((localState?.currentSlide ?? 0) - 1);
-  const goNext = () => goToSlide((localState?.currentSlide ?? 0) + 1);
+  // Save progress when section changes
+  useEffect(() => {
+    if (!localState || !userId) return;
+    const timer = setTimeout(() => {
+      markSectionCompleted(localState.sectionId);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [localState?.currentSectionIndex, userId, markSectionCompleted]);
+
+  const goPrev = () => {
+    if (!localState) return;
+    goToSection(localState.currentSectionIndex - 1);
+  };
+  const goNext = () => {
+    if (!localState) return;
+    goToSection(localState.currentSectionIndex + 1);
+  };
 
   // ─── Keyboard shortcuts ──────────────────────────────────────
   useEffect(() => {
@@ -221,25 +215,27 @@ export function ClassroomPage() {
   const zoomOut = () => setZoom((z) => Math.max(z - ZOOM_STEP, MIN_ZOOM));
   const zoomFit = () => setZoom(100);
 
-  // ─── Confetti on section completion ───────────
+  // ─── Confetti on last section ─────────────────
   useEffect(() => {
     if (!localState) return;
-    const isOnLastSlide = localState.currentSlide === localState.totalPages - 1;
-    if (isOnLastSlide && !confettiShownRef.current) {
+    const totalSections = localState.allSectionIds.length;
+    const isOnLastSection =
+      totalSections > 0 &&
+      localState.currentSectionIndex === totalSections - 1;
+    if (isOnLastSection && !confettiShownRef.current) {
       confettiShownRef.current = true;
       setShowConfetti(true);
       toast.success("🎉 You completed the course! Great job!");
-      // Auto-cleanup after 3.5s (animation lasts ~3s + buffer)
       const timer = setTimeout(() => setShowConfetti(false), 3500);
       return () => clearTimeout(timer);
     }
-  }, [localState?.currentSlide]);
+  }, [localState?.currentSectionIndex]);
 
-  // Reset confetti flag when classroom state changes (new section)
+  // Reset confetti flag when classroom state changes (new course)
   useEffect(() => {
     confettiShownRef.current = false;
     setShowConfetti(false);
-  }, [classroomState?.sectionId]);
+  }, [classroomState?.courseId]);
 
   // ─── Keyboard Hint Auto-Fade ────────────────────
   useEffect(() => {
@@ -282,7 +278,7 @@ export function ClassroomPage() {
           courseId: localState.courseId,
           sectionId: localState.sectionId,
           content: newNoteContent.trim(),
-          slideNumber: localState.currentSlide + 1,
+          slideNumber: localState.currentSectionIndex + 1,
         }),
       });
       if (!res.ok) return;
@@ -290,7 +286,10 @@ export function ClassroomPage() {
       if (json.success && json.data) {
         setNotes((prev) => [...prev, json.data]);
         setNewNoteContent("");
-        setTimeout(() => notesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
+        setTimeout(
+          () => notesEndRef.current?.scrollIntoView({ behavior: "smooth" }),
+          50
+        );
       }
     } catch {
       toast.error("Failed to save note");
@@ -301,7 +300,9 @@ export function ClassroomPage() {
 
   const deleteNote = useCallback(async (noteId: string) => {
     try {
-      const res = await fetch(`/api/notes?id=${noteId}`, { method: "DELETE" });
+      const res = await fetch(`/api/notes?id=${noteId}`, {
+        method: "DELETE",
+      });
       if (!res.ok) return;
       const json = await res.json();
       if (json.success) {
@@ -322,28 +323,28 @@ export function ClassroomPage() {
 
   // ─── Download as PPTX ─────────────────────────────
   const handleDownloadPptx = useCallback(async () => {
-    if (!localState || localState.slides.length === 0 || downloadingPptx) return;
+    if (!localState || downloadingPptx) return;
     setDownloadingPptx(true);
     try {
-      const res = await fetch('/api/generate-pptx', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/api/generate-pptx", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          slides: localState.slides,
+          courseId: localState.courseId,
           courseName: localState.courseTitle,
         }),
       });
       if (!res.ok) {
-        toast.error('Failed to generate PPT');
+        toast.error("Failed to generate PPT");
         return;
       }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
+      const a = document.createElement("a");
       a.href = url;
       const safeName = localState.courseTitle
-        .replace(/[^a-zA-Z0-9\s-]/g, '')
-        .replace(/\s+/g, '-')
+        .replace(/[^a-zA-Z0-9\s-]/g, "")
+        .replace(/\s+/g, "-")
         .toLowerCase()
         .slice(0, 60);
       a.download = `${safeName}.pptx`;
@@ -351,9 +352,9 @@ export function ClassroomPage() {
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
-      toast.success('PPT downloaded successfully!');
+      toast.success("PPT downloaded successfully!");
     } catch {
-      toast.error('Failed to download PPT');
+      toast.error("Failed to download PPT");
     } finally {
       setDownloadingPptx(false);
     }
@@ -368,18 +369,24 @@ export function ClassroomPage() {
     );
   }
 
-  const currentSlide =
-    localState.slides[localState.currentSlide] ?? null;
-  const isFirst = localState.currentSlide === 0;
-  const isLast = localState.currentSlide >= localState.totalPages - 1;
-  const progressPercent = localState.totalPages > 1
-    ? Math.round(((localState.currentSlide + 1) / localState.totalPages) * 100)
-    : 100;
+  const totalSections = localState.allSectionIds.length;
+  const currentIdx = localState.currentSectionIndex;
+  const isFirst = currentIdx === 0;
+  const isLast = totalSections > 0 && currentIdx >= totalSections - 1;
+  const progressPercent =
+    totalSections > 1
+      ? Math.round(((currentIdx + 1) / totalSections) * 100)
+      : 100;
 
   return (
     <div className="flex h-screen flex-col bg-muted/30 relative">
       {/* ─── Mobile Notes Sheet ──────────────────── */}
-      <Sheet open={notesSidebarOpen && isMobile} onOpenChange={(open) => { if (!open) setNotesSidebarOpen(false); }}>
+      <Sheet
+        open={notesSidebarOpen && isMobile}
+        onOpenChange={(open) => {
+          if (!open) setNotesSidebarOpen(false);
+        }}
+      >
         <SheetContent side="right" className="w-full sm:max-w-sm p-0">
           <SheetHeader className="px-4 pt-4 pb-0">
             <SheetTitle className="flex items-center gap-2 text-base">
@@ -387,12 +394,12 @@ export function ClassroomPage() {
               Notes
             </SheetTitle>
             <SheetDescription>
-              Notes for slide {localState.currentSlide + 1} of {localState.totalPages}
+              Notes for section {currentIdx + 1} of {totalSections}
             </SheetDescription>
           </SheetHeader>
           <NotesSidebarContent
             notes={notes}
-            currentSlide={localState.currentSlide}
+            currentSectionIndex={currentIdx}
             newNoteContent={newNoteContent}
             savingNote={savingNote}
             onContentChange={setNewNoteContent}
@@ -403,8 +410,10 @@ export function ClassroomPage() {
           />
         </SheetContent>
       </Sheet>
+
       {/* ─── Confetti Celebration Overlay ─────── */}
       {showConfetti && <ConfettiCelebration />}
+
       {/* ─── Top Progress Bar ─────────────────────── */}
       <div className="shrink-0 h-1 w-full bg-muted overflow-hidden">
         <div
@@ -418,8 +427,16 @@ export function ClassroomPage() {
         {/* Logo, Section Title, Course Title */}
         <div className="flex items-center gap-3 min-w-0">
           <div className="flex items-center gap-2 shrink-0">
-            <img src="/ecotech-logo.png" alt="Ecotech" className="h-7 w-7 rounded-md object-contain" />
-            <img src="/ecotech-name.png" alt="Ecotech" className="h-5 w-auto hidden sm:inline object-contain" />
+            <img
+              src="/ecotech-logo.png"
+              alt="Ecotech"
+              className="h-7 w-7 rounded-md object-contain"
+            />
+            <img
+              src="/ecotech-name.png"
+              alt="Ecotech"
+              className="h-5 w-auto hidden sm:inline object-contain"
+            />
           </div>
           <Separator orientation="vertical" className="h-5" />
           <div className="min-w-0">
@@ -432,111 +449,93 @@ export function ClassroomPage() {
           </div>
         </div>
 
-        {/* Slide Counter - Enhanced */}
+        {/* Section Counter */}
         <span className="shrink-0 inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-sm text-primary tabular-nums">
-          <span className="font-semibold">Slide {localState.currentSlide + 1}</span>
+          <span className="font-semibold">
+            Section {currentIdx + 1}
+          </span>
           <span className="text-primary/40 font-normal">of</span>
-          <span className="font-semibold">{localState.totalPages}</span>
+          <span className="font-semibold">{totalSections}</span>
         </span>
       </header>
 
-      {/* ─── Main Layout: Slide + Desktop Notes Sidebar ── */}
+      {/* ─── Main Layout: Content + Desktop Notes Sidebar ── */}
       <div className="flex flex-1 overflow-hidden">
-      {/* ─── Slide Content Area ────────────────────── */}
-      <div className="flex-1 overflow-auto flex flex-col items-center py-8 px-4 sm:px-6">
-        <div
-          className={`
-            bg-card rounded-2xl shadow-lg border w-full max-w-3xl
-            ring-1 ring-black/5
-            dark:ring-white/5
-            paper-texture
-            ${isAnimating
-              ? (slideDirection === "forward" ? "slide-exit" : "opacity-0 -translate-x-2 transition-all duration-150")
-              : "slide-enter"
-            }
-          `}
-          style={{
-            transform: `scale(${zoom / 100})`,
-            transformOrigin: "top center",
-          }}
-        >
-          {loadingSlides ? (
-            <div className="flex items-center justify-center py-32">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
-          ) : currentSlide ? (
-            <div className="p-8 sm:p-12 max-w-2xl mx-auto">
-              <SlideRenderer slide={currentSlide} />
-            </div>
-          ) : (
-            <div className="flex items-center justify-center py-32 text-muted-foreground">
-              <p>No slide content available.</p>
-            </div>
-          )}
-        </div>
-
-        {/* ─── Slide Progress Dots ────────────────── */}
-        <div className="slide-progress-indicator mt-6 shrink-0">
-          {Array.from({ length: localState.totalPages }, (_, i) => {
-            const isCompleted = i < localState.currentSlide;
-            const isActive = i === localState.currentSlide;
-            return (
-              <button
-                key={i}
-                className={`dot ${isActive ? "active" : ""} ${isCompleted ? "completed" : ""}`}
-                onClick={() => goToSlide(i)}
-                aria-label={`Go to slide ${i + 1}`}
+        {/* ─── Section Content Area ────────────────── */}
+        <div className="flex-1 overflow-auto flex flex-col items-center py-8 px-4 sm:px-6">
+          <div
+            className="bg-card rounded-2xl shadow-lg border w-full max-w-3xl ring-1 ring-black/5 dark:ring-white/5 paper-texture overflow-hidden"
+            style={{
+              transform: `scale(${zoom / 100})`,
+              transformOrigin: "top center",
+            }}
+          >
+            {navigating ? (
+              <div className="flex items-center justify-center py-32">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              <iframe
+                srcDoc={localState.htmlBody || ""}
+                sandbox="allow-same-origin"
+                className="w-full rounded-lg border-0"
+                style={{ aspectRatio: "16/9" }}
+                title={`${localState.sectionTitle || "Slide"} content`}
               />
-            );
-          })}
-        </div>
-      </div>
-
-      {/* ─── Desktop Notes Sidebar (slide-in panel) ── */}
-      <aside
-        className={`hidden lg:flex flex-col shrink-0 border-l bg-card transition-all duration-300 ease-in-out overflow-hidden ${
-          notesSidebarOpen ? "w-80 opacity-100" : "w-0 opacity-0 border-l-0"
-        }`}
-      >
-        <div className="flex flex-col h-full w-80">
-          {/* Sidebar Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b">
-            <div className="flex items-center gap-2">
-              <StickyNote className="h-4 w-4 text-primary" />
-              <span className="text-sm font-semibold">Notes</span>
-            </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              onClick={() => setNotesSidebarOpen(false)}
-            >
-              <X className="h-4 w-4" />
-            </Button>
+            )}
           </div>
-          <NotesSidebarContent
-            notes={notes}
-            currentSlide={localState.currentSlide}
-            newNoteContent={newNoteContent}
-            savingNote={savingNote}
-            onContentChange={setNewNoteContent}
-            onCreate={createNote}
-            onDelete={deleteNote}
-            onToggleBookmark={toggleBookmark}
-            endRef={notesEndRef}
-          />
         </div>
-      </aside>
+
+        {/* ─── Desktop Notes Sidebar (slide-in panel) ── */}
+        <aside
+          className={`hidden lg:flex flex-col shrink-0 border-l bg-card transition-all duration-300 ease-in-out overflow-hidden ${
+            notesSidebarOpen
+              ? "w-80 opacity-100"
+              : "w-0 opacity-0 border-l-0"
+          }`}
+        >
+          <div className="flex flex-col h-full w-80">
+            {/* Sidebar Header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b">
+              <div className="flex items-center gap-2">
+                <StickyNote className="h-4 w-4 text-primary" />
+                <span className="text-sm font-semibold">Notes</span>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={() => setNotesSidebarOpen(false)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <NotesSidebarContent
+              notes={notes}
+              currentSectionIndex={currentIdx}
+              newNoteContent={newNoteContent}
+              savingNote={savingNote}
+              onContentChange={setNewNoteContent}
+              onCreate={createNote}
+              onDelete={deleteNote}
+              onToggleBookmark={toggleBookmark}
+              endRef={notesEndRef}
+            />
+          </div>
+        </aside>
       </div>
 
       {/* ─── Keyboard Shortcuts Hint (auto-fades) ── */}
       <div
         className={`shrink-0 frosted-glass border-t px-4 py-1.5 text-center transition-opacity duration-700 ${
-          showKeyboardHint ? "opacity-100" : "opacity-0 pointer-events-none h-0 py-0 overflow-hidden"
+          showKeyboardHint
+            ? "opacity-100"
+            : "opacity-0 pointer-events-none h-0 py-0 overflow-hidden"
         }`}
       >
         <p className="text-xs text-muted-foreground/70 tracking-wide">
-          ← → Navigate&nbsp;&nbsp;|&nbsp;&nbsp;Space: Next&nbsp;&nbsp;|&nbsp;&nbsp;Esc: Exit
+          ← → Navigate&nbsp;&nbsp;|&nbsp;&nbsp;Space:
+          Next&nbsp;&nbsp;|&nbsp;&nbsp;Esc: Exit
         </p>
       </div>
 
@@ -614,7 +613,7 @@ export function ClassroomPage() {
                   size="icon"
                   className="h-8 w-8"
                   onClick={handleDownloadPptx}
-                  disabled={downloadingPptx || localState.slides.length === 0}
+                  disabled={downloadingPptx}
                 >
                   {downloadingPptx ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -627,14 +626,18 @@ export function ClassroomPage() {
             </Tooltip>
           </div>
 
-          {/* Navigation Buttons with labels on desktop */}
+          {/* Navigation Buttons */}
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
               size="sm"
-              className={`gap-1.5 transition-opacity ${isFirst ? "opacity-40 cursor-not-allowed" : ""}`}
+              className={`gap-1.5 transition-opacity ${
+                isFirst || navigating
+                  ? "opacity-40 cursor-not-allowed"
+                  : ""
+              }`}
               onClick={goPrev}
-              disabled={isFirst}
+              disabled={isFirst || navigating}
             >
               <ChevronLeft className="h-4 w-4" />
               <span className="hidden sm:inline">Previous</span>
@@ -643,16 +646,20 @@ export function ClassroomPage() {
             <Button
               variant="outline"
               size="sm"
-              className={`gap-1.5 transition-opacity ${isLast ? "opacity-40 cursor-not-allowed" : ""}`}
+              className={`gap-1.5 transition-opacity ${
+                isLast || navigating
+                  ? "opacity-40 cursor-not-allowed"
+                  : ""
+              }`}
               onClick={goNext}
-              disabled={isLast}
+              disabled={isLast || navigating}
             >
               <span className="hidden sm:inline">Next</span>
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
 
-          {/* Close + Keyboard Hint */}
+          {/* Close + Notes Toggle */}
           <div className="flex items-center gap-3">
             <Tooltip>
               <TooltipTrigger asChild>
@@ -694,8 +701,14 @@ export function ClassroomPage() {
 // ============================================
 
 interface NotesSidebarContentProps {
-  notes: { id: string; content: string; slideNumber: number; bookmarked: boolean; createdAt?: string }[];
-  currentSlide: number;
+  notes: {
+    id: string;
+    content: string;
+    slideNumber: number;
+    bookmarked: boolean;
+    createdAt?: string;
+  }[];
+  currentSectionIndex: number;
   newNoteContent: string;
   savingNote: boolean;
   onContentChange: (v: string) => void;
@@ -707,7 +720,7 @@ interface NotesSidebarContentProps {
 
 function NotesSidebarContent({
   notes,
-  currentSlide,
+  currentSectionIndex,
   newNoteContent,
   savingNote,
   onContentChange,
@@ -731,9 +744,11 @@ function NotesSidebarContent({
           {notes.length === 0 && (
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <StickyNote className="h-8 w-8 text-muted-foreground/30 mb-2" />
-              <p className="text-xs text-muted-foreground">No notes yet.</p>
+              <p className="text-xs text-muted-foreground">
+                No notes yet.
+              </p>
               <p className="text-xs text-muted-foreground/60">
-                Add a note for slide {currentSlide + 1}.
+                Add a note for section {currentSectionIndex + 1}.
               </p>
             </div>
           )}
@@ -742,17 +757,21 @@ function NotesSidebarContent({
               key={note.id}
               className="group relative rounded-lg border bg-background p-3 text-sm transition-colors hover:bg-muted/40"
             >
-              {/* Slide badge */}
+              {/* Section badge */}
               <div className="flex items-center justify-between mb-1">
                 <span className="inline-flex items-center rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
-                  Slide {note.slideNumber}
+                  Section {note.slideNumber}
                 </span>
                 <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
                     type="button"
                     className="p-1 rounded hover:bg-muted transition-colors"
                     onClick={() => onToggleBookmark(note.id)}
-                    aria-label={note.bookmarked ? "Remove bookmark" : "Bookmark note"}
+                    aria-label={
+                      note.bookmarked
+                        ? "Remove bookmark"
+                        : "Bookmark note"
+                    }
                   >
                     {note.bookmarked ? (
                       <BookmarkCheck className="h-3.5 w-3.5 text-amber-500" />
@@ -786,7 +805,7 @@ function NotesSidebarContent({
             value={newNoteContent}
             onChange={(e) => onContentChange(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={`Add a note for slide ${currentSlide + 1}…`}
+            placeholder={`Add a note for section ${currentSectionIndex + 1}…`}
             rows={2}
             className="flex-1 resize-none rounded-lg border bg-background px-3 py-2 text-xs placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/20"
           />
@@ -845,7 +864,8 @@ function ConfettiCelebration() {
     const count = 80;
 
     for (let i = 0; i < count; i++) {
-      const shape = shapes[i % 3 === 0 ? 0 : i % 3 === 1 ? 1 : 2];
+      const shape =
+        shapes[i % 3 === 0 ? 0 : i % 3 === 1 ? 1 : 2];
       result.push({
         id: i,
         left: Math.random() * 100,
@@ -886,10 +906,17 @@ function ConfettiCelebration() {
           return (
             <div
               key={p.id}
-              className={`confetti-particle ${p.shape === "circle" ? "confetti-circle" : "confetti-rectangle"}`}
+              className={`confetti-particle ${
+                p.shape === "circle"
+                  ? "confetti-circle"
+                  : "confetti-rectangle"
+              }`}
               style={{
                 left: `${p.left}%`,
-                width: p.shape === "rectangle" ? `${p.size * 1.4}px` : `${p.size}px`,
+                width:
+                  p.shape === "rectangle"
+                    ? `${p.size * 1.4}px`
+                    : `${p.size}px`,
                 height: `${p.size}px`,
                 backgroundColor: p.color,
                 "--fall-duration": p.fallDuration,
@@ -903,7 +930,11 @@ function ConfettiCelebration() {
       </div>
 
       {/* Congratulations message */}
-      <div className="confetti-message" role="status" aria-label="Congratulations!">
+      <div
+        className="confetti-message"
+        role="status"
+        aria-label="Congratulations!"
+      >
         <div className="confetti-message-text flex flex-col items-center gap-3">
           <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/90 dark:bg-zinc-800/90 shadow-lg">
             <span className="text-4xl">🎉</span>
@@ -919,292 +950,5 @@ function ConfettiCelebration() {
         </div>
       </div>
     </>
-  );
-}
-
-// ============================================
-// Slide Content Renderer
-// ============================================
-
-function SlideRenderer({ slide }: { slide: SlideContent }) {
-  switch (slide.type) {
-    case "title":
-      return <TitleSlide slide={slide} />;
-    case "content":
-      return <ContentSlide slide={slide} />;
-    case "table":
-      return <TableSlide slide={slide} />;
-    case "list":
-      return <ListSlide slide={slide} />;
-    case "code":
-      return <CodeSlide slide={slide} />;
-    case "quiz":
-      return <QuizSlide slide={slide} />;
-    default:
-      return <FallbackSlide slide={slide} />;
-  }
-}
-
-// ─── Title Slide ──────────────────────────────────
-function TitleSlide({ slide }: { slide: SlideContent }) {
-  return (
-    <div className="flex min-h-[300px] flex-col items-center justify-center text-center">
-      <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/10 to-accent/10">
-        <GraduationCap className="h-8 w-8 text-primary" />
-      </div>
-      <h1 className="text-3xl sm:text-4xl font-bold text-foreground mb-4 leading-tight">
-        {slide.title}
-      </h1>
-      {slide.subtitle && (
-        <p className="text-lg text-muted-foreground max-w-xl leading-relaxed">
-          {slide.subtitle}
-        </p>
-      )}
-    </div>
-  );
-}
-
-// ─── Content Slide ────────────────────────────────
-function ContentSlide({ slide }: { slide: SlideContent }) {
-  return (
-    <div>
-      <div className="mb-6 flex items-center gap-3">
-        <div className="h-1 w-8 rounded-full bg-gradient-to-r from-primary to-accent" />
-        <h2 className="text-2xl font-bold text-foreground">{slide.title}</h2>
-      </div>
-      {slide.items && slide.items.length > 0 && (
-        <div className="space-y-5">
-          {slide.items.map((item, i) => (
-            <div key={i} className="rounded-lg bg-muted/40 p-4 transition-colors hover:bg-muted/60">
-              {item.heading && (
-                <h3 className="text-base font-semibold text-foreground mb-1.5">
-                  {item.heading}
-                </h3>
-              )}
-              <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
-                {item.text}
-              </p>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Table Slide ──────────────────────────────────
-function TableSlide({ slide }: { slide: SlideContent }) {
-  if (!slide.tableData) return <FallbackSlide slide={slide} />;
-  const { headers, rows } = slide.tableData;
-
-  return (
-    <div>
-      <div className="mb-6 flex items-center gap-3">
-        <div className="h-1 w-8 rounded-full bg-gradient-to-r from-primary to-accent" />
-        <h2 className="text-2xl font-bold text-foreground">{slide.title}</h2>
-      </div>
-      <div className="overflow-x-auto rounded-lg border border-border">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="bg-muted/60 border-b border-border">
-              {headers.map((header, i) => (
-                <th
-                  key={i}
-                  className="px-4 py-3 text-left font-semibold text-foreground whitespace-nowrap"
-                >
-                  {header}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row, ri) => (
-              <tr
-                key={ri}
-                className={ri < rows.length - 1 ? "border-b border-border" : ""}
-              >
-                {row.map((cell, ci) => (
-                  <td key={ci} className="px-4 py-3 text-muted-foreground whitespace-nowrap">
-                    {cell}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-// ─── List Slide ───────────────────────────────────
-function ListSlide({ slide }: { slide: SlideContent }) {
-  return (
-    <div>
-      <div className="mb-6 flex items-center gap-3">
-        <div className="h-1 w-8 rounded-full bg-gradient-to-r from-primary to-accent" />
-        <h2 className="text-2xl font-bold text-foreground">{slide.title}</h2>
-      </div>
-      {slide.items && slide.items.length > 0 && (
-        <ul className="space-y-3">
-          {slide.items.map((item, i) => (
-            <li key={i} className="flex items-start gap-3 rounded-lg bg-muted/40 p-3 transition-colors hover:bg-muted/60">
-              <span className="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
-                {i + 1}
-              </span>
-              <div>
-                {item.heading && (
-                  <span className="font-semibold text-foreground text-sm">
-                    {item.heading}{" "}
-                  </span>
-                )}
-                <span className="text-sm text-muted-foreground leading-relaxed">
-                  {item.text}
-                </span>
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
-
-// ─── Code Slide ───────────────────────────────────
-function CodeSlide({ slide }: { slide: SlideContent }) {
-  if (!slide.codeBlock) return <FallbackSlide slide={slide} />;
-
-  return (
-    <div>
-      <div className="mb-6 flex items-center gap-3">
-        <div className="h-1 w-8 rounded-full bg-gradient-to-r from-primary to-accent" />
-        <h2 className="text-2xl font-bold text-foreground">{slide.title}</h2>
-      </div>
-      <div className="rounded-lg border border-border bg-zinc-900 overflow-hidden shadow-inner">
-        <div className="flex items-center justify-between border-b border-zinc-700 px-4 py-2">
-          <span className="text-xs font-medium text-zinc-400">
-            {slide.codeBlock.language}
-          </span>
-          <div className="flex gap-1.5">
-            <span className="h-3 w-3 rounded-full bg-red-500/60" />
-            <span className="h-3 w-3 rounded-full bg-yellow-500/60" />
-            <span className="h-3 w-3 rounded-full bg-green-500/60" />
-          </div>
-        </div>
-        <pre className="overflow-x-auto p-4 text-sm leading-relaxed">
-          <code className="text-zinc-100 font-mono">
-            {slide.codeBlock.code}
-          </code>
-        </pre>
-      </div>
-    </div>
-  );
-}
-
-// ─── Quiz Slide (Interactive) ────────────────────
-function QuizSlide({ slide }: { slide: SlideContent }) {
-  const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
-  const hasSubmitted = selectedIdx !== null;
-
-  // Determine correct answer: look for item with icon === "check" or first item
-  const correctIdx = slide.items?.findIndex((item) => item.icon === "check") ?? 0;
-  const isCorrect = selectedIdx === correctIdx;
-
-  return (
-    <div>
-      <div className="mb-6 flex items-center gap-3">
-        <div className="h-1 w-8 rounded-full bg-gradient-to-r from-primary to-accent" />
-        <h2 className="text-2xl font-bold text-foreground">{slide.title}</h2>
-      </div>
-      {slide.items && slide.items.length > 0 && (
-        <div className="space-y-3">
-          {slide.items.map((item, i) => {
-            const letter = String.fromCharCode(65 + i);
-            const isSelected = selectedIdx === i;
-            let borderColor = "border-border hover:border-primary/30 hover:bg-primary/5";
-            if (hasSubmitted) {
-              if (i === correctIdx) borderColor = "border-emerald-500 bg-emerald-500/10";
-              else if (isSelected && !isCorrect) borderColor = "border-red-400 bg-red-400/10";
-              else borderColor = "border-border opacity-60";
-            } else if (isSelected) {
-              borderColor = "border-primary bg-primary/10";
-            }
-
-            return (
-              <button
-                key={i}
-                type="button"
-                className={`w-full rounded-lg border p-4 text-left transition-all duration-200 ${borderColor}`}
-                onClick={() => {
-                  if (!hasSubmitted) setSelectedIdx(i);
-                }}
-                disabled={hasSubmitted}
-              >
-                <div className="flex items-start gap-3">
-                  <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
-                    hasSubmitted && i === correctIdx
-                      ? "bg-emerald-500 text-white"
-                      : hasSubmitted && isSelected && !isCorrect
-                        ? "bg-red-400 text-white"
-                        : "bg-primary/10 text-primary"
-                  }`}>
-                    {hasSubmitted && i === correctIdx ? "✓" : hasSubmitted && isSelected && !isCorrect ? "✗" : letter}
-                  </span>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-foreground">
-                      {item.heading || item.text}
-                    </p>
-                    {item.heading && item.text !== item.heading && (
-                      <p className="text-xs text-muted-foreground mt-1">{item.text}</p>
-                    )}
-                  </div>
-                </div>
-              </button>
-            );
-          })}
-
-          {/* Feedback after selection */}
-          {hasSubmitted && (
-            <div className={`mt-4 rounded-lg border p-4 ${
-              isCorrect
-                ? "border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/50"
-                : "border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/50"
-            }`}>
-              <p className={`text-sm font-semibold ${
-                isCorrect ? "text-emerald-700 dark:text-emerald-400" : "text-amber-700 dark:text-amber-400"
-              }`}>
-                {isCorrect ? "🎉 Correct! Well done!" : "❌ Not quite right."}
-              </p>
-              {!isCorrect && (
-                <p className="mt-1 text-xs text-muted-foreground">
-                  The correct answer is <strong>{String.fromCharCode(65 + correctIdx)}</strong>.
-                </p>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Fallback Slide ───────────────────────────────
-function FallbackSlide({ slide }: { slide: SlideContent }) {
-  return (
-    <div>
-      <div className="mb-6 flex items-center gap-3">
-        <div className="h-1 w-8 rounded-full bg-gradient-to-r from-primary to-accent" />
-        <h2 className="text-2xl font-bold text-foreground">{slide.title}</h2>
-      </div>
-      {slide.subtitle && (
-        <p className="text-muted-foreground mb-4">{slide.subtitle}</p>
-      )}
-      {slide.items?.map((item, i) => (
-        <p key={i} className="text-sm text-muted-foreground mb-2">
-          {item.heading && <span className="font-semibold text-foreground">{item.heading}: </span>}
-          {item.text}
-        </p>
-      ))}
-    </div>
   );
 }

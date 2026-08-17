@@ -154,7 +154,7 @@ export async function POST(request: NextRequest) {
           ? {
               create: sections.map(
                 (
-                  sec: { title: string; content: string; totalPages: number },
+                  sec: { title: string; content?: string; htmlBody?: string; totalPages: number },
                   index: number
                 ) => ({
                   title: sec.title,
@@ -163,6 +163,7 @@ export async function POST(request: NextRequest) {
                       ? sec.content
                       : JSON.stringify(sec.content)
                     : null,
+                  htmlBody: sec.htmlBody || null,
                   totalPages: sec.totalPages || 0,
                   order: index,
                 })

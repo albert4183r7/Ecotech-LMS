@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import type { SectionItem, ClassroomState, SlideContent } from "@/types/lms";
+import type { SectionItem, ClassroomState } from "@/types/lms";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -140,21 +140,21 @@ export function ProgressTimeline({
       const res = await fetch(`/api/sections/${section.id}`);
       if (!res.ok) return;
       const json = await res.json();
-      if (json.success && json.data.content) {
-        const slides: SlideContent[] = Array.isArray(json.data.content)
-          ? json.data.content
-          : [];
-        const classroomState: ClassroomState = {
-          courseId: course.id,
-          courseTitle: course.title,
-          sectionId: section.id,
-          sectionTitle: section.title,
-          slides,
-          currentSlide: 0,
-          totalPages: slides.length || section.totalPages,
-        };
-        openClassroom(classroomState);
-      }
+      const htmlBody = json.success && json.data.htmlBody
+        ? json.data.htmlBody
+        : '<div class="flex items-center justify-center h-full"><p class="text-gray-500">No content available.</p></div>';
+      const allSectionIds = sections.map((s) => s.id);
+      const currentSectionIndex = allSectionIds.indexOf(section.id);
+      const classroomState: ClassroomState = {
+        courseId: course.id,
+        courseTitle: course.title,
+        sectionId: section.id,
+        sectionTitle: section.title,
+        htmlBody,
+        allSectionIds,
+        currentSectionIndex,
+      };
+      openClassroom(classroomState);
     } catch {
       // Silently fail
     }

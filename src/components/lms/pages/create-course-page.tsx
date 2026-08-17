@@ -39,7 +39,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { useNavigationStore, useUserStore, useCourseStore } from "@/stores/lms-store";
-import type { CategoryItem, SlideContent } from "@/types/lms";
+import type { CategoryItem } from "@/types/lms";
 import { toast } from "sonner";
 
 // ============================================
@@ -50,200 +50,8 @@ interface SectionDraft {
   id: string;
   title: string;
   totalPages: number;
-  content: string;
+  htmlBody: string;
   language: string;
-}
-
-// ============================================
-// Helper: Generate placeholder slides
-// ============================================
-
-function generatePlaceholderSlides(
-  sectionName: string,
-  language: string
-): SlideContent[] {
-  const count = 4 + Math.floor(Math.random() * 3); // 4-6 slides
-  const slides: SlideContent[] = [];
-
-  // Title slide
-  slides.push({
-    title: sectionName,
-    type: "title",
-    subtitle:
-      language === "chinese"
-        ? "在本节中，我们将深入了解相关内容"
-        : "In this section, we will dive deep into the topic",
-  });
-
-  // Content slides
-  const contentTemplates =
-    language === "chinese"
-      ? [
-          {
-            type: "content" as const,
-            title: `核心概念`,
-            items: [
-              {
-                heading: "要点一",
-                text: `理解${sectionName}的基本原理和核心概念，建立坚实的理论基础。`,
-              },
-              {
-                heading: "要点二",
-                text: `掌握${sectionName}中的关键技术和最佳实践。`,
-              },
-              {
-                heading: "要点三",
-                text: `能够将所学知识应用到实际场景中解决问题。`,
-              },
-            ],
-          },
-          {
-            type: "list" as const,
-            title: `关键知识点`,
-            items: [
-              { text: `${sectionName}的定义与背景` },
-              { text: "基本原理与核心机制" },
-              { text: "常见应用场景分析" },
-              { text: "实际案例与实践方法" },
-              { text: "常见问题与解决方案" },
-            ],
-          },
-          {
-            type: "table" as const,
-            title: `对比分析`,
-            tableData: {
-              headers: ["特性", "方案A", "方案B", "方案C"],
-              rows: [
-                ["易用性", "高", "中", "低"],
-                ["性能", "中", "高", "高"],
-                ["扩展性", "中", "高", "极高"],
-                ["学习成本", "低", "中", "高"],
-              ],
-            },
-          },
-          {
-            type: "code" as const,
-            title: `代码示例`,
-            codeBlock: {
-              language: "typescript",
-              code: `// ${sectionName} 示例代码
-function example() {
-  const data = initializeData();
-  const result = processData(data);
-  return validateResult(result);
-}
-
-example();`,
-            },
-          },
-        ]
-      : [
-          {
-            type: "content" as const,
-            title: `Core Concepts`,
-            items: [
-              {
-                heading: "Key Point 1",
-                text: `Understanding the fundamental principles and core concepts of ${sectionName.toLowerCase()}.`,
-              },
-              {
-                heading: "Key Point 2",
-                text: `Mastering key techniques and best practices in ${sectionName.toLowerCase()}.`,
-              },
-              {
-                heading: "Key Point 3",
-                text: `Applying learned knowledge to solve real-world problems.`,
-              },
-            ],
-          },
-          {
-            type: "list" as const,
-            title: `Key Takeaways`,
-            items: [
-              { text: `Definition and background of ${sectionName.toLowerCase()}` },
-              { text: "Fundamental principles and core mechanisms" },
-              { text: "Common use case analysis" },
-              { text: "Practical examples and methodologies" },
-              { text: "Common issues and solutions" },
-            ],
-          },
-          {
-            type: "table" as const,
-            title: `Comparison Analysis`,
-            tableData: {
-              headers: ["Feature", "Option A", "Option B", "Option C"],
-              rows: [
-                ["Ease of Use", "High", "Medium", "Low"],
-                ["Performance", "Medium", "High", "High"],
-                ["Scalability", "Medium", "High", "Very High"],
-                ["Learning Curve", "Low", "Medium", "High"],
-              ],
-            },
-          },
-          {
-            type: "code" as const,
-            title: `Code Example`,
-            codeBlock: {
-              language: "typescript",
-              code: `// ${sectionName} example code
-function example() {
-  const data = initializeData();
-  const result = processData(data);
-  return validateResult(result);
-}
-
-example();`,
-            },
-          },
-        ];
-
-  // Quiz slide
-  const quizTemplate =
-    language === "chinese"
-      ? {
-          type: "quiz" as const,
-          title: `知识检测`,
-          items: [
-            {
-              heading: "问题 1",
-              text: `以下哪项最准确地描述了${sectionName}的核心概念？`,
-            },
-            {
-              heading: "问题 2",
-              text: `在实际应用中，${sectionName}最常见的挑战是什么？`,
-            },
-          ],
-        }
-      : {
-          type: "quiz" as const,
-          title: `Knowledge Check`,
-          items: [
-            {
-              heading: "Question 1",
-              text: `Which of the following best describes the core concept of ${sectionName.toLowerCase()}?`,
-            },
-            {
-              heading: "Question 2",
-              text: `What is the most common challenge when applying ${sectionName.toLowerCase()} in practice?`,
-            },
-          ],
-        };
-
-  // Pick slides to fill the count
-  for (let i = 1; i < count - 1; i++) {
-    const template = contentTemplates[i % contentTemplates.length];
-    slides.push({ ...template, title: `${sectionName} - ${template.title}` });
-  }
-
-  // Always end with quiz if we have room
-  if (count > 2) {
-    slides.push({
-      ...quizTemplate,
-      title: `${sectionName} - ${quizTemplate.title}`,
-    });
-  }
-
-  return slides;
 }
 
 // ============================================
@@ -361,36 +169,70 @@ export function CreateCoursePage() {
     setGenerating(true);
 
     try {
-      const res = await fetch("/api/generate-content", {
+      const res = await fetch("/api/generate-slide-html", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          topic: sectionName.trim(),
+          sectionTitle: sectionName.trim(),
           prompt: sectionPrompt.trim(),
           language: sectionLanguage,
         }),
       });
 
-      const json = await res.json();
-
-      if (!json.success) {
-        toast.error(json.error || "Failed to generate section content");
+      if (!res.ok || !res.body) {
+        toast.error("Failed to start generation");
         setGenerating(false);
         return;
       }
 
-      const slides: SlideContent[] = json.data;
+      // Read SSE stream
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let htmlBody = "";
+      let sectionTitle = sectionName.trim();
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const data = JSON.parse(line.slice(6));
+            if (data.htmlBody) {
+              htmlBody = data.htmlBody;
+            }
+            if (data.sectionTitle) {
+              sectionTitle = data.sectionTitle;
+            }
+          } catch {
+            // skip malformed JSON
+          }
+        }
+      }
+
+      if (!htmlBody) {
+        toast.error("Generation returned empty content");
+        setGenerating(false);
+        return;
+      }
+
       const newSection: SectionDraft = {
         id: `sec_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-        title: sectionName.trim(),
-        totalPages: slides.length,
-        content: JSON.stringify(slides),
+        title: sectionTitle,
+        totalPages: 1,
+        htmlBody,
         language: sectionLanguage,
       };
 
       setSections((prev) => [...prev, newSection]);
       setModalOpen(false);
-      toast.success(`Section "${sectionName.trim()}" generated successfully`);
+      toast.success(`Section "${sectionTitle}" generated successfully`);
     } catch {
       toast.error("Failed to generate section. Please try again.");
     } finally {
@@ -431,7 +273,7 @@ export function CreateCoursePage() {
         coverImage: coverImage || null,
         sections: sections.map((sec, index) => ({
           title: sec.title,
-          content: sec.content,
+          htmlBody: sec.htmlBody,
           totalPages: sec.totalPages,
           order: index,
         })),

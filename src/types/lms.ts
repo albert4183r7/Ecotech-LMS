@@ -37,7 +37,8 @@ export interface CourseItem {
 export interface SectionItem {
   id: string;
   title: string;
-  content: string | null;
+  content: string | null; // DEPRECATED: legacy JSON blob
+  htmlBody: string | null; // HTML+Tailwind for iframe renderer
   order: number;
   totalPages: number;
   courseId: string;
@@ -81,7 +82,7 @@ export interface CategoryItem {
   _count?: { courses: number };
 }
 
-/** Slide content for classroom viewer */
+/** @deprecated — kept for PPTX route compatibility during migration */
 export interface SlideContent {
   title: string;
   subtitle?: string;
@@ -91,6 +92,7 @@ export interface SlideContent {
   codeBlock?: { language: string; code: string };
 }
 
+/** @deprecated */
 export interface SlideItem {
   heading?: string;
   text: string;
@@ -119,13 +121,14 @@ export type HomeTab = "hot" | "new" | "recommended";
 /** My Learning tab */
 export type MyLearningTab = "in-progress" | "completed" | "favorites";
 
-/** Classroom viewer state */
+/** Classroom viewer state — now uses htmlBody (iframe) instead of slides[] */
 export interface ClassroomState {
   courseId: string;
   courseTitle: string;
   sectionId: string;
   sectionTitle: string;
-  slides: SlideContent[];
-  currentSlide: number;
-  totalPages: number;
+  htmlBody: string; // Full HTML document for iframe srcDoc
+  // Section navigation context
+  allSectionIds: string[]; // ordered list of all section IDs in the course
+  currentSectionIndex: number; // index into allSectionIds
 }
