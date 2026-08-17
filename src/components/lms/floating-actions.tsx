@@ -16,7 +16,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { useNavigationStore } from "@/stores/lms-store";
+import { useNavigationStore, useUserStore } from "@/stores/lms-store";
 
 /* ------------------------------------------------------------------ */
 /*  Quick Action Item                                                  */
@@ -56,6 +56,7 @@ const QUICK_ACTIONS: QuickAction[] = [
 
 export function FloatingActions() {
   const { navigateTo } = useNavigationStore();
+  const currentRole = useUserStore((s) => s.currentRole);
   const [expanded, setExpanded] = useState(false);
   const [showScrollTop, setShowScrollTop] = useState(false);
 
@@ -73,7 +74,7 @@ export function FloatingActions() {
     if (!expanded) return;
     const handleClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
-      if (!target.closest("[data-fab-root]")) {
+      if (!target.closest("[data-fab-root]") && !target.closest("[data-fab-menu]")) {
         setExpanded(false);
       }
     };
@@ -107,6 +108,7 @@ export function FloatingActions() {
       <div className="pointer-events-auto flex flex-col items-end gap-3">
         {/* Expanded action items */}
         <div
+          data-fab-menu
           className={cn(
             "flex flex-col items-end gap-2 transition-all duration-300 ease-out",
             expanded
@@ -114,7 +116,11 @@ export function FloatingActions() {
               : "pointer-events-none translate-y-4 opacity-0"
           )}
         >
-          {QUICK_ACTIONS.map((action, idx) => (
+          {QUICK_ACTIONS.filter((action) => {
+              // Students cannot create courses or access dashboard
+              if (currentRole === "student" && (action.view === "create-course" || action.view === "dashboard")) return false;
+              return true;
+            }).map((action, idx) => (
             <Tooltip key={action.label}>
               <TooltipTrigger asChild>
                 <button

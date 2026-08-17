@@ -21,6 +21,7 @@ import {
   Settings,
   Search,
   LogOut,
+  LayoutDashboard,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -49,7 +50,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { label: "Home", icon: <Home className="h-4 w-4" />, view: "home" },
   { label: "Courses", icon: <BookOpen className="h-4 w-4" />, view: "courses" },
-  { label: "My Learning", icon: <GraduationCap className="h-4 w-4" />, view: "my-learning" },
+  { label: "Learning Progress", icon: <GraduationCap className="h-4 w-4" />, view: "my-learning" },
   { label: "Profile", icon: <User className="h-4 w-4" />, view: "profile" },
   { label: "Settings", icon: <Settings className="h-4 w-4" />, view: "settings" },
 ];
@@ -57,13 +58,15 @@ const NAV_ITEMS: NavItem[] = [
 /** Get human-readable label for any view including detail views */
 function getViewLabel(view: ViewName): string {
   switch (view) {
+    case "auth": return "";
     case "home": return "Home";
     case "courses": return "Courses";
-    case "my-learning": return "My Learning";
+    case "my-learning": return "Learning Progress";
     case "profile": return "Profile";
     case "course-detail": return "Course Details";
     case "classroom": return "Classroom";
     case "create-course": return "Create Course";
+    case "dashboard": return "Dashboard";
     case "settings": return "Settings";
     default: return "";
   }
@@ -282,10 +285,8 @@ export function Navbar() {
   // Theme toggle state for cycling animation
   const [themeIconRotating, setThemeIconRotating] = useState(false);
 
-  // Breadcrumb: derive current page label (role-aware)
-  const currentPageLabel = currentView === "my-learning" && currentRole === "instructor"
-    ? "Learning Progress"
-    : getViewLabel(currentView);
+  // Breadcrumb: derive current page label
+  const currentPageLabel = getViewLabel(currentView);
 
   // ============================================
   // Fetch notifications from API
@@ -455,12 +456,12 @@ export function Navbar() {
   );
 
   /** Role-aware visible nav items */
-  const visibleNavItems = NAV_ITEMS.map((item) => {
-    if (item.view === "my-learning" && currentRole === "instructor") {
-      return { ...item, label: "Learning Progress" };
-    }
-    return item;
-  });
+  const dashboardItem: NavItem = { label: "Dashboard", icon: <LayoutDashboard className="h-4 w-4" />, view: "dashboard" };
+  const visibleNavItems = NAV_ITEMS.filter((item) => {
+    // Instructors cannot access Learning Progress (my-learning)
+    if (item.view === "my-learning" && currentRole === "instructor") return false;
+    return true;
+  }).concat(currentRole === "instructor" ? [dashboardItem] : []);
 
   const handleSearchKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {

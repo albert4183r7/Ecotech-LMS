@@ -145,5 +145,9 @@ export const useUserStore = create<UserState>((set) => ({
   setCurrentUserId: (id) => set({ currentUserId: id }),
   setCurrentRole: (role) => set({ currentRole: role }),
   login: (id, role) => set({ isAuthenticated: true, currentUserId: id, currentRole: role }),
-  logout: () => set({ isAuthenticated: false, currentUserId: "", currentRole: "student" as const }),
+  logout: () => {
+    // Reset user state and navigate back to auth
+    useNavigationStore.getState().navigateTo("auth");
+    set({ isAuthenticated: false, currentUserId: "", currentRole: "student" as const });
+  },
 }));

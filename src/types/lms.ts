@@ -4,6 +4,7 @@
 
 /** Navigation view names for the SPA */
 export type ViewName =
+  | "auth"
   | "home"
   | "dashboard"
   | "courses"

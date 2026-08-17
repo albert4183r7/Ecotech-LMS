@@ -1783,3 +1783,38 @@ Files changed:
 - src/components/lms/footer.tsx - fixed currentRole usage
 - src/components/lms/floating-actions.tsx - fixed dashboard filter
 - src/app/api/courses/route.ts - course creation saves as draft
+---
+Task ID: 1
+Agent: Main
+Task: Fix 502 Bad Gateway and all reported role-based access control bugs
+
+Work Log:
+- Started dev server via bash .zscripts/dev.sh (was down, causing 502)
+- Fixed logout() in lms-store.ts to explicitly navigate to "auth" view before clearing state
+- Added "auth" to ViewName type in lms.ts
+- Fixed floating-actions.tsx: added role-based filtering (students can't see Create Course/Dashboard)
+- Fixed floating-actions.tsx: fixed click-outside handler that was intercepting action button clicks (added data-fab-menu attribute and updated mousedown listener)
+- Fixed navbar.tsx: renamed "My Learning" to "Learning Progress" for all users
+- Fixed navbar.tsx: hid "Learning Progress" nav item for instructors (filter, not just rename)
+- Fixed navbar.tsx: added Dashboard nav item for instructors with LayoutDashboard icon
+- Fixed home-page.tsx: wrapped student-only sections with currentRole === "student" checks:
+  - Continue Learning section
+  - Continue Learning loading skeleton
+  - Daily Challenges
+  - Course Recommendations
+  - Desktop sidebar (Leaderboard + Social Feed)
+  - Mobile Leaderboard (Collapsible)
+  - Mobile Social Feed
+- Added getViewLabel case for "auth" and "dashboard"
+- Verified all fixes with agent-browser
+
+Stage Summary:
+- Dev server restarted and running on port 3000
+- Logout now correctly navigates to auth/login page (tested both student and instructor)
+- Student view: NO create course options anywhere (profile, floating actions, navbar)
+- Student floating actions: only shows "Search Courses"
+- Instructor view: NO learning components (continue learning, daily challenges, recommendations, leaderboard, social feed)
+- Instructor navbar: shows Dashboard instead of Learning Progress
+- Instructor floating actions: shows all 3 options (Search Courses, Create Course, Dashboard)
+- All floating action buttons now work correctly (fixed click-outside handler bug)
+- Lint passes clean

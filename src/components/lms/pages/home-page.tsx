@@ -132,6 +132,7 @@ export function HomePage() {
   const { homeTab, categories, courses, setCategories, setCourses, setHomeTab, courseFilters, setCourseFilters, setCreatePrompt } =
     useCourseStore();
   const currentUserId = useUserStore((s) => s.currentUserId);
+  const currentRole = useUserStore((s) => s.currentRole);
 
   const [searchInput, setSearchInput] = useState(courseFilters.search);
   const [loadingCategories, setLoadingCategories] = useState(true);
@@ -493,8 +494,8 @@ export function HomePage() {
             </div>
           </div>
 
-          {/* ── Continue Learning Section ─────────────────────────── */}
-          {!loadingEnrollments && enrollments.length > 0 && (
+          {/* ── Continue Learning Section (Student Only) ────────────── */}
+          {currentRole === "student" && !loadingEnrollments && enrollments.length > 0 && (
             <div className="mb-5">
               <div className="mb-3 flex items-center gap-2">
                 <BookMarked className="h-4 w-4 text-primary" aria-hidden="true" />
@@ -555,7 +556,8 @@ export function HomePage() {
             </div>
           )}
 
-          {loadingEnrollments && (
+          {/* ── Continue Learning Loading Skeleton (Student Only) ── */}
+          {currentRole === "student" && loadingEnrollments && (
             <div className="mb-5">
               <div className="mb-3 flex items-center gap-2">
                 <Skeleton className="h-4 w-4 rounded" />
@@ -575,10 +577,12 @@ export function HomePage() {
             </div>
           )}
 
-          {/* ── Daily Challenges ─────────────────────────────────── */}
+          {/* ── Daily Challenges (Student Only) ─────────────────────── */}
+          {currentRole === "student" && (
           <div className="mb-5">
             <DailyChallenges />
           </div>
+          )}
 
           {/* Course Grid / Loading / Empty ────────────────────────── */}
           {loadingCourses ? (
@@ -628,20 +632,23 @@ export function HomePage() {
             </div>
           )}
 
-          {/* ── Course Recommendations ─────────────────────────────── */}
-          <CourseRecommendations />
+          {/* ── Course Recommendations (Student Only) ────────────────── */}
+          {currentRole === "student" && <CourseRecommendations />}
         </div>
 
-        {/* ── Desktop Right Sidebar (Leaderboard + Social Feed) ────────── */}
+        {/* ── Desktop Right Sidebar (Student: Leaderboard + Social Feed) */}
+        {currentRole === "student" && (
         <aside className="hidden w-72 shrink-0 lg:block">
           <div className="sticky top-6 space-y-4">
             <LeaderboardWidget />
             <SocialFeed />
           </div>
         </aside>
+        )}
       </section>
 
-      {/* ── Mobile Leaderboard (Collapsible) ──────────────────────── */}
+      {/* ── Mobile Leaderboard (Collapsible, Student Only) ────────── */}
+      {currentRole === "student" && (
       <section className="px-4 pb-6 md:hidden">
         <Collapsible open={leaderboardOpen} onOpenChange={setLeaderboardOpen}>
           <CollapsibleTrigger className="flex w-full items-center justify-between rounded-xl border border-border/50 bg-card p-4 transition-colors hover:bg-muted/50">
@@ -663,11 +670,14 @@ export function HomePage() {
           </CollapsibleContent>
         </Collapsible>
       </section>
+      )}
 
-      {/* ── Mobile Social Feed ────────────────────────────────────── */}
+      {/* ── Mobile Social Feed (Student Only) ─────────────────────── */}
+      {currentRole === "student" && (
       <section className="px-4 pb-6 md:hidden">
         <SocialFeed />
       </section>
+      )}
     </div>
   );
 }

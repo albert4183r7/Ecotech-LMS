@@ -1,0 +1,872 @@
+     1→"use client";
+     2→
+     3→import { useState, useEffect, useRef, useCallback } from "react";
+     4→import {
+     5→  GraduationCap,
+     6→  Home,
+     7→  BookOpen,
+     8→  User,
+     9→  PlusCircle,
+    10→  Menu,
+    11→  X,
+    12→  Sun,
+    13→  Moon,
+    14→  Monitor,
+    15→  Bell,
+    16→  CheckCheck,
+    17→  Info,
+    18→  CheckCircle2,
+    19→  AlertTriangle,
+    20→  Trophy,
+    21→  Settings,
+    22→  Search,
+    23→  LogOut,
+    24→} from "lucide-react";
+    25→import { Button } from "@/components/ui/button";
+    26→import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+    27→import { Separator } from "@/components/ui/separator";
+    28→import { ScrollArea } from "@/components/ui/scroll-area";
+    29→import { Badge } from "@/components/ui/badge";
+    30→import { Skeleton } from "@/components/ui/skeleton";
+    31→import {
+    32→  Tooltip,
+    33→  TooltipTrigger,
+    34→  TooltipContent,
+    35→} from "@/components/ui/tooltip";
+    36→import { cn } from "@/lib/utils";
+    37→import { useNavigationStore, useUserStore } from "@/stores/lms-store";
+    38→import type { ViewName } from "@/types/lms";
+    39→import { useTheme } from "next-themes";
+    40→
+    41→/** Navigation link configuration */
+    42→interface NavItem {
+    43→  label: string;
+    44→  icon: React.ReactNode;
+    45→  view: ViewName;
+    46→}
+    47→
+    48→/** Main navigation items */
+    49→const NAV_ITEMS: NavItem[] = [
+    50→  { label: "Home", icon: <Home className="h-4 w-4" />, view: "home" },
+    51→  { label: "Courses", icon: <BookOpen className="h-4 w-4" />, view: "courses" },
+    52→  { label: "My Learning", icon: <GraduationCap className="h-4 w-4" />, view: "my-learning" },
+    53→  { label: "Profile", icon: <User className="h-4 w-4" />, view: "profile" },
+    54→  { label: "Settings", icon: <Settings className="h-4 w-4" />, view: "settings" },
+    55→];
+    56→
+    57→/** Get human-readable label for any view including detail views */
+    58→function getViewLabel(view: ViewName): string {
+    59→  switch (view) {
+    60→    case "home": return "Home";
+    61→    case "courses": return "Courses";
+    62→    case "my-learning": return "My Learning";
+    63→    case "profile": return "Profile";
+    64→    case "course-detail": return "Course Details";
+    65→    case "classroom": return "Classroom";
+    66→    case "create-course": return "Create Course";
+    67→    case "settings": return "Settings";
+    68→    default: return "";
+    69→  }
+    70→}
+    71→
+    72→/** Notification item shape (from API) */
+    73→interface NotificationItem {
+    74→  id: string;
+    75→  title: string;
+    76→  message: string;
+    77→  type: string;
+    78→  read: boolean;
+    79→  link: string | null;
+    80→  createdAt: string;
+    81→}
+    82→
+    83→/** Notification type → icon + color mapping */
+    84→function NotificationIcon({ type }: { type: string }) {
+    85→  switch (type) {
+    86→    case "info":
+    87→      return <Info className="h-4 w-4 text-blue-500" />;
+    88→    case "success":
+    89→      return <CheckCircle2 className="h-4 w-4 text-emerald-500" />;
+    90→    case "warning":
+    91→      return <AlertTriangle className="h-4 w-4 text-amber-500" />;
+    92→    case "course":
+    93→      return <BookOpen className="h-4 w-4 text-teal-500" />;
+    94→    case "system":
+    95→      return <Settings className="h-4 w-4 text-gray-500" />;
+    96→    case "achievement":
+    97→      return <Trophy className="h-4 w-4 text-amber-500" />;
+    98→    default:
+    99→      return <Info className="h-4 w-4 text-blue-500" />;
+   100→  }
+   101→}
+   102→
+   103→/** Notification type → icon bg color mapping */
+   104→function NotificationIconBg({ type, read }: { type: string; read: boolean }) {
+   105→  const base = read ? "bg-muted/60" : "bg-primary/10";
+   106→  const colorMap: Record<string, string> = {
+   107→    info: read ? "bg-blue-500/10" : "bg-blue-500/15",
+   108→    success: read ? "bg-emerald-500/10" : "bg-emerald-500/15",
+   109→    warning: read ? "bg-amber-500/10" : "bg-amber-500/15",
+   110→    course: read ? "bg-teal-500/10" : "bg-teal-500/15",
+   111→    system: read ? "bg-gray-500/10" : "bg-gray-500/15",
+   112→    achievement: read ? "bg-amber-500/10" : "bg-amber-500/15",
+   113→  };
+   114→  return colorMap[type] || base;
+   115→}
+   116→
+   117→/** Notification type → left border accent color */
+   118→function NotificationBorderAccent({ type }: { type: string }) {
+   119→  const colorMap: Record<string, string> = {
+   120→    info: "border-l-blue-500",
+   121→    success: "border-l-emerald-500",
+   122→    warning: "border-l-amber-500",
+   123→    course: "border-l-teal-500",
+   124→    system: "border-l-gray-400",
+   125→    achievement: "border-l-amber-500",
+   126→  };
+   127→  return colorMap[type] || "border-l-blue-500";
+   128→}
+   129→
+   130→/** Format relative time for notifications */
+   131→function formatRelativeTime(dateStr: string): string {
+   132→  const now = new Date();
+   133→  const date = new Date(dateStr);
+   134→  const diffMs = now.getTime() - date.getTime();
+   135→  const diffMins = Math.floor(diffMs / 60000);
+   136→  const diffHours = Math.floor(diffMs / 3600000);
+   137→  const diffDays = Math.floor(diffMs / 86400000);
+   138→
+   139→  if (diffMins < 1) return "Just now";
+   140→  if (diffMins < 60) return `${diffMins}m ago`;
+   141→  if (diffHours < 24) return `${diffHours}h ago`;
+   142→  if (diffDays < 7) return `${diffDays}d ago`;
+   143→  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+   144→}
+   145→
+   146→/** Group notifications by date category: Today, Yesterday, Earlier */
+   147→function groupNotificationsByDate(items: NotificationItem[]) {
+   148→  const now = new Date();
+   149→  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+   150→  const yesterdayStart = todayStart - 86400000;
+   151→
+   152→  const today: NotificationItem[] = [];
+   153→  const yesterday: NotificationItem[] = [];
+   154→  const earlier: NotificationItem[] = [];
+   155→
+   156→  for (const item of items) {
+   157→    const t = new Date(item.createdAt).getTime();
+   158→    if (t >= todayStart) today.push(item);
+   159→    else if (t >= yesterdayStart) yesterday.push(item);
+   160→    else earlier.push(item);
+   161→  }
+   162→
+   163→  return { today, yesterday, earlier };
+   164→}
+   165→
+   166→/** Notification group with date header */
+   167→function NotificationGroup({
+   168→  label,
+   169→  items,
+   170→  onNotificationClick,
+   171→}: {
+   172→  label: string;
+   173→  items: NotificationItem[];
+   174→  onNotificationClick: (notif: NotificationItem) => void;
+   175→}) {
+   176→  if (items.length === 0) return null;
+   177→
+   178→  return (
+   179→    <div>
+   180→      <p className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+   181→        {label}
+   182→      </p>
+   183→      {items.map((notif) => (
+   184→        <button
+   185→          key={notif.id}
+   186→          type="button"
+   187→          onClick={() => onNotificationClick(notif)}
+   188→          className={cn(
+   189→            "group flex w-full items-start gap-3 rounded-lg px-3 py-3 text-left transition-colors notif-appear",
+   190→            notif.read
+   191→              ? "hover:bg-muted/50"
+   192→              : "bg-primary/5 hover:bg-primary/8"
+   193→          )}
+   194→        >
+   195→          {/* Left border accent for unread */}
+   196→          {!notif.read && (
+   197→            <div className={cn(
+   198→              "absolute left-1 top-3 bottom-3 w-0.5 rounded-full",
+   199→              NotificationBorderAccent({ type: notif.type })
+   200→            )} style={{ position: "absolute" }} />
+   201→          )}
+   202→          <div className={cn(
+   203→            "mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors relative",
+   204→            NotificationIconBg({ type: notif.type, read: notif.read })
+   205→          )}>
+   206→            <NotificationIcon type={notif.type} />
+   207→          </div>
+   208→          <div className="min-w-0 flex-1">
+   209→            <div className="flex items-start justify-between gap-2">
+   210→              <p className={cn(
+   211→                "text-sm leading-snug",
+   212→                notif.read
+   213→                  ? "text-muted-foreground font-medium"
+   214→                  : "text-foreground font-semibold"
+   215→              )}>
+   216→                {notif.title}
+   217→              </p>
+   218→              {!notif.read && (
+   219→                <div className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-primary" />
+   220→              )}
+   221→            </div>
+   222→            <p className="mt-0.5 text-xs text-muted-foreground leading-relaxed line-clamp-2">
+   223→              {notif.message}
+   224→            </p>
+   225→            <p className="mt-1 text-[10px] text-muted-foreground/60">
+   226→              {formatRelativeTime(notif.createdAt)}
+   227→            </p>
+   228→          </div>
+   229→        </button>
+   230→      ))}
+   231→    </div>
+   232→  );
+   233→}
+   234→
+   235→/** Skeleton loader for notifications */
+   236→function NotificationSkeleton() {
+   237→  return (
+   238→    <div className="space-y-1 p-1">
+   239→      {Array.from({ length: 4 }).map((_, i) => (
+   240→        <div key={i} className="flex items-start gap-3 rounded-lg px-3 py-3">
+   241→          <Skeleton className="h-8 w-8 rounded-lg shrink-0" />
+   242→          <div className="flex-1 space-y-2">
+   243→            <Skeleton className="h-3.5 w-3/4" />
+   244→            <Skeleton className="h-3 w-full" />
+   245→            <Skeleton className="h-2.5 w-16" />
+   246→          </div>
+   247→        </div>
+   248→      ))}
+   249→    </div>
+   250→  );
+   251→}
+   252→
+   253→/** Parse link string into view + id for navigation */
+   254→function parseNotificationLink(link: string | null): { view: ViewName; courseId?: string } | null {
+   255→  if (!link) return null;
+   256→  if (link === "profile") return { view: "profile" };
+   257→  if (link.startsWith("course-detail:")) {
+   258→    const courseId = link.replace("course-detail:", "");
+   259→    return { view: "course-detail", courseId };
+   260→  }
+   261→  return null;
+   262→}
+   263→
+   264→export function Navbar() {
+   265→  const { currentView, navigateTo, openCourseDetail } = useNavigationStore();
+   266→  const { currentUserId, currentRole, isAuthenticated, logout } = useUserStore();
+   267→  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+   268→  const { theme, setTheme, resolvedTheme } = useTheme();
+   269→
+   270→  // Search bar state
+   271→  const [searchExpanded, setSearchExpanded] = useState(false);
+   272→  const searchInputRef = useRef<HTMLInputElement>(null);
+   273→
+   274→  // Notification state
+   275→  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+   276→  const [showNotifications, setShowNotifications] = useState(false);
+   277→  const [bellAnimating, setBellAnimating] = useState(false);
+   278→  const [badgeKey, setBadgeKey] = useState(0);
+   279→  const [notificationsLoading, setNotificationsLoading] = useState(true);
+   280→  const notifRef = useRef<HTMLDivElement>(null);
+   281→
+   282→  // Theme toggle state for cycling animation
+   283→  const [themeIconRotating, setThemeIconRotating] = useState(false);
+   284→
+   285→  // Breadcrumb: derive current page label (role-aware)
+   286→  const currentPageLabel = currentView === "my-learning" && currentRole === "instructor"
+   287→    ? "Learning Progress"
+   288→    : getViewLabel(currentView);
+   289→
+   290→  // ============================================
+   291→  // Fetch notifications from API
+   292→  // ============================================
+   293→  useEffect(() => {
+   294→    let cancelled = false;
+   295→    async function fetchNotifications() {
+   296→      setNotificationsLoading(true);
+   297→      try {
+   298→        const res = await fetch(`/api/notifications?userId=${encodeURIComponent(currentUserId)}`);
+   299→        if (!res.ok) throw new Error("Failed to fetch");
+   300→        const data = await res.json();
+   301→        if (!cancelled) {
+   302→          setNotifications(data.notifications || []);
+   303→        }
+   304→      } catch {
+   305→        // Silently fail — notifications will just be empty
+   306→      } finally {
+   307→        if (!cancelled) {
+   308→          setNotificationsLoading(false);
+   309→        }
+   310→      }
+   311→    }
+   312→    fetchNotifications();
+   313→    return () => { cancelled = true; };
+   314→  }, [currentUserId]);
+   315→
+   316→  // Close mobile menu and search on view change
+   317→  useEffect(() => {
+   318→    const handleViewCleanup = () => {
+   319→      setMobileMenuOpen(false);
+   320→      setSearchExpanded(false);
+   321→    };
+   322→    handleViewCleanup();
+   323→  }, [currentView]);
+   324→
+   325→  // Collapse search when clicking outside
+   326→  useEffect(() => {
+   327→    if (!searchExpanded) return;
+   328→    function handleClickOutside(e: MouseEvent) {
+   329→      if (searchInputRef.current && !searchInputRef.current.parentElement?.contains(e.target as Node)) {
+   330→        setSearchExpanded(false);
+   331→      }
+   332→    }
+   333→    document.addEventListener("mousedown", handleClickOutside);
+   334→    return () => document.removeEventListener("mousedown", handleClickOutside);
+   335→  }, [searchExpanded]);
+   336→
+   337→  // Close notification panel on outside click
+   338→  useEffect(() => {
+   339→    function handleClickOutside(e: MouseEvent) {
+   340→      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+   341→        setShowNotifications(false);
+   342→      }
+   343→    }
+   344→    if (showNotifications) {
+   345→      document.addEventListener("mousedown", handleClickOutside);
+   346→    }
+   347→    return () => document.removeEventListener("mousedown", handleClickOutside);
+   348→  }, [showNotifications]);
+   349→
+   350→  /** Toggle notification panel */
+   351→  const toggleNotifications = useCallback(() => {
+   352→    if (!showNotifications) {
+   353→      setBellAnimating(true);
+   354→      setTimeout(() => setBellAnimating(false), 600);
+   355→    }
+   356→    setShowNotifications((prev) => !prev);
+   357→  }, [showNotifications]);
+   358→
+   359→  /** Mark a single notification as read via API */
+   360→  const handleMarkAsRead = useCallback(async (notif: NotificationItem) => {
+   361→    // Navigate if link is present
+   362→    const parsed = parseNotificationLink(notif.link);
+   363→    if (parsed) {
+   364→      if (parsed.courseId) {
+   365→        openCourseDetail(parsed.courseId);
+   366→      } else {
+   367→        navigateTo(parsed.view);
+   368→      }
+   369→      setShowNotifications(false);
+   370→    }
+   371→
+   372→    // Mark as read in API
+   373→    if (!notif.read) {
+   374→      try {
+   375→        await fetch("/api/notifications", {
+   376→          method: "PUT",
+   377→          headers: { "Content-Type": "application/json" },
+   378→          body: JSON.stringify({ notificationId: notif.id, read: true }),
+   379→        });
+   380→        setNotifications((prev) =>
+   381→          prev.map((n) => (n.id === notif.id ? { ...n, read: true } : n))
+   382→        );
+   383→      } catch {
+   384→        // Silently fail
+   385→      }
+   386→    }
+   387→  }, [navigateTo, openCourseDetail]);
+   388→
+   389→  /** Mark all notifications as read via API */
+   390→  const markAllAsRead = useCallback(async () => {
+   391→    try {
+   392→      await fetch("/api/notifications", {
+   393→        method: "PUT",
+   394→        headers: { "Content-Type": "application/json" },
+   395→        body: JSON.stringify({ userId: currentUserId, readAll: true }),
+   396→      });
+   397→      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+   398→    } catch {
+   399→      // Silently fail
+   400→    }
+   401→  }, [currentUserId]);
+   402→
+   403→  /** Handle "View All" — navigate to profile */
+   404→  const handleViewAll = useCallback(() => {
+   405→    setShowNotifications(false);
+   406→    navigateTo("profile");
+   407→  }, [navigateTo]);
+   408→
+   409→  const unreadCount = notifications.filter((n) => !n.read).length;
+   410→  const groupedNotifications = notificationsLoading ? null : groupNotificationsByDate(notifications);
+   411→
+   412→  // Bounce badge when unread count changes
+   413→  const prevUnreadRef = useRef(unreadCount);
+   414→  useEffect(() => {
+   415→    if (unreadCount !== prevUnreadRef.current) {
+   416→      setBadgeKey((k) => k + 1);
+   417→      prevUnreadRef.current = unreadCount;
+   418→    }
+   419→  }, [unreadCount]);
+   420→
+   421→  /** Handle search icon click: navigate to home on mobile, expand on desktop */
+   422→  const handleSearchClick = useCallback(() => {
+   423→    if (window.innerWidth < 768) {
+   424→      navigateTo("home");
+   425→      setMobileMenuOpen(false);
+   426→    } else {
+   427→      setSearchExpanded(true);
+   428→      setTimeout(() => searchInputRef.current?.focus(), 50);
+   429→    }
+   430→  }, [navigateTo]);
+   431→
+   432→  /** Get initials from user name for avatar */
+   433→  const getInitials = (name: string) => {
+   434→    if (name.includes("_")) {
+   435→      const parts = name.split("_");
+   436→      return parts
+   437→        .filter((p) => !/^\d+$/.test(p) && p.length > 0)
+   438→        .slice(0, 2)
+   439→        .map((p) => p[0].toUpperCase())
+   440→        .join("");
+   441→    }
+   442→    return name.slice(0, 2).toUpperCase();
+   443→  };
+   444→
+   445→  /** Role-aware display name */
+   446→  const displayNameMap: Record<string, string> = {
+   447→    user_instructor_001: "Dr. Sarah Chen",
+   448→    user_student_001: "Alex Johnson",
+   449→    user_student_002: "Maria Garcia",
+   450→  };
+   451→  const displayName = displayNameMap[currentUserId] || (
+   452→    currentUserId.includes("_")
+   453→      ? currentUserId.split("_").filter((p) => !/^\d+$/.test(p) && p.length > 0).map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join(" ")
+   454→      : currentUserId.charAt(0).toUpperCase() + currentUserId.slice(1)
+   455→  );
+   456→
+   457→  /** Role-aware visible nav items */
+   458→  const visibleNavItems = NAV_ITEMS.map((item) => {
+   459→    if (item.view === "my-learning" && currentRole === "instructor") {
+   460→      return { ...item, label: "Learning Progress" };
+   461→    }
+   462→    return item;
+   463→  });
+   464→
+   465→  const handleSearchKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+   466→    if (e.key === "Enter") {
+   467→      navigateTo("home");
+   468→    }
+   469→    if (e.key === "Escape") {
+   470→      setSearchExpanded(false);
+   471→    }
+   472→  }, [navigateTo]);
+   473→
+   474→  /** Cycle theme: light → dark → system → light */
+   475→  const cycleTheme = useCallback(() => {
+   476→    setThemeIconRotating(true);
+   477→    setTimeout(() => setThemeIconRotating(false), 300);
+   478→    const current = resolvedTheme || "light";
+   479→    if (current === "light") {
+   480→      setTheme("dark");
+   481→    } else if (current === "dark") {
+   482→      setTheme("system");
+   483→    } else {
+   484→      setTheme("light");
+   485→    }
+   486→  }, [resolvedTheme, setTheme]);
+   487→
+   488→  /** Get theme tooltip text */
+   489→  const getThemeTooltip = () => {
+   490→    if (theme === "system") return "System";
+   491→    if (theme === "dark") return "Dark mode";
+   492→    return "Light mode";
+   493→  };
+   494→
+   495→  /** Get theme icon based on current theme setting */
+   496→  const ThemeIcon = () => {
+   497→    const iconClass = cn(
+   498→      "h-4 w-4 transition-all duration-300",
+   499→      themeIconRotating && "rotate-180 scale-75"
+   500→    );
+   501→    if (theme === "system") return <Monitor className={iconClass} />;
+   502→    if (theme === "dark") return <Moon className={iconClass} />;
+   503→    return <Sun className={iconClass} />;
+   504→  };
+   505→
+   506→  return (
+   507→    <header className="sticky top-0 z-50 w-full border-b border-border/60 frosted-glass glass-card neon-glow">
+   508→      <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+   509→        {/* Logo + Breadcrumb */}
+   510→        <div className="flex flex-col gap-0">
+   511→          <button
+   512→            type="button"
+   513→            className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+   514→            onClick={() => navigateTo("home")}
+   515→            aria-label="Go to homepage"
+   516→          >
+   517→            <img src="/ecotech-logo.png" alt="Ecotech" className="h-8 w-8 rounded-md object-contain" />
+   518→            <img src="/ecotech-name.png" alt="Ecotech" className="h-6 w-auto hidden sm:inline object-contain" />
+   519→          </button>
+   520→          {/* Breadcrumb: subtle page indicator */}
+   521→          {currentView !== "home" && (
+   522→            <span className={cn(
+   523→              "text-[10px] font-medium leading-none tracking-wide uppercase",
+   524→              "text-muted-foreground/60 sm:hidden"
+   525→            )}>
+   526→              {currentPageLabel}
+   527→            </span>
+   528→          )}
+   529→          {currentView !== "home" && (
+   530→            <span className={cn(
+   531→              "hidden sm:block text-[10px] font-medium leading-none tracking-wide",
+   532→              "text-muted-foreground/50 pl-10"
+   533→            )}>
+   534→              {currentPageLabel}
+   535→            </span>
+   536→          )}
+   537→        </div>
+   538→
+   539→        {/* Desktop Navigation */}
+   540→        <nav className="hidden md:flex items-center gap-1" aria-label="Main navigation">
+   541→          {visibleNavItems.map((item) => (
+   542→            <Button
+   543→              key={item.view}
+   544→              variant="ghost"
+   545→              size="sm"
+   546→              onClick={() => navigateTo(item.view)}
+   547→              className={cn(
+   548→                "gap-2 rounded-lg transition-all duration-200 hover-lift",
+   549→                currentView === item.view
+   550→                  ? "bg-primary/10 text-primary font-medium shadow-sm"
+   551→                  : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+   552→              )}
+   553→            >
+   554→              {item.icon}
+   555→              <span className="hidden lg:inline">{item.label}</span>
+   556→            </Button>
+   557→          ))}
+   558→        </nav>
+   559→
+   560→        {/* Right Actions */}
+   561→        <div className="flex items-center gap-1.5">
+   562→          {/* Search Bar (desktop) */}
+   563→          <div className="relative hidden sm:flex items-center">
+   564→            <div
+   565→              className={cn(
+   566→                "flex items-center rounded-lg border border-border/60 bg-muted/40 transition-all duration-300 overflow-hidden",
+   567→                searchExpanded ? "w-56 h-9" : "w-9 h-9"
+   568→              )}
+   569→            >
+   570→              <button
+   571→                type="button"
+   572→                onClick={handleSearchClick}
+   573→                className="flex h-9 w-9 shrink-0 items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+   574→                aria-label="Search"
+   575→              >
+   576→                <Search className="h-4 w-4" />
+   577→              </button>
+   578→              {searchExpanded && (
+   579→                <input
+   580→                  ref={searchInputRef}
+   581→                  type="text"
+   582→                  placeholder="Search courses..."
+   583→                  className="h-full flex-1 bg-transparent px-0 pr-3 text-sm outline-none placeholder:text-muted-foreground/50"
+   584→                  onKeyDown={handleSearchKeyDown}
+   585→                />
+   586→              )}
+   587→            </div>
+   588→          </div>
+   589→
+   590→          {/* Mobile search button */}
+   591→          <Button
+   592→            variant="ghost"
+   593→            size="icon"
+   594→            className="sm:hidden h-9 w-9 rounded-lg"
+   595→            onClick={handleSearchClick}
+   596→            aria-label="Search"
+   597→          >
+   598→            <Search className="h-4 w-4" />
+   599→          </Button>
+   600→
+   601→          {/* Dark Mode Toggle — cycles Light → Dark → System */}
+   602→          <Tooltip>
+   603→            <TooltipTrigger asChild>
+   604→              <Button
+   605→                variant="ghost"
+   606→                size="icon"
+   607→                className="h-9 w-9 rounded-lg"
+   608→                onClick={cycleTheme}
+   609→                aria-label={`Current: ${getThemeTooltip()}. Click to switch.`}
+   610→                suppressHydrationWarning
+   611→              >
+   612→                <ThemeIcon />
+   613→              </Button>
+   614→            </TooltipTrigger>
+   615→            <TooltipContent>
+   616→              <span className="flex items-center gap-1.5">
+   617→                {getThemeTooltip()}
+   618→                <span className="text-muted-foreground/60 text-[10px]">(click to switch)</span>
+   619→              </span>
+   620→            </TooltipContent>
+   621→          </Tooltip>
+   622→
+   623→          {/* Notification Bell */}
+   624→          <div className="relative" ref={notifRef}>
+   625→            <Tooltip>
+   626→              <TooltipTrigger asChild>
+   627→                <Button
+   628→                  variant="ghost"
+   629→                  size="icon"
+   630→                  className={cn(
+   631→                    "relative h-9 w-9 rounded-lg transition-all duration-300",
+   632→                    unreadCount > 0 && "badge-glow"
+   633→                  )}
+   634→                  onClick={toggleNotifications}
+   635→                  aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ""}`}
+   636→                >
+   637→                  <Bell className={cn("h-4 w-4 transition-colors", bellAnimating && "bell-ring")} />
+   638→                  {unreadCount > 0 && (
+   639→                    <span
+   640→                      key={badgeKey}
+   641→                      className="badge-bounce absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground shadow-sm"
+   642→                    >
+   643→                      {unreadCount > 9 ? "9+" : unreadCount}
+   644→                    </span>
+   645→                  )}
+   646→                </Button>
+   647→              </TooltipTrigger>
+   648→              <TooltipContent>Notifications</TooltipContent>
+   649→            </Tooltip>
+   650→
+   651→            {/* Notification Panel Dropdown */}
+   652→            {showNotifications && (
+   653→              <div className="panel-slide-in absolute right-0 top-full mt-2 w-80 rounded-xl border border-border/60 bg-card shadow-xl sm:w-96">
+   654→                {/* Header */}
+   655→                <div className="flex items-center justify-between px-4 py-3">
+   656→                  <div className="flex items-center gap-2">
+   657→                    <h3 className="text-sm font-semibold text-foreground">
+   658→                      Notifications
+   659→                    </h3>
+   660→                    {!notificationsLoading && unreadCount > 0 && (
+   661→                      <Badge variant="secondary" className="h-5 min-w-5 px-1.5 text-[10px] font-bold">
+   662→                        {unreadCount}
+   663→                      </Badge>
+   664→                    )}
+   665→                  </div>
+   666→                  {!notificationsLoading && unreadCount > 0 && (
+   667→                    <button
+   668→                      type="button"
+   669→                      onClick={markAllAsRead}
+   670→                      className="flex items-center gap-1 text-xs font-medium text-primary hover:text-primary/80 transition-colors"
+   671→                    >
+   672→                      <CheckCheck className="h-3 w-3" />
+   673→                      Mark all read
+   674→                    </button>
+   675→                  )}
+   676→                </div>
+   677→                <Separator />
+   678→                {/* Notification List (grouped by date) */}
+   679→                <ScrollArea className="max-h-[360px]">
+   680→                  <div className="p-1">
+   681→                    {notificationsLoading ? (
+   682→                      <NotificationSkeleton />
+   683→                    ) : notifications.length === 0 ? (
+   684→                      <div className="flex flex-col items-center py-8 text-center">
+   685→                        <Bell className="h-8 w-8 text-muted-foreground/30 mb-2" />
+   686→                        <p className="text-sm text-muted-foreground">No notifications</p>
+   687→                      </div>
+   688→                    ) : (
+   689→                      groupedNotifications && (
+   690→                        <>
+   691→                          {groupedNotifications.today.length > 0 && (
+   692→                            <NotificationGroup label="Today" items={groupedNotifications.today} onNotificationClick={handleMarkAsRead} />
+   693→                          )}
+   694→                          {groupedNotifications.yesterday.length > 0 && (
+   695→                            <NotificationGroup label="Yesterday" items={groupedNotifications.yesterday} onNotificationClick={handleMarkAsRead} />
+   696→                          )}
+   697→                          {groupedNotifications.earlier.length > 0 && (
+   698→                            <NotificationGroup label="Earlier" items={groupedNotifications.earlier} onNotificationClick={handleMarkAsRead} />
+   699→                          )}
+   700→                        </>
+   701→                      )
+   702→                    )}
+   703→                  </div>
+   704→                </ScrollArea>
+   705→                <Separator />
+   706→                {/* Footer */}
+   707→                <div className="px-4 py-2.5">
+   708→                  <button
+   709→                    type="button"
+   710→                    className="w-full text-center text-xs font-medium text-primary hover:text-primary/80 transition-colors"
+   711→                    onClick={handleViewAll}
+   712→                  >
+   713→                    View all notifications
+   714→                  </button>
+   715→                </div>
+   716→              </div>
+   717→            )}
+   718→          </div>
+   719→
+   720→          {/* Create Course Button - only for instructors */}
+   721→          {currentRole === "instructor" && (
+   722→            <Button
+   723→              size="sm"
+   724→              className="hidden sm:flex gap-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg shadow-sm transition-all duration-200 hover:shadow-md press-effect"
+   725→              onClick={() => navigateTo("create-course")}
+   726→            >
+   727→              <PlusCircle className="h-4 w-4" />
+   728→              Create Course
+   729→            </Button>
+   730→          )}
+   731→
+   732→          {/* User Avatar with Online Status Indicator + Role Badge */}
+   733→          <Tooltip>
+   734→            <TooltipTrigger asChild>
+   735→              <Button
+   736→                variant="ghost"
+   737→                size="icon"
+   738→                className="h-9 w-9 rounded-full relative"
+   739→                onClick={() => navigateTo("profile")}
+   740→                aria-label="User profile"
+   741→              >
+   742→                <span className="relative">
+   743→                  <Avatar className="h-7 w-7 border-2 border-primary/20">
+   744→                    <AvatarFallback className={cn(
+   745→                      "text-xs font-semibold",
+   746→                      currentRole === "instructor"
+   747→                        ? "bg-violet-500/10 text-violet-600 dark:text-violet-400"
+   748→                        : "bg-primary/10 text-primary"
+   749→                    )}>
+   750→                      {getInitials(currentUserId)}
+   751→                    </AvatarFallback>
+   752→                  </Avatar>
+   753→                  <span
+   754→                    className="pulse-dot absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-card bg-emerald-500"
+   755→                    aria-hidden="true"
+   756→                  />
+   757→                </span>
+   758→                {/* Tiny role indicator dot */}
+   759→                <span className={cn(
+   760→                  "absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full border border-card",
+   761→                  currentRole === "instructor" ? "bg-violet-500" : "bg-emerald-500"
+   762→                )} />
+   763→              </Button>
+   764→            </TooltipTrigger>
+   765→            <TooltipContent>
+   766→              <span className="flex items-center gap-1.5">
+   767→                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+   768→                {displayName} &middot; {currentRole === "instructor" ? "Instructor" : "Student"}
+   769→              </span>
+   770→            </TooltipContent>
+   771→          </Tooltip>
+   772→
+   773→          {/* Mobile Menu Toggle */}
+   774→          <Button
+   775→            variant="ghost"
+   776→            size="icon"
+   777→            className="md:hidden h-9 w-9 rounded-lg"
+   778→            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+   779→            aria-label={mobileMenuOpen ? "Close navigation menu" : "Open navigation menu"}
+   780→          >
+   781→            {mobileMenuOpen ? (
+   782→              <X className="h-5 w-5" />
+   783→            ) : (
+   784→              <Menu className="h-5 w-5" />
+   785→            )}
+   786→          </Button>
+   787→        </div>
+   788→      </div>
+   789→
+   790→      {/* Mobile Navigation Dropdown */}
+   791→      {mobileMenuOpen && (
+   792→        <nav className="md:hidden border-t border-border/60 bg-card/95 backdrop-blur-lg px-4 py-3 space-y-1 slide-in-left" aria-label="Mobile navigation">
+   793→          {visibleNavItems.map((item) => (
+   794→            <Button
+   795→              key={item.view}
+   796→              variant="ghost"
+   797→              className={cn(
+   798→                "w-full justify-start gap-3 rounded-lg h-11",
+   799→                currentView === item.view
+   800→                  ? "bg-primary/10 text-primary font-medium"
+   801→                  : "text-muted-foreground"
+   802→              )}
+   803→              onClick={() => {
+   804→                navigateTo(item.view);
+   805→                setMobileMenuOpen(false);
+   806→              }}
+   807→            >
+   808→              {item.icon}
+   809→              {item.label}
+   810→            </Button>
+   811→          ))}
+   812→          {/* Gradient Create Course CTA - only for instructors */}
+   813→          {currentRole === "instructor" && (
+   814→            <div className="pt-2 border-t border-border/60 mt-2">
+   815→              <Button
+   816→                size="sm"
+   817→                className="w-full gap-2 rounded-lg text-white font-semibold shadow-md transition-all duration-200 hover:shadow-lg bg-gradient-to-r from-primary to-primary/70 hover:from-primary/90 hover:to-primary/60"
+   818→                onClick={() => {
+   819→                  navigateTo("create-course");
+   820→                  setMobileMenuOpen(false);
+   821→                }}
+   822→              >
+   823→                <PlusCircle className="h-4 w-4" />
+   824→                Create Course
+   825→              </Button>
+   826→            </div>
+   827→          )}
+   828→          {/* User Info Section at Bottom */}
+   829→          <div className="flex items-center gap-3 rounded-lg bg-muted/40 px-3 py-2.5 mt-2">
+   830→            <span className="relative">
+   831→              <Avatar className="h-9 w-9 border-2 border-primary/20">
+   832→                <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
+   833→                  {getInitials(currentUserId)}
+   834→                </AvatarFallback>
+   835→              </Avatar>
+   836→              <span
+   837→                className="pulse-dot absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-card bg-emerald-500"
+   838→                aria-hidden="true"
+   839→              />
+   840→            </span>
+   841→            <div className="min-w-0 flex-1">
+   842→              <div className="flex items-center gap-1.5">
+   843→                <p className="text-sm font-medium text-foreground truncate">{displayName}</p>
+   844→                <Badge variant="outline" className={cn(
+   845→                  "text-[9px] px-1.5 py-0 h-4 font-medium shrink-0",
+   846→                  currentRole === "instructor" ? "border-violet-500/50 text-violet-600 dark:text-violet-400" : "border-emerald-500/50 text-emerald-600 dark:text-emerald-400"
+   847→                )}>
+   848→                  {currentRole === "instructor" ? "Instructor" : "Student"}
+   849→                </Badge>
+   850→              </div>
+   851→              <p className="text-xs text-muted-foreground truncate">{currentUserId.replace(/_/g, ".")}@ecotech.com</p>
+   852→            </div>
+   853→            <span className="flex items-center gap-1 text-[10px] font-medium text-emerald-500">
+   854→              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+   855→              Online
+   856→            </span>
+   857→          </div>
+   858→          {/* Logout Button */}
+   859→          <button
+   860→            type="button"
+   861→            onClick={() => { logout(); setMobileMenuOpen(false); }}
+   862→            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 mt-2 text-sm font-medium text-destructive hover:bg-destructive/10 transition-colors"
+   863→          >
+   864→            <LogOut className="h-4 w-4" />
+   865→            Sign Out
+   866→          </button>
+   867→        </nav>
+   868→      )}
+   869→    </header>
+   870→  );
+   871→}
+   872→
