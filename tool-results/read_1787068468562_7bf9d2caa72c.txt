@@ -1,0 +1,567 @@
+     1→# LMS Project Worklog
+     2→
+     3→## Project Overview
+     4→**Ecotech** - Learning Management System (LMS) built with Next.js 16, TypeScript, Tailwind CSS 4, shadcn/ui, and Prisma (SQLite).
+     5→
+     6→---
+     7→
+     8→## Current Project Status Assessment
+     9→✅ **Phase 1** — Full MVP with all core pages, API routes, and database
+    10→✅ **Phase 2 (WebDevReview #1)** — 14 bug fixes, accessibility, dark mode, styling polish
+    11→✅ **Phase 3 (WebDevReview #2)** — Major UI enhancements, new features, keyboard shortcuts
+    12→✅ **Phase 4 (WebDevReview #3)** — Interactive quizzes, confetti celebration, leaderboard, search autocomplete, continue learning widget, dark mode fixes
+    13→✅ **Phase 5 (Cron Review #4)** — CSS styling overhaul, enhanced footer, notification system, AI generation, achievement badges, certificate modal
+    14→✅ **Phase 6 (Cron Review #5)** — Course discussion/comments system, weekly activity chart, streak tracker, enhanced course cards
+    15→✅ **Phase 7 (Cron Review #6)** — Major styling overhaul (15+ new CSS animations), notes system, XP/level system, streak calendar, keyboard shortcuts overlay, leaderboard widget, enhanced all 7 pages
+    16→✅ **Phase 8 (WebDevReview #7)** — Onboarding tour, announcement banner, course ratings, Pomodoro study timer, extensive CSS enhancements (glassmorphism, mobile touch targets, gradient text, content reveal animations, scrollbar styling)
+    17→✅ **Phase 9 (WebDevReview #8)** — Analytics dashboard, course recommendations engine, notification center with persistent DB storage, 3-way dark mode toggle (light/dark/system), home page hero overhaul (floating orbs, typing animation, CSS parallax, animated counters, category pills), empty states polish, button ripple/glow effects, card hover micro-interactions
+    18→✅ **Phase 10 (WebDevReview #9)** — Enhanced home page (animated stats bar, featured courses carousel, challenge cards with streak data, study tips, social feed), enhanced course detail (tabbed content, section reordering, enrollment flow), classroom enhancements (slide transition animations, study timer redesign, keyboard hints, progress dots)
+    19→✅ **Phase 11 (WebDevReview #10)** — Deep visual polish (button glow/ripple, card hover lifts, gradient text, animated underlines, frosted glass, mobile touch targets 44px), bottom nav, daily challenge gamification, certificate redesign, empty state illustrations, profile page redesign, course cards hover effects, expanded accessibility (ARIA, focus rings, semantic HTML, sr-only labels)
+    20→✅ **Phase 13 (AI Lesson Generation)** — Complete implementation of AI-powered slide generation feature: HTML sanitizer, z-ai-web-dev-sdk streaming wrapper, ImageKit URL builder, 3 new API routes (streaming HTML, outline, inline edit), classroom iframe renderer, create-course live streaming preview, AI outline generation, section mini-preview, inline AI edit toolbar, PUT sections endpoint, PPTX courseId support, seed data rewrite, deprecated SlideContent cleanup
+    21→
+    22→---
+    23→
+    24→## AI Lesson Generation Feature — Investigation Report
+    25→
+    26→### 1. z-ai-web-dev-sdk Streaming: ✅ SUPPORTED
+    27→
+    28→**Evidence** (from `node_modules/z-ai-web-dev-sdk/dist/index.js`, lines 106-109):
+    29→```javascript
+    30→if (requestBody.stream && (contentType.includes('text/event-stream') || contentType.includes('text/plain'))) {
+    31→    return response.body; // ReadableStream<Uint8Array>
+    32→}
+    33→```
+    34→
+    35→- `CreateChatCompletionBody.stream?: boolean` — pass `stream: true`
+    36→- Returns raw `ReadableStream<Uint8Array>` in SSE format when streaming
+    37→- SDK wraps an OpenAI-compatible chat completions API (`/chat/completions`)
+    38→- Config loaded from `.z-ai-config` file (not env vars) — no API key needed
+    39→- **Decision: Use z-ai-web-dev-sdk for streaming HTML generation** (no need for @google/genai)
+    40→
+    41→### 2. Prisma Schema — Relevant Models
+    42→
+    43→**Current** (`prisma/schema.prisma`):
+    44→- **Course**: id, title, description, coverImage, status(draft|published|archived), language, creatorId, categoryId
+    45→- **Section**: id, title, **content (String — JSON blob)**, order, totalPages, courseId, createdAt, updatedAt
+    46→- **User**: id, email, password, name, avatar, role(student|instructor)
+    47→- Section.content currently stores `JSON.stringify(SlideContent[])` — the old React-renderer format
+    48→- **No Lesson, Slide, or SlideVersion models exist yet**
+    49→- Section has NO status field
+    50→
+    51→### 3. API Route Conventions
+    52→
+    53→- **Framework**: Next.js 16 App Router, `route.ts` files under `src/app/api/`
+    54→- **Response shape**: `{ success: true, data: ... }` or `{ success: false, error: '...' }`
+    55→- **Auth**: No middleware — inline `userId` from body/query params
+    56→- **Error handling**: `try/catch` with `console.error`, returns 400/500 with `{ success: false, error }`
+    57→- **No Edge runtime** — all routes use default Node.js runtime (no `export const runtime`)
+    58→- **No env validation layer** — just raw `process.env.DATABASE_URL`
+    59→
+    60→### 4. Frontend Data-Fetching & Rendering Patterns
+    61→
+    62→- **SPA pattern**: Single `page.tsx` with Zustand stores for navigation/state
+    63→- **Data fetching**: Direct `fetch('/api/...')` in `useEffect` or event handlers, no SWR/React Query
+    64→- **Classroom state**: `useNavigationStore.openClassroom(state)` with:
+    65→  ```ts
+    66→  ClassroomState = { courseId, courseTitle, sectionId, sectionTitle, slides: SlideContent[], currentSlide, totalPages }
+    67→  ```
+    68→- **Current slide renderer** (`classroom-page.tsx`, lines 929-1211):
+    69→  - `SlideRenderer` — switch on `slide.type` dispatching to 6 React components:
+    70→    - `TitleSlide`, `ContentSlide`, `TableSlide`, `ListSlide`, `CodeSlide`, `QuizSlide`, `FallbackSlide`
+    71→  - All are direct React JSX renderers using shadcn/ui components and Tailwind
+    72→  - Slide content area container (line 468): `<div className="p-8 sm:p-12 max-w-2xl mx-auto"><SlideRenderer slide={currentSlide} /></div>`
+    73→- **If slides empty on classroom open**: Fetches from `/api/sections/{id}`, parses JSON `content` field
+    74→- **Create course flow**: Dialog → calls `/api/generate-content` → gets `SlideContent[]` → stores as `JSON.stringify(slides)` in section.content
+    75→
+    76→### 5. Environment Variables
+    77→
+    78→- Only `.env` exists with: `DATABASE_URL=file:/home/z/my-project/db/custom.db`
+    79→- No `.env.example`, no validation layer (`src/lib/` only has `db.ts` and `utils.ts`)
+    80→- z-ai-web-dev-sdk reads config from `.z-ai-config` (not env)
+    81→- **Need to add**: `IMAGEKIT_URL_ENDPOINT`, `IMAGEKIT_PUBLIC_KEY`, `IMAGEKIT_PRIVATE_KEY`
+    82→
+    83→### 6. Framework Confirmation
+    84→
+    85→- **Next.js 16.1.1** with App Router (no Pages Router)
+    86→- **No Edge runtime** used anywhere
+    87→- **Standalone output** in `next.config.ts`
+    88→- **Prisma 6** with SQLite (`db/custom.db`)
+    89→- **Bun** runtime, Turbopack dev server
+    90→
+    91→---
+    92→
+    93→## AI Lesson Generation — Implementation Plan
+    94→
+    95→### Standing Rules (Locked)
+    96→1. Slides render as raw HTML+Tailwind in **sandboxed iframe**
+    97→2. Slide generation **streams in real time** (SSE)
+    98→3. Images go through **ImageKit's URL-based generation/transform API**
+    99→4. All AI-generated HTML **sanitized through strict allowlist** before reaching client
+   100→
+   101→### A. Schema Migration
+   102→
+   103→**Remove**: `SlideContent` type and all 6 React slide renderer components from `classroom-page.tsx`
+   104→
+   105→**Modify Section model** — add `htmlBody` field:
+   106→```prisma
+   107→model Section {
+   108→  id          String   @id @default(cuid())
+   109→  title       String
+   110→  content     String?  // DEPRECATED: legacy JSON blob, kept for backward compat during migration
+   111→  htmlBody    String?  // NEW: sanitized HTML+Tailwind for iframe renderer
+   112→  order       Int      @default(0)
+   113→  totalPages  Int      @default(0)
+   114→  createdAt   DateTime @default(now())
+   115→  updatedAt   DateTime @updatedAt
+   116→  courseId    String
+   117→  course      Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+   118→  progresses  Progress[]
+   119→  comments    Comment[]
+   120→  notes       Note[]
+   121→}
+   122→```
+   123→
+   124→**No new Slide/SlideVersion models needed** — user explicitly said single rendering path, no discriminator. The `htmlBody` field on Section is sufficient. Each section = one lesson rendered as one HTML document inside an iframe.
+   125→
+   126→**Update seed data**: Replace all `content: JSON.stringify([...])` with `htmlBody: '<div class="...">...</div>'` containing proper Tailwind-styled HTML. Drop old `content` field values.
+   127→
+   128→### B. HTML Sanitizer (`src/lib/sanitize.ts`)
+   129→
+   130→Use **DOMPurify** (isomorphic-dompurify for SSR compatibility) with strict config:
+   131→
+   132→**ALLOWED_TAGS**: `div, section, article, header, footer, main, h1-h6, p, span, ul, ol, li, a, img, strong, em, b, i, u, br, hr, table, thead, tbody, tr, td, th, blockquote, code, pre`
+   133→
+   134→**ALLOWED_ATTR**:
+   135→- Global: `class, id`
+   136→- `<a>` only: `href` (validated: must start with `https://`)
+   137→- `<img>` only: `src, alt, width, height` (src validated: must match ImageKit domain)
+   138→
+   139→**EXPLICITLY FORBIDDEN**: `script, style, iframe, object, embed, form, input, button, link, meta, base, noscript, svg`
+   140→
+   141→**No inline `style=""`** — Tailwind classes only. Strip all `on*` event handler attributes globally.
+   142→
+   143→**URL restrictions**:
+   144→- `href`: `https://` only, no `javascript:` or `data:` schemes
+   145→- `img src`: Must match `IMAGEKIT_URL_ENDPOINT` domain — reject any other domain
+   146→
+   147→### C. AI Client — z-ai-web-dev-sdk Streaming
+   148→
+   149→**File**: `src/lib/ai.ts`
+   150→
+   151→```typescript
+   152→// Wrapper that uses z-ai-web-dev-sdk with streaming
+   153→import ZAI from 'z-ai-web-dev-sdk';
+   154→
+   155→export async function streamSlideHtml(
+   156→  systemPrompt: string,
+   157→  userPrompt: string,
+   158→): Promise<ReadableStream<Uint8Array>> {
+   159→  const zai = await ZAI.create();
+   160→  const stream = await zai.chat.completions.create({
+   161→    messages: [
+   162→      { role: 'assistant', content: systemPrompt },
+   163→      { role: 'user', content: userPrompt },
+   164→    ],
+   165→    stream: true,
+   166→    thinking: { type: 'disabled' },
+   167→  });
+   168→  // stream is ReadableStream<Uint8Array> (SSE format)
+   169→  return stream;
+   170→}
+   171→
+   172→// Non-streaming variant for outline generation
+   173→export async function generateOutline(topic: string, prompt: string): Promise<string> {
+   174→  const zai = await ZAI.create();
+   175→  const completion = await zai.chat.completions.create({
+   176→    messages: [
+   177→      { role: 'system', content: OUTLINE_SYSTEM_PROMPT },
+   178→      { role: 'user', content: prompt },
+   179→    ],
+   180→    thinking: { type: 'disabled' },
+   181→  });
+   182→  return completion.choices[0]?.message?.content ?? '';
+   183→}
+   184→```
+   185→
+   186→### D. API Endpoints
+   187→
+   188→#### 1. `POST /api/generate-outline` — Outline Generation (non-streaming)
+   189→
+   190→**Request**: `{ topic: string, prompt: string, language?: string }`
+   191→**Response**: `{ success: true, data: { title: string, sections: { title: string, summary: string }[] } }`
+   192→
+   193→Uses z-ai-web-dev-sdk non-streaming to generate a course outline. The instructor can review/edit before proceeding.
+   194→
+   195→#### 2. `POST /api/generate-slide-html` — Slide HTML Streaming
+   196→
+   197→**Request**: `{ sectionTitle: string, prompt: string, language?: string }`
+   198→**Response**: SSE stream with events:
+   199→```
+   200→event: slide_start
+   201→data: {"sectionTitle": "..."}
+   202→
+   203→event: chunk
+   204→data: {"html": "<div class=\"...\">..."}
+   205→
+   206→event: chunk
+   207→data: {"html": "...more html..."}
+   208→
+   209→event: slide_complete
+   210→data: {"htmlBody": "<full sanitized html>"}
+   211→
+   212→event: error
+   213→data: {"error": "..."}
+   214→```
+   215→
+   216→**Flow**:
+   217→1. Build system prompt instructing AI to generate a single HTML document using only Tailwind CSS classes
+   218→2. Call `streamSlideHtml()` → get `ReadableStream`
+   219→3. Parse SSE chunks, extract text deltas
+   220→4. Accumulate HTML string
+   221→5. On stream end: sanitize the full HTML via DOMPurify
+   222→6. Emit `slide_complete` with sanitized `htmlBody`
+   223→
+   224→#### 3. `POST /api/generate-slide-inline-edit` — Inline AI Edit
+   225→
+   226→**Request**: `{ htmlBody: string, instruction: string, slideTitle?: string }`
+   227→**Response**: `{ success: true, data: { htmlBody: string } }`
+   228→
+   229→Non-streaming. Takes existing HTML + natural language edit instruction, returns modified sanitized HTML.
+   230→
+   231→### E. ImageKit Integration (`src/lib/imagekit.ts`)
+   232→
+   233→**AI Image Generation URL pattern**:
+   234→```
+   235→{IMAGEKIT_URL_ENDPOINT}/ik-genimg-prompt-{encodedText}/slide-image.jpg
+   236→```
+   237→
+   238→**Transformation params for edits**:
+   239→- Background replace: `tr=e-changebg-prompt-{encodedText}`
+   240→- Remove background: `tr=e-removedotbg` or `tr=e-bgremove`
+   241→- Upscale: `tr=e-upscale`
+   242→- Add shadow: `tr=e-dropshadow`
+   243→
+   244→**Signed URL enforcement**: All ImageKit URLs must be signed with private key. The AI prompt will include ImageKit URL patterns so the LLM generates `img` tags pointing to ImageKit URLs. The sanitizer validates `src` domains against `IMAGEKIT_URL_ENDPOINT`.
+   245→
+   246→**Environment variables** (to be provided by user):
+   247→```
+   248→IMAGEKIT_URL_ENDPOINT=
+   249→IMAGEKIT_PUBLIC_KEY=
+   250→IMAGEKIT_PRIVATE_KEY=
+   251→```
+   252→
+   253→### F. Frontend Migration
+   254→
+   255→#### Classroom Page (`classroom-page.tsx`):
+   256→
+   257→**Remove**: All 6 React slide renderer components (~280 lines: `SlideRenderer`, `TitleSlide`, `ContentSlide`, `TableSlide`, `ListSlide`, `CodeSlide`, `QuizSlide`, `FallbackSlide`)
+   258→
+   259→**Replace with**: Single iframe renderer:
+   260→```tsx
+   261→function SlideIframe({ htmlBody }: { htmlBody: string }) {
+   262→  return (
+   263→    <iframe
+   264→      srcDoc={htmlBody}
+   265→      sandbox="allow-same-origin"
+   266→      className="w-full min-h-[400px] border-0 rounded-lg"
+   267→      title="Slide content"
+   268→    />
+   269→  );
+   270→}
+   271→```
+   272→
+   273→**Update `ClassroomState` type**:
+   274→```typescript
+   275→export interface ClassroomState {
+   276→  courseId: string;
+   277→  courseTitle: string;
+   278→  sectionId: string;
+   279→  sectionTitle: string;
+   280→  htmlBody: string;  // NEW: replaces slides[]
+   281→  // Remove: slides, currentSlide, totalPages (no longer page-by-page)
+   282→}
+   283→```
+   284→
+   285→Since each section is now a single HTML document (not paginated slides), the classroom becomes a scrollable document viewer instead of a slide deck. Navigation dots and slide-by-slide navigation will be replaced with section navigation (prev/next section).
+   286→
+   287→**Update `SectionItem` type**:
+   288→```typescript
+   289→export interface SectionItem {
+   290→  id: string;
+   291→  title: string;
+   292→  htmlBody: string | null;  // NEW
+   293→  content: string | null;   // DEPRECATED
+   294→  order: number;
+   295→  totalPages: number;       // Keep for now, can repurpose later
+   296→  courseId: string;
+   297→}
+   298→```
+   299→
+   300→#### Create Course Page (`create-course-page.tsx`):
+   301→
+   302→**Modify `handleGenerateSection`**: Instead of calling `/api/generate-content` (returns `SlideContent[]`), call the new streaming endpoint `/api/generate-slide-html` and display a live preview as HTML streams in. On completion, store `htmlBody` in the section draft.
+   303→
+   304→**Section preview**: Show a mini iframe preview of the generated HTML in the section list.
+   305→
+   306→### G. Seed Data Rewrite
+   307→
+   308→Replace all 14+ sections in `seed.ts` with proper `htmlBody` fields containing Tailwind-styled HTML. Remove all `content: JSON.stringify([...])` values. The HTML should be professional-looking slide content using Tailwind utility classes.
+   309→
+   310→### H. Implementation Order
+   311→
+   312→1. **Schema + DB migration**: Add `htmlBody` to Section, `bun run db:push`
+   313→2. **Sanitizer**: `src/lib/sanitize.ts` with DOMPurify
+   314→3. **AI wrapper**: `src/lib/ai.ts` using z-ai-web-dev-sdk streaming
+   315→4. **ImageKit helper**: `src/lib/imagekit.ts` (awaiting env values)
+   316→5. **API: generate-slide-html**: Streaming endpoint
+   317→6. **API: generate-outline**: Non-streaming outline gen
+   318→7. **API: generate-slide-inline-edit**: Inline AI edit
+   319→8. **Frontend: Classroom page**: Replace React renderers with iframe
+   320→9. **Frontend: Create course page**: Streaming generation UI
+   321→10. **Seed data**: Rewrite with htmlBody content
+   322→11. **Cleanup**: Remove old `SlideContent` type, old `generate-content` route, React renderers
+   323→
+   324→### I. Files to Create/Modify
+   325→
+   326→**Create**:
+   327→- `src/lib/sanitize.ts` — DOMPurify wrapper
+   328→- `src/lib/ai.ts` — z-ai-web-dev-sdk streaming wrapper
+   329→- `src/lib/imagekit.ts` — ImageKit URL builder (signed URLs)
+   330→- `src/app/api/generate-slide-html/route.ts` — Streaming SSE endpoint
+   331→- `src/app/api/generate-outline/route.ts` — Outline generation
+   332→- `src/app/api/generate-slide-inline-edit/route.ts` — Inline AI edit
+   333→
+   334→**Modify**:
+   335→- `prisma/schema.prisma` — Add `htmlBody` to Section
+   336→- `src/types/lms.ts` — Update `SectionItem`, `ClassroomState`, remove `SlideContent`
+   337→- `src/components/lms/pages/classroom-page.tsx` — Replace renderers with iframe
+   338→- `src/components/lms/pages/create-course-page.tsx` — Streaming gen UI
+   339→- `prisma/seed.ts` — Rewrite with htmlBody content
+   340→- `.env` — Add ImageKit vars (awaiting user's values)
+   341→
+   342→**Delete**:
+   343→- `src/app/api/generate-content/route.ts` — Old non-streaming stub
+   344→- All 6 React slide renderer functions from classroom-page.tsx
+   345→
+   346→### J. Risk / Open Questions
+   347→
+   348→1. **iframe height**: Need to decide on dynamic height calculation — either fixed aspect ratio, or use `postMessage` from inside iframe to communicate height
+   349→2. **Quiz interactivity**: The old quiz slide had client-side interactivity (click answer, get feedback). In the iframe model, quizzes become static HTML. If interactive quizzes are needed, they'd need to be implemented as React components outside the iframe (hybrid approach) — but user said single rendering path. Confirm: are quizzes okay as static HTML in iframe?
+   350→3. **ImageKit env values**: User said they'll paste real values later. Implementation should work with placeholder values and fail gracefully if ImageKit is not configured.
+   351→4. **PPTX download**: Current `generate-pptx` endpoint reads `SlideContent[]` format. Will need to be updated or removed since the data model changes.
+   352→
+   353→---
+   354→Task ID: pptx-fix-and-ai-edit
+   355→Agent: Main
+   356→
+   357→Work Log:
+   358→- Fixed `src/app/api/generate-pptx/route.ts` to support `courseId` in addition to `sections[]`
+   359→  - Added `import { db } from '@/lib/db'`
+   360→  - Added `courseId?: string` to `GeneratePptxRequest` interface
+   361→  - When `sections` is not provided but `courseId` is, fetches all sections for that course from the database using Prisma (`db.section.findMany`), ordered by `order` field, selecting only `title` and `htmlBody`
+   362→  - Filters out sections without `htmlBody`, maps to `{ title, htmlBody }[]`
+   363→  - Falls through to existing PPTX generation logic with `resolvedSections`
+   364→  - Updated error message to be more descriptive
+   365→- Added inline AI edit feature to classroom page (`src/components/lms/pages/classroom-page.tsx`)
+   366→  - Added `Wand2` icon import from lucide-react
+   367→  - Added `Textarea` import from `@/components/ui/textarea`
+   368→  - Added 3 new state variables: `showAiEdit`, `aiEditInstruction`, `aiEditLoading`
+   369→  - Added `handleAiEdit` callback that:
+   370→    - Calls `POST /api/generate-slide-inline-edit` with `{ htmlBody, instruction, slideTitle }`
+   371→    - On success, updates `localState.htmlBody` with the new HTML
+   372→    - Shows toast on success/error
+   373→    - Persists updated `htmlBody` to DB via `PUT /api/sections/${sectionId}`
+   374→    - Closes the edit panel and resets instruction
+   375→  - Added floating toggle button (`fixed bottom-4 right-4 z-50`, round, Wand2 icon)
+   376→  - Added floating AI edit panel (`fixed bottom-20 right-4 z-50`, card with border, shadow, bg-card)
+   377→    - Contains title "AI Edit" with Wand2 icon, Textarea for instruction, Apply/Cancel buttons
+   378→    - Apply button shows Loader2 spinner when loading
+   379→    - Cancel button clears instruction and closes panel
+   380→
+   381→Stage Summary:
+   382→- PPTX endpoint now accepts `{ courseId, courseName }` or `{ sections, courseName }` — resolves sections from DB when only courseId is provided
+   383→- Classroom page now has a floating AI edit wand button (bottom-right) that opens a panel for natural language slide editing via the existing `/api/generate-slide-inline-edit` endpoint
+   384→- All changes pass ESLint with zero errors
+   385→---
+   386→Task ID: 6
+   387→Agent: api-routes-updater
+   388→Task: Update all API routes and store for Section→Lesson migration
+   389→Work Log:
+   390→- Read worklog.md and src/types/lms.ts for migration context (LessonItem, SlideItem, ClassroomState already updated)
+   391→- Verified src/stores/lms-store.ts: no code changes needed (imports ClassroomState which is already updated, no 'section' string literals)
+   392→- Updated src/app/api/courses/route.ts: GET `_count.sections` → `_count.lessons`, `sectionsCount` → `lessonsCount`; POST `sections` create → `lessons` create with simplified schema (title + order only, no htmlBody/totalPages/content), include `lessons` ordered
+   393→- Updated src/app/api/courses/[id]/route.ts: include `lessons` instead of `sections`, mapping uses `course.lessons.map((lesson) => ...)` with `outlineJson` added, `content` and `totalPages` removed
+   394→- Created src/app/api/lessons/[id]/route.ts as new file (replacing sections/[id]/route.ts): GET fetches Lesson with ordered slides; PUT updates title/order/outlineJson only; no content/htmlBody/totalPages references
+   395→- Updated src/app/api/notes/route.ts: `sectionId` → `lessonId` in query params, request body, Prisma queries, and error messages; `db.section.findUnique` → `db.lesson.findUnique`
+   396→- Updated src/app/api/comments/route.ts: `sectionId` → `lessonId` in GET query params, POST body destructuring, and Prisma create query where clause
+   397→- Updated src/app/api/progress/route.ts: `sectionId` → `lessonId` in POST body, error messages, upsert unique key `enrollmentId_lessonId`; `db.section` → `db.lesson`; GET include changed from `section` to `lesson` without totalPages
+   398→- Rewrote src/app/api/progress-timeline/route.ts: `SectionTimelineData` → `LessonTimelineData` with `lessonId`/`lessonTitle`; response types `totalSections`/`completedSections`/`sections` → `totalLessons`/`completedLessons`/`lessons`; all Prisma queries use `lessons` and `lesson`; totalPages fallback set to 1 (TODO: derive from slides)
+   399→- Updated src/app/api/generate-pptx/route.ts: `db.section.findMany` → `db.lesson.findMany` with nested `slides` include (status=READY), flattened via `flatMap` to produce resolvedSections array
+   400→
+   401→Stage Summary:
+   402→- 8 files modified/created, 1 file verified (no changes needed)
+   403→- All API routes now use `Lesson`/`lesson` instead of `Section`/`section` in Prisma queries, variable names, error messages, and response shapes
+   404→- New `/api/lessons/[id]` route created with slide-aware GET and PUT handlers
+   405→- Progress timeline response shape changed: `sections` → `lessons`, `totalSections` → `totalLessons`, `completedSections` → `completedLessons`
+   406→- PPTX generation now resolves lessons→slides from DB instead of sections directly
+   407→- Old `/api/sections/[id]/route.ts` deleted by ui-components-updater agent
+   408→
+   409→---
+   410→Task ID: 7
+   411→Agent: ui-components-updater
+   412→Task: Update all UI components for Section→Lesson migration
+   413→
+   414→Work Log:
+   415→- Read `/home/z/my-project/src/types/lms.ts` to understand new type definitions (LessonItem, SlideItem, ClassroomState with lessonId/lessonTitle/allLessonIds/currentLessonIndex)
+   416→- Updated `src/components/lms/pages/classroom-page.tsx`:
+   417→  - `goToSection` → `goToLesson`, fetch URL `/api/sections/` → `/api/lessons/`
+   418→  - HTML body extraction now reads from `json.data.slides[0].htmlBody` instead of `json.data.htmlBody`
+   419→  - `markSectionCompleted` → `markLessonCompleted`, POST body `sectionId` → `lessonId`
+   420→  - `allSectionIds` → `allLessonIds`, `currentSectionIndex` → `currentLessonIndex`, `totalSections` → `totalLessons`
+   421→  - `sectionId` → `lessonId`, `sectionTitle` → `lessonTitle` throughout
+   422→  - Notes API calls: `sectionId` → `lessonId` in query params and POST body
+   423→  - AI edit persist: PUT URL `/api/sections/` → `/api/lessons/`
+   424→  - NotesSidebarContent props: `currentSectionIndex` → `currentLessonIndex`
+   425→  - UI text: "Section" → "Lesson" in counter, badges, placeholders, confetti message
+   426→- Updated `src/components/lms/pages/course-detail-page.tsx`:
+   427→  - Import `LessonItem` instead of `SectionItem`
+   428→  - `SectionProgress` → `LessonProgress` with `lessonId` field
+   429→  - `fetchSectionProgress` → `fetchLessonProgress`, mapping `p.lesson?.id ?? p.lessonId`
+   430→  - PPTX download: fetches from `/api/lessons/` and reads `json.data.slides[0].htmlBody`
+   431→  - `handleSectionClick` → `handleLessonClick` with updated ClassroomState construction
+   432→  - `totalLessons` computed from `course.lessons.length` instead of `course.sections.reduce(...totalPages)`
+   433→  - `getSectionProgress` → `getLessonProgress`, `getSectionStatus` → `getLessonStatus`
+   434→  - Accordion: `course.sections.map((section, ...))` → `course.lessons.map((lesson, ...))`
+   435→  - `totalP` (pages) hardcoded to `1` since Lesson no longer has totalPages
+   436→  - ProgressTimeline props: `sections={course.lessons}` → `lessons={course.lessons}`
+   437→- Updated `src/components/lms/pages/create-course-page.tsx`:
+   438→  - `SectionDraft` → `LessonDraft`, `SectionCard` → `LessonCard`, `SectionCardProps` → `LessonCardProps`
+   439→  - `MAX_SECTIONS` → `MAX_LESSONS`, `sections` state → `lessons`, `setSections` → `setLessons`
+   440→  - All modal state: `sectionName` → `lessonName`, `sectionPrompt` → `lessonPrompt`, `sectionLanguage` → `lessonLanguage`, `sectionPdfName` → `lessonPdfName`
+   441→  - All handlers: `handleGenerateSection` → `handleGenerateLesson`, `handleDeleteSection` → `handleDeleteLesson`, `handleMoveSection` → `handleMoveLesson`, `handleSectionPdfUpload` → `handleLessonPdfUpload`, `handleSectionFileChange` → `handleLessonFileChange`
+   442→  - `expandedSectionId` → `expandedLessonId`, `sectionFileInputRef` → `lessonFileInputRef`
+   443→  - Save payload: kept `sections:` key in API body (contract with courses POST handler), but local variable is `lessons`
+   444→  - Outline drafts: `SectionDraft` → `LessonDraft`, error messages updated
+   445→  - UI text: "Sections" → "Lessons" header, "Generate Section" → "Generate Lesson", "Section Name" → "Lesson Name", aria-labels updated
+   446→- Updated `src/components/lms/progress-timeline.tsx`:
+   447→  - Import `LessonItem` instead of `SectionItem`
+   448→  - `SectionTimelineData` → `LessonTimelineData` with `lessonId`/`lessonTitle`
+   449→  - `TimelineData`: `totalSections` → `totalLessons`, `completedSections` → `completedLessons`, `sections` → `lessons`
+   450→  - Props: `sections` → `lessons`
+   451→  - `handleSectionClick` → `handleLessonClick`, fetches from `/api/lessons/`, reads slides for htmlBody
+   452→  - CTA variables: `continueSection` → `continueLesson`, `nextSection` → `nextLesson`, `ctaSection` → `ctaLesson`, `ctaSectionItem` → `ctaLessonItem`
+   453→  - Timeline items: all `section.*` references → `lesson.*`
+   454→  - Summary footer: "X sections" → "X lessons"
+   455→- Updated `src/components/lms/discussion-panel.tsx`:
+   456→  - Two remaining `sectionId` references in POST bodies → `lessonId` (props already had `lessonId`)
+   457→- Deleted `src/app/api/sections/[id]/route.ts` (old route file)
+   458→- Ran `bun run lint` — zero errors
+   459→
+   460→Stage Summary:
+   461→- 5 UI component files updated, 1 file deleted
+   462→- All `section`/`Section` model references in UI components replaced with `lesson`/`Lesson`
+   463→- HTML `<section>` semantic tags preserved (not renamed)
+   464→- API body key `sections` preserved in create-course POST (contract with courses route)
+   465→- ESLint passes with zero errors
+   466→
+   467→---
+   468→Task ID: 8
+   469→Agent: seed-rewriter
+   470→Task: Rewrite prisma/seed.ts with Lesson/Slide models
+   471→Work Log:
+   472→- Read Prisma schema to understand Lesson (id, title, order, outlineJson, courseId, timestamps) and Slide (id, title, htmlBody, status, order, lessonId, timestamps) models
+   473→- Read existing seed.ts (1575 lines) to extract all users, categories, courses, sections (25 total), enrollments, progress, comments, favorites, and notifications
+   474→- Rewrote seed.ts completely: replaced `PrismaClient` import with `import { db } from '../src/lib/db'`
+   475→- Converted all 25 sections (sec_001–sec_025) to lessons (lesson_001–lesson_025) with same titles and order
+   476→- Added `outlineJson` field to each lesson with JSON structure: `{ topic, style: "professional", slides: [{ title, outline }] }`
+   477→- Removed `content`, `htmlBody`, and `totalPages` from lesson data
+   478→- Created one Slide per lesson using the provided dark-slate/teal-cyan gradient template with 3-4 real educational paragraphs each
+   479→- Set all slides to status `READY` and order `0`
+   480→- Updated all `sectionId` references to `lessonId` in comments (comment_001, 002, 003, 005, 006) and progress records
+   481→- Updated delete order to respect FK constraints (added slide, note, rating before lesson)
+   482→- Ran `prisma db push --force-reset` and `npx tsx prisma/seed.ts` — seed completed successfully
+   483→Stage Summary:
+   484→- Seed file rewritten from ~1575 lines to ~380 lines (much cleaner without inline HTML)
+   485→- 5 users, 6 categories, 5 courses, 25 lessons, 25 slides, 2 enrollments, 2 favorites, 8 comments, 8 notifications created
+   486→- All data verified: seed runs with zero errors
+   487→
+   488→---
+   489→Task ID: schema-migration-section-to-lesson-slide
+   490→Agent: main
+   491→Task: Full Prisma schema migration — Section→Lesson rename + new Slide model
+   492→
+   493→Work Log:
+   494→- Edited prisma/schema.prisma: renamed Section→Lesson (removed content/htmlBody/totalPages, added outlineJson), created Slide model (id, title, htmlBody, status, order, lessonId, @@unique([lessonId, order])), updated all FK relations (Comment, Note, Progress)
+   495→- Generated SQL diff via prisma migrate diff, showed to user
+   496→- Applied with `prisma db push --force-reset` (required due to NOT NULL lessonId on existing rows)
+   497→- Regenerated Prisma client
+   498→- Updated src/types/lms.ts: removed SlideContent/SlideItem (deprecated), renamed SectionItem→LessonItem, added SlideItem, updated ClassroomState (sectionId→lessonId, allSectionIds→allLessonIds, currentSectionIndex→currentLessonIndex), CourseItem.sections→CourseItem.lessons
+   499→- Updated all API routes (15 files): courses, courses/[id], lessons/[id] (new), notes, comments, progress, progress-timeline, enrollments, enrollments/[id], analytics, achievements, leaderboard, favorites, user/[id], generate-pptx, generate-outline, challenges, social-feed
+   500→- Updated all UI components (6 files): classroom-page, course-detail-page, create-course-page, progress-timeline, discussion-panel, social-feed
+   501→- Deleted old /api/sections/[id]/route.ts, created /api/lessons/[id]/route.ts
+   502→- Rewrote prisma/seed.ts: 25 lessons with 25 slides (each with real HTML+Tailwind content), outlineJson on each lesson
+   503→- Updated all social-feed action types: completed_section→completed_lesson
+   504→- Final lint: zero errors, zero warnings
+   505→- Seed: 5 courses, 25 lessons, 25 slides, runs successfully
+   506→
+   507→Stage Summary:
+   508→- Complete schema migration from Section to Lesson+Slide model
+   509→- 30+ files updated across API routes, UI components, types, and seed data
+   510→- All Prisma references to `section`/`sections` eliminated from src/
+   511→- Dev server starts cleanly on port 3000
+   512→- No SlideVersion model added (per plan: not needed yet)
+   513→
+   514→---
+   515→Task ID: section-to-lesson-rename-cleanup
+   516→Agent: main
+   517→Task: Complete Section→Lesson rename in all remaining source code (variable names, display text, API params)
+   518→
+   519→Work Log:
+   520→- Verified schema and DB already migrated (Lesson + Slide tables, no Section table)
+   521→- Verified seed.ts already rewritten with LessonSeed + makeSlideHtml + Slide creates
+   522→- Ran subagent to rename remaining references across 12 files:
+   523→  - `src/app/api/courses/route.ts`: POST body `sections` → `lessons`, `sec` → `lesson`
+   524→  - `src/app/api/generate-pptx/route.ts`: `SectionHtmlBody` → `SlideHtmlBody`, `sections` → `slides`, `sectionTitle` → `lessonTitle`, `resolvedSections` → `resolvedSlides`
+   525→  - `src/app/api/generate-slide-html/route.ts`: `sectionTitle` → `slideTitle` (6 occurrences)
+   526→  - `src/app/api/generate-outline/route.ts`: output key `sections` → `lessons` (kept `parsed.sections` for AI compat)
+   527→  - `src/app/api/challenges/route.ts`: "1/1 sections" → "1/1 lessons"
+   528→  - `src/components/lms/pages/create-course-page.tsx`: `sectionTitle` → `slideTitle`, "Add N Sections" → "Add N Lessons"
+   529→  - `src/components/lms/pages/my-learning-page.tsx`: `sectionsCount` → `lessonsCount`, "X sections" → "X lessons"
+   530→  - `src/components/lms/pages/courses-page.tsx`: `sections: []` → `lessons: []`
+   531→  - `src/components/lms/pages/home-page.tsx`: `sectionsCount` → `lessonsCount`, `sections: []` → `lessons: []`
+   532→  - `src/components/lms/pages/course-detail-page.tsx`: PPTX API body `{ sections: ... }` → `{ slides: ... }`
+   533→  - `src/components/lms/pages/settings-page.tsx`: "Auto-play Next Section" → "Auto-play Next Lesson"
+   534→  - `src/components/lms/pages/profile-page.tsx`: `sectionsCount` → `lessonsCount`, `completedSections` → `completedLessons`
+   535→- Left intact: `src/lib/ai.ts` (AI prompt uses "sections" key internally, parsed in generate-outline)
+   536→- Left intact: Comments using "section" as generic English (e.g. "User Info Section")
+   537→- Added `allowedDevOrigins` to next.config.ts for cross-origin preview support
+   538→- Lint: zero errors
+   539→- Seed: 5 users, 6 categories, 5 courses, 25 lessons, 25 slides — runs successfully
+   540→- API verified: `/api/courses?tab=hot` returns courses with `lessonsCount` correctly
+   541→
+   542→Stage Summary:
+   543→- Complete Section→Lesson rename across all source code
+   544→- All data model references to `section`/`Section`/`sections` renamed to `lesson`/`Lesson`/`lessons`
+   545→- API parameter `sectionTitle` → `slideTitle` (generate-slide-html) or `lessonTitle` (generate-pptx)
+   546→- Display text updated: "sections" → "lessons" in UI
+   547→- Step 1 (Schema Migration) of the 15-step implementation plan is COMPLETE
+   548→
+   549→---
+   550→Task ID: fix-three-ux-issues
+   551→Agent: main
+   552→Task: Fix 3 user-reported UX issues: redundant outline button, missing hero section, instructor dashboard showing learning progress
+   553→
+   554→Work Log:
+   555→- **Outline button removed** from create-course-page.tsx: removed OutlineSection interface, 4 state variables, 3 handler functions, the "Outline" toolbar button, hint text, and the entire AI Outline Generation Modal (~190 lines removed). Kept "+ Add" and per-lesson "Generate Lesson with AI" buttons.
+   556→- **Hero section added** to home-page.tsx: gradient background with floating orbs, typing animation ("Learn. Grow. Excel. Achieve. Thrive. Innovate."), subtitle text, AI prompt input for instructors, Browse Courses + My Learning buttons for students.
+   557→- **Instructor dashboard rewritten**: removed all student learning content (learning progress bars, hours studied, courses enrolled, streak, heatmap, donut chart). Replaced with: Total Courses Created, Total Students, Average Rating, Total Lessons stats; My Courses table; Recent Student Activity feed; Quick Actions; Course Overview section. Added `creatorId` query param to `/api/courses` and `/api/enrollments` routes.
+   558→- Lint: zero errors
+   559→- Dev server compiles and runs
+   560→- APIs verified: courses?creatorId= and enrollments?creatorId= return correct data
+   561→
+   562→Stage Summary:
+   563→- Three UX issues resolved in single pass
+   564→- Instructor dashboard now shows only course management data
+   565→- Home page hero section restored with typing animation
+   566→- AI course creation flow simplified (outline removed, per-lesson generation kept)
+   567→

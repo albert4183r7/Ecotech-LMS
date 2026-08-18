@@ -564,3 +564,34 @@ Stage Summary:
 - Instructor dashboard now shows only course management data
 - Home page hero section restored with typing animation
 - AI course creation flow simplified (outline removed, per-lesson generation kept)
+
+---
+Task ID: generate-outline-step
+Agent: main
+Task: Implement "generate outline" step — API endpoint + frontend for AI slide outline generation with editable outline list
+
+Work Log:
+- Created `src/lib/slide-styles.ts` with 5 design style constants (professional, minimal, creative, academic, tech) and slide count range (3-20)
+- Created `POST /api/lessons/generate-outline` endpoint: accepts courseId, topic, slideCount, style, language; calls `generateStructuredJSON` from `src/lib/llm.ts` to get slide outline; creates Lesson + Slide records in DB; returns lesson with slides
+- Created `PUT /api/slides/[id]` endpoint for editing individual slide titles
+- Created `DELETE /api/slides/[id]` endpoint for removing slides from outline
+- Added `DELETE` method to `PUT /api/lessons/[id]` for deleting lessons (cascade deletes slides)
+- Modified `create-course-page.tsx`:
+  - Added new types: `OutlineSlideDraft`, `OutlineLessonDraft`
+  - Added state: `courseId`, `generateMode`, outline state variables (`outlineTopic`, `outlineSlideCount`, `outlineStyle`, `outlineGenerating`, `outlineLessons`, `editingOutlineLesson`, `outlineEditingSlides`)
+  - Added `ensureCourseSaved()` — auto-saves course as draft when outline mode requires a courseId
+  - Added outline handlers: `handleOpenOutlineModal`, `handleGenerateOutline`, `handleUpdateSlideTitle`, `handleDeleteOutlineSlide`, `handleAddOutlineSlide`, `handleRegenerateOutline`, `handleGenerateSlides`, `handleDeleteOutlineLesson`
+  - Added "AI Outline" button in lessons panel (primary-colored, with Wand2 icon)
+  - Modified modal to support two tabs: "Quick Generate" (existing flow) and "Outline Mode" (new)
+  - Outline mode: topic input, slide count with +/- buttons, style dropdown (5 styles), loading state, editable slide list with inline title editing, outline text display, delete slide, add slide, regenerate buttons
+  - Added `OutlineLessonCard` component for displaying outline lessons in the lesson list (shows slide count, style badge, expandable slide list, edit/preview/delete actions, "Generate Slides" button)
+  - Modified `handleSave` to support updating existing draft courses (when courseId exists from auto-save)
+  - Added `onInteractOutside` prevention on DialogContent to fix Select dropdown closing issue
+- Verified: lint clean, TypeScript compiles, agent-browser confirmed UI renders correctly (modal tabs, topic input, slide count, style dropdown, generate button enable/disable)
+
+Stage Summary:
+- Step 2 (Generate Outline) of the 15-step AI Lesson Generation plan is COMPLETE
+- Files created: `src/lib/slide-styles.ts`, `src/app/api/lessons/generate-outline/route.ts`, `src/app/api/slides/[id]/route.ts`
+- Files modified: `src/app/api/lessons/[id]/route.ts`, `src/components/lms/pages/create-course-page.tsx`
+- Design styles: professional (clean, corporate), minimal (whitespace, sans-serif), creative (bold colors, dynamic), academic (text-heavy, formal), tech (dark theme, code-friendly)
+- Next step: Step 3 — Generate slide HTML for each slide in the outline (streaming SSE)

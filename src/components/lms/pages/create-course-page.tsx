@@ -15,6 +15,12 @@ import {
   FileUp,
   Sparkles,
   Eye,
+  Wand2,
+  LayoutList,
+  Minus,
+  Pencil,
+  RotateCcw,
+  Play,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,6 +48,7 @@ import {
 import { useNavigationStore, useUserStore, useCourseStore } from "@/stores/lms-store";
 import type { CategoryItem } from "@/types/lms";
 import { toast } from "sonner";
+import { SLIDE_STYLES, MIN_SLIDES, MAX_SLIDES, DEFAULT_SLIDE_COUNT } from "@/lib/slide-styles";
 
 // ============================================
 // Types
@@ -53,6 +60,25 @@ interface LessonDraft {
   totalPages: number;
   htmlBody: string;
   language: string;
+}
+
+/** Slide in an editable outline */
+interface OutlineSlideDraft {
+  id: string;
+  slideId: string | null; // DB slide ID if persisted
+  title: string;
+  outline: string;
+  order: number;
+}
+
+/** A lesson created via the outline flow (persisted in DB) */
+interface OutlineLessonDraft {
+  id: string; // DB lesson ID
+  title: string;
+  slides: OutlineSlideDraft[];
+  language: string;
+  style: string;
+  topic: string;
 }
 
 // ============================================
@@ -77,6 +103,7 @@ export function CreateCoursePage() {
   const [coverImage, setCoverImage] = useState("");
   const [coverPreview, setCoverPreview] = useState<string | null>(null);
   const [lessons, setLessons] = useState<LessonDraft[]>([]);
+  const [courseId, setCourseId] = useState<string | null>(null);
 
   // ---- UI state ----
   const [categories, setCategories] = useState<CategoryItem[]>([]);
@@ -87,19 +114,31 @@ export function CreateCoursePage() {
   const [urlInputOpen, setUrlInputOpen] = useState(false);
   const [imageUrl, setImageUrl] = useState("");
 
-  // ---- Modal state ----
+  // ---- Modal state (Quick Generate) ----
   const [lessonName, setLessonName] = useState("");
   const [lessonPrompt, setLessonPrompt] = useState("");
   const [lessonLanguage, setLessonLanguage] = useState("english");
   const [lessonPdfName, setLessonPdfName] = useState("");
+
+  // ---- Outline mode state ----
+  const [generateMode, setGenerateMode] = useState<"quick" | "outline">("outline");
+  const [outlineTopic, setOutlineTopic] = useState("");
+  const [outlineSlideCount, setOutlineSlideCount] = useState(DEFAULT_SLIDE_COUNT);
+  const [outlineStyle, setOutlineStyle] = useState("professional");
+  const [outlineGenerating, setOutlineGenerating] = useState(false);
+  const [outlineLessons, setOutlineLessons] = useState<OutlineLessonDraft[]>([]);
+  const [editingOutlineLesson, setEditingOutlineLesson] = useState<string | null>(null);
+  const [outlineEditingSlides, setOutlineEditingSlides] = useState<OutlineSlideDraft[]>([]);
 
   // ---- Live streaming state ----
   const [streamingHtml, setStreamingHtml] = useState("");
   const [showStreamPreview, setShowStreamPreview] = useState(false);
    const streamPreviewRef = useRef<HTMLDivElement>(null);
 
-  // ---- Expanded lesson preview ----
+  // ---- Expanded lesson preview (quick lessons) ----
   const [expandedLessonId, setExpandedLessonId] = useState<string | null>(null);
+  // ---- Expanded outline preview ----
+  const [expandedOutlineLessonId, setExpandedOutlineLessonId] = useState<string | null>(null);
 
   // ---- Pre-fill title from hero prompt ----
   useEffect(() => {
@@ -160,6 +199,7 @@ export function CreateCoursePage() {
     setLessonPdfName("");
     setStreamingHtml("");
     setShowStreamPreview(false);
+    setGenerateMode("quick");
     setModalOpen(true);
   };
 
@@ -279,6 +319,277 @@ export function CreateCoursePage() {
     setStreamingHtml("");
   };
 
+  // ---- Auto-save course as draft (needed for outline mode) ----
+  const ensureCourseSaved = useCallback(async (): Promise<string | null> => {
+    if (courseId) return courseId;
+    if (!title.trim() || !currentUserId) {
+      toast.error("Please enter a course title first");
+      return null;
+    }
+    try {
+      const res = await fetch("/api/courses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: title.trim(),
+          description: description.trim() || null,
+          categoryId: categoryId || null,
+          language,
+          creatorId: currentUserId,
+          coverImage: coverImage || null,
+        }),
+      });
+      const json = await res.json();
+      if (json.success && json.data?.id) {
+        setCourseId(json.data.id);
+        return json.data.id;
+      }
+      toast.error("Failed to save course draft");
+      return null;
+    } catch {
+      toast.error("Failed to save course draft");
+      return null;
+    }
+  }, [courseId, title, description, categoryId, language, currentUserId, coverImage]);
+
+  // ---- Outline generation ----
+  const handleOpenOutlineModal = () => {
+    setOutlineTopic("");
+    setOutlineSlideCount(DEFAULT_SLIDE_COUNT);
+    setOutlineStyle("professional");
+    setOutlineGenerating(false);
+    setEditingOutlineLesson(null);
+    setOutlineEditingSlides([]);
+    setGenerateMode("outline");
+    setModalOpen(true);
+  };
+
+  const handleGenerateOutline = useCallback(async () => {
+    if (!outlineTopic.trim()) {
+      toast.error("Topic is required");
+      return;
+    }
+
+    const savedCourseId = await ensureCourseSaved();
+    if (!savedCourseId) return;
+
+    setOutlineGenerating(true);
+    try {
+      const res = await fetch("/api/lessons/generate-outline", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          courseId: savedCourseId,
+          topic: outlineTopic.trim(),
+          slideCount: outlineSlideCount,
+          style: outlineStyle,
+          language,
+        }),
+      });
+      const json = await res.json();
+
+      if (!json.success) {
+        toast.error(json.error || "Failed to generate outline");
+        setOutlineGenerating(false);
+        return;
+      }
+
+      const lessonData = json.data;
+      const parsedOutline = JSON.parse(lessonData.outlineJson || "{}");
+      const slides: OutlineSlideDraft[] = lessonData.slides.map(
+        (s: { id: string; title: string; order: number }, i: number) => ({
+          id: `local_${Date.now()}_${i}`,
+          slideId: s.id,
+          title: s.title,
+          outline: parsedOutline.slides?.[i]?.outline || "",
+          order: s.order,
+        })
+      );
+
+      const newOutlineLesson: OutlineLessonDraft = {
+        id: lessonData.id,
+        title: lessonData.title,
+        slides,
+        language,
+        style: outlineStyle,
+        topic: outlineTopic.trim(),
+      };
+
+      setOutlineLessons((prev) => [...prev, newOutlineLesson]);
+      setEditingOutlineLesson(lessonData.id);
+      setOutlineEditingSlides(slides);
+      setOutlineGenerating(false);
+      toast.success(`Outline generated: ${slides.length} slides`);
+    } catch {
+      toast.error("Failed to generate outline. Please try again.");
+      setOutlineGenerating(false);
+    }
+  }, [outlineTopic, outlineSlideCount, outlineStyle, language, ensureCourseSaved]);
+
+  const handleUpdateSlideTitle = async (slideId: string, newTitle: string) => {
+    setOutlineEditingSlides((prev) =>
+      prev.map((s) => (s.slideId === slideId ? { ...s, title: newTitle } : s))
+    );
+    setOutlineLessons((prev) =>
+      prev.map((ol) =>
+        ol.id === editingOutlineLesson
+          ? {
+              ...ol,
+              slides: ol.slides.map((s) =>
+                s.slideId === slideId ? { ...s, title: newTitle } : s
+              ),
+            }
+          : ol
+      )
+    );
+    // Persist to DB
+    try {
+      await fetch(`/api/slides/${slideId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: newTitle }),
+      });
+    } catch {
+      // silent — will sync on next load
+    }
+  };
+
+  const handleDeleteOutlineSlide = async (slideId: string, localId: string) => {
+    setOutlineEditingSlides((prev) => prev.filter((s) => s.id !== localId));
+    setOutlineLessons((prev) =>
+      prev.map((ol) =>
+        ol.id === editingOutlineLesson
+          ? {
+              ...ol,
+              slides: ol.slides.filter((s) => s.id !== localId),
+            }
+          : ol
+      )
+    );
+    if (slideId) {
+      try {
+        await fetch(`/api/slides/${slideId}`, { method: "DELETE" });
+      } catch {
+        // silent
+      }
+    }
+  };
+
+  const handleAddOutlineSlide = async () => {
+    if (!editingOutlineLesson) return;
+    try {
+      const newOrder = outlineEditingSlides.length;
+      const res = await fetch("/api/lessons/generate-outline", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          courseId,
+          topic: outlineTopic,
+          slideCount: 1,
+          style: outlineStyle,
+          language,
+        }),
+      });
+      // Simpler: just add a blank slide
+      const localId = `local_${Date.now()}_new`;
+      const newSlide: OutlineSlideDraft = {
+        id: localId,
+        slideId: null,
+        title: `Slide ${newOrder + 1}`,
+        outline: "",
+        order: newOrder,
+      };
+      setOutlineEditingSlides((prev) => [...prev, newSlide]);
+      setOutlineLessons((prev) =>
+        prev.map((ol) =>
+          ol.id === editingOutlineLesson
+            ? { ...ol, slides: [...ol.slides, newSlide] }
+            : ol
+        )
+      );
+    } catch {
+      // fallback: add local only
+      const localId = `local_${Date.now()}_new`;
+      const newSlide: OutlineSlideDraft = {
+        id: localId,
+        slideId: null,
+        title: `Slide ${outlineEditingSlides.length + 1}`,
+        outline: "",
+        order: outlineEditingSlides.length,
+      };
+      setOutlineEditingSlides((prev) => [...prev, newSlide]);
+    }
+  };
+
+  const handleRegenerateOutline = async () => {
+    if (!editingOutlineLesson) return;
+    setOutlineGenerating(true);
+    try {
+      const res = await fetch("/api/lessons/generate-outline", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          courseId,
+          topic: outlineTopic.trim(),
+          slideCount: outlineSlideCount,
+          style: outlineStyle,
+          language,
+          existingLessonId: editingOutlineLesson,
+        }),
+      });
+      const json = await res.json();
+      if (!json.success) {
+        toast.error(json.error || "Failed to regenerate");
+        setOutlineGenerating(false);
+        return;
+      }
+      const lessonData = json.data;
+      const parsedOutline = JSON.parse(lessonData.outlineJson || "{}");
+      const slides: OutlineSlideDraft[] = lessonData.slides.map(
+        (s: { id: string; title: string; order: number }, i: number) => ({
+          id: `local_${Date.now()}_${i}`,
+          slideId: s.id,
+          title: s.title,
+          outline: parsedOutline.slides?.[i]?.outline || "",
+          order: s.order,
+        })
+      );
+      setOutlineEditingSlides(slides);
+      setOutlineLessons((prev) =>
+        prev.map((ol) =>
+          ol.id === editingOutlineLesson
+            ? { ...ol, title: lessonData.title, slides }
+            : ol
+        )
+      );
+      setOutlineGenerating(false);
+      toast.success("Outline regenerated");
+    } catch {
+      toast.error("Failed to regenerate outline");
+      setOutlineGenerating(false);
+    }
+  };
+
+  const handleGenerateSlides = (lessonId: string) => {
+    toast.info("Slide HTML generation will be available in the next step.");
+  };
+
+  const handleDeleteOutlineLesson = async (lessonId: string) => {
+    setOutlineLessons((prev) => prev.filter((ol) => ol.id !== lessonId));
+    if (editingOutlineLesson === lessonId) {
+      setEditingOutlineLesson(null);
+      setOutlineEditingSlides([]);
+    }
+    // Delete lesson from DB (cascades to slides)
+    try {
+      const res = await fetch(`/api/lessons/${lessonId}`, { method: "DELETE" });
+      const json = await res.json();
+      if (!json.success) toast.error("Failed to remove lesson");
+    } catch {
+      toast.error("Failed to remove lesson");
+    }
+  };
+
   const handleDeleteLesson = (id: string) => {
     setLessons((prev) => prev.filter((s) => s.id !== id));
     if (expandedLessonId === id) setExpandedLessonId(null);
@@ -302,7 +613,7 @@ export function CreateCoursePage() {
       return;
     }
 
-    // Check if any lesson is missing htmlBody
+    // Check if any quick-generate lesson is missing htmlBody
     const missingContent = lessons.filter((s) => !s.htmlBody);
     if (missingContent.length > 0) {
       toast.error(`${missingContent.length} lesson(s) have no content yet. Generate content for all lessons first.`);
@@ -311,37 +622,78 @@ export function CreateCoursePage() {
 
     setSaving(true);
     try {
-      const payload = {
-        title: title.trim(),
-        description: description.trim() || null,
-        categoryId: categoryId || null,
-        language,
-        creatorId: currentUserId,
-        coverImage: coverImage || null,
-        lessons: lessons.map((sec, index) => ({
-          title: sec.title,
-          htmlBody: sec.htmlBody,
-          totalPages: sec.totalPages,
-          order: index,
-        })),
-      };
-
-      const res = await fetch("/api/courses", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      const json = await res.json();
-
-      if (json.success) {
-        toast.success("Course created successfully!");
-        goBack();
+      if (courseId) {
+        // Update existing draft course
+        // Also create any local quick-generate lessons
+        if (lessons.length > 0) {
+          for (let i = 0; i < lessons.length; i++) {
+            const sec = lessons[i];
+            await fetch(`/api/lessons`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                courseId,
+                title: sec.title,
+                order: outlineLessons.length + i,
+                // htmlBody is stored on slides, not lesson directly in new schema
+              }),
+            });
+          }
+        }
+        // Update course metadata
+        const res = await fetch(`/api/courses/${courseId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: title.trim(),
+            description: description.trim() || null,
+            categoryId: categoryId || null,
+            language,
+            coverImage: coverImage || null,
+            status: "published",
+          }),
+        });
+        const json = await res.json();
+        if (json.success) {
+          toast.success("Course updated successfully!");
+          goBack();
+        } else {
+          toast.error(json.error || "Failed to update course");
+        }
       } else {
-        toast.error(json.error || "Failed to create course");
+        // Create new course (original flow)
+        const payload = {
+          title: title.trim(),
+          description: description.trim() || null,
+          categoryId: categoryId || null,
+          language,
+          creatorId: currentUserId,
+          coverImage: coverImage || null,
+          lessons: lessons.map((sec, index) => ({
+            title: sec.title,
+            htmlBody: sec.htmlBody,
+            totalPages: sec.totalPages,
+            order: index,
+          })),
+        };
+
+        const res = await fetch("/api/courses", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        const json = await res.json();
+
+        if (json.success) {
+          toast.success("Course created successfully!");
+          goBack();
+        } else {
+          toast.error(json.error || "Failed to create course");
+        }
       }
     } catch {
-      toast.error("Failed to create course. Please try again.");
+      toast.error("Failed to save course. Please try again.");
     } finally {
       setSaving(false);
     }
@@ -599,15 +951,25 @@ export function CreateCoursePage() {
                     variant="secondary"
                     className="text-xs font-normal"
                   >
-                    {lessons.length}/{MAX_LESSONS}
+                    {lessons.length + outlineLessons.length}/{MAX_LESSONS}
                   </Badge>
                 </div>
                 <div className="flex items-center gap-2">
                   <Button
                     size="sm"
                     variant="outline"
+                    onClick={handleOpenOutlineModal}
+                    disabled={lessons.length + outlineLessons.length >= MAX_LESSONS}
+                    className="gap-1.5 text-primary border-primary/40 hover:bg-primary/10"
+                  >
+                    <Wand2 className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">AI Outline</span>
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
                     onClick={handleOpenModal}
-                    disabled={lessons.length >= MAX_LESSONS}
+                    disabled={lessons.length + outlineLessons.length >= MAX_LESSONS}
                     className="gap-1.5"
                   >
                     <Plus className="h-3.5 w-3.5" />
@@ -616,8 +978,7 @@ export function CreateCoursePage() {
                 </div>
               </div>
 
-              {/* Lesson List */}
-              {lessons.length === 0 ? (
+              {lessons.length === 0 && outlineLessons.length === 0 ? (
                 <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border/70 bg-muted/20 py-16">
                   <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
                     <FileText className="h-5 w-5 text-muted-foreground" />
@@ -626,25 +987,55 @@ export function CreateCoursePage() {
                     No lessons yet
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground/70">
-                    Click <span className="font-medium text-foreground">+ Add</span> to create a lesson, then use the AI generate button to create content.
+                    Use <span className="font-medium text-primary">AI Outline</span> to generate a slide outline, or <span className="font-medium text-foreground">+ Add</span> for quick generation.
                   </p>
                 </div>
               ) : (
                 <div className="space-y-2 max-h-[600px] overflow-y-auto pr-1">
+                  {/* Outline lessons */}
+                  {outlineLessons.map((ol, index) => (
+                    <OutlineLessonCard
+                      key={ol.id}
+                      lesson={ol}
+                      index={index}
+                      expanded={expandedOutlineLessonId === ol.id}
+                      isEditing={editingOutlineLesson === ol.id}
+                      editingSlides={editingOutlineLesson === ol.id ? outlineEditingSlides : []}
+                      onToggleExpand={() =>
+                        setExpandedOutlineLessonId((prev) =>
+                          prev === ol.id ? null : ol.id
+                        )
+                      }
+                      onEditOutline={() => {
+                        setEditingOutlineLesson(ol.id);
+                        setOutlineEditingSlides(ol.slides);
+                        setOutlineTopic(ol.topic);
+                        setOutlineSlideCount(ol.slides.length);
+                        setOutlineStyle(ol.style);
+                        setModalOpen(true);
+                        setGenerateMode("outline");
+                      }}
+                      onUpdateSlideTitle={(slideId, newTitle) => handleUpdateSlideTitle(slideId, newTitle)}
+                      onDeleteSlide={(slideId, localId) => handleDeleteOutlineSlide(slideId, localId)}
+                      onGenerateSlides={() => handleGenerateSlides(ol.id)}
+                      onDelete={() => handleDeleteOutlineLesson(ol.id)}
+                    />
+                  ))}
+                  {/* Quick-generate lessons */}
                   {lessons.map((lesson, index) => (
                     <LessonCard
                       key={lesson.id}
                       lesson={lesson}
-                      index={index}
-                      totalCount={lessons.length}
+                      index={outlineLessons.length + index}
+                      totalCount={outlineLessons.length + lessons.length}
                       expanded={expandedLessonId === lesson.id}
                       onToggleExpand={() =>
                         setExpandedLessonId((prev) =>
                           prev === lesson.id ? null : lesson.id
                         )
                       }
-                      onMoveUp={() => handleMoveLesson(index, "up")}
-                      onMoveDown={() => handleMoveLesson(index, "down")}
+                      onMoveUp={() => handleMoveLesson(outlineLessons.length + index, "up")}
+                      onMoveDown={() => handleMoveLesson(outlineLessons.length + index, "down")}
                       onDelete={() => handleDeleteLesson(lesson.id)}
                     />
                   ))}
@@ -655,19 +1046,47 @@ export function CreateCoursePage() {
         </div>
       </div>
 
-      {/* ======== Add Lesson Modal ======== */}
-      <Dialog open={modalOpen} onOpenChange={(open) => { if (!open && generating) return; setModalOpen(open); }}>
-        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+      {/* ======== Generate Lesson Modal (Quick + Outline modes) ======== */}
+      <Dialog open={modalOpen} onOpenChange={(open) => { if (!open && (generating || outlineGenerating)) return; setModalOpen(open); }}>
+        <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto" onInteractOutside={(e) => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-primary" />
               Generate Lesson with AI
             </DialogTitle>
-            <DialogDescription>
-              Provide a lesson name and prompt. The AI will generate slide content in real time.
+            <DialogDescription className="sr-only">
+              Choose between quick generate or outline mode
             </DialogDescription>
           </DialogHeader>
 
+          {/* Tab bar */}
+          <div className="flex rounded-lg bg-muted/60 p-1 gap-1">
+            <button
+              onClick={() => setGenerateMode("quick")}
+              className={`flex-1 flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-all ${
+                generateMode === "quick"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Sparkles className="h-4 w-4" />
+              Quick Generate
+            </button>
+            <button
+              onClick={() => setGenerateMode("outline")}
+              className={`flex-1 flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-all ${
+                generateMode === "outline"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <LayoutList className="h-4 w-4" />
+              Outline Mode
+            </button>
+          </div>
+
+          {/* ============ QUICK GENERATE MODE ============ */}
+          {generateMode === "quick" && (
           <div className="space-y-5">
             {/* Lesson Name */}
             <div className="space-y-2">
@@ -810,7 +1229,10 @@ export function CreateCoursePage() {
               </div>
             )}
           </div>
+          )}
 
+          {/* Quick Generate Footer */}
+          {generateMode === "quick" && (
           <DialogFooter className="mt-2">
             {generating ? (
               <Button
@@ -840,7 +1262,198 @@ export function CreateCoursePage() {
               </>
             )}
           </DialogFooter>
-        </DialogContent>
+          )}
+          {generateMode === "outline" && (
+            <div className="space-y-5">
+              {/* Topic */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">
+                  Topic <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  placeholder="e.g., Introduction to Data Science"
+                  value={outlineTopic}
+                  onChange={(e) => setOutlineTopic(e.target.value)}
+                  className="h-10"
+                  disabled={outlineGenerating}
+                />
+              </div>
+
+              {/* Slide Count + Style row */}
+              <div className="grid grid-cols-2 gap-4">
+                {/* Slide Count */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Slide Count</Label>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setOutlineSlideCount((p) => Math.max(MIN_SLIDES, p - 1))}
+                      disabled={outlineGenerating || outlineSlideCount <= MIN_SLIDES}
+                      className="flex h-9 w-9 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-muted disabled:opacity-40"
+                    >
+                      <Minus className="h-4 w-4" />
+                    </button>
+                    <Input
+                      type="number"
+                      min={MIN_SLIDES}
+                      max={MAX_SLIDES}
+                      value={outlineSlideCount}
+                      onChange={(e) => {
+                        const v = parseInt(e.target.value, 10);
+                        if (!isNaN(v)) setOutlineSlideCount(Math.max(MIN_SLIDES, Math.min(MAX_SLIDES, v)));
+                      }}
+                      className="h-9 w-16 text-center"
+                      disabled={outlineGenerating}
+                    />
+                    <button
+                      onClick={() => setOutlineSlideCount((p) => Math.min(MAX_SLIDES, p + 1))}
+                      disabled={outlineGenerating || outlineSlideCount >= MAX_SLIDES}
+                      className="flex h-9 w-9 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-muted disabled:opacity-40"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Style */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Design Style</Label>
+                  <Select value={outlineStyle} onValueChange={setOutlineStyle} disabled={outlineGenerating}>
+                    <SelectTrigger className="h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SLIDE_STYLES.map((s) => (
+                        <SelectItem key={s.value} value={s.value}>
+                          <div className="flex items-center gap-2">
+                            <span>{s.label}</span>
+                            <span className="text-xs text-muted-foreground">{s.description}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* ---- Loading state ---- */}
+              {outlineGenerating && (
+                <div className="flex flex-col items-center justify-center py-12 gap-3">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  <p className="text-sm text-muted-foreground">Generating slide outline...</p>
+                </div>
+              )}
+
+              {/* ---- Editable Outline List ---- */}
+              {!outlineGenerating && editingOutlineLesson && outlineEditingSlides.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Label className="text-sm font-semibold text-foreground">
+                        Slide Outline ({outlineEditingSlides.length} slides)
+                      </Label>
+                      <Badge variant="secondary" className="text-[10px]">
+                        {outlineStyle}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={handleAddOutlineSlide}
+                        className="h-7 gap-1 text-xs"
+                      >
+                        <Plus className="h-3 w-3" />
+                        Add Slide
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={handleRegenerateOutline}
+                        className="h-7 gap-1 text-xs"
+                      >
+                        <RotateCcw className="h-3 w-3" />
+                        Regenerate
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="max-h-[340px] overflow-y-auto space-y-2 pr-1">
+                    {outlineEditingSlides.map((slide, i) => (
+                      <div
+                        key={slide.id}
+                        className="group flex items-start gap-3 rounded-lg border border-border/50 bg-card p-3 transition-colors hover:border-primary/30"
+                      >
+                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+                          {i + 1}
+                        </div>
+                        <div className="min-w-0 flex-1 space-y-1.5">
+                          <input
+                            value={slide.title}
+                            onChange={(e) => {
+                              const newTitle = e.target.value;
+                              setOutlineEditingSlides((prev) =>
+                                prev.map((s) => (s.id === slide.id ? { ...s, title: newTitle } : s))
+                              );
+                            }}
+                            onBlur={() => {
+                              if (slide.slideId) handleUpdateSlideTitle(slide.slideId, slide.title);
+                            }}
+                            className="w-full bg-transparent text-sm font-medium text-foreground outline-none placeholder:text-muted-foreground/50 border-b border-transparent focus:border-primary/30 transition-colors"
+                            placeholder="Slide title..."
+                          />
+                          {slide.outline && (
+                            <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">
+                              {slide.outline}
+                            </p>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => handleDeleteOutlineSlide(slide.slideId || "", slide.id)}
+                          className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-muted-foreground/40 opacity-0 transition-all hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
+                          aria-label="Remove slide"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+
+                  <DialogFooter className="mt-2">
+                    <Button variant="ghost" onClick={() => setModalOpen(false)}>
+                      Close
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        if (editingOutlineLesson) handleGenerateSlides(editingOutlineLesson);
+                      }}
+                      className="gap-2"
+                    >
+                      <Play className="h-4 w-4" />
+                      Generate Slides
+                    </Button>
+                  </DialogFooter>
+                </div>
+              )}
+
+              {/* ---- Generate button (no outline yet) ---- */}
+              {!outlineGenerating && (!editingOutlineLesson || outlineEditingSlides.length === 0) && (
+                <DialogFooter className="mt-2">
+                  <Button variant="ghost" onClick={() => setModalOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleGenerateOutline}
+                    disabled={!outlineTopic.trim()}
+                    className="gap-2"
+                  >
+                    <Wand2 className="h-4 w-4" />
+                    Generate Outline
+                  </Button>
+                </DialogFooter>
+              )}
+            </div>
+          )}
+          </DialogContent>
       </Dialog>
     </div>
   );
@@ -973,6 +1586,127 @@ function LessonCard({
               style={{ aspectRatio: "16/9" }}
               title={`Preview of ${lesson.title}`}
             />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================
+// Outline Lesson Card
+// ============================================
+
+interface OutlineLessonCardProps {
+  lesson: OutlineLessonDraft;
+  index: number;
+  expanded: boolean;
+  isEditing: boolean;
+  editingSlides: OutlineSlideDraft[];
+  onToggleExpand: () => void;
+  onEditOutline: () => void;
+  onUpdateSlideTitle: (slideId: string, newTitle: string) => void;
+  onDeleteSlide: (slideId: string, localId: string) => void;
+  onGenerateSlides: () => void;
+  onDelete: () => void;
+}
+
+function OutlineLessonCard({
+  lesson,
+  index,
+  expanded,
+  isEditing,
+  editingSlides,
+  onToggleExpand,
+  onEditOutline,
+  onUpdateSlideTitle,
+  onDeleteSlide,
+  onGenerateSlides,
+  onDelete,
+}: OutlineLessonCardProps) {
+  const styleLabel = SLIDE_STYLES.find((s) => s.value === lesson.style)?.label || lesson.style;
+
+  return (
+    <div className="group rounded-lg border border-primary/30 bg-primary/[0.02] hover:bg-primary/[0.04] transition-colors">
+      <div className="flex items-center gap-3 p-3">
+        {/* Number Badge */}
+        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+          {index + 1}
+        </div>
+
+        {/* Content */}
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium text-foreground">
+            {lesson.title}
+          </p>
+          <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 dark:bg-blue-900/30 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 dark:text-blue-400">
+              <LayoutList className="h-2.5 w-2.5" />
+              {lesson.slides.length} slides
+            </span>
+            <span>·</span>
+            <span>{styleLabel}</span>
+          </div>
+        </div>
+
+        {/* Edit outline button */}
+        <button
+          onClick={onEditOutline}
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground/50 opacity-0 transition-all hover:bg-primary/10 hover:text-primary group-hover:opacity-100"
+          title="Edit outline"
+        >
+          <Pencil className="h-3.5 w-3.5" />
+        </button>
+
+        {/* Expand toggle */}
+        <button
+          onClick={onToggleExpand}
+          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors ${
+            expanded
+              ? "bg-primary/10 text-primary"
+              : "text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted opacity-0 group-hover:opacity-100"
+          }`}
+          title={expanded ? "Hide slides" : "Show slides"}
+        >
+          <Eye className="h-3.5 w-3.5" />
+        </button>
+
+        {/* Delete button */}
+        <button
+          onClick={onDelete}
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground/50 opacity-0 transition-all hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
+          aria-label="Delete lesson"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+      </div>
+
+      {/* ---- Expanded slide list ---- */}
+      {expanded && (
+        <div className="border-t border-border/40 px-3 pb-3 pt-2 space-y-1.5">
+          {lesson.slides.map((slide, i) => (
+            <div key={slide.id} className="flex items-center gap-2 rounded-md bg-muted/30 px-2.5 py-1.5">
+              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-[10px] font-bold text-muted-foreground">
+                {i + 1}
+              </span>
+              <span className="flex-1 truncate text-xs text-foreground">{slide.title}</span>
+              {slide.outline && (
+                <span className="hidden sm:inline max-w-[140px] truncate text-[10px] text-muted-foreground">{slide.outline}</span>
+              )}
+              <span className="inline-flex items-center rounded-full bg-amber-100 dark:bg-amber-900/30 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-400">
+                Draft
+              </span>
+            </div>
+          ))}
+          <div className="pt-1">
+            <Button
+              size="sm"
+              onClick={onGenerateSlides}
+              className="w-full gap-1.5 h-8 text-xs"
+            >
+              <Play className="h-3 w-3" />
+              Generate Slides
+            </Button>
           </div>
         </div>
       )}

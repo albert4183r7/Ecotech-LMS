@@ -89,3 +89,31 @@ export async function PUT(
     );
   }
 }
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+
+    const lesson = await db.lesson.findUnique({ where: { id } });
+    if (!lesson) {
+      return NextResponse.json(
+        { success: false, error: 'Lesson not found' },
+        { status: 404 },
+      );
+    }
+
+    // Slides are cascade-deleted by the relation
+    await db.lesson.delete({ where: { id } });
+
+    return NextResponse.json({ success: true, data: { id } });
+  } catch (error) {
+    console.error('Error deleting lesson:', error);
+    return NextResponse.json(
+      { success: false, error: 'Failed to delete lesson' },
+      { status: 500 },
+    );
+  }
+}
