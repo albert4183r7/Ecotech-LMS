@@ -17,6 +17,7 @@ import {
   Send,
   FileDown,
   Wand2,
+  Pencil,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -72,6 +73,26 @@ export function ClassroomPage() {
   const [aiEditInstruction, setAiEditInstruction] = useState("");
   const [aiEditLoading, setAiEditLoading] = useState(false);
 
+  // ─── Click-to-Edit State ──────────────────────
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const currentSlideIdRef = useRef<string | null>(null);
+  const slideContextRef = useRef<string>("");
+  const [elementEdit, setElementEdit] = useState<{
+    show: boolean;
+    targetElement: Element | null;
+    outerHTML: string;
+    position: { x: number; y: number };
+    instruction: string;
+    loading: boolean;
+  }>({
+    show: false,
+    targetElement: null,
+    outerHTML: "",
+    position: { x: 0, y: 0 },
+    instruction: "",
+    loading: false,
+  });
+
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 1023px)");
     setIsMobile(mq.matches);
@@ -100,14 +121,27 @@ export function ClassroomPage() {
         const res = await fetch(`/api/lessons/${lessonId}`);
         if (!res.ok) return;
         const json = await res.json();
-        const htmlBody =
+        const slideData =
           json.success && json.data.slides?.length > 0
-            ? json.data.slides[0].htmlBody
-            : '<div class="flex items-center justify-center h-full"><p class="text-gray-500">No content available.</p></div>';
+            ? json.data.slides[0]
+            : null;
+        const htmlBody = slideData?.htmlBody
+            || '<div class="flex items-center justify-center h-full"><p class="text-gray-500">No content available.</p></div>';
         const lessonTitle =
           json.success && json.data.title
             ? json.data.title
             : `Lesson ${index + 1}`;
+        // Track slide ID for element-edit persistence
+        if (slideData?.id) currentSlideIdRef.current = slideData.id;
+        // Extract slide style context from outlineJson
+        if (json.data.outlineJson) {
+          try {
+            const outline = JSON.parse(json.data.outlineJson);
+            const style = outline.style || "";
+            const topic = outline.topic || lessonTitle;
+            slideContextRef.current = `This is a ${style ? style + "-style" : ""} slide about "${topic}". Keep edits visually consistent with this style.`;
+          } catch { /* ignore parse errors */ }
+        }
         setLocalState((prev) =>
           prev
             ? {
@@ -216,6 +250,170 @@ export function ClassroomPage() {
       document.removeEventListener("lms:next-slide", handleCustomNextSlide);
     };
   }, [goBack, goPrev, goNext]);
+
+  // ─── Iframe Click-to-Edit Listener ─────────────
+  // Attaches a click listener to the iframe's document body.
+  // With sandbox="allow-same-origin", the parent can access iframe.contentDocument directly.
+  // No sandbox change needed — direct DOM access is safe under allow-same-origin.
+  const handleIframeClick = useCallback(
+    (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target || target.tagName === "BODY" || target.tagName === "HTML") return;
+
+      const iframe = iframeRef.current;
+      if (!iframe?.contentDocument || !iframe.contentWindow) return;
+
+      // Capture the element reference and its outerHTML
+      const outerHTML = target.outerHTML;
+
+      // Map click coordinates from iframe viewport to parent viewport
+      // accounting for zoom transform on the container
+      const iframeRect = iframe.getBoundingClientRect();
+      const iframeWidth = iframe.contentWindow.innerWidth;
+      const iframeHeight = iframe.contentWindow.innerHeight;
+      const scaleX = iframeRect.width / iframeWidth;
+      const scaleY = iframeRect.height / iframeHeight;
+      const pageX = iframeRect.left + e.clientX * scaleX;
+      const pageY = iframeRect.top + e.clientY * scaleY;
+
+      // Position toolbar slightly offset from click
+      const toolbarX = Math.min(pageX + 10, window.innerWidth - 300);
+      const toolbarY = Math.min(pageY - 10, window.innerHeight - 120);
+
+      setElementEdit({
+        show: true,
+        targetElement: target,
+        outerHTML,
+        position: { x: Math.max(10, toolbarX), y: Math.max(10, toolbarY) },
+        instruction: "",
+        loading: false,
+      });
+    },
+    []
+  );
+
+  const attachIframeClickListener = useCallback(() => {
+    const iframe = iframeRef.current;
+    if (!iframe || !iframe.contentDocument?.body) return;
+
+    const body = iframe.contentDocument.body;
+    // Remove any previously attached listener to avoid duplicates
+    body.removeEventListener("click", handleIframeClick);
+    body.addEventListener("click", handleIframeClick);
+  }, [handleIframeClick]);
+
+  // Re-attach click listener when htmlBody changes (new slide loaded)
+  useEffect(() => {
+    // Small delay to ensure iframe has rendered the new srcDoc
+    const timer = setTimeout(attachIframeClickListener, 300);
+    return () => clearTimeout(timer);
+  }, [localState?.htmlBody, attachIframeClickListener]);
+
+  // Close element edit toolbar on Escape
+  useEffect(() => {
+    if (!elementEdit.show) return;
+    function handleEsc(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setElementEdit((prev) => ({ ...prev, show: false, instruction: "" }));
+      }
+    }
+    document.addEventListener("keydown", handleEsc);
+    return () => document.removeEventListener("keydown", handleEsc);
+  }, [elementEdit.show]);
+
+  /** Submit element edit: call API, replace in DOM, persist */
+  const handleElementEdit = useCallback(async () => {
+    if (
+      !elementEdit.targetElement ||
+      elementEdit.loading ||
+      !elementEdit.instruction.trim()
+    )
+      return;
+
+    setElementEdit((prev) => ({ ...prev, loading: true }));
+
+    try {
+      const res = await fetch("/api/slides/element-edit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          elementHtml: elementEdit.outerHTML,
+          instruction: elementEdit.instruction.trim(),
+          slideContext: slideContextRef.current,
+        }),
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => null);
+        toast.error(errJson?.error || "Element edit failed");
+        return;
+      }
+
+      const json = await res.json();
+      if (!json.success || !json.data?.replacementHtml) {
+        toast.error("Element edit returned no content");
+        return;
+      }
+
+      const replacementHtml = json.data.replacementHtml;
+
+      // Replace the element in the iframe DOM
+      const iframe = iframeRef.current;
+      if (iframe?.contentDocument && elementEdit.targetElement) {
+        // Verify the element is still in the DOM (user may have navigated)
+        if (iframe.contentDocument.contains(elementEdit.targetElement)) {
+          const tempDiv = iframe.contentDocument.createElement("div");
+          tempDiv.innerHTML = replacementHtml;
+          const newElement = tempDiv.firstElementChild;
+          if (newElement) {
+            elementEdit.targetElement.replaceWith(newElement);
+          }
+        }
+
+        // Rebuild full HTML from the updated iframe DOM
+        const bodyHtml = iframe.contentDocument.body.innerHTML;
+        const title = localState?.lessonTitle || "Slide";
+        const safeTitle = title
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;");
+        const updatedHtmlBody =
+          `<!DOCTYPE html>\n<html lang="en">\n<head>\n  <meta charset="UTF-8" />\n  <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n  <title>${safeTitle}</title>\n  <script src="https://cdn.tailwindcss.com"><\/script>\n  <style>\n    body { margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }\n    * { box-sizing: border-box; }\n  </style>\n</head>\n<body class="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">\n  ${bodyHtml}\n</body>\n</html>`;
+
+        // Update local state
+        setLocalState((prev) =>
+          prev ? { ...prev, htmlBody: updatedHtmlBody } : prev
+        );
+
+        // Persist to database
+        const slideId = currentSlideIdRef.current;
+        if (slideId) {
+          fetch(`/api/slides/${slideId}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ htmlBody: updatedHtmlBody }),
+          }).catch(() => { /* best-effort */ });
+        }
+
+        // Re-attach click listener for the new DOM
+        setTimeout(attachIframeClickListener, 100);
+
+        toast.success("Element edited successfully");
+      }
+    } catch {
+      toast.error("Element edit request failed");
+    } finally {
+      setElementEdit({
+        show: false,
+        targetElement: null,
+        outerHTML: "",
+        position: { x: 0, y: 0 },
+        instruction: "",
+        loading: false,
+      });
+    }
+  }, [elementEdit, localState?.lessonTitle, attachIframeClickListener]);
 
   /** Zoom controls */
   const zoomIn = () => setZoom((z) => Math.min(z + ZOOM_STEP, MAX_ZOOM));
@@ -530,6 +728,7 @@ export function ClassroomPage() {
               </div>
             ) : (
               <iframe
+                ref={iframeRef}
                 srcDoc={localState.htmlBody || ""}
                 sandbox="allow-same-origin"
                 className="w-full rounded-lg border-0"
@@ -743,6 +942,73 @@ export function ClassroomPage() {
           </div>
         </div>
       </footer>
+
+      {/* ─── Click-to-Edit Floating Toolbar ── */}
+      {elementEdit.show && (
+        <div
+          className="fixed z-50 w-72 rounded-lg border bg-card shadow-xl p-3 flex flex-col gap-2"
+          style={{
+            left: elementEdit.position.x,
+            top: elementEdit.position.y,
+          }}
+        >
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-semibold flex items-center gap-1.5 text-muted-foreground">
+              <Pencil className="h-3.5 w-3.5" />
+              Edit Element
+            </h3>
+            <button
+              type="button"
+              className="p-0.5 rounded hover:bg-muted transition-colors"
+              onClick={() =>
+                setElementEdit((prev) => ({
+                  ...prev,
+                  show: false,
+                  instruction: "",
+                }))
+              }
+              aria-label="Close element edit"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+          <input
+            type="text"
+            value={elementEdit.instruction}
+            onChange={(e) =>
+              setElementEdit((prev) => ({
+                ...prev,
+                instruction: e.target.value,
+              }))
+            }
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleElementEdit();
+              }
+            }}
+            placeholder="e.g. make this shorter"
+            className="w-full rounded-md border bg-background px-2.5 py-1.5 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/20"
+            autoFocus
+            disabled={elementEdit.loading}
+          />
+          <div className="flex items-center justify-end">
+            <Button
+              size="sm"
+              className="h-7 text-xs gap-1"
+              onClick={handleElementEdit}
+              disabled={elementEdit.loading || !elementEdit.instruction.trim()}
+            >
+              {elementEdit.loading ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Pencil className="h-3 w-3" />
+              )}
+              Apply
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* ─── AI Edit Floating Panel ────────── */}
       {showAiEdit && (

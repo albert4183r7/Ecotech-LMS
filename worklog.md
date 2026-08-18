@@ -715,3 +715,68 @@ Stage Summary:
 - Files created: src/app/api/lessons/generate-slides/route.ts
 - Files modified: src/components/lms/pages/create-course-page.tsx (full rewrite, ~530 lines → clean unified flow)
 - Next step: Step 4 — remaining steps in the 15-step plan
+
+---
+Task ID: click-to-edit-and-imagekit
+Agent: main
+
+Work Log:
+- **Implemented click-to-edit on rendered slides** in classroom-page.tsx:
+  - Added `iframeRef` for direct DOM access to the iframe's contentDocument
+  - Added `currentSlideIdRef` to track slide ID for persistence (extracted from lesson API response)
+  - Added `slideContextRef` to store style context parsed from lesson's outlineJson
+  - Added `elementEdit` state: { show, targetElement, outerHTML, position, instruction, loading }
+  - Added `handleIframeClick` callback: captures clicked element, computes toolbar position accounting for zoom transform
+  - Added `attachIframeClickListener` callback: attaches/removes click listener on iframe body
+  - Added `handleElementEdit` callback: calls API, replaces element in iframe DOM via `replaceWith()`, rebuilds full HTML from iframe body, updates localState, persists to DB via PUT /api/slides/[id]
+  - Added Escape key handler to close toolbar
+  - Added useEffect to re-attach click listener when htmlBody changes (lesson navigation)
+  - Added floating toolbar JSX: small card with Pencil icon, instruction input, Apply button, positioned at click coordinates via `style={{ left, top }}`
+  - Added `ref={iframeRef}` to the iframe element
+  - Added `Pencil` icon import from lucide-react
+  - **Sandbox analysis**: `sandbox="allow-same-origin"` allows parent-frame direct DOM access (contentDocument). No sandbox change needed for click-to-edit. Note: `allow-scripts` is not present, so Tailwind CDN `<script>` in srcDoc may not execute (pre-existing concern, not modified).
+
+- **Created `POST /api/slides/element-edit/route.ts`**:
+  - Accepts `{ elementHtml, instruction, slideContext }`
+  - Uses `ELEMENT_EDIT_SYSTEM_PROMPT` from ai.ts (same tag, preserve Tailwind classes, ImageKit URL patterns)
+  - Calls `generateText()` non-streaming
+  - Sanitizes returned HTML with `sanitizeHtml()`
+  - Returns `{ success: true, data: { replacementHtml } }`
+
+- **Created `POST /api/imagekit/sign/route.ts`**:
+  - Accepts `{ urlPath, expirySeconds? }`
+  - Signs ImageKit URLs server-side using HMAC-SHA1 with IMAGEKIT_PRIVATE_KEY
+  - URL-safe Base64 signature encoding
+  - Returns `{ success: true, data: { signedUrl, expiresAt } }`
+  - Graceful error when IMAGEKIT_URL_ENDPOINT or IMAGEKIT_PRIVATE_KEY not configured
+  - Default expiry: 1 hour
+
+- **Updated `src/lib/ai.ts`**:
+  - Added `IMAGEKIT_ENDPOINT` constant from env (server-side only)
+  - Updated `SLIDE_HTML_SYSTEM_PROMPT`: added concrete ImageKit URL example, added rule 11 (no non-ImageKit external images)
+  - Updated `INLINE_EDIT_SYSTEM_PROMPT`: added ImageKit generation URL pattern, added transformation param patterns (e-removedotbg, e-changebg-prompt, e-upscale, e-dropshadow) with `?tr=` query param syntax
+  - Added `ELEMENT_EDIT_SYSTEM_PROMPT`: 9 rules for single-element editing (same tag, preserve classes, no extra wrappers, ImageKit URLs)
+
+- **Updated `.env`** with ImageKit placeholder env vars (commented out)
+
+- **Sanitizer verification**: `src/lib/sanitize.ts` already correctly handles ImageKit domain restriction for img src. When IMAGEKIT_URL_ENDPOINT is set, only that domain is allowed. When not set, falls back to allowing any https images for development.
+
+- Lint: zero errors
+- Dev server: no runtime errors
+- Agent-browser verified: click inside iframe → toolbar appears with "Edit Element" heading, close button, instruction input, and disabled Apply button
+- API tested: element-edit returns correct sanitized replacement HTML; imagekit/sign returns graceful error when not configured
+
+Stage Summary:
+- Click-to-edit feature COMPLETE: floating toolbar appears on iframe element click, captures outerHTML, sends to API, replaces element in DOM, persists to DB
+- ImageKit integration infrastructure COMPLETE: signing endpoint, system prompt updates, sanitizer verified
+- SlideVersion history NOT implemented (no model in schema, per earlier plan decision)
+- Files created: src/app/api/slides/element-edit/route.ts, src/app/api/imagekit/sign/route.ts
+- Files modified: src/components/lms/pages/classroom-page.tsx, src/lib/ai.ts, .env
+- Files NOT modified: hero section, any other pages, sandbox attribute, prisma schema, types
+
+**NOTE for user**: ImageKit credentials needed. Please provide:
+- `IMAGEKIT_URL_ENDPOINT` (e.g., https://ik.imagekit.io/your_id)
+- `IMAGEKIT_PUBLIC_KEY`
+- `IMAGEKIT_PRIVATE_KEY`
+
+**NOTE on sandbox**: The iframe has `sandbox="allow-same-origin"` which allows direct DOM access from the parent frame (used for click-to-edit). However, `allow-scripts` is NOT present, which means the Tailwind CDN `<script>` in srcDoc does not execute. This is a pre-existing issue that affects slide styling rendering. Adding `allow-scripts` would fix Tailwind rendering but would also allow any scripts in the HTML to execute. Recommend deciding on this separately.
