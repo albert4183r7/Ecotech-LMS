@@ -19,6 +19,9 @@ import {
   Play,
   Check,
   AlertCircle,
+  Upload,
+  Paperclip,
+  Globe,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -112,13 +115,17 @@ export function CreateCoursePage() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
-  const [urlInputOpen, setUrlInputOpen] = useState(false);
-  const [imageUrl, setImageUrl] = useState("");
+  const [coverUploading, setCoverUploading] = useState(false);
+  const [docUploading, setDocUploading] = useState(false);
+
+  // ---- Reference documents state ----
+  const [referenceFiles, setReferenceFiles] = useState<{ name: string; url: string; size: number; type: string }[]>([]);
 
   // ---- Outline modal state ----
   const [outlineTopic, setOutlineTopic] = useState("");
   const [outlineSlideCount, setOutlineSlideCount] = useState(DEFAULT_SLIDE_COUNT);
   const [outlineStyle, setOutlineStyle] = useState("professional");
+  const [outlineLanguage, setOutlineLanguage] = useState(language);
   const [outlineGenerating, setOutlineGenerating] = useState(false);
   const [editingOutlineLesson, setEditingOutlineLesson] = useState<string | null>(null);
   const [outlineEditingSlides, setOutlineEditingSlides] = useState<OutlineSlideDraft[]>([]);
@@ -137,6 +144,7 @@ export function CreateCoursePage() {
 
   // ---- Refs ----
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const docInputRef = useRef<HTMLInputElement>(null);
 
   // ---- Pre-fill title from hero prompt ----
   useEffect(() => {
@@ -165,18 +173,86 @@ export function CreateCoursePage() {
     fetchCategories();
   }, []);
 
-  // ---- Cover image handlers ----
+  // ---- Cover image handlers (local file upload) ----
   const handleCoverUpload = () => {
-    setUrlInputOpen(true);
+    fileInputRef.current?.click();
   };
 
-  const handleUrlConfirm = () => {
-    if (imageUrl.trim()) {
-      setCoverImage(imageUrl.trim());
-      setCoverPreview(imageUrl.trim());
-      setUrlInputOpen(false);
-      setImageUrl("");
+  const handleCoverFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Client-side validation
+    const validTypes = ["image/jpeg", "image/png", "image/webp", "image/gif", "image/svg+xml"];
+    if (!validTypes.includes(file.type)) {
+      toast.error("Please select a valid image (JPEG, PNG, WebP, GIF, SVG)");
+      return;
     }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Image must be under 5MB");
+      return;
+    }
+
+    setCoverUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/upload?type=cover", {
+        method: "POST",
+        body: formData,
+      });
+      const json = await res.json();
+      if (json.success) {
+        setCoverImage(json.data.url);
+        setCoverPreview(json.data.url);
+        toast.success("Cover image uploaded");
+      } else {
+        toast.error(json.error || "Failed to upload image");
+      }
+    } catch {
+      toast.error("Failed to upload image");
+    } finally {
+      setCoverUploading(false);
+      // Reset input so same file can be re-selected
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  // ---- Reference document handlers ----
+  const handleDocUploadClick = () => {
+    docInputRef.current?.click();
+  };
+
+  const handleDocFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setDocUploading(true);
+    try {
+      for (const file of Array.from(files)) {
+        const formData = new FormData();
+        formData.append("file", file);
+        const res = await fetch("/api/upload?type=doc", {
+          method: "POST",
+          body: formData,
+        });
+        const json = await res.json();
+        if (json.success) {
+          setReferenceFiles((prev) => [...prev, json.data]);
+        } else {
+          toast.error(`Failed to upload: ${file.name}`);
+        }
+      }
+    } catch {
+      toast.error("Failed to upload document");
+    } finally {
+      setDocUploading(false);
+      if (docInputRef.current) docInputRef.current.value = "";
+    }
+  };
+
+  const handleRemoveDoc = (url: string) => {
+    setReferenceFiles((prev) => prev.filter((f) => f.url !== url));
   };
 
   const handleRemoveCover = () => {
@@ -222,9 +298,11 @@ export function CreateCoursePage() {
     setOutlineTopic("");
     setOutlineSlideCount(DEFAULT_SLIDE_COUNT);
     setOutlineStyle("professional");
+    setOutlineLanguage(language);
     setOutlineGenerating(false);
     setEditingOutlineLesson(null);
     setOutlineEditingSlides([]);
+    setReferenceFiles([]);
     setModalOpen(true);
   };
 
@@ -252,7 +330,8 @@ export function CreateCoursePage() {
           topic: outlineTopic.trim(),
           slideCount: outlineSlideCount,
           style: outlineStyle,
-          language,
+          language: outlineLanguage,
+          referenceFileUrls: referenceFiles.length > 0 ? referenceFiles.map((f) => f.url) : undefined,
         }),
       });
       const json = await res.json();
@@ -279,7 +358,7 @@ export function CreateCoursePage() {
         id: lessonData.id,
         title: lessonData.title,
         slides,
-        language,
+        language: outlineLanguage,
         style: outlineStyle,
         topic: outlineTopic.trim(),
       };
@@ -293,7 +372,7 @@ export function CreateCoursePage() {
       toast.error("Failed to generate outline. Please try again.");
       setOutlineGenerating(false);
     }
-  }, [outlineTopic, outlineSlideCount, outlineStyle, language, ensureCourseSaved, outlineLessons.length]);
+  }, [outlineTopic, outlineSlideCount, outlineStyle, outlineLanguage, referenceFiles, ensureCourseSaved, outlineLessons.length]);
 
   // ---- Update slide title (inline edit) ----
   const handleUpdateSlideTitle = async (slideId: string, newTitle: string) => {
@@ -376,8 +455,9 @@ export function CreateCoursePage() {
           topic: outlineTopic.trim(),
           slideCount: outlineSlideCount,
           style: outlineStyle,
-          language,
+          language: outlineLanguage,
           existingLessonId: editingOutlineLesson,
+          referenceFileUrls: referenceFiles.length > 0 ? referenceFiles.map((f) => f.url) : undefined,
         }),
       });
       const json = await res.json();
@@ -658,14 +738,19 @@ export function CreateCoursePage() {
                   <button
                     type="button"
                     onClick={handleCoverUpload}
-                    className="flex h-48 w-full flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-border/70 bg-muted/30 transition-colors hover:border-primary/50 hover:bg-muted/50"
+                    disabled={coverUploading}
+                    className="flex h-48 w-full flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-border/70 bg-muted/30 transition-colors hover:border-primary/50 hover:bg-muted/50 disabled:opacity-50"
                   >
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-                      <ImageIcon className="h-5 w-5 text-muted-foreground" />
-                    </div>
+                    {coverUploading ? (
+                      <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                    ) : (
+                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+                        <Upload className="h-5 w-5 text-muted-foreground" />
+                      </div>
+                    )}
                     <div className="text-center">
                       <p className="text-sm font-medium text-foreground">
-                        Upload cover image
+                        {coverUploading ? "Uploading..." : "Upload cover image"}
                       </p>
                       <p className="mt-0.5 text-xs text-muted-foreground">
                         Recommended 1920×1080
@@ -673,36 +758,12 @@ export function CreateCoursePage() {
                     </div>
                   </button>
                 )}
-
-                {urlInputOpen && (
-                  <div className="flex items-center gap-2">
-                    <Input
-                      placeholder="Paste image URL here..."
-                      value={imageUrl}
-                      onChange={(e) => setImageUrl(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && handleUrlConfirm()}
-                      className="flex-1"
-                    />
-                    <Button size="sm" onClick={handleUrlConfirm}>
-                      Apply
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => {
-                        setUrlInputOpen(false);
-                        setImageUrl("");
-                      }}
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                )}
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="image/*"
+                  accept="image/jpeg,image/png,image/webp,image/gif,image/svg+xml"
                   className="hidden"
+                  onChange={handleCoverFileChange}
                 />
               </div>
 
@@ -975,6 +1036,99 @@ export function CreateCoursePage() {
                 </Select>
               </div>
             </div>
+
+            {/* Language + Reference Docs row */}
+            <div className="grid grid-cols-2 gap-4">
+              {/* Language */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">
+                  <span className="inline-flex items-center gap-1.5">
+                    <Globe className="h-3.5 w-3.5" />
+                    Language
+                  </span>
+                </Label>
+                <Select value={outlineLanguage} onValueChange={setOutlineLanguage} disabled={outlineGenerating}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="english">English</SelectItem>
+                    <SelectItem value="chinese">中文 (Chinese)</SelectItem>
+                    <SelectItem value="spanish">Español (Spanish)</SelectItem>
+                    <SelectItem value="french">Français (French)</SelectItem>
+                    <SelectItem value="german">Deutsch (German)</SelectItem>
+                    <SelectItem value="japanese">日本語 (Japanese)</SelectItem>
+                    <SelectItem value="korean">한국어 (Korean)</SelectItem>
+                    <SelectItem value="indonesian">Bahasa Indonesia</SelectItem>
+                    <SelectItem value="malay">Bahasa Melayu</SelectItem>
+                    <SelectItem value="portuguese">Português (Portuguese)</SelectItem>
+                    <SelectItem value="arabic">العربية (Arabic)</SelectItem>
+                    <SelectItem value="thai">ไทย (Thai)</SelectItem>
+                    <SelectItem value="vietnamese">Tiếng Việt (Vietnamese)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Reference Documents */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">
+                  <span className="inline-flex items-center gap-1.5">
+                    <Paperclip className="h-3.5 w-3.5" />
+                    Reference Documents
+                  </span>
+                  <span className="ml-1.5 text-xs font-normal text-muted-foreground">(optional)</span>
+                </Label>
+                <input
+                  ref={docInputRef}
+                  type="file"
+                  multiple
+                  accept=".pdf,.doc,.docx,.ppt,.pptx,.txt,.csv,.xls,.xlsx,.md,.rtf"
+                  className="hidden"
+                  onChange={handleDocFileChange}
+                />
+                <button
+                  type="button"
+                  onClick={handleDocUploadClick}
+                  disabled={outlineGenerating || docUploading}
+                  className="flex h-9 w-full items-center justify-center gap-2 rounded-md border border-dashed border-border/70 bg-muted/30 text-sm text-muted-foreground transition-colors hover:border-primary/50 hover:bg-muted/50 hover:text-foreground disabled:opacity-50"
+                >
+                  {docUploading ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Upload className="h-3.5 w-3.5" />
+                  )}
+                  {docUploading ? "Uploading..." : "Upload Documents"}
+                </button>
+                <p className="text-[10px] text-muted-foreground">
+                  PDF, DOCX, PPTX, TXT, CSV, XLSX, MD, RTF
+                </p>
+              </div>
+            </div>
+
+            {/* Uploaded reference files list */}
+            {referenceFiles.length > 0 && (
+              <div className="space-y-1.5">
+                {referenceFiles.map((f) => (
+                  <div
+                    key={f.url}
+                    className="flex items-center gap-2 rounded-md border border-border/50 bg-muted/20 px-3 py-2"
+                  >
+                    <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span className="flex-1 truncate text-xs text-foreground">{f.name}</span>
+                    <span className="text-[10px] text-muted-foreground">
+                      {(f.size / 1024).toFixed(0)} KB
+                    </span>
+                    <button
+                      onClick={() => handleRemoveDoc(f.url)}
+                      disabled={outlineGenerating}
+                      className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-40"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* ---- Loading state ---- */}
             {outlineGenerating && (

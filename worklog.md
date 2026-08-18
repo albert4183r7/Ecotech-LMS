@@ -780,3 +780,25 @@ Stage Summary:
 - `IMAGEKIT_PRIVATE_KEY`
 
 **NOTE on sandbox**: The iframe has `sandbox="allow-same-origin"` which allows direct DOM access from the parent frame (used for click-to-edit). However, `allow-scripts` is NOT present, which means the Tailwind CDN `<script>` in srcDoc does not execute. This is a pre-existing issue that affects slide styling rendering. Adding `allow-scripts` would fix Tailwind rendering but would also allow any scripts in the HTML to execute. Recommend deciding on this separately.
+
+---
+Task ID: 1
+Agent: Main
+Task: Fix 3 UI issues reported by user (cover image upload, modal missing docs/language, profile blank space)
+
+Work Log:
+- Analyzed 3 uploaded screenshots with VLM to understand exact issues
+- Created /api/upload route for file uploads (cover images + reference docs)
+- Changed cover image from URL input to local file upload with drag-to-browse UX
+- Added reference document upload section to Generate Lesson modal (supports PDF, DOCX, PPTX, TXT, CSV, XLSX, MD, RTF)
+- Added language selection dropdown to Generate Lesson modal (13 languages)
+- Fixed Profile page blank space by conditionally removing grid for instructor role
+- Updated outline generation to pass outlineLanguage and referenceFileUrls to API
+- Verified all changes with agent-browser - no lint errors, no runtime errors
+
+Stage Summary:
+- Created: /src/app/api/upload/route.ts (file upload endpoint)
+- Created: /public/uploads/covers/ and /public/uploads/docs/ directories
+- Modified: /src/components/lms/pages/create-course-page.tsx (cover upload, modal language+docs)
+- Modified: /src/components/lms/pages/profile-page.tsx (instructor layout fix)
+- All 4 issues resolved and verified

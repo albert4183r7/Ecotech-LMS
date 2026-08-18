@@ -1,0 +1,1405 @@
+     1→"use client";
+     2→
+     3→import { useState, useEffect, useCallback, useRef } from "react";
+     4→import {
+     5→  ArrowLeft,
+     6→  Trash2,
+     7→  FileText,
+     8→  Loader2,
+     9→  ImageIcon,
+    10→  X,
+    11→  Sparkles,
+    12→  Eye,
+    13→  Wand2,
+    14→  LayoutList,
+    15→  Minus,
+    16→  Plus,
+    17→  Pencil,
+    18→  RotateCcw,
+    19→  Play,
+    20→  Check,
+    21→  AlertCircle,
+    22→} from "lucide-react";
+    23→import { Button } from "@/components/ui/button";
+    24→import { Input } from "@/components/ui/input";
+    25→import { Textarea } from "@/components/ui/textarea";
+    26→import { Label } from "@/components/ui/label";
+    27→import { Card, CardContent } from "@/components/ui/card";
+    28→import { Badge } from "@/components/ui/badge";
+    29→import { Separator } from "@/components/ui/separator";
+    30→import {
+    31→  Select,
+    32→  SelectContent,
+    33→  SelectItem,
+    34→  SelectTrigger,
+    35→  SelectValue,
+    36→} from "@/components/ui/select";
+    37→import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+    38→import {
+    39→  Dialog,
+    40→  DialogContent,
+    41→  DialogHeader,
+    42→  DialogTitle,
+    43→  DialogDescription,
+    44→  DialogFooter,
+    45→} from "@/components/ui/dialog";
+    46→import { useNavigationStore, useUserStore, useCourseStore } from "@/stores/lms-store";
+    47→import type { CategoryItem } from "@/types/lms";
+    48→import { toast } from "sonner";
+    49→import { SLIDE_STYLES, MIN_SLIDES, MAX_SLIDES, DEFAULT_SLIDE_COUNT } from "@/lib/slide-styles";
+    50→
+    51→// ============================================
+    52→// Types
+    53→// ============================================
+    54→
+    55→/** Slide in an editable outline */
+    56→interface OutlineSlideDraft {
+    57→  id: string;
+    58→  slideId: string | null;
+    59→  title: string;
+    60→  outline: string;
+    61→  order: number;
+    62→}
+    63→
+    64→/** Per-slide generation state */
+    65→interface SlideGenState {
+    66→  status: "pending" | "generating" | "complete" | "error";
+    67→  htmlBody?: string;
+    68→  error?: string;
+    69→}
+    70→
+    71→/** A lesson created via the outline flow (persisted in DB) */
+    72→interface OutlineLessonDraft {
+    73→  id: string;
+    74→  title: string;
+    75→  slides: OutlineSlideDraft[];
+    76→  language: string;
+    77→  style: string;
+    78→  topic: string;
+    79→  // Generation state
+    80→  allReady?: boolean;
+    81→}
+    82→
+    83→// ============================================
+    84→// Constants
+    85→// ============================================
+    86→
+    87→const MAX_LESSONS = 10;
+    88→const MAX_TITLE_LENGTH = 100;
+    89→const MAX_DESC_LENGTH = 3000;
+    90→const MAX_COURSE_DESC_LENGTH = 500;
+    91→
+    92→// ============================================
+    93→// Create Course Page Component
+    94→// ============================================
+    95→
+    96→export function CreateCoursePage() {
+    97→  const { goBack } = useNavigationStore();
+    98→  const { currentUserId } = useUserStore();
+    99→  const { createPrompt, setCreatePrompt } = useCourseStore();
+   100→
+   101→  // ---- Course form state ----
+   102→  const [title, setTitle] = useState("");
+   103→  const [description, setDescription] = useState("");
+   104→  const [categoryId, setCategoryId] = useState("");
+   105→  const [language, setLanguage] = useState("english");
+   106→  const [coverImage, setCoverImage] = useState("");
+   107→  const [coverPreview, setCoverPreview] = useState<string | null>(null);
+   108→  const [courseId, setCourseId] = useState<string | null>(null);
+   109→
+   110→  // ---- UI state ----
+   111→  const [categories, setCategories] = useState<CategoryItem[]>([]);
+   112→  const [loading, setLoading] = useState(false);
+   113→  const [saving, setSaving] = useState(false);
+   114→  const [modalOpen, setModalOpen] = useState(false);
+   115→  const [urlInputOpen, setUrlInputOpen] = useState(false);
+   116→  const [imageUrl, setImageUrl] = useState("");
+   117→
+   118→  // ---- Outline modal state ----
+   119→  const [outlineTopic, setOutlineTopic] = useState("");
+   120→  const [outlineSlideCount, setOutlineSlideCount] = useState(DEFAULT_SLIDE_COUNT);
+   121→  const [outlineStyle, setOutlineStyle] = useState("professional");
+   122→  const [outlineGenerating, setOutlineGenerating] = useState(false);
+   123→  const [editingOutlineLesson, setEditingOutlineLesson] = useState<string | null>(null);
+   124→  const [outlineEditingSlides, setOutlineEditingSlides] = useState<OutlineSlideDraft[]>([]);
+   125→
+   126→  // ---- Lessons list ----
+   127→  const [outlineLessons, setOutlineLessons] = useState<OutlineLessonDraft[]>([]);
+   128→  const [expandedOutlineLessonId, setExpandedOutlineLessonId] = useState<string | null>(null);
+   129→
+   130→  // ---- Slide generation state ----
+   131→  const [generatingLessonId, setGeneratingLessonId] = useState<string | null>(null);
+   132→  const [slideGenStates, setSlideGenStates] = useState<Record<string, SlideGenState>>({});
+   133→  const [currentGenSlideId, setCurrentGenSlideId] = useState<string | null>(null);
+   134→  const [streamingHtml, setStreamingHtml] = useState("");
+   135→  const [genProgress, setGenProgress] = useState({ current: 0, total: 0 });
+   136→  const abortGenRef = useRef<AbortController | null>(null);
+   137→
+   138→  // ---- Refs ----
+   139→  const fileInputRef = useRef<HTMLInputElement>(null);
+   140→
+   141→  // ---- Pre-fill title from hero prompt ----
+   142→  useEffect(() => {
+   143→    if (createPrompt) {
+   144→      setTitle(createPrompt);
+   145→      setCreatePrompt("");
+   146→    }
+   147→  }, [createPrompt, setCreatePrompt]);
+   148→
+   149→  // ---- Fetch categories ----
+   150→  useEffect(() => {
+   151→    async function fetchCategories() {
+   152→      setLoading(true);
+   153→      try {
+   154→        const res = await fetch("/api/categories");
+   155→        const json = await res.json();
+   156→        if (json.success) {
+   157→          setCategories(json.data);
+   158→        }
+   159→      } catch {
+   160→        toast.error("Failed to load categories");
+   161→      } finally {
+   162→        setLoading(false);
+   163→      }
+   164→    }
+   165→    fetchCategories();
+   166→  }, []);
+   167→
+   168→  // ---- Cover image handlers ----
+   169→  const handleCoverUpload = () => {
+   170→    setUrlInputOpen(true);
+   171→  };
+   172→
+   173→  const handleUrlConfirm = () => {
+   174→    if (imageUrl.trim()) {
+   175→      setCoverImage(imageUrl.trim());
+   176→      setCoverPreview(imageUrl.trim());
+   177→      setUrlInputOpen(false);
+   178→      setImageUrl("");
+   179→    }
+   180→  };
+   181→
+   182→  const handleRemoveCover = () => {
+   183→    setCoverImage("");
+   184→    setCoverPreview(null);
+   185→  };
+   186→
+   187→  // ---- Auto-save course as draft (needed before outline generation) ----
+   188→  const ensureCourseSaved = useCallback(async (): Promise<string | null> => {
+   189→    if (courseId) return courseId;
+   190→    if (!title.trim() || !currentUserId) {
+   191→      toast.error("Please enter a course title first");
+   192→      return null;
+   193→    }
+   194→    try {
+   195→      const res = await fetch("/api/courses", {
+   196→        method: "POST",
+   197→        headers: { "Content-Type": "application/json" },
+   198→        body: JSON.stringify({
+   199→          title: title.trim(),
+   200→          description: description.trim() || null,
+   201→          categoryId: categoryId || null,
+   202→          language,
+   203→          creatorId: currentUserId,
+   204→          coverImage: coverImage || null,
+   205→        }),
+   206→      });
+   207→      const json = await res.json();
+   208→      if (json.success && json.data?.id) {
+   209→        setCourseId(json.data.id);
+   210→        return json.data.id;
+   211→      }
+   212→      toast.error("Failed to save course draft");
+   213→      return null;
+   214→    } catch {
+   215→      toast.error("Failed to save course draft");
+   216→      return null;
+   217→    }
+   218→  }, [courseId, title, description, categoryId, language, currentUserId, coverImage]);
+   219→
+   220→  // ---- Open modal for new outline ----
+   221→  const handleOpenModal = () => {
+   222→    setOutlineTopic("");
+   223→    setOutlineSlideCount(DEFAULT_SLIDE_COUNT);
+   224→    setOutlineStyle("professional");
+   225→    setOutlineGenerating(false);
+   226→    setEditingOutlineLesson(null);
+   227→    setOutlineEditingSlides([]);
+   228→    setModalOpen(true);
+   229→  };
+   230→
+   231→  // ---- Generate outline ----
+   232→  const handleGenerateOutline = useCallback(async () => {
+   233→    if (!outlineTopic.trim()) {
+   234→      toast.error("Topic is required");
+   235→      return;
+   236→    }
+   237→    if (outlineLessons.length >= MAX_LESSONS) {
+   238→      toast.error(`Maximum ${MAX_LESSONS} lessons allowed`);
+   239→      return;
+   240→    }
+   241→
+   242→    const savedCourseId = await ensureCourseSaved();
+   243→    if (!savedCourseId) return;
+   244→
+   245→    setOutlineGenerating(true);
+   246→    try {
+   247→      const res = await fetch("/api/lessons/generate-outline", {
+   248→        method: "POST",
+   249→        headers: { "Content-Type": "application/json" },
+   250→        body: JSON.stringify({
+   251→          courseId: savedCourseId,
+   252→          topic: outlineTopic.trim(),
+   253→          slideCount: outlineSlideCount,
+   254→          style: outlineStyle,
+   255→          language,
+   256→        }),
+   257→      });
+   258→      const json = await res.json();
+   259→
+   260→      if (!json.success) {
+   261→        toast.error(json.error || "Failed to generate outline");
+   262→        setOutlineGenerating(false);
+   263→        return;
+   264→      }
+   265→
+   266→      const lessonData = json.data;
+   267→      const parsedOutline = JSON.parse(lessonData.outlineJson || "{}");
+   268→      const slides: OutlineSlideDraft[] = lessonData.slides.map(
+   269→        (s: { id: string; title: string; order: number }, i: number) => ({
+   270→          id: `local_${Date.now()}_${i}`,
+   271→          slideId: s.id,
+   272→          title: s.title,
+   273→          outline: parsedOutline.slides?.[i]?.outline || "",
+   274→          order: s.order,
+   275→        })
+   276→      );
+   277→
+   278→      const newLesson: OutlineLessonDraft = {
+   279→        id: lessonData.id,
+   280→        title: lessonData.title,
+   281→        slides,
+   282→        language,
+   283→        style: outlineStyle,
+   284→        topic: outlineTopic.trim(),
+   285→      };
+   286→
+   287→      setOutlineLessons((prev) => [...prev, newLesson]);
+   288→      setEditingOutlineLesson(lessonData.id);
+   289→      setOutlineEditingSlides(slides);
+   290→      setOutlineGenerating(false);
+   291→      toast.success(`Outline generated: ${slides.length} slides`);
+   292→    } catch {
+   293→      toast.error("Failed to generate outline. Please try again.");
+   294→      setOutlineGenerating(false);
+   295→    }
+   296→  }, [outlineTopic, outlineSlideCount, outlineStyle, language, ensureCourseSaved, outlineLessons.length]);
+   297→
+   298→  // ---- Update slide title (inline edit) ----
+   299→  const handleUpdateSlideTitle = async (slideId: string, newTitle: string) => {
+   300→    setOutlineEditingSlides((prev) =>
+   301→      prev.map((s) => (s.slideId === slideId ? { ...s, title: newTitle } : s))
+   302→    );
+   303→    setOutlineLessons((prev) =>
+   304→      prev.map((ol) =>
+   305→        ol.id === editingOutlineLesson
+   306→          ? {
+   307→              ...ol,
+   308→              slides: ol.slides.map((s) =>
+   309→                s.slideId === slideId ? { ...s, title: newTitle } : s
+   310→              ),
+   311→            }
+   312→          : ol
+   313→      )
+   314→    );
+   315→    try {
+   316→      await fetch(`/api/slides/${slideId}`, {
+   317→        method: "PUT",
+   318→        headers: { "Content-Type": "application/json" },
+   319→        body: JSON.stringify({ title: newTitle }),
+   320→      });
+   321→    } catch {
+   322→      // silent
+   323→    }
+   324→  };
+   325→
+   326→  // ---- Delete a slide from outline ----
+   327→  const handleDeleteOutlineSlide = async (slideId: string, localId: string) => {
+   328→    setOutlineEditingSlides((prev) => prev.filter((s) => s.id !== localId));
+   329→    setOutlineLessons((prev) =>
+   330→      prev.map((ol) =>
+   331→        ol.id === editingOutlineLesson
+   332→          ? { ...ol, slides: ol.slides.filter((s) => s.id !== localId) }
+   333→          : ol
+   334→      )
+   335→    );
+   336→    if (slideId) {
+   337→      try {
+   338→        await fetch(`/api/slides/${slideId}`, { method: "DELETE" });
+   339→      } catch {
+   340→        // silent
+   341→      }
+   342→    }
+   343→  };
+   344→
+   345→  // ---- Add a blank slide to outline ----
+   346→  const handleAddOutlineSlide = () => {
+   347→    const newOrder = outlineEditingSlides.length;
+   348→    const localId = `local_${Date.now()}_new`;
+   349→    const newSlide: OutlineSlideDraft = {
+   350→      id: localId,
+   351→      slideId: null,
+   352→      title: `Slide ${newOrder + 1}`,
+   353→      outline: "",
+   354→      order: newOrder,
+   355→    };
+   356→    setOutlineEditingSlides((prev) => [...prev, newSlide]);
+   357→    setOutlineLessons((prev) =>
+   358→      prev.map((ol) =>
+   359→        ol.id === editingOutlineLesson
+   360→          ? { ...ol, slides: [...ol.slides, newSlide] }
+   361→          : ol
+   362→      )
+   363→    );
+   364→  };
+   365→
+   366→  // ---- Regenerate outline ----
+   367→  const handleRegenerateOutline = async () => {
+   368→    if (!editingOutlineLesson) return;
+   369→    setOutlineGenerating(true);
+   370→    try {
+   371→      const res = await fetch("/api/lessons/generate-outline", {
+   372→        method: "POST",
+   373→        headers: { "Content-Type": "application/json" },
+   374→        body: JSON.stringify({
+   375→          courseId,
+   376→          topic: outlineTopic.trim(),
+   377→          slideCount: outlineSlideCount,
+   378→          style: outlineStyle,
+   379→          language,
+   380→          existingLessonId: editingOutlineLesson,
+   381→        }),
+   382→      });
+   383→      const json = await res.json();
+   384→      if (!json.success) {
+   385→        toast.error(json.error || "Failed to regenerate");
+   386→        setOutlineGenerating(false);
+   387→        return;
+   388→      }
+   389→      const lessonData = json.data;
+   390→      const parsedOutline = JSON.parse(lessonData.outlineJson || "{}");
+   391→      const slides: OutlineSlideDraft[] = lessonData.slides.map(
+   392→        (s: { id: string; title: string; order: number }, i: number) => ({
+   393→          id: `local_${Date.now()}_${i}`,
+   394→          slideId: s.id,
+   395→          title: s.title,
+   396→          outline: parsedOutline.slides?.[i]?.outline || "",
+   397→          order: s.order,
+   398→        })
+   399→      );
+   400→      setOutlineEditingSlides(slides);
+   401→      setOutlineLessons((prev) =>
+   402→        prev.map((ol) =>
+   403→          ol.id === editingOutlineLesson
+   404→            ? { ...ol, title: lessonData.title, slides }
+   405→            : ol
+   406→        )
+   407→      );
+   408→      setOutlineGenerating(false);
+   409→      toast.success("Outline regenerated");
+   410→    } catch {
+   411→      toast.error("Failed to regenerate outline");
+   412→      setOutlineGenerating(false);
+   413→    }
+   414→  };
+   415→
+   416→  // ============================================
+   417→  // GENERATE SLIDES — Streaming HTML for all slides
+   418→  // ============================================
+   419→
+   420→  const handleGenerateSlides = useCallback(
+   421→    async (lessonId: string) => {
+   422→      const lesson = outlineLessons.find((l) => l.id === lessonId);
+   423→      if (!lesson) return;
+   424→      if (lesson.slides.length === 0) {
+   425→        toast.error("No slides to generate");
+   426→        return;
+   427→      }
+   428→
+   429→      // Initialize per-slide gen states
+   430→      const initialStates: Record<string, SlideGenState> = {};
+   431→      lesson.slides.forEach((s) => {
+   432→        if (s.slideId) {
+   433→          initialStates[s.slideId] = { status: "pending" };
+   434→        }
+   435→      });
+   436→      setSlideGenStates(initialStates);
+   437→      setGeneratingLessonId(lessonId);
+   438→      setCurrentGenSlideId(null);
+   439→      setStreamingHtml("");
+   440→      setGenProgress({ current: 0, total: lesson.slides.length });
+   441→      setExpandedOutlineLessonId(lessonId);
+   442→
+   443→      // Close modal if open
+   444→      setModalOpen(false);
+   445→
+   446→      const abort = new AbortController();
+   447→      abortGenRef.current = abort;
+   448→
+   449→      try {
+   450→        const res = await fetch("/api/lessons/generate-slides", {
+   451→          method: "POST",
+   452→          headers: { "Content-Type": "application/json" },
+   453→          body: JSON.stringify({
+   454→            lessonId,
+   455→            language: lesson.language,
+   456→          }),
+   457→          signal: abort.signal,
+   458→        });
+   459→
+   460→        if (!res.ok || !res.body) {
+   461→          toast.error("Failed to start slide generation");
+   462→          setGeneratingLessonId(null);
+   463→          return;
+   464→        }
+   465→
+   466→        const reader = res.body.getReader();
+   467→        const decoder = new TextDecoder();
+   468→        let buffer = "";
+   469→        let slidesCompleted = 0;
+   470→        let rawHtmlAccum = "";
+   471→
+   472→        while (true) {
+   473→          const { done, value } = await reader.read();
+   474→          if (done) break;
+   475→          buffer += decoder.decode(value, { stream: true });
+   476→
+   477→          const lines = buffer.split("\n");
+   478→          buffer = lines.pop() || "";
+   479→
+   480→          for (const line of lines) {
+   481→            if (!line.startsWith("data: ")) continue;
+   482→            try {
+   483→              const data = JSON.parse(line.slice(6));
+   484→
+   485→              if (data.slideId && data.slideTitle && data.totalSlides !== undefined) {
+   486→                // slide_start event
+   487→                setCurrentGenSlideId(data.slideId);
+   488→                setSlideGenStates((prev) => ({
+   489→                  ...prev,
+   490→                  [data.slideId]: { status: "generating" },
+   491→                }));
+   492→                rawHtmlAccum = "";
+   493→                setGenProgress({ current: data.slideIndex + 1, total: data.totalSlides });
+   494→              }
+   495→
+   496→              if (data.slideId && data.html) {
+   497→                // chunk event
+   498→                rawHtmlAccum += data.html;
+   499→                setStreamingHtml(buildLivePreviewDoc(rawHtmlAccum, data.slideId));
+   500→              }
+   501→
+   502→              if (data.slideId && data.htmlBody) {
+   503→                // slide_complete event
+   504→                slidesCompleted++;
+   505→                setSlideGenStates((prev) => ({
+   506→                  ...prev,
+   507→                  [data.slideId]: { status: "complete", htmlBody: data.htmlBody },
+   508→                }));
+   509→                setOutlineLessons((prev) =>
+   510→                  prev.map((ol) =>
+   511→                    ol.id === lessonId ? { ...ol, allReady: slidesCompleted === ol.slides.length } : ol
+   512→                  )
+   513→                );
+   514→              }
+   515→
+   516→              if (data.slideId && data.error) {
+   517→                // slide_error event
+   518→                slidesCompleted++;
+   519→                setSlideGenStates((prev) => ({
+   520→                  ...prev,
+   521→                  [data.slideId]: { status: "error", error: data.error },
+   522→                }));
+   523→              }
+   524→
+   525→              if (data.lessonId && data.slidesGenerated !== undefined) {
+   526→                // all_complete event
+   527→                toast.success(`All ${data.slidesGenerated} slides generated!`);
+   528→              }
+   529→            } catch {
+   530→              // skip malformed JSON
+   531→            }
+   532→          }
+   533→        }
+   534→      } catch (err) {
+   535→        if (err instanceof Error && err.name === "AbortError") {
+   536→          toast.info("Generation cancelled");
+   537→        } else {
+   538→          toast.error("Failed to generate slides. Please try again.");
+   539→        }
+   540→      } finally {
+   541→        setGeneratingLessonId(null);
+   542→        setCurrentGenSlideId(null);
+   543→        abortGenRef.current = null;
+   544→      }
+   545→    },
+   546→    [outlineLessons]
+   547→  );
+   548→
+   549→  const handleCancelGeneration = () => {
+   550→    abortGenRef.current?.abort();
+   551→  };
+   552→
+   553→  // ---- Delete lesson ----
+   554→  const handleDeleteOutlineLesson = async (lessonId: string) => {
+   555→    setOutlineLessons((prev) => prev.filter((ol) => ol.id !== lessonId));
+   556→    if (expandedOutlineLessonId === lessonId) {
+   557→      setExpandedOutlineLessonId(null);
+   558→    }
+   559→    try {
+   560→      const res = await fetch(`/api/lessons/${lessonId}`, { method: "DELETE" });
+   561→      const json = await res.json();
+   562→      if (!json.success) toast.error("Failed to remove lesson");
+   563→    } catch {
+   564→      toast.error("Failed to remove lesson");
+   565→    }
+   566→  };
+   567→
+   568→  // ---- Form submission ----
+   569→  const handleSave = async () => {
+   570→    if (!title.trim()) {
+   571→      toast.error("Course title is required");
+   572→      return;
+   573→    }
+   574→
+   575→    // Check if any lesson is still generating
+   576→    if (generatingLessonId) {
+   577→      toast.error("Please wait for slide generation to finish");
+   578→      return;
+   579→    }
+   580→
+   581→    setSaving(true);
+   582→    try {
+   583→      if (courseId) {
+   584→        // Update existing course to published
+   585→        const res = await fetch(`/api/courses/${courseId}`, {
+   586→          method: "PUT",
+   587→          headers: { "Content-Type": "application/json" },
+   588→          body: JSON.stringify({
+   589→            title: title.trim(),
+   590→            description: description.trim() || null,
+   591→            categoryId: categoryId || null,
+   592→            language,
+   593→            coverImage: coverImage || null,
+   594→            status: "published",
+   595→          }),
+   596→        });
+   597→        const json = await res.json();
+   598→        if (json.success) {
+   599→          toast.success("Course published successfully!");
+   600→          goBack();
+   601→        } else {
+   602→          toast.error(json.error || "Failed to publish course");
+   603→        }
+   604→      } else {
+   605→        toast.error("Please add at least one lesson first");
+   606→      }
+   607→    } catch {
+   608→      toast.error("Failed to save course. Please try again.");
+   609→    } finally {
+   610→      setSaving(false);
+   611→    }
+   612→  };
+   613→
+   614→  // ============================================
+   615→  // Render
+   616→  // ============================================
+   617→
+   618→  return (
+   619→    <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+   620→      {/* ---- Breadcrumbs ---- */}
+   621→      <div className="mb-6 flex items-center gap-3">
+   622→        <button
+   623→          onClick={goBack}
+   624→          className="flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+   625→        >
+   626→          <ArrowLeft className="h-4 w-4" />
+   627→          Back
+   628→        </button>
+   629→        <Separator orientation="vertical" className="h-4" />
+   630→        <h1 className="text-lg font-semibold text-foreground">Create Course</h1>
+   631→      </div>
+   632→
+   633→      {/* ---- Two-Column Layout ---- */}
+   634→      <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
+   635→        {/* ======== Left Panel: Course Metadata (3 cols) ======== */}
+   636→        <div className="lg:col-span-3">
+   637→          <Card className="border-border/50">
+   638→            <CardContent className="space-y-6 p-6">
+   639→              {/* Cover Image Upload */}
+   640→              <div className="space-y-2">
+   641→                <Label className="text-sm font-medium">Cover Image</Label>
+   642→                {coverPreview ? (
+   643→                  <div className="relative overflow-hidden rounded-lg border border-border">
+   644→                    <img
+   645→                      src={coverPreview}
+   646→                      alt="Course cover"
+   647→                      className="h-48 w-full object-cover"
+   648→                      onError={() => setCoverPreview(null)}
+   649→                    />
+   650→                    <button
+   651→                      onClick={handleRemoveCover}
+   652→                      className="absolute top-2 right-2 flex h-7 w-7 items-center justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-black/80"
+   653→                    >
+   654→                      <X className="h-3.5 w-3.5" />
+   655→                    </button>
+   656→                  </div>
+   657→                ) : (
+   658→                  <button
+   659→                    type="button"
+   660→                    onClick={handleCoverUpload}
+   661→                    className="flex h-48 w-full flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-border/70 bg-muted/30 transition-colors hover:border-primary/50 hover:bg-muted/50"
+   662→                  >
+   663→                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+   664→                      <ImageIcon className="h-5 w-5 text-muted-foreground" />
+   665→                    </div>
+   666→                    <div className="text-center">
+   667→                      <p className="text-sm font-medium text-foreground">
+   668→                        Upload cover image
+   669→                      </p>
+   670→                      <p className="mt-0.5 text-xs text-muted-foreground">
+   671→                        Recommended 1920×1080
+   672→                      </p>
+   673→                    </div>
+   674→                  </button>
+   675→                )}
+   676→
+   677→                {urlInputOpen && (
+   678→                  <div className="flex items-center gap-2">
+   679→                    <Input
+   680→                      placeholder="Paste image URL here..."
+   681→                      value={imageUrl}
+   682→                      onChange={(e) => setImageUrl(e.target.value)}
+   683→                      onKeyDown={(e) => e.key === "Enter" && handleUrlConfirm()}
+   684→                      className="flex-1"
+   685→                    />
+   686→                    <Button size="sm" onClick={handleUrlConfirm}>
+   687→                      Apply
+   688→                    </Button>
+   689→                    <Button
+   690→                      size="sm"
+   691→                      variant="ghost"
+   692→                      onClick={() => {
+   693→                        setUrlInputOpen(false);
+   694→                        setImageUrl("");
+   695→                      }}
+   696→                    >
+   697→                      Cancel
+   698→                    </Button>
+   699→                  </div>
+   700→                )}
+   701→                <input
+   702→                  ref={fileInputRef}
+   703→                  type="file"
+   704→                  accept="image/*"
+   705→                  className="hidden"
+   706→                />
+   707→              </div>
+   708→
+   709→              <Separator />
+   710→
+   711→              {/* Course Title */}
+   712→              <div className="space-y-2">
+   713→                <div className="flex items-center justify-between">
+   714→                  <Label htmlFor="course-title" className="text-sm font-medium">
+   715→                    Course Title <span className="text-destructive">*</span>
+   716→                  </Label>
+   717→                  <span className="text-xs text-muted-foreground">
+   718→                    {title.length}/{MAX_TITLE_LENGTH}
+   719→                  </span>
+   720→                </div>
+   721→                <Input
+   722→                  id="course-title"
+   723→                  placeholder="Enter course title"
+   724→                  value={title}
+   725→                  onChange={(e) => {
+   726→                    if (e.target.value.length <= MAX_TITLE_LENGTH) {
+   727→                      setTitle(e.target.value);
+   728→                    }
+   729→                  }}
+   730→                  className="h-10"
+   731→                />
+   732→              </div>
+   733→
+   734→              {/* Course Description */}
+   735→              <div className="space-y-2">
+   736→                <div className="flex items-center justify-between">
+   737→                  <Label htmlFor="course-description" className="text-sm font-medium">
+   738→                    Description
+   739→                  </Label>
+   740→                  <span className="text-xs text-muted-foreground">
+   741→                    {description.length}/{MAX_COURSE_DESC_LENGTH}
+   742→                  </span>
+   743→                </div>
+   744→                <Textarea
+   745→                  id="course-description"
+   746→                  placeholder="Describe what this course is about..."
+   747→                  value={description}
+   748→                  onChange={(e) => {
+   749→                    if (e.target.value.length <= MAX_COURSE_DESC_LENGTH) {
+   750→                      setDescription(e.target.value);
+   751→                    }
+   752→                  }}
+   753→                  rows={4}
+   754→                  className="resize-none"
+   755→                />
+   756→              </div>
+   757→
+   758→              <Separator />
+   759→
+   760→              {/* Category */}
+   761→              <div className="space-y-2">
+   762→                <Label className="text-sm font-medium">Category</Label>
+   763→                <Select value={categoryId} onValueChange={setCategoryId}>
+   764→                  <SelectTrigger className="w-full h-10">
+   765→                    <SelectValue placeholder="Select a category" />
+   766→                  </SelectTrigger>
+   767→                  <SelectContent>
+   768→                    {categories.map((cat) => (
+   769→                      <SelectItem key={cat.id} value={cat.id}>
+   770→                        {cat.name}
+   771→                      </SelectItem>
+   772→                    ))}
+   773→                  </SelectContent>
+   774→                </Select>
+   775→              </div>
+   776→
+   777→              {/* Language */}
+   778→              <div className="space-y-3">
+   779→                <Label className="text-sm font-medium">Language</Label>
+   780→                <RadioGroup
+   781→                  value={language}
+   782→                  onValueChange={setLanguage}
+   783→                  className="flex gap-6"
+   784→                >
+   785→                  <div className="flex items-center gap-2">
+   786→                    <RadioGroupItem value="chinese" id="lang-zh" />
+   787→                    <Label htmlFor="lang-zh" className="cursor-pointer text-sm font-normal">
+   788→                      Chinese
+   789→                    </Label>
+   790→                  </div>
+   791→                  <div className="flex items-center gap-2">
+   792→                    <RadioGroupItem value="english" id="lang-en" />
+   793→                    <Label htmlFor="lang-en" className="cursor-pointer text-sm font-normal">
+   794→                      English
+   795→                    </Label>
+   796→                  </div>
+   797→                </RadioGroup>
+   798→              </div>
+   799→
+   800→              <Separator />
+   801→
+   802→              {/* Save Button */}
+   803→              <Button
+   804→                onClick={handleSave}
+   805→                disabled={saving || !title.trim() || outlineLessons.length === 0}
+   806→                className="w-full h-10"
+   807→              >
+   808→                {saving ? (
+   809→                  <>
+   810→                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+   811→                    Saving...
+   812→                  </>
+   813→                ) : (
+   814→                  "Publish Course"
+   815→                )}
+   816→              </Button>
+   817→            </CardContent>
+   818→          </Card>
+   819→        </div>
+   820→
+   821→        {/* ======== Right Panel: Lessons (2 cols) ======== */}
+   822→        <div className="lg:col-span-2">
+   823→          <Card className="border-border/50">
+   824→            <CardContent className="p-6">
+   825→              {/* Header */}
+   826→              <div className="mb-4 flex items-center justify-between">
+   827→                <div className="flex items-center gap-2">
+   828→                  <h2 className="text-base font-semibold text-foreground">Lessons</h2>
+   829→                  <Badge variant="secondary" className="text-xs font-normal">
+   830→                    {outlineLessons.length}/{MAX_LESSONS}
+   831→                  </Badge>
+   832→                </div>
+   833→                <Button
+   834→                  size="sm"
+   835→                  onClick={handleOpenModal}
+   836→                  disabled={outlineLessons.length >= MAX_LESSONS || !!generatingLessonId}
+   837→                  className="gap-1.5"
+   838→                >
+   839→                  <Wand2 className="h-3.5 w-3.5" />
+   840→                  <span className="hidden sm:inline">Generate Lesson with AI</span>
+   841→                  <span className="sm:hidden">AI Generate</span>
+   842→                </Button>
+   843→              </div>
+   844→
+   845→              {outlineLessons.length === 0 ? (
+   846→                <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border/70 bg-muted/20 py-16">
+   847→                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+   848→                    <FileText className="h-5 w-5 text-muted-foreground" />
+   849→                  </div>
+   850→                  <p className="mt-3 text-sm text-muted-foreground">No lessons yet</p>
+   851→                  <p className="mt-1 text-xs text-muted-foreground/70">
+   852→                    Click <span className="font-medium text-primary">Generate Lesson with AI</span> to create your first lesson.
+   853→                  </p>
+   854→                </div>
+   855→              ) : (
+   856→                <div className="space-y-2 max-h-[600px] overflow-y-auto pr-1">
+   857→                  {outlineLessons.map((ol, index) => (
+   858→                    <OutlineLessonCard
+   859→                      key={ol.id}
+   860→                      lesson={ol}
+   861→                      index={index}
+   862→                      expanded={expandedOutlineLessonId === ol.id}
+   863→                      isGenerating={generatingLessonId === ol.id}
+   864→                      slideGenStates={slideGenStates}
+   865→                      currentGenSlideId={currentGenSlideId}
+   866→                      streamingHtml={streamingHtml}
+   867→                      genProgress={genProgress}
+   868→                      onToggleExpand={() =>
+   869→                        setExpandedOutlineLessonId((prev) =>
+   870→                          prev === ol.id ? null : ol.id
+   871→                        )
+   872→                      }
+   873→                      onEditOutline={() => {
+   874→                        setEditingOutlineLesson(ol.id);
+   875→                        setOutlineEditingSlides(ol.slides);
+   876→                        setOutlineTopic(ol.topic);
+   877→                        setOutlineSlideCount(ol.slides.length);
+   878→                        setOutlineStyle(ol.style);
+   879→                        setModalOpen(true);
+   880→                      }}
+   881→                      onUpdateSlideTitle={(slideId, newTitle) => handleUpdateSlideTitle(slideId, newTitle)}
+   882→                      onDeleteSlide={(slideId, localId) => handleDeleteOutlineSlide(slideId, localId)}
+   883→                      onGenerateSlides={() => handleGenerateSlides(ol.id)}
+   884→                      onCancelGeneration={handleCancelGeneration}
+   885→                      onDelete={() => handleDeleteOutlineLesson(ol.id)}
+   886→                    />
+   887→                  ))}
+   888→                </div>
+   889→              )}
+   890→            </CardContent>
+   891→          </Card>
+   892→        </div>
+   893→      </div>
+   894→
+   895→      {/* ======== Generate Lesson Modal (Unified Outline Flow) ======== */}
+   896→      <Dialog open={modalOpen} onOpenChange={(open) => { if (!open && outlineGenerating) return; setModalOpen(open); }}>
+   897→        <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto" onInteractOutside={(e) => e.preventDefault()}>
+   898→          <DialogHeader>
+   899→            <DialogTitle className="flex items-center gap-2">
+   900→              <Sparkles className="h-5 w-5 text-primary" />
+   901→              Generate Lesson with AI
+   902→            </DialogTitle>
+   903→            <DialogDescription className="sr-only">
+   904→              Generate a slide outline for your lesson using AI
+   905→            </DialogDescription>
+   906→          </DialogHeader>
+   907→
+   908→          <div className="space-y-5">
+   909→            {/* Topic */}
+   910→            <div className="space-y-2">
+   911→              <Label className="text-sm font-medium">
+   912→                Topic <span className="text-destructive">*</span>
+   913→              </Label>
+   914→              <Input
+   915→                placeholder="e.g., Introduction to Data Science"
+   916→                value={outlineTopic}
+   917→                onChange={(e) => setOutlineTopic(e.target.value)}
+   918→                className="h-10"
+   919→                disabled={outlineGenerating}
+   920→              />
+   921→            </div>
+   922→
+   923→            {/* Slide Count + Style row */}
+   924→            <div className="grid grid-cols-2 gap-4">
+   925→              {/* Slide Count */}
+   926→              <div className="space-y-2">
+   927→                <Label className="text-sm font-medium">Slide Count</Label>
+   928→                <div className="flex items-center gap-2">
+   929→                  <button
+   930→                    onClick={() => setOutlineSlideCount((p) => Math.max(MIN_SLIDES, p - 1))}
+   931→                    disabled={outlineGenerating || outlineSlideCount <= MIN_SLIDES}
+   932→                    className="flex h-9 w-9 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-muted disabled:opacity-40"
+   933→                  >
+   934→                    <Minus className="h-4 w-4" />
+   935→                  </button>
+   936→                  <Input
+   937→                    type="number"
+   938→                    min={MIN_SLIDES}
+   939→                    max={MAX_SLIDES}
+   940→                    value={outlineSlideCount}
+   941→                    onChange={(e) => {
+   942→                      const v = parseInt(e.target.value, 10);
+   943→                      if (!isNaN(v)) setOutlineSlideCount(Math.max(MIN_SLIDES, Math.min(MAX_SLIDES, v)));
+   944→                    }}
+   945→                    className="h-9 w-16 text-center"
+   946→                    disabled={outlineGenerating}
+   947→                  />
+   948→                  <button
+   949→                    onClick={() => setOutlineSlideCount((p) => Math.min(MAX_SLIDES, p + 1))}
+   950→                    disabled={outlineGenerating || outlineSlideCount >= MAX_SLIDES}
+   951→                    className="flex h-9 w-9 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-muted disabled:opacity-40"
+   952→                  >
+   953→                    <Plus className="h-4 w-4" />
+   954→                  </button>
+   955→                </div>
+   956→              </div>
+   957→
+   958→              {/* Style */}
+   959→              <div className="space-y-2">
+   960→                <Label className="text-sm font-medium">Design Style</Label>
+   961→                <Select value={outlineStyle} onValueChange={setOutlineStyle} disabled={outlineGenerating}>
+   962→                  <SelectTrigger className="h-9">
+   963→                    <SelectValue />
+   964→                  </SelectTrigger>
+   965→                  <SelectContent>
+   966→                    {SLIDE_STYLES.map((s) => (
+   967→                      <SelectItem key={s.value} value={s.value}>
+   968→                        <div className="flex items-center gap-2">
+   969→                          <span>{s.label}</span>
+   970→                          <span className="text-xs text-muted-foreground">{s.description}</span>
+   971→                        </div>
+   972→                      </SelectItem>
+   973→                    ))}
+   974→                  </SelectContent>
+   975→                </Select>
+   976→              </div>
+   977→            </div>
+   978→
+   979→            {/* ---- Loading state ---- */}
+   980→            {outlineGenerating && (
+   981→              <div className="flex flex-col items-center justify-center py-12 gap-3">
+   982→                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+   983→                <p className="text-sm text-muted-foreground">Generating slide outline...</p>
+   984→              </div>
+   985→            )}
+   986→
+   987→            {/* ---- Editable Outline List ---- */}
+   988→            {!outlineGenerating && editingOutlineLesson && outlineEditingSlides.length > 0 && (
+   989→              <div className="space-y-3">
+   990→                <div className="flex items-center justify-between">
+   991→                  <div className="flex items-center gap-2">
+   992→                    <Label className="text-sm font-semibold text-foreground">
+   993→                      Slide Outline ({outlineEditingSlides.length} slides)
+   994→                    </Label>
+   995→                    <Badge variant="secondary" className="text-[10px]">
+   996→                      {outlineStyle}
+   997→                    </Badge>
+   998→                  </div>
+   999→                  <div className="flex items-center gap-1.5">
+  1000→                    <Button
+  1001→                      size="sm"
+  1002→                      variant="ghost"
+  1003→                      onClick={handleAddOutlineSlide}
+  1004→                      className="h-7 gap-1 text-xs"
+  1005→                    >
+  1006→                      <Plus className="h-3 w-3" />
+  1007→                      Add Slide
+  1008→                    </Button>
+  1009→                    <Button
+  1010→                      size="sm"
+  1011→                      variant="ghost"
+  1012→                      onClick={handleRegenerateOutline}
+  1013→                      className="h-7 gap-1 text-xs"
+  1014→                    >
+  1015→                      <RotateCcw className="h-3 w-3" />
+  1016→                      Regenerate
+  1017→                    </Button>
+  1018→                  </div>
+  1019→                </div>
+  1020→
+  1021→                <div className="max-h-[340px] overflow-y-auto space-y-2 pr-1">
+  1022→                  {outlineEditingSlides.map((slide, i) => (
+  1023→                    <div
+  1024→                      key={slide.id}
+  1025→                      className="group flex items-start gap-3 rounded-lg border border-border/50 bg-card p-3 transition-colors hover:border-primary/30"
+  1026→                    >
+  1027→                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+  1028→                        {i + 1}
+  1029→                      </div>
+  1030→                      <div className="min-w-0 flex-1 space-y-1.5">
+  1031→                        <input
+  1032→                          value={slide.title}
+  1033→                          onChange={(e) => {
+  1034→                            const newTitle = e.target.value;
+  1035→                            setOutlineEditingSlides((prev) =>
+  1036→                              prev.map((s) => (s.id === slide.id ? { ...s, title: newTitle } : s))
+  1037→                            );
+  1038→                          }}
+  1039→                          onBlur={() => {
+  1040→                            if (slide.slideId) handleUpdateSlideTitle(slide.slideId, slide.title);
+  1041→                          }}
+  1042→                          className="w-full bg-transparent text-sm font-medium text-foreground outline-none placeholder:text-muted-foreground/50 border-b border-transparent focus:border-primary/30 transition-colors"
+  1043→                          placeholder="Slide title..."
+  1044→                        />
+  1045→                        {slide.outline && (
+  1046→                          <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">
+  1047→                            {slide.outline}
+  1048→                          </p>
+  1049→                        )}
+  1050→                      </div>
+  1051→                      <button
+  1052→                        onClick={() => handleDeleteOutlineSlide(slide.slideId || "", slide.id)}
+  1053→                        className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-muted-foreground/40 opacity-0 transition-all hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
+  1054→                        aria-label="Remove slide"
+  1055→                      >
+  1056→                        <Trash2 className="h-3 w-3" />
+  1057→                      </button>
+  1058→                    </div>
+  1059→                  ))}
+  1060→                </div>
+  1061→
+  1062→                <DialogFooter className="mt-2">
+  1063→                  <Button variant="ghost" onClick={() => setModalOpen(false)}>
+  1064→                    Close
+  1065→                  </Button>
+  1066→                  <Button
+  1067→                    onClick={() => {
+  1068→                      if (editingOutlineLesson) handleGenerateSlides(editingOutlineLesson);
+  1069→                    }}
+  1070→                    className="gap-2"
+  1071→                  >
+  1072→                    <Play className="h-4 w-4" />
+  1073→                    Generate Slides
+  1074→                  </Button>
+  1075→                </DialogFooter>
+  1076→              </div>
+  1077→            )}
+  1078→
+  1079→            {/* ---- Generate button (no outline yet) ---- */}
+  1080→            {!outlineGenerating && (!editingOutlineLesson || outlineEditingSlides.length === 0) && (
+  1081→              <DialogFooter className="mt-2">
+  1082→                <Button variant="ghost" onClick={() => setModalOpen(false)}>
+  1083→                  Cancel
+  1084→                </Button>
+  1085→                <Button
+  1086→                  onClick={handleGenerateOutline}
+  1087→                  disabled={!outlineTopic.trim()}
+  1088→                  className="gap-2"
+  1089→                >
+  1090→                  <Wand2 className="h-4 w-4" />
+  1091→                  Generate Outline
+  1092→                </Button>
+  1093→              </DialogFooter>
+  1094→            )}
+  1095→          </div>
+  1096→        </DialogContent>
+  1097→      </Dialog>
+  1098→    </div>
+  1099→  );
+  1100→}
+  1101→
+  1102→// ============================================
+  1103→// Outline Lesson Card
+  1104→// ============================================
+  1105→
+  1106→interface OutlineLessonCardProps {
+  1107→  lesson: OutlineLessonDraft;
+  1108→  index: number;
+  1109→  expanded: boolean;
+  1110→  isGenerating: boolean;
+  1111→  slideGenStates: Record<string, SlideGenState>;
+  1112→  currentGenSlideId: string | null;
+  1113→  streamingHtml: string;
+  1114→  genProgress: { current: number; total: number };
+  1115→  onToggleExpand: () => void;
+  1116→  onEditOutline: () => void;
+  1117→  onUpdateSlideTitle: (slideId: string, newTitle: string) => void;
+  1118→  onDeleteSlide: (slideId: string, localId: string) => void;
+  1119→  onGenerateSlides: () => void;
+  1120→  onCancelGeneration: () => void;
+  1121→  onDelete: () => void;
+  1122→}
+  1123→
+  1124→function OutlineLessonCard({
+  1125→  lesson,
+  1126→  index,
+  1127→  expanded,
+  1128→  isGenerating,
+  1129→  slideGenStates,
+  1130→  currentGenSlideId,
+  1131→  streamingHtml,
+  1132→  genProgress,
+  1133→  onToggleExpand,
+  1134→  onEditOutline,
+  1135→  onUpdateSlideTitle,
+  1136→  onDeleteSlide,
+  1137→  onGenerateSlides,
+  1138→  onCancelGeneration,
+  1139→  onDelete,
+  1140→}: OutlineLessonCardProps) {
+  1141→  const styleLabel = SLIDE_STYLES.find((s) => s.value === lesson.style)?.label || lesson.style;
+  1142→  const hasReadySlides = lesson.slides.some((s) => s.slideId && slideGenStates[s.slideId]?.status === "complete");
+  1143→  const allComplete = lesson.allReady || lesson.slides.every(
+  1144→    (s) => !s.slideId || slideGenStates[s.slideId]?.status === "complete"
+  1145→  );
+  1146→  const completedCount = lesson.slides.filter(
+  1147→    (s) => s.slideId && slideGenStates[s.slideId]?.status === "complete"
+  1148→  ).length;
+  1149→
+  1150→  const firstCompletedHtml = (() => {
+  1151→    const found = lesson.slides.find((s) => s.slideId && slideGenStates[s.slideId]?.htmlBody);
+  1152→    return found?.slideId ? (slideGenStates[found.slideId]?.htmlBody || "") : "";
+  1153→  })();
+  1154→
+  1155→  return (
+  1156→    <div
+  1157→      className={`group rounded-lg border transition-colors ${
+  1158→        isGenerating
+  1159→          ? "border-primary/50 bg-primary/[0.03]"
+  1160→          : allComplete
+  1161→            ? "border-emerald-300/60 bg-emerald-50/30 dark:bg-emerald-950/10"
+  1162→            : hasReadySlides
+  1163→              ? "border-border/60 bg-card hover:bg-accent/30"
+  1164→              : "border-primary/30 bg-primary/[0.02] hover:bg-primary/[0.04]"
+  1165→      }`}
+  1166→    >
+  1167→      <div className="flex items-center gap-3 p-3">
+  1168→        {/* Number Badge */}
+  1169→        <div
+  1170→          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+  1171→            allComplete
+  1172→              ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400"
+  1173→              : isGenerating
+  1174→                ? "bg-primary/10 text-primary animate-pulse"
+  1175→                : "bg-primary/10 text-primary"
+  1176→          }`}
+  1177→        >
+  1178→          {allComplete ? <Check className="h-3.5 w-3.5" /> : index + 1}
+  1179→        </div>
+  1180→
+  1181→        {/* Content */}
+  1182→        <div className="min-w-0 flex-1">
+  1183→          <p className="truncate text-sm font-medium text-foreground">{lesson.title}</p>
+  1184→          <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+  1185→            {allComplete ? (
+  1186→              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 dark:bg-emerald-900/30 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-400">
+  1187→                <Check className="h-2.5 w-2.5" />
+  1188→                Ready
+  1189→              </span>
+  1190→            ) : isGenerating ? (
+  1191→              <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+  1192→                <Loader2 className="h-2.5 w-2.5 animate-spin" />
+  1193→                Generating {genProgress.current}/{genProgress.total}
+  1194→              </span>
+  1195→            ) : hasReadySlides ? (
+  1196→              <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 dark:bg-amber-900/30 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-400">
+  1197→                {completedCount}/{lesson.slides.length} slides
+  1198→              </span>
+  1199→            ) : (
+  1200→              <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 dark:bg-blue-900/30 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 dark:text-blue-400">
+  1201→                <LayoutList className="h-2.5 w-2.5" />
+  1202→                {lesson.slides.length} slides
+  1203→              </span>
+  1204→            )}
+  1205→            <span>·</span>
+  1206→            <span>{styleLabel}</span>
+  1207→          </div>
+  1208→        </div>
+  1209→
+  1210→        {/* Edit outline button (only when not generating and not all complete) */}
+  1211→        {!isGenerating && !allComplete && (
+  1212→          <button
+  1213→            onClick={onEditOutline}
+  1214→            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground/50 opacity-0 transition-all hover:bg-primary/10 hover:text-primary group-hover:opacity-100"
+  1215→            title="Edit outline"
+  1216→          >
+  1217→            <Pencil className="h-3.5 w-3.5" />
+  1218→          </button>
+  1219→        )}
+  1220→
+  1221→        {/* Expand toggle */}
+  1222→        <button
+  1223→          onClick={onToggleExpand}
+  1224→          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors ${
+  1225→            expanded
+  1226→              ? "bg-primary/10 text-primary"
+  1227→              : "text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted opacity-0 group-hover:opacity-100"
+  1228→          }`}
+  1229→          title={expanded ? "Hide slides" : "Show slides"}
+  1230→        >
+  1231→          <Eye className="h-3.5 w-3.5" />
+  1232→        </button>
+  1233→
+  1234→        {/* Delete button (only when not generating) */}
+  1235→        {!isGenerating && (
+  1236→          <button
+  1237→            onClick={onDelete}
+  1238→            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground/50 opacity-0 transition-all hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
+  1239→            aria-label="Delete lesson"
+  1240→          >
+  1241→            <Trash2 className="h-3.5 w-3.5" />
+  1242→          </button>
+  1243→        )}
+  1244→      </div>
+  1245→
+  1246→      {/* ---- Expanded content ---- */}
+  1247→      {expanded && (
+  1248→        <div className="border-t border-border/40 px-3 pb-3 pt-2 space-y-3">
+  1249→          {/* Generation progress bar */}
+  1250→          {isGenerating && (
+  1251→            <div className="space-y-2">
+  1252→              <div className="flex items-center justify-between text-xs">
+  1253→                <span className="text-muted-foreground">
+  1254→                  Generating slide {genProgress.current} of {genProgress.total}...
+  1255→                </span>
+  1256→                <Button
+  1257→                  size="sm"
+  1258→                  variant="ghost"
+  1259→                  onClick={onCancelGeneration}
+  1260→                  className="h-6 gap-1 text-xs text-destructive hover:text-destructive"
+  1261→                >
+  1262→                  <X className="h-3 w-3" />
+  1263→                  Cancel
+  1264→                </Button>
+  1265→              </div>
+  1266→              <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+  1267→                <div
+  1268→                  className="h-full rounded-full bg-primary transition-all duration-500"
+  1269→                  style={{
+  1270→                    width: `${genProgress.total > 0 ? (genProgress.current / genProgress.total) * 100 : 0}%`,
+  1271→                  }}
+  1272→                />
+  1273→              </div>
+  1274→            </div>
+  1275→          )}
+  1276→
+  1277→          {/* Streaming preview for current generating slide */}
+  1278→          {isGenerating && streamingHtml && (
+  1279→            <div className="rounded-lg border border-border/60 overflow-hidden bg-muted/10">
+  1280→              <div className="px-2 py-1 bg-muted/30 text-[10px] text-muted-foreground font-medium">
+  1281→                Live Preview — Slide {genProgress.current}
+  1282→              </div>
+  1283→              <iframe
+  1284→                srcDoc={streamingHtml}
+  1285→                sandbox="allow-same-origin"
+  1286→                className="w-full border-0"
+  1287→                style={{ aspectRatio: "16/9" }}
+  1288→                title="Live generation preview"
+  1289→              />
+  1290→            </div>
+  1291→          )}
+  1292→
+  1293→          {/* Slide list */}
+  1294→          <div className="space-y-1.5">
+  1295→            {lesson.slides.map((slide, i) => {
+  1296→              const genState = slide.slideId ? slideGenStates[slide.slideId] : null;
+  1297→              const isCurrentGen = slide.slideId === currentGenSlideId;
+  1298→
+  1299→              return (
+  1300→                <div
+  1301→                  key={slide.id}
+  1302→                  className={`flex items-center gap-2 rounded-md px-2.5 py-1.5 transition-colors ${
+  1303→                    isCurrentGen
+  1304→                      ? "bg-primary/10 border border-primary/30"
+  1305→                      : genState?.status === "complete"
+  1306→                        ? "bg-emerald-50/50 dark:bg-emerald-950/20"
+  1307→                        : genState?.status === "error"
+  1308→                          ? "bg-destructive/5"
+  1309→                          : "bg-muted/30"
+  1310→                  }`}
+  1311→                >
+  1312→                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-[10px] font-bold text-muted-foreground">
+  1313→                    {i + 1}
+  1314→                  </span>
+  1315→                  <span className="flex-1 truncate text-xs text-foreground">{slide.title}</span>
+  1316→
+  1317→                  {/* Status icon */}
+  1318→                  {genState?.status === "generating" && (
+  1319→                    <Loader2 className="h-3 w-3 animate-spin text-primary" />
+  1320→                  )}
+  1321→                  {genState?.status === "complete" && (
+  1322→                    <Check className="h-3 w-3 text-emerald-500" />
+  1323→                  )}
+  1324→                  {genState?.status === "error" && (
+  1325→                    <AlertCircle className="h-3 w-3 text-destructive" title={genState.error} />
+  1326→                  )}
+  1327→                  {!genState && (
+  1328→                    <span className="inline-flex items-center rounded-full bg-amber-100 dark:bg-amber-900/30 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-400">
+  1329→                      Draft
+  1330→                    </span>
+  1331→                  )}
+  1332→                </div>
+  1333→              );
+  1334→            })}
+  1335→          </div>
+  1336→
+  1337→          {/* Generate Slides button (only when not generating and not all complete) */}
+  1338→          {!isGenerating && !allComplete && (
+  1339→            <Button
+  1340→              size="sm"
+  1341→              onClick={onGenerateSlides}
+  1342→              className="w-full gap-1.5 h-8 text-xs"
+  1343→            >
+  1344→              <Play className="h-3 w-3" />
+  1345→              Generate Slides
+  1346→            </Button>
+  1347→          )}
+  1348→
+  1349→          {/* View completed slides (show first slide preview) */}
+  1350→          {!isGenerating && hasReadySlides && (
+  1351→            <div className="space-y-2">
+  1352→              <p className="text-xs font-medium text-muted-foreground">
+  1353→                {completedCount} slide{completedCount !== 1 ? "s" : ""} generated
+  1354→              </p>
+  1355→              {/* Show first completed slide as preview */}
+  1356→              {lesson.slides.some((s) => s.slideId && slideGenStates[s.slideId]?.htmlBody) && (
+  1357→                <div className="rounded-md overflow-hidden border border-border/40">
+  1358→                  <iframe
+  1359→                    srcDoc={firstCompletedHtml}
+  1360→                    sandbox="allow-same-origin"
+  1361→                    className="w-full border-0"
+  1362→                    style={{ aspectRatio: "16/9" }}
+  1363→                    title={`Preview of ${lesson.title}`}
+  1364→                  />
+  1365→                </div>
+  1366→              )}
+  1367→            </div>
+  1368→          )}
+  1369→        </div>
+  1370→      )}
+  1371→    </div>
+  1372→  );
+  1373→}
+  1374→
+  1375→// ============================================
+  1376→// Helpers
+  1377→// ============================================
+  1378→
+  1379→/** Build a live preview document from raw streaming HTML fragments */
+  1380→function buildLivePreviewDoc(rawHtml: string, _slideId: string): string {
+  1381→  return `<!DOCTYPE html>
+  1382→<html lang="en">
+  1383→<head>
+  1384→<meta charset="UTF-8" />
+  1385→<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  1386→<title>Slide Preview</title>
+  1387→<script src="https://cdn.tailwindcss.com"></script>
+  1388→<style>
+  1389→body { margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
+  1390→* { box-sizing: border-box; }
+  1391→.streaming-cursor::after {
+  1392→  content: '\u258a';
+  1393→  animation: blink 0.7s infinite;
+  1394→  color: currentColor;
+  1395→  opacity: 0.7;
+  1396→}
+  1397→@keyframes blink { 0%, 50% { opacity: 0.7; } 51%, 100% { opacity: 0; } }
+  1398→</style>
+  1399→</head>
+  1400→<body class="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">
+  1401→  <div class="streaming-cursor">${rawHtml}</div>
+  1402→</body>
+  1403→</html>`;
+  1404→}
+  1405→

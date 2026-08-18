@@ -1085,7 +1085,7 @@ export function ProfilePage() {
       </div>
 
       {/* Stats + Quick Actions */}
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className={currentRole === "instructor" ? "" : "grid gap-6 md:grid-cols-2"}>
         {/* Stats Panel - STUDENT ONLY */}
         {currentRole === "student" && (
         <Card className="border-border/50">
