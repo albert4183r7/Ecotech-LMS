@@ -2,15 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
 /**
- * GET /api/notes?userId=xxx&courseId=xxx&sectionId=xxx
- * List notes for a user/course/section
+ * GET /api/notes?userId=xxx&courseId=xxx&lessonId=xxx
+ * List notes for a user/course/lesson
  */
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get("userId");
     const courseId = searchParams.get("courseId");
-    const sectionId = searchParams.get("sectionId");
+    const lessonId = searchParams.get("lessonId");
 
     if (!userId) {
       return NextResponse.json(
@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
 
     const where: Record<string, string> = { userId };
     if (courseId) where.courseId = courseId;
-    if (sectionId) where.sectionId = sectionId;
+    if (lessonId) where.lessonId = lessonId;
 
     const notes = await db.note.findMany({
       where,
@@ -41,16 +41,16 @@ export async function GET(request: NextRequest) {
 /**
  * POST /api/notes
  * Create a new note
- * Body: { userId, courseId, sectionId, content, slideNumber?, isBookmarked? }
+ * Body: { userId, courseId, lessonId, content, slideNumber?, isBookmarked? }
  */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { userId, courseId, sectionId, content, slideNumber, isBookmarked } = body;
+    const { userId, courseId, lessonId, content, slideNumber, isBookmarked } = body;
 
-    if (!content?.trim() || !userId || !courseId || !sectionId) {
+    if (!content?.trim() || !userId || !courseId || !lessonId) {
       return NextResponse.json(
-        { success: false, error: "content, userId, courseId, and sectionId are required" },
+        { success: false, error: "content, userId, courseId, and lessonId are required" },
         { status: 400 }
       );
     }
@@ -73,11 +73,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate section exists
-    const section = await db.section.findUnique({ where: { id: sectionId } });
-    if (!section) {
+    // Validate lesson exists
+    const lesson = await db.lesson.findUnique({ where: { id: lessonId } });
+    if (!lesson) {
       return NextResponse.json(
-        { success: false, error: "Section not found" },
+        { success: false, error: "Lesson not found" },
         { status: 404 }
       );
     }
@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
         isBookmarked: isBookmarked ?? false,
         userId,
         courseId,
-        sectionId,
+        lessonId,
       },
     });
 

@@ -20,14 +20,14 @@ export async function GET(request: NextRequest) {
           include: {
             category: true,
             _count: {
-              select: { sections: true },
+              select: { lessons: true },
             },
           },
         },
         progresses: {
           include: {
-            section: {
-              select: { id: true, title: true, totalPages: true },
+            lesson: {
+              select: { id: true, title: true },
             },
           },
         },
@@ -36,13 +36,13 @@ export async function GET(request: NextRequest) {
     });
 
     const formattedEnrollments = enrollments.map((enrollment) => {
-      const totalSections = enrollment.course._count.sections;
-      const completedSections = enrollment.progresses.filter(
+      const totalLessons = enrollment.course._count.lessons;
+      const completedLessons = enrollment.progresses.filter(
         (p) => p.completed
       ).length;
       const totalProgress =
-        totalSections > 0
-          ? Math.round((completedSections / totalSections) * 100)
+        totalLessons > 0
+          ? Math.round((completedLessons / totalLessons) * 100)
           : 0;
 
       return {
@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
                 color: enrollment.course.category.color,
               }
             : null,
-          sectionsCount: enrollment.course._count.sections,
+          lessonsCount: enrollment.course._count.lessons,
         },
       };
     });
@@ -127,7 +127,7 @@ export async function POST(request: NextRequest) {
           include: {
             category: true,
             _count: {
-              select: { sections: true },
+              select: { lessons: true },
             },
           },
         },

@@ -16,8 +16,8 @@ export async function GET(request: NextRequest) {
     const progresses = await db.progress.findMany({
       where: { enrollmentId },
       include: {
-        section: {
-          select: { id: true, title: true, totalPages: true },
+        lesson: {
+          select: { id: true, title: true },
         },
       },
       orderBy: { lastAccessedAt: 'desc' },
@@ -36,11 +36,11 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { enrollmentId, sectionId, currentPage, completed } = body;
+    const { enrollmentId, lessonId, currentPage, completed } = body;
 
-    if (!enrollmentId || !sectionId) {
+    if (!enrollmentId || !lessonId) {
       return NextResponse.json(
-        { success: false, error: 'enrollmentId and sectionId are required' },
+        { success: false, error: 'enrollmentId and lessonId are required' },
         { status: 400 }
       );
     }
@@ -56,13 +56,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify section exists
-    const section = await db.section.findUnique({
-      where: { id: sectionId },
+    // Verify lesson exists
+    const lesson = await db.lesson.findUnique({
+      where: { id: lessonId },
     });
-    if (!section) {
+    if (!lesson) {
       return NextResponse.json(
-        { success: false, error: 'Section not found' },
+        { success: false, error: 'Lesson not found' },
         { status: 404 }
       );
     }
@@ -70,11 +70,11 @@ export async function POST(request: NextRequest) {
     // Upsert progress record
     const progress = await db.progress.upsert({
       where: {
-        enrollmentId_sectionId: { enrollmentId, sectionId },
+        enrollmentId_lessonId: { enrollmentId, lessonId },
       },
       create: {
         enrollmentId,
-        sectionId,
+        lessonId,
         currentPage: currentPage || 1,
         completed: completed || false,
         lastAccessedAt: new Date(),

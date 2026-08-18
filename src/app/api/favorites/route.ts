@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
             category: true,
             _count: {
               select: {
-                sections: true,
+                lessons: true,
                 enrollments: true,
               },
             },
@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
               color: favorite.course.category.color,
             }
           : null,
-        sectionsCount: favorite.course._count.sections,
+        lessonsCount: favorite.course._count.lessons,
         enrollmentsCount: favorite.course._count.enrollments,
       },
     }));

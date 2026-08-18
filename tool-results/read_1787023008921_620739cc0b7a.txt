@@ -1,0 +1,1057 @@
+     1→     1→"use client";
+     2→     2→
+     3→     3→import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+     4→     4→import {
+     5→     5→  ZoomIn,
+     6→     6→  ZoomOut,
+     7→     7→  Maximize2,
+     8→     8→  RotateCcw,
+     9→     9→  ChevronLeft,
+    10→    10→  ChevronRight,
+    11→    11→  X,
+    12→    12→  Loader2,
+    13→    13→  StickyNote,
+    14→    14→  Bookmark,
+    15→    15→  BookmarkCheck,
+    16→    16→  Trash2,
+    17→    17→  Send,
+    18→    18→  FileDown,
+    19→    19→  Wand2,
+    20→    20→} from "lucide-react";
+    21→    21→import { toast } from "sonner";
+    22→    22→import { Button } from "@/components/ui/button";
+    23→    23→import { Separator } from "@/components/ui/separator";
+    24→    24→import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+    25→    25→import {
+    26→    26→  Sheet,
+    27→    27→  SheetContent,
+    28→    28→  SheetHeader,
+    29→    29→  SheetTitle,
+    30→    30→  SheetDescription,
+    31→    31→} from "@/components/ui/sheet";
+    32→    32→import { ScrollArea } from "@/components/ui/scroll-area";
+    33→    33→import { Textarea } from "@/components/ui/textarea";
+    34→    34→import { useNavigationStore, useUserStore } from "@/stores/lms-store";
+    35→    35→import type { ClassroomState } from "@/types/lms";
+    36→    36→import { StudyTimer } from "@/components/lms/study-timer";
+    37→    37→
+    38→    38→const MIN_ZOOM = 50;
+    39→    39→const MAX_ZOOM = 200;
+    40→    40→const ZOOM_STEP = 25;
+    41→    41→
+    42→    42→export function ClassroomPage() {
+    43→    43→  const { classroomState, goBack } = useNavigationStore();
+    44→    44→  const userId = useUserStore((s) => s.currentUserId);
+    45→    45→  const [localState, setLocalState] = useState<ClassroomState | null>(null);
+    46→    46→  const [zoom, setZoom] = useState(100);
+    47→    47→  const [navigating, setNavigating] = useState(false);
+    48→    48→  const confettiShownRef = useRef(false);
+    49→    49→  const [showConfetti, setShowConfetti] = useState(false);
+    50→    50→
+    51→    51→  // ─── Notes Sidebar State ──────────────────────
+    52→    52→  interface Note {
+    53→    53→    id: string;
+    54→    54→    content: string;
+    55→    55→    slideNumber: number;
+    56→    56→    bookmarked: boolean;
+    57→    57→    createdAt?: string;
+    58→    58→  }
+    59→    59→  const [notes, setNotes] = useState<Note[]>([]);
+    60→    60→  const [notesSidebarOpen, setNotesSidebarOpen] = useState(false);
+    61→    61→  const [newNoteContent, setNewNoteContent] = useState("");
+    62→    62→  const [savingNote, setSavingNote] = useState(false);
+    63→    63→  const notesEndRef = useRef<HTMLDivElement>(null);
+    64→    64→
+    65→    65→  // ─── Keyboard Hint Fade ────────────────────────
+    66→    66→  const [showKeyboardHint, setShowKeyboardHint] = useState(true);
+    67→    67→  const [isMobile, setIsMobile] = useState(false);
+    68→    68→  const [downloadingPptx, setDownloadingPptx] = useState(false);
+    69→    69→
+    70→    70→  // ─── AI Edit State ─────────────────────────────
+    71→    71→  const [showAiEdit, setShowAiEdit] = useState(false);
+    72→    72→  const [aiEditInstruction, setAiEditInstruction] = useState("");
+    73→    73→  const [aiEditLoading, setAiEditLoading] = useState(false);
+    74→    74→
+    75→    75→  useEffect(() => {
+    76→    76→    const mq = window.matchMedia("(max-width: 1023px)");
+    77→    77→    setIsMobile(mq.matches);
+    78→    78→    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    79→    79→    mq.addEventListener("change", handler);
+    80→    80→    return () => mq.removeEventListener("change", handler);
+    81→    81→  }, []);
+    82→    82→
+    83→    83→  // Keep a working copy of classroomState
+    84→    84→  useEffect(() => {
+    85→    85→    if (classroomState) {
+    86→    86→      setLocalState({ ...classroomState });
+    87→    87→      setZoom(100);
+    88→    88→      confettiShownRef.current = false;
+    89→    89→      setShowConfetti(false);
+    90→    90→    }
+    91→    91→  }, [classroomState]);
+    92→    92→
+    93→    93→  // ─── Section Navigation ─────────────────────────
+    94→    94→  const goToSection = useCallback(
+    95→    95→    async (index: number) => {
+    96→    96→      if (!localState || index < 0 || index >= localState.allSectionIds.length) return;
+    97→    97→      const sectionId = localState.allSectionIds[index];
+    98→    98→      try {
+    99→    99→        setNavigating(true);
+   100→   100→        const res = await fetch(`/api/sections/${sectionId}`);
+   101→   101→        if (!res.ok) return;
+   102→   102→        const json = await res.json();
+   103→   103→        const htmlBody =
+   104→   104→          json.success && json.data.htmlBody
+   105→   105→            ? json.data.htmlBody
+   106→   106→            : '<div class="flex items-center justify-center h-full"><p class="text-gray-500">No content available.</p></div>';
+   107→   107→        const sectionTitle =
+   108→   108→          json.success && json.data.title
+   109→   109→            ? json.data.title
+   110→   110→            : `Section ${index + 1}`;
+   111→   111→        setLocalState((prev) =>
+   112→   112→          prev
+   113→   113→            ? {
+   114→   114→                ...prev,
+   115→   115→                sectionId,
+   116→   116→                sectionTitle,
+   117→   117→                htmlBody,
+   118→   118→                currentSectionIndex: index,
+   119→   119→              }
+   120→   120→            : prev
+   121→   121→        );
+   122→   122→      } catch {
+   123→   123→        /* silently fail */
+   124→   124→      } finally {
+   125→   125→        setNavigating(false);
+   126→   126→      }
+   127→   127→    },
+   128→   128→    [localState]
+   129→   129→  );
+   130→   130→
+   131→   131→  /** Mark section as completed and save progress */
+   132→   132→  const markSectionCompleted = useCallback(
+   133→   133→    async (sectionId: string) => {
+   134→   134→      if (!userId || !localState) return;
+   135→   135→      try {
+   136→   136→        const enrollRes = await fetch(`/api/enrollments?userId=${userId}`);
+   137→   137→        const enrollJson = await enrollRes.json();
+   138→   138→        if (enrollJson.success && Array.isArray(enrollJson.data)) {
+   139→   139→          const enrollment = enrollJson.data.find(
+   140→   140→            (e: Record<string, unknown>) => e.courseId === localState.courseId
+   141→   141→          );
+   142→   142→          if (enrollment) {
+   143→   143→            await fetch("/api/progress", {
+   144→   144→              method: "POST",
+   145→   145→              headers: { "Content-Type": "application/json" },
+   146→   146→              body: JSON.stringify({
+   147→   147→                enrollmentId: enrollment.id,
+   148→   148→                sectionId,
+   149→   149→                currentPage: 1,
+   150→   150→                completed: true,
+   151→   151→              }),
+   152→   152→            });
+   153→   153→          }
+   154→   154→        }
+   155→   155→      } catch {
+   156→   156→        /* best-effort */
+   157→   157→      }
+   158→   158→    },
+   159→   159→    [userId, localState]
+   160→   160→  );
+   161→   161→
+   162→   162→  // Save progress when section changes
+   163→   163→  useEffect(() => {
+   164→   164→    if (!localState || !userId) return;
+   165→   165→    const timer = setTimeout(() => {
+   166→   166→      markSectionCompleted(localState.sectionId);
+   167→   167→    }, 500);
+   168→   168→    return () => clearTimeout(timer);
+   169→   169→  }, [localState?.currentSectionIndex, userId, markSectionCompleted]);
+   170→   170→
+   171→   171→  const goPrev = () => {
+   172→   172→    if (!localState) return;
+   173→   173→    goToSection(localState.currentSectionIndex - 1);
+   174→   174→  };
+   175→   175→  const goNext = () => {
+   176→   176→    if (!localState) return;
+   177→   177→    goToSection(localState.currentSectionIndex + 1);
+   178→   178→  };
+   179→   179→
+   180→   180→  // ─── Keyboard shortcuts ──────────────────────────────────────
+   181→   181→  useEffect(() => {
+   182→   182→    function handleKeyDown(e: KeyboardEvent) {
+   183→   183→      const tag = (e.target as HTMLElement)?.tagName;
+   184→   184→      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+   185→   185→
+   186→   186→      switch (e.key) {
+   187→   187→        case "Escape":
+   188→   188→          e.preventDefault();
+   189→   189→          goBack();
+   190→   190→          break;
+   191→   191→        case "ArrowLeft":
+   192→   192→          e.preventDefault();
+   193→   193→          goPrev();
+   194→   194→          break;
+   195→   195→        case "ArrowRight":
+   196→   196→          e.preventDefault();
+   197→   197→          goNext();
+   198→   198→          break;
+   199→   199→        case " ":
+   200→   200→          e.preventDefault();
+   201→   201→          goNext();
+   202→   202→          break;
+   203→   203→      }
+   204→   204→    }
+   205→   205→
+   206→   206→    document.addEventListener("keydown", handleKeyDown);
+   207→   207→
+   208→   208→    // Listen for custom event from KeyboardShortcuts component
+   209→   209→    function handleCustomNextSlide() {
+   210→   210→      goNext();
+   211→   211→    }
+   212→   212→    document.addEventListener("lms:next-slide", handleCustomNextSlide);
+   213→   213→
+   214→   214→    return () => {
+   215→   215→      document.removeEventListener("keydown", handleKeyDown);
+   216→   216→      document.removeEventListener("lms:next-slide", handleCustomNextSlide);
+   217→   217→    };
+   218→   218→  }, [goBack, goPrev, goNext]);
+   219→   219→
+   220→   220→  /** Zoom controls */
+   221→   221→  const zoomIn = () => setZoom((z) => Math.min(z + ZOOM_STEP, MAX_ZOOM));
+   222→   222→  const zoomOut = () => setZoom((z) => Math.max(z - ZOOM_STEP, MIN_ZOOM));
+   223→   223→  const zoomFit = () => setZoom(100);
+   224→   224→
+   225→   225→  // ─── Confetti on last section ─────────────────
+   226→   226→  useEffect(() => {
+   227→   227→    if (!localState) return;
+   228→   228→    const totalSections = localState.allSectionIds.length;
+   229→   229→    const isOnLastSection =
+   230→   230→      totalSections > 0 &&
+   231→   231→      localState.currentSectionIndex === totalSections - 1;
+   232→   232→    if (isOnLastSection && !confettiShownRef.current) {
+   233→   233→      confettiShownRef.current = true;
+   234→   234→      setShowConfetti(true);
+   235→   235→      toast.success("🎉 You completed the course! Great job!");
+   236→   236→      const timer = setTimeout(() => setShowConfetti(false), 3500);
+   237→   237→      return () => clearTimeout(timer);
+   238→   238→    }
+   239→   239→  }, [localState?.currentSectionIndex]);
+   240→   240→
+   241→   241→  // Reset confetti flag when classroom state changes (new course)
+   242→   242→  useEffect(() => {
+   243→   243→    confettiShownRef.current = false;
+   244→   244→    setShowConfetti(false);
+   245→   245→  }, [classroomState?.courseId]);
+   246→   246→
+   247→   247→  // ─── Keyboard Hint Auto-Fade ────────────────────
+   248→   248→  useEffect(() => {
+   249→   249→    setShowKeyboardHint(true);
+   250→   250→    const timer = setTimeout(() => setShowKeyboardHint(false), 5000);
+   251→   251→    return () => clearTimeout(timer);
+   252→   252→  }, [localState?.sectionId]);
+   253→   253→
+   254→   254→  // ─── Notes CRUD ─────────────────────────────────
+   255→   255→  const fetchNotes = useCallback(async () => {
+   256→   256→    if (!localState || !userId) return;
+   257→   257→    try {
+   258→   258→      const res = await fetch(
+   259→   259→        `/api/notes?userId=${userId}&courseId=${localState.courseId}&sectionId=${localState.sectionId}`
+   260→   260→      );
+   261→   261→      if (!res.ok) return;
+   262→   262→      const json = await res.json();
+   263→   263→      if (json.success && Array.isArray(json.data)) {
+   264→   264→        setNotes(json.data);
+   265→   265→      }
+   266→   266→    } catch {
+   267→   267→      // Silently fail
+   268→   268→    }
+   269→   269→  }, [localState, userId]);
+   270→   270→
+   271→   271→  // Fetch notes when section changes or sidebar opens
+   272→   272→  useEffect(() => {
+   273→   273→    if (notesSidebarOpen) fetchNotes();
+   274→   274→  }, [notesSidebarOpen, fetchNotes, localState?.sectionId]);
+   275→   275→
+   276→   276→  const createNote = useCallback(async () => {
+   277→   277→    if (!localState || !userId || !newNoteContent.trim()) return;
+   278→   278→    setSavingNote(true);
+   279→   279→    try {
+   280→   280→      const res = await fetch("/api/notes", {
+   281→   281→        method: "POST",
+   282→   282→        headers: { "Content-Type": "application/json" },
+   283→   283→        body: JSON.stringify({
+   284→   284→          userId,
+   285→   285→          courseId: localState.courseId,
+   286→   286→          sectionId: localState.sectionId,
+   287→   287→          content: newNoteContent.trim(),
+   288→   288→          slideNumber: localState.currentSectionIndex + 1,
+   289→   289→        }),
+   290→   290→      });
+   291→   291→      if (!res.ok) return;
+   292→   292→      const json = await res.json();
+   293→   293→      if (json.success && json.data) {
+   294→   294→        setNotes((prev) => [...prev, json.data]);
+   295→   295→        setNewNoteContent("");
+   296→   296→        setTimeout(
+   297→   297→          () => notesEndRef.current?.scrollIntoView({ behavior: "smooth" }),
+   298→   298→          50
+   299→   299→        );
+   300→   300→      }
+   301→   301→    } catch {
+   302→   302→      toast.error("Failed to save note");
+   303→   303→    } finally {
+   304→   304→      setSavingNote(false);
+   305→   305→    }
+   306→   306→  }, [localState, userId, newNoteContent]);
+   307→   307→
+   308→   308→  const deleteNote = useCallback(async (noteId: string) => {
+   309→   309→    try {
+   310→   310→      const res = await fetch(`/api/notes?id=${noteId}`, {
+   311→   311→        method: "DELETE",
+   312→   312→      });
+   313→   313→      if (!res.ok) return;
+   314→   314→      const json = await res.json();
+   315→   315→      if (json.success) {
+   316→   316→        setNotes((prev) => prev.filter((n) => n.id !== noteId));
+   317→   317→      }
+   318→   318→    } catch {
+   319→   319→      // Silently fail
+   320→   320→    }
+   321→   321→  }, []);
+   322→   322→
+   323→   323→  const toggleBookmark = useCallback((noteId: string) => {
+   324→   324→    setNotes((prev) =>
+   325→   325→      prev.map((n) =>
+   326→   326→        n.id === noteId ? { ...n, bookmarked: !n.bookmarked } : n
+   327→   327→      )
+   328→   328→    );
+   329→   329→  }, []);
+   330→   330→
+   331→   331→  // ─── Download as PPTX ─────────────────────────────
+   332→   332→  const handleDownloadPptx = useCallback(async () => {
+   333→   333→    if (!localState || downloadingPptx) return;
+   334→   334→    setDownloadingPptx(true);
+   335→   335→    try {
+   336→   336→      const res = await fetch("/api/generate-pptx", {
+   337→   337→        method: "POST",
+   338→   338→        headers: { "Content-Type": "application/json" },
+   339→   339→        body: JSON.stringify({
+   340→   340→          courseId: localState.courseId,
+   341→   341→          courseName: localState.courseTitle,
+   342→   342→        }),
+   343→   343→      });
+   344→   344→      if (!res.ok) {
+   345→   345→        toast.error("Failed to generate PPT");
+   346→   346→        return;
+   347→   347→      }
+   348→   348→      const blob = await res.blob();
+   349→   349→      const url = URL.createObjectURL(blob);
+   350→   350→      const a = document.createElement("a");
+   351→   351→      a.href = url;
+   352→   352→      const safeName = localState.courseTitle
+   353→   353→        .replace(/[^a-zA-Z0-9\s-]/g, "")
+   354→   354→        .replace(/\s+/g, "-")
+   355→   355→        .toLowerCase()
+   356→   356→        .slice(0, 60);
+   357→   357→      a.download = `${safeName}.pptx`;
+   358→   358→      document.body.appendChild(a);
+   359→   359→      a.click();
+   360→   360→      a.remove();
+   361→   361→      URL.revokeObjectURL(url);
+   362→   362→      toast.success("PPT downloaded successfully!");
+   363→   363→    } catch {
+   364→   364→      toast.error("Failed to download PPT");
+   365→   365→    } finally {
+   366→   366→      setDownloadingPptx(false);
+   367→   367→    }
+   368→   368→  }, [localState, downloadingPptx]);
+   369→   369→
+   370→   370→  // ─── AI Inline Edit ──────────────────────────────
+   371→   371→  const handleAiEdit = useCallback(async () => {
+   372→   372→    if (!localState || aiEditLoading || !aiEditInstruction.trim()) return;
+   373→   373→    setAiEditLoading(true);
+   374→   374→    try {
+   375→   375→      const res = await fetch("/api/generate-slide-inline-edit", {
+   376→   376→        method: "POST",
+   377→   377→        headers: { "Content-Type": "application/json" },
+   378→   378→        body: JSON.stringify({
+   379→   379→          htmlBody: localState.htmlBody,
+   380→   380→          instruction: aiEditInstruction.trim(),
+   381→   381→          slideTitle: localState.sectionTitle,
+   382→   382→        }),
+   383→   383→      });
+   384→   384→      if (!res.ok) {
+   385→   385→        toast.error("AI edit failed");
+   386→   386→        return;
+   387→   387→      }
+   388→   388→      const json = await res.json();
+   389→   389→      if (json.success && json.data?.htmlBody) {
+   390→   390→        const newHtmlBody = json.data.htmlBody;
+   391→   391→        setLocalState((prev) =>
+   392→   392→          prev ? { ...prev, htmlBody: newHtmlBody } : prev
+   393→   393→        );
+   394→   394→        toast.success("AI edit applied");
+   395→   395→        // Persist to database
+   396→   396→        try {
+   397→   397→          await fetch(`/api/sections/${localState.sectionId}`, {
+   398→   398→            method: "PUT",
+   399→   399→            headers: { "Content-Type": "application/json" },
+   400→   400→            body: JSON.stringify({ htmlBody: newHtmlBody }),
+   401→   401→          });
+   402→   402→        } catch {
+   403→   403→          /* best-effort save */
+   404→   404→        }
+   405→   405→      } else {
+   406→   406→        toast.error("AI edit returned no content");
+   407→   407→      }
+   408→   408→    } catch {
+   409→   409→      toast.error("AI edit request failed");
+   410→   410→    } finally {
+   411→   411→      setAiEditLoading(false);
+   412→   412→      setShowAiEdit(false);
+   413→   413→      setAiEditInstruction("");
+   414→   414→    }
+   415→   415→  }, [localState, aiEditLoading, aiEditInstruction]);
+   416→   416→
+   417→   417→  // ─── No state guard ─────────────────────────────
+   418→   418→  if (!localState) {
+   419→   419→    return (
+   420→   420→      <div className="flex h-screen items-center justify-center bg-muted/30">
+   421→   421→        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+   422→   422→      </div>
+   423→   423→    );
+   424→   424→  }
+   425→   425→
+   426→   426→  const totalSections = localState.allSectionIds.length;
+   427→   427→  const currentIdx = localState.currentSectionIndex;
+   428→   428→  const isFirst = currentIdx === 0;
+   429→   429→  const isLast = totalSections > 0 && currentIdx >= totalSections - 1;
+   430→   430→  const progressPercent =
+   431→   431→    totalSections > 1
+   432→   432→      ? Math.round(((currentIdx + 1) / totalSections) * 100)
+   433→   433→      : 100;
+   434→   434→
+   435→   435→  return (
+   436→   436→    <div className="flex h-screen flex-col bg-muted/30 relative">
+   437→   437→      {/* ─── Mobile Notes Sheet ──────────────────── */}
+   438→   438→      <Sheet
+   439→   439→        open={notesSidebarOpen && isMobile}
+   440→   440→        onOpenChange={(open) => {
+   441→   441→          if (!open) setNotesSidebarOpen(false);
+   442→   442→        }}
+   443→   443→      >
+   444→   444→        <SheetContent side="right" className="w-full sm:max-w-sm p-0">
+   445→   445→          <SheetHeader className="px-4 pt-4 pb-0">
+   446→   446→            <SheetTitle className="flex items-center gap-2 text-base">
+   447→   447→              <StickyNote className="h-4 w-4" />
+   448→   448→              Notes
+   449→   449→            </SheetTitle>
+   450→   450→            <SheetDescription>
+   451→   451→              Notes for section {currentIdx + 1} of {totalSections}
+   452→   452→            </SheetDescription>
+   453→   453→          </SheetHeader>
+   454→   454→          <NotesSidebarContent
+   455→   455→            notes={notes}
+   456→   456→            currentSectionIndex={currentIdx}
+   457→   457→            newNoteContent={newNoteContent}
+   458→   458→            savingNote={savingNote}
+   459→   459→            onContentChange={setNewNoteContent}
+   460→   460→            onCreate={createNote}
+   461→   461→            onDelete={deleteNote}
+   462→   462→            onToggleBookmark={toggleBookmark}
+   463→   463→            endRef={notesEndRef}
+   464→   464→          />
+   465→   465→        </SheetContent>
+   466→   466→      </Sheet>
+   467→   467→
+   468→   468→      {/* ─── Confetti Celebration Overlay ─────── */}
+   469→   469→      {showConfetti && <ConfettiCelebration />}
+   470→   470→
+   471→   471→      {/* ─── Top Progress Bar ─────────────────────── */}
+   472→   472→      <div className="shrink-0 h-1 w-full bg-muted overflow-hidden">
+   473→   473→        <div
+   474→   474→          className="h-full bg-gradient-to-r from-primary to-accent transition-all duration-500 ease-out"
+   475→   475→          style={{ width: `${progressPercent}%` }}
+   476→   476→        />
+   477→   477→      </div>
+   478→   478→
+   479→   479→      {/* ─── Top Bar ──────────────────────────────── */}
+   480→   480→      <header className="flex h-14 shrink-0 items-center justify-between border-b bg-card px-4 sm:px-6">
+   481→   481→        {/* Logo, Section Title, Course Title */}
+   482→   482→        <div className="flex items-center gap-3 min-w-0">
+   483→   483→          <div className="flex items-center gap-2 shrink-0">
+   484→   484→            <img
+   485→   485→              src="/ecotech-logo.png"
+   486→   486→              alt="Ecotech"
+   487→   487→              className="h-7 w-7 rounded-md object-contain"
+   488→   488→            />
+   489→   489→            <img
+   490→   490→              src="/ecotech-name.png"
+   491→   491→              alt="Ecotech"
+   492→   492→              className="h-5 w-auto hidden sm:inline object-contain"
+   493→   493→            />
+   494→   494→          </div>
+   495→   495→          <Separator orientation="vertical" className="h-5" />
+   496→   496→          <div className="min-w-0">
+   497→   497→            <h2 className="text-sm font-medium text-foreground truncate leading-tight">
+   498→   498→              {localState.sectionTitle}
+   499→   499→            </h2>
+   500→   500→            <p className="text-xs text-muted-foreground truncate leading-tight">
+   501→   501→              {localState.courseTitle}
+   502→   502→            </p>
+   503→   503→          </div>
+   504→   504→        </div>
+   505→   505→
+   506→   506→        {/* Section Counter */}
+   507→   507→        <span className="shrink-0 inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-sm text-primary tabular-nums">
+   508→   508→          <span className="font-semibold">
+   509→   509→            Section {currentIdx + 1}
+   510→   510→          </span>
+   511→   511→          <span className="text-primary/40 font-normal">of</span>
+   512→   512→          <span className="font-semibold">{totalSections}</span>
+   513→   513→        </span>
+   514→   514→      </header>
+   515→   515→
+   516→   516→      {/* ─── Main Layout: Content + Desktop Notes Sidebar ── */}
+   517→   517→      <div className="flex flex-1 overflow-hidden">
+   518→   518→        {/* ─── Section Content Area ────────────────── */}
+   519→   519→        <div className="flex-1 overflow-auto flex flex-col items-center py-8 px-4 sm:px-6">
+   520→   520→          <div
+   521→   521→            className="bg-card rounded-2xl shadow-lg border w-full max-w-3xl ring-1 ring-black/5 dark:ring-white/5 paper-texture overflow-hidden"
+   522→   522→            style={{
+   523→   523→              transform: `scale(${zoom / 100})`,
+   524→   524→              transformOrigin: "top center",
+   525→   525→            }}
+   526→   526→          >
+   527→   527→            {navigating ? (
+   528→   528→              <div className="flex items-center justify-center py-32">
+   529→   529→                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+   530→   530→              </div>
+   531→   531→            ) : (
+   532→   532→              <iframe
+   533→   533→                srcDoc={localState.htmlBody || ""}
+   534→   534→                sandbox="allow-same-origin"
+   535→   535→                className="w-full rounded-lg border-0"
+   536→   536→                style={{ aspectRatio: "16/9" }}
+   537→   537→                title={`${localState.sectionTitle || "Slide"} content`}
+   538→   538→              />
+   539→   539→            )}
+   540→   540→          </div>
+   541→   541→        </div>
+   542→   542→
+   543→   543→        {/* ─── Desktop Notes Sidebar (slide-in panel) ── */}
+   544→   544→        <aside
+   545→   545→          className={`hidden lg:flex flex-col shrink-0 border-l bg-card transition-all duration-300 ease-in-out overflow-hidden ${
+   546→   546→            notesSidebarOpen
+   547→   547→              ? "w-80 opacity-100"
+   548→   548→              : "w-0 opacity-0 border-l-0"
+   549→   549→          }`}
+   550→   550→        >
+   551→   551→          <div className="flex flex-col h-full w-80">
+   552→   552→            {/* Sidebar Header */}
+   553→   553→            <div className="flex items-center justify-between px-4 py-3 border-b">
+   554→   554→              <div className="flex items-center gap-2">
+   555→   555→                <StickyNote className="h-4 w-4 text-primary" />
+   556→   556→                <span className="text-sm font-semibold">Notes</span>
+   557→   557→              </div>
+   558→   558→              <Button
+   559→   559→                variant="ghost"
+   560→   560→                size="icon"
+   561→   561→                className="h-7 w-7"
+   562→   562→                onClick={() => setNotesSidebarOpen(false)}
+   563→   563→              >
+   564→   564→                <X className="h-4 w-4" />
+   565→   565→              </Button>
+   566→   566→            </div>
+   567→   567→            <NotesSidebarContent
+   568→   568→              notes={notes}
+   569→   569→              currentSectionIndex={currentIdx}
+   570→   570→              newNoteContent={newNoteContent}
+   571→   571→              savingNote={savingNote}
+   572→   572→              onContentChange={setNewNoteContent}
+   573→   573→              onCreate={createNote}
+   574→   574→              onDelete={deleteNote}
+   575→   575→              onToggleBookmark={toggleBookmark}
+   576→   576→              endRef={notesEndRef}
+   577→   577→            />
+   578→   578→          </div>
+   579→   579→        </aside>
+   580→   580→      </div>
+   581→   581→
+   582→   582→      {/* ─── Keyboard Shortcuts Hint (auto-fades) ── */}
+   583→   583→      <div
+   584→   584→        className={`shrink-0 frosted-glass border-t px-4 py-1.5 text-center transition-opacity duration-700 ${
+   585→   585→          showKeyboardHint
+   586→   586→            ? "opacity-100"
+   587→   587→            : "opacity-0 pointer-events-none h-0 py-0 overflow-hidden"
+   588→   588→        }`}
+   589→   589→      >
+   590→   590→        <p className="text-xs text-muted-foreground/70 tracking-wide">
+   591→   591→          ← → Navigate&nbsp;&nbsp;|&nbsp;&nbsp;Space:
+   592→   592→          Next&nbsp;&nbsp;|&nbsp;&nbsp;Esc: Exit
+   593→   593→        </p>
+   594→   594→      </div>
+   595→   595→
+   596→   596→      {/* ─── Bottom Controls (Frosted Glass) ───────── */}
+   597→   597→      <footer className="shrink-0 border-t frosted-glass">
+   598→   598→        <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-4 sm:px-6">
+   599→   599→          {/* Zoom Controls */}
+   600→   600→          <div className="flex items-center gap-1">
+   601→   601→            <Tooltip>
+   602→   602→              <TooltipTrigger asChild>
+   603→   603→                <Button
+   604→   604→                  variant="ghost"
+   605→   605→                  size="icon"
+   606→   606→                  className="h-8 w-8"
+   607→   607→                  onClick={zoomOut}
+   608→   608→                  disabled={zoom <= MIN_ZOOM}
+   609→   609→                >
+   610→   610→                  <ZoomOut className="h-4 w-4" />
+   611→   611→                </Button>
+   612→   612→              </TooltipTrigger>
+   613→   613→              <TooltipContent>Zoom Out</TooltipContent>
+   614→   614→            </Tooltip>
+   615→   615→
+   616→   616→            <span className="w-12 text-center text-xs font-medium text-muted-foreground tabular-nums">
+   617→   617→              {zoom}%
+   618→   618→            </span>
+   619→   619→
+   620→   620→            <Tooltip>
+   621→   621→              <TooltipTrigger asChild>
+   622→   622→                <Button
+   623→   623→                  variant="ghost"
+   624→   624→                  size="icon"
+   625→   625→                  className="h-8 w-8"
+   626→   626→                  onClick={zoomIn}
+   627→   627→                  disabled={zoom >= MAX_ZOOM}
+   628→   628→                >
+   629→   629→                  <ZoomIn className="h-4 w-4" />
+   630→   630→                </Button>
+   631→   631→              </TooltipTrigger>
+   632→   632→              <TooltipContent>Zoom In</TooltipContent>
+   633→   633→            </Tooltip>
+   634→   634→
+   635→   635→            <Tooltip>
+   636→   636→              <TooltipTrigger asChild>
+   637→   637→                <Button
+   638→   638→                  variant="ghost"
+   639→   639→                  size="icon"
+   640→   640→                  className="h-8 w-8"
+   641→   641→                  onClick={zoomFit}
+   642→   642→                >
+   643→   643→                  <Maximize2 className="h-4 w-4" />
+   644→   644→                </Button>
+   645→   645→              </TooltipTrigger>
+   646→   646→              <TooltipContent>Fit Width</TooltipContent>
+   647→   647→            </Tooltip>
+   648→   648→
+   649→   649→            <Tooltip>
+   650→   650→              <TooltipTrigger asChild>
+   651→   651→                <Button
+   652→   652→                  variant="ghost"
+   653→   653→                  size="icon"
+   654→   654→                  className="h-8 w-8"
+   655→   655→                  onClick={zoomFit}
+   656→   656→                >
+   657→   657→                  <RotateCcw className="h-4 w-4" />
+   658→   658→                </Button>
+   659→   659→              </TooltipTrigger>
+   660→   660→              <TooltipContent>Reset Zoom</TooltipContent>
+   661→   661→            </Tooltip>
+   662→   662→
+   663→   663→            <Tooltip>
+   664→   664→              <TooltipTrigger asChild>
+   665→   665→                <Button
+   666→   666→                  variant="ghost"
+   667→   667→                  size="icon"
+   668→   668→                  className="h-8 w-8"
+   669→   669→                  onClick={handleDownloadPptx}
+   670→   670→                  disabled={downloadingPptx}
+   671→   671→                >
+   672→   672→                  {downloadingPptx ? (
+   673→   673→                    <Loader2 className="h-4 w-4 animate-spin" />
+   674→   674→                  ) : (
+   675→   675→                    <FileDown className="h-4 w-4" />
+   676→   676→                  )}
+   677→   677→                </Button>
+   678→   678→              </TooltipTrigger>
+   679→   679→              <TooltipContent>Download as PPT</TooltipContent>
+   680→   680→            </Tooltip>
+   681→   681→          </div>
+   682→   682→
+   683→   683→          {/* Navigation Buttons */}
+   684→   684→          <div className="flex items-center gap-2">
+   685→   685→            <Button
+   686→   686→              variant="outline"
+   687→   687→              size="sm"
+   688→   688→              className={`gap-1.5 transition-opacity ${
+   689→   689→                isFirst || navigating
+   690→   690→                  ? "opacity-40 cursor-not-allowed"
+   691→   691→                  : ""
+   692→   692→              }`}
+   693→   693→              onClick={goPrev}
+   694→   694→              disabled={isFirst || navigating}
+   695→   695→            >
+   696→   696→              <ChevronLeft className="h-4 w-4" />
+   697→   697→              <span className="hidden sm:inline">Previous</span>
+   698→   698→            </Button>
+   699→   699→
+   700→   700→            <Button
+   701→   701→              variant="outline"
+   702→   702→              size="sm"
+   703→   703→              className={`gap-1.5 transition-opacity ${
+   704→   704→                isLast || navigating
+   705→   705→                  ? "opacity-40 cursor-not-allowed"
+   706→   706→                  : ""
+   707→   707→              }`}
+   708→   708→              onClick={goNext}
+   709→   709→              disabled={isLast || navigating}
+   710→   710→            >
+   711→   711→              <span className="hidden sm:inline">Next</span>
+   712→   712→              <ChevronRight className="h-4 w-4" />
+   713→   713→            </Button>
+   714→   714→          </div>
+   715→   715→
+   716→   716→          {/* Close + Notes Toggle */}
+   717→   717→          <div className="flex items-center gap-3">
+   718→   718→            <Tooltip>
+   719→   719→              <TooltipTrigger asChild>
+   720→   720→                <Button
+   721→   721→                  variant={notesSidebarOpen ? "secondary" : "ghost"}
+   722→   722→                  size="icon"
+   723→   723→                  className="h-8 w-8"
+   724→   724→                  onClick={() => setNotesSidebarOpen((v) => !v)}
+   725→   725→                >
+   726→   726→                  <StickyNote className="h-4 w-4" />
+   727→   727→                </Button>
+   728→   728→              </TooltipTrigger>
+   729→   729→              <TooltipContent>Notes</TooltipContent>
+   730→   730→            </Tooltip>
+   731→   731→            <span className="hidden lg:inline text-xs text-muted-foreground">
+   732→   732→              ← → navigate, ESC exit
+   733→   733→            </span>
+   734→   734→            <Button
+   735→   735→              variant="ghost"
+   736→   736→              size="sm"
+   737→   737→              className="gap-1.5 text-muted-foreground hover:text-foreground"
+   738→   738→              onClick={goBack}
+   739→   739→            >
+   740→   740→              <X className="h-4 w-4" />
+   741→   741→              <span className="hidden sm:inline">Close</span>
+   742→   742→            </Button>
+   743→   743→          </div>
+   744→   744→        </div>
+   745→   745→      </footer>
+   746→   746→
+   747→   747→      {/* ─── AI Edit Floating Panel ────────── */}
+   748→   748→      {showAiEdit && (
+   749→   749→        <div className="fixed bottom-20 right-4 z-50 w-72 rounded-lg border bg-card shadow-lg p-4 flex flex-col gap-3">
+   750→   750→          <div className="flex items-center justify-between">
+   751→   751→            <h3 className="text-sm font-semibold flex items-center gap-1.5">
+   752→   752→              <Wand2 className="h-4 w-4 text-primary" />
+   753→   753→              AI Edit
+   754→   754→            </h3>
+   755→   755→          </div>
+   756→   756→          <Textarea
+   757→   757→            value={aiEditInstruction}
+   758→   758→            onChange={(e) => setAiEditInstruction(e.target.value)}
+   759→   759→            placeholder="Describe the edit you want…"
+   760→   760→            rows={3}
+   761→   761→            className="resize-none text-sm"
+   762→   762→          />
+   763→   763→          <div className="flex items-center justify-end gap-2">
+   764→   764→            <Button
+   765→   765→              variant="ghost"
+   766→   766→              size="sm"
+   767→   767→              onClick={() => {
+   768→   768→                setShowAiEdit(false);
+   769→   769→                setAiEditInstruction("");
+   770→   770→              }}
+   771→   771→              disabled={aiEditLoading}
+   772→   772→            >
+   773→   773→              Cancel
+   774→   774→            </Button>
+   775→   775→            <Button
+   776→   776→              size="sm"
+   777→   777→              onClick={handleAiEdit}
+   778→   778→              disabled={aiEditLoading || !aiEditInstruction.trim()}
+   779→   779→            >
+   780→   780→              {aiEditLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+   781→   781→              Apply
+   782→   782→            </Button>
+   783→   783→          </div>
+   784→   784→        </div>
+   785→   785→      )}
+   786→   786→      <Button
+   787→   787→        className="fixed bottom-4 right-4 z-50 h-10 w-10 rounded-full shadow-lg"
+   788→   788→        size="icon"
+   789→   789→        onClick={() => setShowAiEdit((v) => !v)}
+   790→   790→        aria-label="Toggle AI Edit"
+   791→   791→      >
+   792→   792→        <Wand2 className="h-4 w-4" />
+   793→   793→      </Button>
+   794→   794→
+   795→   795→      {/* ─── Study Timer (floating panel) ────────── */}
+   796→   796→      <StudyTimer />
+   797→   797→    </div>
+   798→   798→  );
+   799→   799→}
+   800→   800→
+   801→   801→// ============================================
+   802→   802→// Notes Sidebar Content (shared between desktop & mobile)
+   803→   803→// ============================================
+   804→   804→
+   805→   805→interface NotesSidebarContentProps {
+   806→   806→  notes: {
+   807→   807→    id: string;
+   808→   808→    content: string;
+   809→   809→    slideNumber: number;
+   810→   810→    bookmarked: boolean;
+   811→   811→    createdAt?: string;
+   812→   812→  }[];
+   813→   813→  currentSectionIndex: number;
+   814→   814→  newNoteContent: string;
+   815→   815→  savingNote: boolean;
+   816→   816→  onContentChange: (v: string) => void;
+   817→   817→  onCreate: () => void;
+   818→   818→  onDelete: (id: string) => void;
+   819→   819→  onToggleBookmark: (id: string) => void;
+   820→   820→  endRef: React.RefObject<HTMLDivElement | null>;
+   821→   821→}
+   822→   822→
+   823→   823→function NotesSidebarContent({
+   824→   824→  notes,
+   825→   825→  currentSectionIndex,
+   826→   826→  newNoteContent,
+   827→   827→  savingNote,
+   828→   828→  onContentChange,
+   829→   829→  onCreate,
+   830→   830→  onDelete,
+   831→   831→  onToggleBookmark,
+   832→   832→  endRef,
+   833→   833→}: NotesSidebarContentProps) {
+   834→   834→  const handleKeyDown = (e: React.KeyboardEvent) => {
+   835→   835→    if (e.key === "Enter" && !e.shiftKey) {
+   836→   836→      e.preventDefault();
+   837→   837→      onCreate();
+   838→   838→    }
+   839→   839→  };
+   840→   840→
+   841→   841→  return (
+   842→   842→    <>
+   843→   843→      {/* Notes List */}
+   844→   844→      <ScrollArea className="flex-1">
+   845→   845→        <div className="flex flex-col gap-2 p-3">
+   846→   846→          {notes.length === 0 && (
+   847→   847→            <div className="flex flex-col items-center justify-center py-12 text-center">
+   848→   848→              <StickyNote className="h-8 w-8 text-muted-foreground/30 mb-2" />
+   849→   849→              <p className="text-xs text-muted-foreground">
+   850→   850→                No notes yet.
+   851→   851→              </p>
+   852→   852→              <p className="text-xs text-muted-foreground/60">
+   853→   853→                Add a note for section {currentSectionIndex + 1}.
+   854→   854→              </p>
+   855→   855→            </div>
+   856→   856→          )}
+   857→   857→          {notes.map((note) => (
+   858→   858→            <div
+   859→   859→              key={note.id}
+   860→   860→              className="group relative rounded-lg border bg-background p-3 text-sm transition-colors hover:bg-muted/40"
+   861→   861→            >
+   862→   862→              {/* Section badge */}
+   863→   863→              <div className="flex items-center justify-between mb-1">
+   864→   864→                <span className="inline-flex items-center rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+   865→   865→                  Section {note.slideNumber}
+   866→   866→                </span>
+   867→   867→                <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+   868→   868→                  <button
+   869→   869→                    type="button"
+   870→   870→                    className="p-1 rounded hover:bg-muted transition-colors"
+   871→   871→                    onClick={() => onToggleBookmark(note.id)}
+   872→   872→                    aria-label={
+   873→   873→                      note.bookmarked
+   874→   874→                        ? "Remove bookmark"
+   875→   875→                        : "Bookmark note"
+   876→   876→                    }
+   877→   877→                  >
+   878→   878→                    {note.bookmarked ? (
+   879→   879→                      <BookmarkCheck className="h-3.5 w-3.5 text-amber-500" />
+   880→   880→                    ) : (
+   881→   881→                      <Bookmark className="h-3.5 w-3.5 text-muted-foreground" />
+   882→   882→                    )}
+   883→   883→                  </button>
+   884→   884→                  <button
+   885→   885→                    type="button"
+   886→   886→                    className="p-1 rounded hover:bg-destructive/10 transition-colors"
+   887→   887→                    onClick={() => onDelete(note.id)}
+   888→   888→                    aria-label="Delete note"
+   889→   889→                  >
+   890→   890→                    <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
+   891→   891→                  </button>
+   892→   892→                </div>
+   893→   893→              </div>
+   894→   894→              <p className="text-xs text-foreground/80 leading-relaxed whitespace-pre-line">
+   895→   895→                {note.content}
+   896→   896→              </p>
+   897→   897→            </div>
+   898→   898→          ))}
+   899→   899→          <div ref={endRef} />
+   900→   900→        </div>
+   901→   901→      </ScrollArea>
+   902→   902→
+   903→   903→      {/* New Note Input */}
+   904→   904→      <div className="shrink-0 border-t p-3">
+   905→   905→        <div className="flex gap-2">
+   906→   906→          <textarea
+   907→   907→            value={newNoteContent}
+   908→   908→            onChange={(e) => onContentChange(e.target.value)}
+   909→   909→            onKeyDown={handleKeyDown}
+   910→   910→            placeholder={`Add a note for section ${currentSectionIndex + 1}…`}
+   911→   911→            rows={2}
+   912→   912→            className="flex-1 resize-none rounded-lg border bg-background px-3 py-2 text-xs placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/20"
+   913→   913→          />
+   914→   914→          <Button
+   915→   915→            size="icon"
+   916→   916→            className="h-auto w-9 shrink-0 self-end"
+   917→   917→            onClick={onCreate}
+   918→   918→            disabled={savingNote || !newNoteContent.trim()}
+   919→   919→          >
+   920→   920→            {savingNote ? (
+   921→   921→              <Loader2 className="h-4 w-4 animate-spin" />
+   922→   922→            ) : (
+   923→   923→              <Send className="h-4 w-4" />
+   924→   924→            )}
+   925→   925→          </Button>
+   926→   926→        </div>
+   927→   927→      </div>
+   928→   928→    </>
+   929→   929→  );
+   930→   930→}
+   931→   931→
+   932→   932→// ============================================
+   933→   933→// Confetti Celebration Component
+   934→   934→// ============================================
+   935→   935→
+   936→   936→/** LMS color palette for confetti particles */
+   937→   937→const CONFETTI_COLORS = [
+   938→   938→  "#3882f6", // blue
+   939→   939→  "#14b8a6", // teal
+   940→   940→  "#22d3ee", // cyan
+   941→   941→  "#10b981", // emerald
+   942→   942→  "#f59e0b", // amber
+   943→   943→  "#6366f1", // indigo accent
+   944→   944→  "#8b5cf6", // violet accent
+   945→   945→  "#ec4899", // pink accent
+   946→   946→];
+   947→   947→
+   948→   948→type ParticleShape = "circle" | "rectangle" | "triangle";
+   949→   949→
+   950→   950→interface ConfettiParticle {
+   951→   951→  id: number;
+   952→   952→  left: number;
+   953→   953→  color: string;
+   954→   954→  shape: ParticleShape;
+   955→   955→  size: number;
+   956→   956→  fallDuration: string;
+   957→   957→  fallDelay: string;
+   958→   958→  drift: string;
+   959→   959→  spin: string;
+   960→   960→}
+   961→   961→
+   962→   962→function ConfettiCelebration() {
+   963→   963→  const particles = useMemo<ConfettiParticle[]>(() => {
+   964→   964→    const result: ConfettiParticle[] = [];
+   965→   965→    const shapes: ParticleShape[] = ["circle", "rectangle", "triangle"];
+   966→   966→    const count = 80;
+   967→   967→
+   968→   968→    for (let i = 0; i < count; i++) {
+   969→   969→      const shape =
+   970→   970→        shapes[i % 3 === 0 ? 0 : i % 3 === 1 ? 1 : 2];
+   971→   971→      result.push({
+   972→   972→        id: i,
+   973→   973→        left: Math.random() * 100,
+   974→   974→        color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+   975→   975→        shape,
+   976→   976→        size: Math.floor(Math.random() * 8) + 6, // 6-14px
+   977→   977→        fallDuration: `${(Math.random() * 1.5 + 2).toFixed(2)}s`, // 2-3.5s
+   978→   978→        fallDelay: `${(Math.random() * 0.8).toFixed(2)}s`, // 0-0.8s
+   979→   979→        drift: `${(Math.random() * 120 - 60).toFixed(0)}px`, // -60 to +60px
+   980→   980→        spin: `${Math.floor(Math.random() * 720 + 360)}deg`, // 360-1080deg
+   981→   981→      });
+   982→   982→    }
+   983→   983→    return result;
+   984→   984→  }, []);
+   985→   985→
+   986→   986→  return (
+   987→   987→    <>
+   988→   988→      {/* Confetti particles layer */}
+   989→   989→      <div className="confetti-container" aria-hidden="true">
+   990→   990→        {particles.map((p) => {
+   991→   991→          if (p.shape === "triangle") {
+   992→   992→            return (
+   993→   993→              <div
+   994→   994→                key={p.id}
+   995→   995→                className="confetti-particle confetti-triangle"
+   996→   996→                style={{
+   997→   997→                  left: `${p.left}%`,
+   998→   998→                  "--confetti-color": p.color,
+   999→   999→                  "--tri-size": `${p.size}px`,
+  1000→  1000→                  "--fall-duration": p.fallDuration,
+  1001→  1001→                  "--fall-delay": p.fallDelay,
+  1002→  1002→                  "--drift": p.drift,
+  1003→  1003→                  "--spin": p.spin,
+  1004→  1004→                } as React.CSSProperties}
+  1005→  1005→              />
+  1006→  1006→            );
+  1007→  1007→          }
+  1008→  1008→          return (
+  1009→  1009→            <div
+  1010→  1010→              key={p.id}
+  1011→  1011→              className={`confetti-particle ${
+  1012→  1012→                p.shape === "circle"
+  1013→  1013→                  ? "confetti-circle"
+  1014→  1014→                  : "confetti-rectangle"
+  1015→  1015→              }`}
+  1016→  1016→              style={{
+  1017→  1017→                left: `${p.left}%`,
+  1018→  1018→                width:
+  1019→  1019→                  p.shape === "rectangle"
+  1020→  1020→                    ? `${p.size * 1.4}px`
+  1021→  1021→                    : `${p.size}px`,
+  1022→  1022→                height: `${p.size}px`,
+  1023→  1023→                backgroundColor: p.color,
+  1024→  1024→                "--fall-duration": p.fallDuration,
+  1025→  1025→                "--fall-delay": p.fallDelay,
+  1026→  1026→                "--drift": p.drift,
+  1027→  1027→                "--spin": p.spin,
+  1028→  1028→              } as React.CSSProperties}
+  1029→  1029→            />
+  1030→  1030→          );
+  1031→  1031→        })}
+  1032→  1032→      </div>
+  1033→  1033→
+  1034→  1034→      {/* Congratulations message */}
+  1035→  1035→      <div
+  1036→  1036→        className="confetti-message"
+  1037→  1037→        role="status"
+  1038→  1038→        aria-label="Congratulations!"
+  1039→  1039→      >
+  1040→  1040→        <div className="confetti-message-text flex flex-col items-center gap-3">
+  1041→  1041→          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/90 dark:bg-zinc-800/90 shadow-lg">
+  1042→  1042→            <span className="text-4xl">🎉</span>
+  1043→  1043→          </div>
+  1044→  1044→          <div className="rounded-2xl bg-white/90 dark:bg-zinc-800/90 px-8 py-5 shadow-xl text-center">
+  1045→  1045→            <h2 className="text-2xl sm:text-3xl font-bold text-foreground">
+  1046→  1046→              🎉 Congratulations!
+  1047→  1047→            </h2>
+  1048→  1048→            <p className="mt-2 text-sm text-muted-foreground">
+  1049→  1049→              You&apos;ve completed this section!
+  1050→  1050→            </p>
+  1051→  1051→          </div>
+  1052→  1052→        </div>
+  1053→  1053→      </div>
+  1054→  1054→    </>
+  1055→  1055→  );
+  1056→  1056→}
+  1057→  1057→

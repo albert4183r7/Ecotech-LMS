@@ -150,14 +150,20 @@ export async function POST(request: NextRequest) {
     let resolvedSections: SectionHtmlBody[] | undefined = sections;
 
     if (!resolvedSections && courseId) {
-      const dbSections = await db.section.findMany({
+      const dbLessons = await db.lesson.findMany({
         where: { courseId },
         orderBy: { order: 'asc' },
-        select: { title: true, htmlBody: true },
+        include: {
+          slides: {
+            where: { status: 'READY' },
+            orderBy: { order: 'asc' },
+            select: { title: true, htmlBody: true },
+          },
+        },
       });
-      resolvedSections = dbSections
-        .filter((s) => s.htmlBody)
-        .map((s) => ({ title: s.title, htmlBody: s.htmlBody! }));
+      resolvedSections = dbLessons.flatMap((l) =>
+        l.slides.map((s) => ({ title: s.title, htmlBody: s.htmlBody }))
+      );
     }
 
     if (!resolvedSections || !Array.isArray(resolvedSections) || resolvedSections.length === 0) {

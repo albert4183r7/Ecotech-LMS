@@ -25,7 +25,7 @@ interface SocialActivityItem {
   userAvatar: string;
   userRole: string;
   action:
-    | "completed_section"
+    | "completed_lesson"
     | "enrolled_course"
     | "posted_comment"
     | "earned_badge"
@@ -50,11 +50,11 @@ const ACTION_CONFIG: Record<
     label: string;
   }
 > = {
-  completed_section: {
+  completed_lesson: {
     icon: CheckCircle2,
     colorClass: "text-emerald-500 dark:text-emerald-400",
     borderColor: "border-l-emerald-500 dark:border-l-emerald-400",
-    label: "completed a section in",
+    label: "completed a lesson in",
   },
   enrolled_course: {
     icon: BookOpen,

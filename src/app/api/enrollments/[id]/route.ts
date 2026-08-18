@@ -44,7 +44,7 @@ export async function PATCH(
           include: {
             category: true,
             _count: {
-              select: { sections: true },
+              select: { lessons: true },
             },
           },
         },

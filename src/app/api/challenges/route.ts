@@ -29,11 +29,11 @@ const CHALLENGE_POOL: Array<{
 }> = [
   {
     title: 'Complete a Lesson',
-    description: 'Finish any course section to earn XP',
+    description: 'Finish any course lesson to earn XP',
     xpReward: 25,
     type: 'complete_lesson',
     icon: 'BookOpenCheck',
-    progressText: '0/1 sections completed',
+    progressText: '0/1 lessons completed',
   },
   {
     title: 'Take a Quiz',

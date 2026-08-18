@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
         category: true,
         _count: {
           select: {
-            sections: true,
+            lessons: true,
             enrollments: true,
           },
         },
@@ -107,7 +107,7 @@ export async function GET(request: NextRequest) {
             color: course.category.color,
           }
         : null,
-      sectionsCount: course._count.sections,
+      lessonsCount: course._count.lessons,
       enrollmentsCount: course._count.enrollments,
     }));
 
@@ -150,22 +150,15 @@ export async function POST(request: NextRequest) {
         creatorId,
         coverImage: coverImage || null,
         status: 'draft',
-        sections: sections
+        lessons: sections
           ? {
               create: sections.map(
                 (
-                  sec: { title: string; content?: string; htmlBody?: string; totalPages: number },
+                  sec: { title: string; order: number },
                   index: number
                 ) => ({
                   title: sec.title,
-                  content: sec.content
-                    ? typeof sec.content === 'string'
-                      ? sec.content
-                      : JSON.stringify(sec.content)
-                    : null,
-                  htmlBody: sec.htmlBody || null,
-                  totalPages: sec.totalPages || 0,
-                  order: index,
+                  order: sec.order ?? index,
                 })
               ),
             }
@@ -176,7 +169,7 @@ export async function POST(request: NextRequest) {
         creator: {
           select: { id: true, name: true, email: true, avatar: true },
         },
-        sections: {
+        lessons: {
           orderBy: { order: 'asc' },
         },
       },

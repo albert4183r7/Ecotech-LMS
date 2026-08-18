@@ -2,14 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
 /**
- * GET /api/comments?courseId=xxx&sectionId=xxx
- * List comments for a course/section (newest first, with nested replies)
+ * GET /api/comments?courseId=xxx&lessonId=xxx
+ * List comments for a course/lesson (newest first, with nested replies)
  */
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const courseId = searchParams.get("courseId");
-    const sectionId = searchParams.get("sectionId");
+    const lessonId = searchParams.get("lessonId");
 
     if (!courseId) {
       return NextResponse.json(
@@ -18,11 +18,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Fetch top-level comments (no parentId) for this course/section
+    // Fetch top-level comments (no parentId) for this course/lesson
     const comments = await db.comment.findMany({
       where: {
         courseId,
-        sectionId: sectionId || null,
+        lessonId: lessonId || null,
         parentId: null,
       },
       include: {
@@ -54,12 +54,12 @@ export async function GET(request: NextRequest) {
 /**
  * POST /api/comments
  * Create a new comment
- * Body: { content, courseId, sectionId?, parentId?, userId }
+ * Body: { content, courseId, lessonId?, parentId?, userId }
  */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { content, courseId, sectionId, parentId, userId } = body;
+    const { content, courseId, lessonId, parentId, userId } = body;
 
     if (!content?.trim() || !courseId || !userId) {
       return NextResponse.json(
@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
       data: {
         content: content.trim(),
         courseId,
-        sectionId: sectionId || null,
+        lessonId: lessonId || null,
         parentId: parentId || null,
         userId,
       },

@@ -5,9 +5,9 @@ import { db } from "@/lib/db";
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
 
-interface SectionTimelineData {
-  sectionId: string;
-  sectionTitle: string;
+interface LessonTimelineData {
+  lessonId: string;
+  lessonTitle: string;
   order: number;
   status: "not-started" | "in-progress" | "completed";
   currentPage: number;
@@ -32,10 +32,10 @@ interface ProgressTimelineResponse {
     courseTitle: string;
     userId: string;
     overallProgress: number;
-    totalSections: number;
-    completedSections: number;
+    totalLessons: number;
+    completedLessons: number;
   } & {
-    sections: SectionTimelineData[];
+    lessons: LessonTimelineData[];
     milestones: Milestone[];
     totalTimeEstimateMinutes: number;
   };
@@ -83,14 +83,14 @@ export async function GET(request: NextRequest) {
       include: {
         course: {
           include: {
-            sections: {
+            lessons: {
               orderBy: { order: "asc" },
             },
           },
         },
         progresses: {
           include: {
-            section: true,
+            lesson: true,
           },
           orderBy: { updatedAt: "desc" },
         },
@@ -104,16 +104,16 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const sections = enrollment.course.sections;
+    const lessons = enrollment.course.lessons;
     const progresses = enrollment.progresses;
 
-    // Build section timeline data
-    const sectionMap = new Map(
-      progresses.map((p) => [p.sectionId, p])
+    // Build lesson timeline data
+    const lessonMap = new Map(
+      progresses.map((p) => [p.lessonId, p])
     );
 
-    const sectionTimeline: SectionTimelineData[] = sections.map((sec) => {
-      const prog = sectionMap.get(sec.id);
+    const lessonTimeline: LessonTimelineData[] = lessons.map((lesson) => {
+      const prog = lessonMap.get(lesson.id);
       let status: "not-started" | "in-progress" | "completed" = "not-started";
       let currentPage = 0;
       let lastAccessedAt: string | null = null;
@@ -133,16 +133,16 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      const totalPages = sec.totalPages || 0;
+      const totalPages = 1; // TODO: derive from slide count later
       const progressPct =
         totalPages > 0 ? Math.round((currentPage / totalPages) * 100) : 0;
       // Estimate ~2 min per page
       const timeEstimateMinutes = Math.max(2, totalPages * 2);
 
       return {
-        sectionId: sec.id,
-        sectionTitle: sec.title,
-        order: sec.order,
+        lessonId: lesson.id,
+        lessonTitle: lesson.title,
+        order: lesson.order,
         status,
         currentPage,
         totalPages,
@@ -154,18 +154,18 @@ export async function GET(request: NextRequest) {
     });
 
     // Compute overall progress
-    const totalSections = sections.length;
-    const completedSections = sectionTimeline.filter(
-      (s) => s.status === "completed"
+    const totalLessons = lessons.length;
+    const completedLessons = lessonTimeline.filter(
+      (l) => l.status === "completed"
     ).length;
     const overallProgress =
-      totalSections > 0
-        ? Math.round((completedSections / totalSections) * 100)
+      totalLessons > 0
+        ? Math.round((completedLessons / totalLessons) * 100)
         : 0;
 
     // Total time estimate
-    const totalTimeEstimateMinutes = sectionTimeline.reduce(
-      (sum, s) => sum + s.timeEstimateMinutes,
+    const totalTimeEstimateMinutes = lessonTimeline.reduce(
+      (sum, l) => sum + l.timeEstimateMinutes,
       0
     );
 
@@ -187,7 +187,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // First section completed
+    // First lesson completed
     const completedProgresses = progresses
       .filter((p) => p.completed)
       .sort((a, b) => a.updatedAt.getTime() - b.updatedAt.getTime());
@@ -195,16 +195,16 @@ export async function GET(request: NextRequest) {
     if (completedProgresses.length > 0) {
       milestones.push({
         type: "first-completed",
-        label: "First Section Completed",
+        label: "First Lesson Completed",
         date: formatDate(completedProgresses[0].updatedAt),
         icon: "check",
       });
     }
 
-    // Halfway: when completedSections >= totalSections / 2
-    if (totalSections > 0 && completedSections >= Math.ceil(totalSections / 2)) {
+    // Halfway: when completedLessons >= totalLessons / 2
+    if (totalLessons > 0 && completedLessons >= Math.ceil(totalLessons / 2)) {
       // Find the progress that made it halfway
-      const halfwayIndex = Math.ceil(totalSections / 2) - 1;
+      const halfwayIndex = Math.ceil(totalLessons / 2) - 1;
       const halfwayProgress = completedProgresses[halfwayIndex];
       milestones.push({
         type: "halfway",
@@ -233,9 +233,9 @@ export async function GET(request: NextRequest) {
         courseTitle: enrollment.course.title,
         userId,
         overallProgress,
-        totalSections,
-        completedSections,
-        sections: sectionTimeline,
+        totalLessons,
+        completedLessons,
+        lessons: lessonTimeline,
         milestones,
         totalTimeEstimateMinutes,
       },

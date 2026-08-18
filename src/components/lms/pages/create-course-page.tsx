@@ -47,7 +47,7 @@ import { toast } from "sonner";
 // Types
 // ============================================
 
-interface SectionDraft {
+interface LessonDraft {
   id: string;
   title: string;
   totalPages: number;
@@ -64,7 +64,7 @@ interface OutlineSection {
 // Create Course Page Component
 // ============================================
 
-const MAX_SECTIONS = 10;
+const MAX_LESSONS = 10;
 const MAX_TITLE_LENGTH = 100;
 const MAX_DESC_LENGTH = 3000;
 const MAX_COURSE_DESC_LENGTH = 500;
@@ -81,7 +81,7 @@ export function CreateCoursePage() {
   const [language, setLanguage] = useState("english");
   const [coverImage, setCoverImage] = useState("");
   const [coverPreview, setCoverPreview] = useState<string | null>(null);
-  const [sections, setSections] = useState<SectionDraft[]>([]);
+  const [lessons, setLessons] = useState<LessonDraft[]>([]);
 
   // ---- UI state ----
   const [categories, setCategories] = useState<CategoryItem[]>([]);
@@ -93,10 +93,10 @@ export function CreateCoursePage() {
   const [imageUrl, setImageUrl] = useState("");
 
   // ---- Modal state ----
-  const [sectionName, setSectionName] = useState("");
-  const [sectionPrompt, setSectionPrompt] = useState("");
-  const [sectionLanguage, setSectionLanguage] = useState("english");
-  const [sectionPdfName, setSectionPdfName] = useState("");
+  const [lessonName, setLessonName] = useState("");
+  const [lessonPrompt, setLessonPrompt] = useState("");
+  const [lessonLanguage, setLessonLanguage] = useState("english");
+  const [lessonPdfName, setLessonPdfName] = useState("");
 
   // ---- Live streaming state ----
   const [streamingHtml, setStreamingHtml] = useState("");
@@ -109,8 +109,8 @@ export function CreateCoursePage() {
   const [outlineTopic, setOutlineTopic] = useState("");
   const [outlineSections, setOutlineSections] = useState<OutlineSection[]>([]);
 
-  // ---- Expanded section preview ----
-  const [expandedSectionId, setExpandedSectionId] = useState<string | null>(null);
+  // ---- Expanded lesson preview ----
+  const [expandedLessonId, setExpandedLessonId] = useState<string | null>(null);
 
   // ---- Pre-fill title from hero prompt ----
   useEffect(() => {
@@ -122,7 +122,7 @@ export function CreateCoursePage() {
 
   // ---- Refs ----
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const sectionFileInputRef = useRef<HTMLInputElement>(null);
+  const lessonFileInputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   // ---- Fetch categories ----
@@ -163,28 +163,28 @@ export function CreateCoursePage() {
     setCoverPreview(null);
   };
 
-  // ---- Section management ----
+  // ---- Lesson management ----
   const handleOpenModal = () => {
-    setSectionName("");
-    setSectionPrompt("");
-    setSectionLanguage(language);
-    setSectionPdfName("");
+    setLessonName("");
+    setLessonPrompt("");
+    setLessonLanguage(language);
+    setLessonPdfName("");
     setStreamingHtml("");
     setShowStreamPreview(false);
     setModalOpen(true);
   };
 
-  const handleGenerateSection = useCallback(async () => {
-    if (!sectionName.trim()) {
-      toast.error("Section name is required");
+  const handleGenerateLesson = useCallback(async () => {
+    if (!lessonName.trim()) {
+      toast.error("Lesson name is required");
       return;
     }
-    if (!sectionPrompt.trim()) {
-      toast.error("Course prompt is required");
+    if (!lessonPrompt.trim()) {
+      toast.error("Content prompt is required");
       return;
     }
-    if (sections.length >= MAX_SECTIONS) {
-      toast.error(`Maximum ${MAX_SECTIONS} sections allowed`);
+    if (lessons.length >= MAX_LESSONS) {
+      toast.error(`Maximum ${MAX_LESSONS} lessons allowed`);
       return;
     }
 
@@ -200,9 +200,9 @@ export function CreateCoursePage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          sectionTitle: sectionName.trim(),
-          prompt: sectionPrompt.trim(),
-          language: sectionLanguage,
+          sectionTitle: lessonName.trim(),
+          prompt: lessonPrompt.trim(),
+          language: lessonLanguage,
         }),
         signal: abort.signal,
       });
@@ -219,7 +219,7 @@ export function CreateCoursePage() {
       const decoder = new TextDecoder();
       let buffer = "";
       let htmlBody = "";
-      let sectionTitle = sectionName.trim();
+      let sectionTitle = lessonName.trim();
       let rawHtml = ""; // accumulating raw HTML fragments for live preview
 
       while (true) {
@@ -261,27 +261,27 @@ export function CreateCoursePage() {
         return;
       }
 
-      const newSection: SectionDraft = {
+      const newLesson: LessonDraft = {
         id: `sec_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
         title: sectionTitle,
         totalPages: 1,
         htmlBody,
-        language: sectionLanguage,
+        language: lessonLanguage,
       };
 
-      setSections((prev) => [...prev, newSection]);
+      setLessons((prev) => [...prev, newLesson]);
       setModalOpen(false);
       setShowStreamPreview(false);
       setStreamingHtml("");
-      toast.success(`Section \"${sectionTitle}\" generated successfully`);
+      toast.success(`Lesson \"${sectionTitle}\" generated successfully`);
     } catch (err) {
       if (err instanceof Error && err.name === "AbortError") return;
-      toast.error("Failed to generate section. Please try again.");
+      toast.error("Failed to generate lesson. Please try again.");
     } finally {
       setGenerating(false);
       abortControllerRef.current = null;
     }
-  }, [sectionName, sectionPrompt, sectionLanguage, sections.length]);
+  }, [lessonName, lessonPrompt, lessonLanguage, lessons.length]);
 
   const handleCancelGeneration = () => {
     abortControllerRef.current?.abort();
@@ -290,20 +290,20 @@ export function CreateCoursePage() {
     setStreamingHtml("");
   };
 
-  const handleDeleteSection = (id: string) => {
-    setSections((prev) => prev.filter((s) => s.id !== id));
-    if (expandedSectionId === id) setExpandedSectionId(null);
+  const handleDeleteLesson = (id: string) => {
+    setLessons((prev) => prev.filter((s) => s.id !== id));
+    if (expandedLessonId === id) setExpandedLessonId(null);
   };
 
-  const handleMoveSection = (index: number, direction: "up" | "down") => {
-    const newSections = [...sections];
+  const handleMoveLesson = (index: number, direction: "up" | "down") => {
+    const newLessons = [...lessons];
     const targetIndex = direction === "up" ? index - 1 : index + 1;
-    if (targetIndex < 0 || targetIndex >= newSections.length) return;
-    [newSections[index], newSections[targetIndex]] = [
-      newSections[targetIndex],
-      newSections[index],
+    if (targetIndex < 0 || targetIndex >= newLessons.length) return;
+    [newLessons[index], newLessons[targetIndex]] = [
+      newLessons[targetIndex],
+      newLessons[index],
     ];
-    setSections(newSections);
+    setLessons(newLessons);
   };
 
   // ---- Outline generation ----
@@ -326,18 +326,18 @@ export function CreateCoursePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           topic: outlineTopic.trim(),
-          prompt: `Create a comprehensive course outline for: ${outlineTopic.trim()}. Include 4-6 sections that progressively build understanding.`,
+          prompt: `Create a comprehensive course outline for: ${outlineTopic.trim()}. Include 4-6 lessons that progressively build understanding.`,
           language,
         }),
       });
 
       const json = await res.json();
       if (json.success && json.data) {
-        setOutlineSections(json.data.sections || []);
+        setOutlineSections(json.data.lessons || []);
         if (json.data.title && !title) {
           setTitle(json.data.title);
         }
-        toast.success("Outline generated! Select sections to generate.");
+        toast.success("Outline generated! Select lessons to generate.");
       } else {
         toast.error(json.error || "Failed to generate outline");
       }
@@ -349,8 +349,8 @@ export function CreateCoursePage() {
   }, [outlineTopic, language, title]);
 
   const handleAddOutlineSections = () => {
-    // Add outline sections as drafts (without htmlBody yet)
-    const newDrafts: SectionDraft[] = outlineSections.map((sec, i) => ({
+    // Add outline lessons as drafts (without htmlBody yet)
+    const newDrafts: LessonDraft[] = outlineSections.map((sec, i) => ({
       id: `sec_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 8)}`,
       title: sec.title,
       totalPages: 1,
@@ -358,15 +358,15 @@ export function CreateCoursePage() {
       language,
     }));
 
-    const total = sections.length + newDrafts.length;
-    if (total > MAX_SECTIONS) {
-      toast.error(`Can only add ${MAX_SECTIONS - sections.length} more sections`);
+    const total = lessons.length + newDrafts.length;
+    if (total > MAX_LESSONS) {
+      toast.error(`Can only add ${MAX_LESSONS - lessons.length} more lessons`);
       return;
     }
 
-    setSections((prev) => [...prev, ...newDrafts]);
+    setLessons((prev) => [...prev, ...newDrafts]);
     setOutlineModalOpen(false);
-    toast.success(`${newDrafts.length} sections added. Click the generate button on each to create content.`);
+    toast.success(`${newDrafts.length} lessons added. Click the generate button on each to create content.`);
   };
 
   // ---- Form submission ----
@@ -376,10 +376,10 @@ export function CreateCoursePage() {
       return;
     }
 
-    // Check if any section is missing htmlBody
-    const missingContent = sections.filter((s) => !s.htmlBody);
+    // Check if any lesson is missing htmlBody
+    const missingContent = lessons.filter((s) => !s.htmlBody);
     if (missingContent.length > 0) {
-      toast.error(`${missingContent.length} section(s) have no content yet. Generate content for all sections first.`);
+      toast.error(`${missingContent.length} lesson(s) have no content yet. Generate content for all lessons first.`);
       return;
     }
 
@@ -392,7 +392,7 @@ export function CreateCoursePage() {
         language,
         creatorId: currentUserId,
         coverImage: coverImage || null,
-        sections: sections.map((sec, index) => ({
+        lessons: lessons.map((sec, index) => ({
           title: sec.title,
           htmlBody: sec.htmlBody,
           totalPages: sec.totalPages,
@@ -421,22 +421,22 @@ export function CreateCoursePage() {
     }
   };
 
-  // ---- Section PDF upload simulation ----
-  const handleSectionPdfUpload = () => {
-    sectionFileInputRef.current?.click();
+  // ---- Lesson PDF upload simulation ----
+  const handleLessonPdfUpload = () => {
+    lessonFileInputRef.current?.click();
   };
 
-  const handleSectionFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleLessonFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      setSectionPdfName(file.name);
-      if (!sectionPrompt.trim()) {
+      setLessonPdfName(file.name);
+      if (!lessonPrompt.trim()) {
         const nameWithoutExt = file.name.replace(/\.pdf$/i, "");
-        setSectionPrompt(
+        setLessonPrompt(
           `Generate course content based on the uploaded PDF: ${nameWithoutExt}`
         );
-        if (!sectionName.trim()) {
-          setSectionName(nameWithoutExt);
+        if (!lessonName.trim()) {
+          setLessonName(nameWithoutExt);
         }
       }
     }
@@ -659,7 +659,7 @@ export function CreateCoursePage() {
           </Card>
         </div>
 
-        {/* ======== Right Panel: Sections (2 cols) ======== */}
+        {/* ======== Right Panel: Lessons (2 cols) ======== */}
         <div className="lg:col-span-2">
           <Card className="border-border/50">
             <CardContent className="p-6">
@@ -667,13 +667,13 @@ export function CreateCoursePage() {
               <div className="mb-4 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <h2 className="text-base font-semibold text-foreground">
-                    Sections
+                    Lessons
                   </h2>
                   <Badge
                     variant="secondary"
                     className="text-xs font-normal"
                   >
-                    {sections.length}/{MAX_SECTIONS}
+                    {lessons.length}/{MAX_LESSONS}
                   </Badge>
                 </div>
                 <div className="flex items-center gap-2">
@@ -681,7 +681,7 @@ export function CreateCoursePage() {
                     size="sm"
                     variant="outline"
                     onClick={handleOpenOutlineModal}
-                    disabled={sections.length >= MAX_SECTIONS}
+                    disabled={lessons.length >= MAX_LESSONS}
                     className="gap-1.5"
                     title="AI Generate Outline"
                   >
@@ -692,7 +692,7 @@ export function CreateCoursePage() {
                     size="sm"
                     variant="outline"
                     onClick={handleOpenModal}
-                    disabled={sections.length >= MAX_SECTIONS}
+                    disabled={lessons.length >= MAX_LESSONS}
                     className="gap-1.5"
                   >
                     <Plus className="h-3.5 w-3.5" />
@@ -701,14 +701,14 @@ export function CreateCoursePage() {
                 </div>
               </div>
 
-              {/* Section List */}
-              {sections.length === 0 ? (
+              {/* Lesson List */}
+              {lessons.length === 0 ? (
                 <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border/70 bg-muted/20 py-16">
                   <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
                     <FileText className="h-5 w-5 text-muted-foreground" />
                   </div>
                   <p className="mt-3 text-sm text-muted-foreground">
-                    No sections yet
+                    No lessons yet
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground/70">
                     Click <span className="font-medium text-foreground">Outline</span> to AI-generate a structure, or <span className="font-medium text-foreground">+ Add</span> manually
@@ -716,21 +716,21 @@ export function CreateCoursePage() {
                 </div>
               ) : (
                 <div className="space-y-2 max-h-[600px] overflow-y-auto pr-1">
-                  {sections.map((section, index) => (
-                    <SectionCard
-                      key={section.id}
-                      section={section}
+                  {lessons.map((lesson, index) => (
+                    <LessonCard
+                      key={lesson.id}
+                      lesson={lesson}
                       index={index}
-                      totalCount={sections.length}
-                      expanded={expandedSectionId === section.id}
+                      totalCount={lessons.length}
+                      expanded={expandedLessonId === lesson.id}
                       onToggleExpand={() =>
-                        setExpandedSectionId((prev) =>
-                          prev === section.id ? null : section.id
+                        setExpandedLessonId((prev) =>
+                          prev === lesson.id ? null : lesson.id
                         )
                       }
-                      onMoveUp={() => handleMoveSection(index, "up")}
-                      onMoveDown={() => handleMoveSection(index, "down")}
-                      onDelete={() => handleDeleteSection(section.id)}
+                      onMoveUp={() => handleMoveLesson(index, "up")}
+                      onMoveDown={() => handleMoveLesson(index, "down")}
+                      onDelete={() => handleDeleteLesson(lesson.id)}
                     />
                   ))}
                 </div>
@@ -740,36 +740,36 @@ export function CreateCoursePage() {
         </div>
       </div>
 
-      {/* ======== Add Section Modal ======== */}
+      {/* ======== Add Lesson Modal ======== */}
       <Dialog open={modalOpen} onOpenChange={(open) => { if (!open && generating) return; setModalOpen(open); }}>
         <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-primary" />
-              Generate Section with AI
+              Generate Lesson with AI
             </DialogTitle>
             <DialogDescription>
-              Provide a section name and prompt. The AI will generate slide content in real time.
+              Provide a lesson name and prompt. The AI will generate slide content in real time.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-5">
-            {/* Section Name */}
+            {/* Lesson Name */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label className="text-sm font-medium">
-                  Section Name <span className="text-destructive">*</span>
+                  Lesson Name <span className="text-destructive">*</span>
                 </Label>
                 <span className="text-xs text-muted-foreground">
-                  {sectionName.length}/{MAX_TITLE_LENGTH}
+                  {lessonName.length}/{MAX_TITLE_LENGTH}
                 </span>
               </div>
               <Input
                 placeholder="e.g., Introduction to Machine Learning"
-                value={sectionName}
+                value={lessonName}
                 onChange={(e) => {
                   if (e.target.value.length <= MAX_TITLE_LENGTH) {
-                    setSectionName(e.target.value);
+                    setLessonName(e.target.value);
                   }
                 }}
                 className="h-10"
@@ -784,15 +784,15 @@ export function CreateCoursePage() {
                   Content Prompt <span className="text-destructive">*</span>
                 </Label>
                 <span className="text-xs text-muted-foreground">
-                  {sectionPrompt.length}/{MAX_DESC_LENGTH}
+                  {lessonPrompt.length}/{MAX_DESC_LENGTH}
                 </span>
               </div>
               <Textarea
                 placeholder="Describe the content you want to generate..."
-                value={sectionPrompt}
+                value={lessonPrompt}
                 onChange={(e) => {
                   if (e.target.value.length <= MAX_DESC_LENGTH) {
-                    setSectionPrompt(e.target.value);
+                    setLessonPrompt(e.target.value);
                   }
                 }}
                 rows={4}
@@ -806,25 +806,25 @@ export function CreateCoursePage() {
               <Label className="text-sm font-medium">PDF Courseware</Label>
               <button
                 type="button"
-                onClick={handleSectionPdfUpload}
+                onClick={handleLessonPdfUpload}
                 disabled={generating}
                 className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-border/70 bg-muted/20 px-4 py-5 text-sm text-muted-foreground transition-colors hover:border-primary/50 hover:bg-muted/30 disabled:opacity-50"
               >
                 <FileUp className="h-4 w-4" />
-                {sectionPdfName ? (
+                {lessonPdfName ? (
                   <span className="text-foreground font-medium">
-                    {sectionPdfName}
+                    {lessonPdfName}
                   </span>
                 ) : (
                   "Click to upload PDF courseware (optional)"
                 )}
               </button>
               <input
-                ref={sectionFileInputRef}
+                ref={lessonFileInputRef}
                 type="file"
                 accept=".pdf"
                 className="hidden"
-                onChange={handleSectionFileChange}
+                onChange={handleLessonFileChange}
               />
             </div>
 
@@ -834,8 +834,8 @@ export function CreateCoursePage() {
                 Generated Content Language
               </Label>
               <RadioGroup
-                value={sectionLanguage}
-                onValueChange={setSectionLanguage}
+                value={lessonLanguage}
+                onValueChange={setLessonLanguage}
                 className="flex gap-6"
                 disabled={generating}
               >
@@ -915,8 +915,8 @@ export function CreateCoursePage() {
                   Cancel
                 </Button>
                 <Button
-                  onClick={handleGenerateSection}
-                  disabled={!sectionName.trim() || !sectionPrompt.trim()}
+                  onClick={handleGenerateLesson}
+                  disabled={!lessonName.trim() || !lessonPrompt.trim()}
                   className="gap-2"
                 >
                   <Sparkles className="h-4 w-4" />
@@ -937,7 +937,7 @@ export function CreateCoursePage() {
               AI Course Outline
             </DialogTitle>
             <DialogDescription>
-              Enter a topic and the AI will generate a structured course outline with suggested sections.
+              Enter a topic and the AI will generate a structured course outline with suggested lessons.
             </DialogDescription>
           </DialogHeader>
 
@@ -960,7 +960,7 @@ export function CreateCoursePage() {
                 <Label className="text-sm font-medium">
                   Generated Outline
                   <Badge variant="secondary" className="ml-2 text-xs">
-                    {outlineSections.length} sections
+                    {outlineSections.length} lessons
                   </Badge>
                 </Label>
                 <div className="rounded-lg border border-border/60 bg-muted/20 p-3 space-y-2 max-h-64 overflow-y-auto">
@@ -1024,7 +1024,7 @@ export function CreateCoursePage() {
                 </Button>
                 <Button
                   onClick={handleAddOutlineSections}
-                  disabled={sections.length + outlineSections.length > MAX_SECTIONS}
+                  disabled={lessons.length + outlineSections.length > MAX_LESSONS}
                   className="gap-2"
                 >
                   Add {outlineSections.length} Sections
@@ -1039,11 +1039,11 @@ export function CreateCoursePage() {
 }
 
 // ============================================
-// Section Card with mini preview
+// Lesson Card with mini preview
 // ============================================
 
-interface SectionCardProps {
-  section: SectionDraft;
+interface LessonCardProps {
+  lesson: LessonDraft;
   index: number;
   totalCount: number;
   expanded: boolean;
@@ -1053,8 +1053,8 @@ interface SectionCardProps {
   onDelete: () => void;
 }
 
-function SectionCard({
-  section,
+function LessonCard({
+  lesson,
   index,
   totalCount,
   expanded,
@@ -1062,8 +1062,8 @@ function SectionCard({
   onMoveUp,
   onMoveDown,
   onDelete,
-}: SectionCardProps) {
-  const hasContent = !!section.htmlBody;
+}: LessonCardProps) {
+  const hasContent = !!lesson.htmlBody;
 
   return (
     <div
@@ -1080,7 +1080,7 @@ function SectionCard({
             onClick={onMoveUp}
             disabled={index === 0}
             className="rounded p-0.5 hover:text-muted-foreground disabled:opacity-30 disabled:hover:text-muted-foreground/50"
-            aria-label="Move section up"
+            aria-label="Move lesson up"
           >
             <ChevronUp className="h-3.5 w-3.5" />
           </button>
@@ -1089,7 +1089,7 @@ function SectionCard({
             onClick={onMoveDown}
             disabled={index === totalCount - 1}
             className="rounded p-0.5 hover:text-muted-foreground disabled:opacity-30 disabled:hover:text-muted-foreground/50"
-            aria-label="Move section down"
+            aria-label="Move lesson down"
           >
             <ChevronDown className="h-3.5 w-3.5" />
           </button>
@@ -1109,7 +1109,7 @@ function SectionCard({
         {/* Content */}
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-foreground">
-            {section.title}
+            {lesson.title}
           </p>
           <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
             {hasContent ? (
@@ -1119,7 +1119,7 @@ function SectionCard({
                   Ready
                 </span>
                 <span>·</span>
-                <span>{section.language === "chinese" ? "中文" : "English"}</span>
+                <span>{lesson.language === "chinese" ? "中文" : "English"}</span>
               </>
             ) : (
               <span className="rounded-full bg-amber-100 dark:bg-amber-900/30 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-400">
@@ -1148,7 +1148,7 @@ function SectionCard({
         <button
           onClick={onDelete}
           className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground/50 opacity-0 transition-all hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
-          aria-label="Delete section"
+          aria-label="Delete lesson"
         >
           <Trash2 className="h-3.5 w-3.5" />
         </button>
@@ -1159,11 +1159,11 @@ function SectionCard({
         <div className="border-t border-border/40 px-3 pb-3 pt-2">
           <div className="rounded-md overflow-hidden border border-border/40">
             <iframe
-              srcDoc={section.htmlBody}
+              srcDoc={lesson.htmlBody}
               sandbox="allow-same-origin"
               className="w-full border-0"
               style={{ aspectRatio: "16/9" }}
-              title={`Preview of ${section.title}`}
+              title={`Preview of ${lesson.title}`}
             />
           </div>
         </div>

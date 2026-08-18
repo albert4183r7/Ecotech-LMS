@@ -63,7 +63,7 @@ model Course {
   category    Category? @relation(fields: [categoryId], references: [id])
   creatorId   String?
   creator     User?     @relation("CourseCreator", fields: [creatorId], references: [id])
-  sections    Section[]
+  lessons     Lesson[]
   enrollments Enrollment[]
   favorites    Favorite[]
   comments    Comment[]
@@ -72,27 +72,44 @@ model Course {
 }
 
 // ============================================
-// Section model - chapters/lessons within a course
+// Lesson model - chapters/lessons within a course
 // ============================================
-model Section {
-  id          String   @id @default(cuid())
+model Lesson {
+  id          String    @id @default(cuid())
   title       String
-  content     String?  // DEPRECATED: legacy JSON blob for backward compat
-  htmlBody    String?  // Sanitized HTML+Tailwind for iframe renderer
-  order       Int      @default(0)
-  totalPages  Int      @default(0) // Number of slides/pages
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  order       Int       @default(0)
+  outlineJson String?   // Raw AI outline JSON (topic, style, per-slide title+outline) for re-generation
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   courseId    String
   course      Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  slides      Slide[]
   progresses  Progress[]
   comments    Comment[]
   notes       Note[]
 }
 
 // ============================================
-// Comment - course/section discussion
+// Slide model - individual slide within a lesson
+// ============================================
+model Slide {
+  id        String   @id @default(cuid())
+  title     String   // Slide title from outline
+  htmlBody  String   // Full HTML+Tailwind document for iframe srcDoc
+  status    String   @default("DRAFT_OUTLINE") // DRAFT_OUTLINE | GENERATING | READY | ERROR
+  order     Int      // Ordering position within the lesson
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  lessonId  String
+  lesson    Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@unique([lessonId, order])
+}
+
+// ============================================
+// Comment - course/lesson discussion
 // ============================================
 model Comment {
   id        String   @id @default(cuid())
@@ -100,8 +117,8 @@ model Comment {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  sectionId String?
-  section   Section? @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  lessonId  String?
+  lesson    Lesson? @relation(fields: [lessonId], references: [id], onDelete: Cascade)
   courseId  String
   course    Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
   userId    String
@@ -147,14 +164,14 @@ model Note {
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   courseId    String
   course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  sectionId   String
-  section     Section  @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  lessonId    String
+  lesson      Lesson    @relation(fields: [lessonId], references: [id], onDelete: Cascade)
 
   @@index([userId, courseId])
 }
 
 // ============================================
-// Progress - tracks user progress per section
+// Progress - tracks user progress per lesson
 // ============================================
 model Progress {
   id          String   @id @default(cuid())
@@ -166,10 +183,10 @@ model Progress {
 
   enrollmentId String
   enrollment   Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
-  sectionId    String
-  section      Section    @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  lessonId     String
+  lesson       Lesson    @relation(fields: [lessonId], references: [id], onDelete: Cascade)
 
-  @@unique([enrollmentId, sectionId])
+  @@unique([enrollmentId, lessonId])
 }
 
 // ============================================
@@ -199,7 +216,7 @@ model Rating {
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   courseId  String
-  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  course    Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
 
   @@unique([userId, courseId])
 }
@@ -212,7 +229,7 @@ model Notification {
   title     String
   message   String
   type      String   @default("info") // info, success, warning, course, system, achievement
-  read      Boolean  @default(false)
+  read      Boolean @default(false)
   link      String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

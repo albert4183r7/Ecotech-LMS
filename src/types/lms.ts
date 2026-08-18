@@ -27,21 +27,33 @@ export interface CourseItem {
   language: string;
   category: { id: string; name: string; color: string | null } | null;
   creator: { id: string; name: string | null; avatar: string | null } | null;
-  sections: SectionItem[];
+  lessons: LessonItem[];
   _count?: { enrollments: number; favorites: number };
   createdAt: string;
   updatedAt: string;
 }
 
-/** Section/chapter within a course */
-export interface SectionItem {
+/** Lesson/chapter within a course */
+export interface LessonItem {
   id: string;
   title: string;
-  content: string | null; // DEPRECATED: legacy JSON blob
-  htmlBody: string | null; // HTML+Tailwind for iframe renderer
   order: number;
-  totalPages: number;
+  outlineJson: string | null;
   courseId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Slide within a lesson */
+export interface SlideItem {
+  id: string;
+  title: string;
+  htmlBody: string;
+  status: "DRAFT_OUTLINE" | "GENERATING" | "READY" | "ERROR";
+  order: number;
+  lessonId: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 /** User enrollment data */
@@ -53,13 +65,13 @@ export interface EnrollmentItem {
   course: CourseItem;
 }
 
-/** User progress per section */
+/** User progress per lesson */
 export interface ProgressItem {
   id: string;
   completed: boolean;
   currentPage: number;
-  sectionId: string;
-  section: SectionItem;
+  lessonId: string;
+  lesson: LessonItem;
 }
 
 /** User profile data */
@@ -80,23 +92,6 @@ export interface CategoryItem {
   description: string | null;
   color: string | null;
   _count?: { courses: number };
-}
-
-/** @deprecated — kept for PPTX route compatibility during migration */
-export interface SlideContent {
-  title: string;
-  subtitle?: string;
-  type: "content" | "title" | "quiz" | "table" | "list" | "code";
-  items?: SlideItem[];
-  tableData?: { headers: string[]; rows: string[][] };
-  codeBlock?: { language: string; code: string };
-}
-
-/** @deprecated */
-export interface SlideItem {
-  heading?: string;
-  text: string;
-  icon?: string;
 }
 
 /** My Learning stats */
@@ -121,14 +116,14 @@ export type HomeTab = "hot" | "new" | "recommended";
 /** My Learning tab */
 export type MyLearningTab = "in-progress" | "completed" | "favorites";
 
-/** Classroom viewer state — now uses htmlBody (iframe) instead of slides[] */
+/** Classroom viewer state — uses htmlBody (iframe) from slides */
 export interface ClassroomState {
   courseId: string;
   courseTitle: string;
-  sectionId: string;
-  sectionTitle: string;
+  lessonId: string;
+  lessonTitle: string;
   htmlBody: string; // Full HTML document for iframe srcDoc
-  // Section navigation context
-  allSectionIds: string[]; // ordered list of all section IDs in the course
-  currentSectionIndex: number; // index into allSectionIds
+  // Lesson navigation context
+  allLessonIds: string[]; // ordered list of all lesson IDs in the course
+  currentLessonIndex: number; // index into allLessonIds
 }

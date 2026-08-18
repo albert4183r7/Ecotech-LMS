@@ -90,32 +90,32 @@ export function ClassroomPage() {
     }
   }, [classroomState]);
 
-  // ─── Section Navigation ─────────────────────────
-  const goToSection = useCallback(
+  // ─── Lesson Navigation ─────────────────────────
+  const goToLesson = useCallback(
     async (index: number) => {
-      if (!localState || index < 0 || index >= localState.allSectionIds.length) return;
-      const sectionId = localState.allSectionIds[index];
+      if (!localState || index < 0 || index >= localState.allLessonIds.length) return;
+      const lessonId = localState.allLessonIds[index];
       try {
         setNavigating(true);
-        const res = await fetch(`/api/sections/${sectionId}`);
+        const res = await fetch(`/api/lessons/${lessonId}`);
         if (!res.ok) return;
         const json = await res.json();
         const htmlBody =
-          json.success && json.data.htmlBody
-            ? json.data.htmlBody
+          json.success && json.data.slides?.length > 0
+            ? json.data.slides[0].htmlBody
             : '<div class="flex items-center justify-center h-full"><p class="text-gray-500">No content available.</p></div>';
-        const sectionTitle =
+        const lessonTitle =
           json.success && json.data.title
             ? json.data.title
-            : `Section ${index + 1}`;
+            : `Lesson ${index + 1}`;
         setLocalState((prev) =>
           prev
             ? {
                 ...prev,
-                sectionId,
-                sectionTitle,
+                lessonId,
+                lessonTitle,
                 htmlBody,
-                currentSectionIndex: index,
+                currentLessonIndex: index,
               }
             : prev
         );
@@ -128,9 +128,9 @@ export function ClassroomPage() {
     [localState]
   );
 
-  /** Mark section as completed and save progress */
-  const markSectionCompleted = useCallback(
-    async (sectionId: string) => {
+  /** Mark lesson as completed and save progress */
+  const markLessonCompleted = useCallback(
+    async (lessonId: string) => {
       if (!userId || !localState) return;
       try {
         const enrollRes = await fetch(`/api/enrollments?userId=${userId}`);
@@ -145,7 +145,7 @@ export function ClassroomPage() {
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 enrollmentId: enrollment.id,
-                sectionId,
+                lessonId,
                 currentPage: 1,
                 completed: true,
               }),
@@ -159,22 +159,22 @@ export function ClassroomPage() {
     [userId, localState]
   );
 
-  // Save progress when section changes
+  // Save progress when lesson changes
   useEffect(() => {
     if (!localState || !userId) return;
     const timer = setTimeout(() => {
-      markSectionCompleted(localState.sectionId);
+      markLessonCompleted(localState.lessonId);
     }, 500);
     return () => clearTimeout(timer);
-  }, [localState?.currentSectionIndex, userId, markSectionCompleted]);
+  }, [localState?.currentLessonIndex, userId, markLessonCompleted]);
 
   const goPrev = () => {
     if (!localState) return;
-    goToSection(localState.currentSectionIndex - 1);
+    goToLesson(localState.currentLessonIndex - 1);
   };
   const goNext = () => {
     if (!localState) return;
-    goToSection(localState.currentSectionIndex + 1);
+    goToLesson(localState.currentLessonIndex + 1);
   };
 
   // ─── Keyboard shortcuts ──────────────────────────────────────
@@ -222,21 +222,21 @@ export function ClassroomPage() {
   const zoomOut = () => setZoom((z) => Math.max(z - ZOOM_STEP, MIN_ZOOM));
   const zoomFit = () => setZoom(100);
 
-  // ─── Confetti on last section ─────────────────
+  // ─── Confetti on last lesson ─────────────────
   useEffect(() => {
     if (!localState) return;
-    const totalSections = localState.allSectionIds.length;
-    const isOnLastSection =
-      totalSections > 0 &&
-      localState.currentSectionIndex === totalSections - 1;
-    if (isOnLastSection && !confettiShownRef.current) {
+    const totalLessons = localState.allLessonIds.length;
+    const isOnLastLesson =
+      totalLessons > 0 &&
+      localState.currentLessonIndex === totalLessons - 1;
+    if (isOnLastLesson && !confettiShownRef.current) {
       confettiShownRef.current = true;
       setShowConfetti(true);
       toast.success("🎉 You completed the course! Great job!");
       const timer = setTimeout(() => setShowConfetti(false), 3500);
       return () => clearTimeout(timer);
     }
-  }, [localState?.currentSectionIndex]);
+  }, [localState?.currentLessonIndex]);
 
   // Reset confetti flag when classroom state changes (new course)
   useEffect(() => {
@@ -249,14 +249,14 @@ export function ClassroomPage() {
     setShowKeyboardHint(true);
     const timer = setTimeout(() => setShowKeyboardHint(false), 5000);
     return () => clearTimeout(timer);
-  }, [localState?.sectionId]);
+  }, [localState?.lessonId]);
 
   // ─── Notes CRUD ─────────────────────────────────
   const fetchNotes = useCallback(async () => {
     if (!localState || !userId) return;
     try {
       const res = await fetch(
-        `/api/notes?userId=${userId}&courseId=${localState.courseId}&sectionId=${localState.sectionId}`
+        `/api/notes?userId=${userId}&courseId=${localState.courseId}&lessonId=${localState.lessonId}`
       );
       if (!res.ok) return;
       const json = await res.json();
@@ -271,7 +271,7 @@ export function ClassroomPage() {
   // Fetch notes when section changes or sidebar opens
   useEffect(() => {
     if (notesSidebarOpen) fetchNotes();
-  }, [notesSidebarOpen, fetchNotes, localState?.sectionId]);
+  }, [notesSidebarOpen, fetchNotes, localState?.lessonId]);
 
   const createNote = useCallback(async () => {
     if (!localState || !userId || !newNoteContent.trim()) return;
@@ -283,9 +283,9 @@ export function ClassroomPage() {
         body: JSON.stringify({
           userId,
           courseId: localState.courseId,
-          sectionId: localState.sectionId,
+          lessonId: localState.lessonId,
           content: newNoteContent.trim(),
-          slideNumber: localState.currentSectionIndex + 1,
+          slideNumber: localState.currentLessonIndex + 1,
         }),
       });
       if (!res.ok) return;
@@ -378,7 +378,7 @@ export function ClassroomPage() {
         body: JSON.stringify({
           htmlBody: localState.htmlBody,
           instruction: aiEditInstruction.trim(),
-          slideTitle: localState.sectionTitle,
+          slideTitle: localState.lessonTitle,
         }),
       });
       if (!res.ok) {
@@ -394,7 +394,7 @@ export function ClassroomPage() {
         toast.success("AI edit applied");
         // Persist to database
         try {
-          await fetch(`/api/sections/${localState.sectionId}`, {
+          await fetch(`/api/lessons/${localState.lessonId}`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ htmlBody: newHtmlBody }),
@@ -423,13 +423,13 @@ export function ClassroomPage() {
     );
   }
 
-  const totalSections = localState.allSectionIds.length;
-  const currentIdx = localState.currentSectionIndex;
+  const totalLessons = localState.allLessonIds.length;
+  const currentIdx = localState.currentLessonIndex;
   const isFirst = currentIdx === 0;
-  const isLast = totalSections > 0 && currentIdx >= totalSections - 1;
+  const isLast = totalLessons > 0 && currentIdx >= totalLessons - 1;
   const progressPercent =
-    totalSections > 1
-      ? Math.round(((currentIdx + 1) / totalSections) * 100)
+    totalLessons > 1
+      ? Math.round(((currentIdx + 1) / totalLessons) * 100)
       : 100;
 
   return (
@@ -448,12 +448,12 @@ export function ClassroomPage() {
               Notes
             </SheetTitle>
             <SheetDescription>
-              Notes for section {currentIdx + 1} of {totalSections}
+              Notes for lesson {currentIdx + 1} of {totalLessons}
             </SheetDescription>
           </SheetHeader>
           <NotesSidebarContent
             notes={notes}
-            currentSectionIndex={currentIdx}
+            currentLessonIndex={currentIdx}
             newNoteContent={newNoteContent}
             savingNote={savingNote}
             onContentChange={setNewNoteContent}
@@ -478,7 +478,7 @@ export function ClassroomPage() {
 
       {/* ─── Top Bar ──────────────────────────────── */}
       <header className="flex h-14 shrink-0 items-center justify-between border-b bg-card px-4 sm:px-6">
-        {/* Logo, Section Title, Course Title */}
+        {/* Logo, Lesson Title, Course Title */}
         <div className="flex items-center gap-3 min-w-0">
           <div className="flex items-center gap-2 shrink-0">
             <img
@@ -495,7 +495,7 @@ export function ClassroomPage() {
           <Separator orientation="vertical" className="h-5" />
           <div className="min-w-0">
             <h2 className="text-sm font-medium text-foreground truncate leading-tight">
-              {localState.sectionTitle}
+              {localState.lessonTitle}
             </h2>
             <p className="text-xs text-muted-foreground truncate leading-tight">
               {localState.courseTitle}
@@ -503,19 +503,19 @@ export function ClassroomPage() {
           </div>
         </div>
 
-        {/* Section Counter */}
+        {/* Lesson Counter */}
         <span className="shrink-0 inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-sm text-primary tabular-nums">
           <span className="font-semibold">
-            Section {currentIdx + 1}
+            Lesson {currentIdx + 1}
           </span>
           <span className="text-primary/40 font-normal">of</span>
-          <span className="font-semibold">{totalSections}</span>
+          <span className="font-semibold">{totalLessons}</span>
         </span>
       </header>
 
       {/* ─── Main Layout: Content + Desktop Notes Sidebar ── */}
       <div className="flex flex-1 overflow-hidden">
-        {/* ─── Section Content Area ────────────────── */}
+        {/* ─── Lesson Content Area ────────────────── */}
         <div className="flex-1 overflow-auto flex flex-col items-center py-8 px-4 sm:px-6">
           <div
             className="bg-card rounded-2xl shadow-lg border w-full max-w-3xl ring-1 ring-black/5 dark:ring-white/5 paper-texture overflow-hidden"
@@ -534,7 +534,7 @@ export function ClassroomPage() {
                 sandbox="allow-same-origin"
                 className="w-full rounded-lg border-0"
                 style={{ aspectRatio: "16/9" }}
-                title={`${localState.sectionTitle || "Slide"} content`}
+                title={`${localState.lessonTitle || "Slide"} content`}
               />
             )}
           </div>
@@ -566,7 +566,7 @@ export function ClassroomPage() {
             </div>
             <NotesSidebarContent
               notes={notes}
-              currentSectionIndex={currentIdx}
+              currentLessonIndex={currentIdx}
               newNoteContent={newNoteContent}
               savingNote={savingNote}
               onContentChange={setNewNoteContent}
@@ -810,7 +810,7 @@ interface NotesSidebarContentProps {
     bookmarked: boolean;
     createdAt?: string;
   }[];
-  currentSectionIndex: number;
+  currentLessonIndex: number;
   newNoteContent: string;
   savingNote: boolean;
   onContentChange: (v: string) => void;
@@ -822,7 +822,7 @@ interface NotesSidebarContentProps {
 
 function NotesSidebarContent({
   notes,
-  currentSectionIndex,
+  currentLessonIndex,
   newNoteContent,
   savingNote,
   onContentChange,
@@ -850,7 +850,7 @@ function NotesSidebarContent({
                 No notes yet.
               </p>
               <p className="text-xs text-muted-foreground/60">
-                Add a note for section {currentSectionIndex + 1}.
+                Add a note for lesson {currentLessonIndex + 1}.
               </p>
             </div>
           )}
@@ -859,10 +859,10 @@ function NotesSidebarContent({
               key={note.id}
               className="group relative rounded-lg border bg-background p-3 text-sm transition-colors hover:bg-muted/40"
             >
-              {/* Section badge */}
+              {/* Slide badge */}
               <div className="flex items-center justify-between mb-1">
                 <span className="inline-flex items-center rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
-                  Section {note.slideNumber}
+                  Slide {note.slideNumber}
                 </span>
                 <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
@@ -907,7 +907,7 @@ function NotesSidebarContent({
             value={newNoteContent}
             onChange={(e) => onContentChange(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={`Add a note for section ${currentSectionIndex + 1}…`}
+            placeholder={`Add a note for lesson ${currentLessonIndex + 1}…`}
             rows={2}
             className="flex-1 resize-none rounded-lg border bg-background px-3 py-2 text-xs placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/20"
           />
@@ -1046,7 +1046,7 @@ function ConfettiCelebration() {
               🎉 Congratulations!
             </h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              You&apos;ve completed this section!
+              You&apos;ve completed this lesson!
             </p>
           </div>
         </div>

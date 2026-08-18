@@ -91,13 +91,13 @@ export async function GET(request: NextRequest) {
         course: {
           include: {
             category: true,
-            sections: true,
+            lessons: true,
             _count: { select: { enrollments: true } },
           },
         },
         progresses: {
           include: {
-            section: true,
+            lesson: true,
           },
         },
       },
@@ -121,7 +121,7 @@ export async function GET(request: NextRequest) {
       (e) => e.status === "completed"
     ).length;
 
-    // Estimate hours studied: each completed section ~ 30 min, each in-progress ~15 min
+    // Estimate hours studied: each completed lesson ~ 30 min, each in-progress ~15 min
     let totalMinutes = 0;
     for (const enrollment of enrollments) {
       for (const progress of enrollment.progresses) {
@@ -183,11 +183,11 @@ export async function GET(request: NextRequest) {
 
     // ---- Compute Course Progress ----
     const courseProgress: CourseProgress[] = enrollments.map((e) => {
-      const totalSections = e.course.sections.length;
-      const completedSections = e.progresses.filter((p) => p.completed).length;
+      const totalLessons = e.course.lessons.length;
+      const completedLessons = e.progresses.filter((p) => p.completed).length;
       const progress =
-        totalSections > 0
-          ? Math.round((completedSections / totalSections) * 100)
+        totalLessons > 0
+          ? Math.round((completedLessons / totalLessons) * 100)
           : 0;
 
       return {

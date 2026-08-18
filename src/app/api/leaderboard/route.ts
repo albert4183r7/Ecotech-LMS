@@ -57,7 +57,7 @@ export async function GET() {
             progresses: true,
             course: {
               include: {
-                _count: { select: { sections: true } },
+                _count: { select: { lessons: true } },
               },
             },
           },
@@ -76,12 +76,12 @@ export async function GET() {
       let enrollmentCount = 0;
 
       for (const enrollment of user.enrollments) {
-        const totalSections = enrollment.course._count.sections;
-        if (totalSections > 0) {
-          const completedSections = enrollment.progresses.filter(
+        const totalLessons = enrollment.course._count.lessons;
+        if (totalLessons > 0) {
+          const completedLessons = enrollment.progresses.filter(
             (p) => p.completed
           ).length;
-          totalProgress += (completedSections / totalSections) * 100;
+          totalProgress += (completedLessons / totalLessons) * 100;
           enrollmentCount++;
         }
       }

@@ -50,7 +50,7 @@ interface CommentItem {
 
 interface DiscussionPanelProps {
   courseId: string;
-  sectionId?: string;
+  lessonId?: string;
   userId: string;
 }
 
@@ -108,7 +108,7 @@ function CommentSkeleton() {
 // ─────────────────────────────────────────────────────
 export function DiscussionPanel({
   courseId,
-  sectionId,
+  lessonId,
   userId,
 }: DiscussionPanelProps) {
   const [isOpen, setIsOpen] = useState(true);
@@ -128,7 +128,7 @@ export function DiscussionPanel({
     setLoading(true);
     try {
       const params = new URLSearchParams({ courseId });
-      if (sectionId) params.set("sectionId", sectionId);
+      if (lessonId) params.set("lessonId", lessonId);
       const res = await fetch(`/api/comments?${params}`);
       const json = await res.json();
       if (json.success) {
@@ -139,7 +139,7 @@ export function DiscussionPanel({
     } finally {
       setLoading(false);
     }
-  }, [courseId, sectionId]);
+  }, [courseId, lessonId]);
 
   useEffect(() => {
     fetchComments();
@@ -165,7 +165,7 @@ export function DiscussionPanel({
         body: JSON.stringify({
           content,
           courseId,
-          sectionId: sectionId || undefined,
+          lessonId: lessonId || undefined,
           userId,
         }),
       });
@@ -196,7 +196,7 @@ export function DiscussionPanel({
         body: JSON.stringify({
           content: replyContent.trim(),
           courseId,
-          sectionId: sectionId || undefined,
+          lessonId: lessonId || undefined,
           parentId: replyingTo.id,
           userId,
         }),

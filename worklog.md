@@ -382,4 +382,131 @@ Stage Summary:
 - PPTX endpoint now accepts `{ courseId, courseName }` or `{ sections, courseName }` — resolves sections from DB when only courseId is provided
 - Classroom page now has a floating AI edit wand button (bottom-right) that opens a panel for natural language slide editing via the existing `/api/generate-slide-inline-edit` endpoint
 - All changes pass ESLint with zero errors
-- Dev server compiles successfully
+---
+Task ID: 6
+Agent: api-routes-updater
+Task: Update all API routes and store for Section→Lesson migration
+Work Log:
+- Read worklog.md and src/types/lms.ts for migration context (LessonItem, SlideItem, ClassroomState already updated)
+- Verified src/stores/lms-store.ts: no code changes needed (imports ClassroomState which is already updated, no 'section' string literals)
+- Updated src/app/api/courses/route.ts: GET `_count.sections` → `_count.lessons`, `sectionsCount` → `lessonsCount`; POST `sections` create → `lessons` create with simplified schema (title + order only, no htmlBody/totalPages/content), include `lessons` ordered
+- Updated src/app/api/courses/[id]/route.ts: include `lessons` instead of `sections`, mapping uses `course.lessons.map((lesson) => ...)` with `outlineJson` added, `content` and `totalPages` removed
+- Created src/app/api/lessons/[id]/route.ts as new file (replacing sections/[id]/route.ts): GET fetches Lesson with ordered slides; PUT updates title/order/outlineJson only; no content/htmlBody/totalPages references
+- Updated src/app/api/notes/route.ts: `sectionId` → `lessonId` in query params, request body, Prisma queries, and error messages; `db.section.findUnique` → `db.lesson.findUnique`
+- Updated src/app/api/comments/route.ts: `sectionId` → `lessonId` in GET query params, POST body destructuring, and Prisma create query where clause
+- Updated src/app/api/progress/route.ts: `sectionId` → `lessonId` in POST body, error messages, upsert unique key `enrollmentId_lessonId`; `db.section` → `db.lesson`; GET include changed from `section` to `lesson` without totalPages
+- Rewrote src/app/api/progress-timeline/route.ts: `SectionTimelineData` → `LessonTimelineData` with `lessonId`/`lessonTitle`; response types `totalSections`/`completedSections`/`sections` → `totalLessons`/`completedLessons`/`lessons`; all Prisma queries use `lessons` and `lesson`; totalPages fallback set to 1 (TODO: derive from slides)
+- Updated src/app/api/generate-pptx/route.ts: `db.section.findMany` → `db.lesson.findMany` with nested `slides` include (status=READY), flattened via `flatMap` to produce resolvedSections array
+
+Stage Summary:
+- 8 files modified/created, 1 file verified (no changes needed)
+- All API routes now use `Lesson`/`lesson` instead of `Section`/`section` in Prisma queries, variable names, error messages, and response shapes
+- New `/api/lessons/[id]` route created with slide-aware GET and PUT handlers
+- Progress timeline response shape changed: `sections` → `lessons`, `totalSections` → `totalLessons`, `completedSections` → `completedLessons`
+- PPTX generation now resolves lessons→slides from DB instead of sections directly
+- Old `/api/sections/[id]/route.ts` deleted by ui-components-updater agent
+
+---
+Task ID: 7
+Agent: ui-components-updater
+Task: Update all UI components for Section→Lesson migration
+
+Work Log:
+- Read `/home/z/my-project/src/types/lms.ts` to understand new type definitions (LessonItem, SlideItem, ClassroomState with lessonId/lessonTitle/allLessonIds/currentLessonIndex)
+- Updated `src/components/lms/pages/classroom-page.tsx`:
+  - `goToSection` → `goToLesson`, fetch URL `/api/sections/` → `/api/lessons/`
+  - HTML body extraction now reads from `json.data.slides[0].htmlBody` instead of `json.data.htmlBody`
+  - `markSectionCompleted` → `markLessonCompleted`, POST body `sectionId` → `lessonId`
+  - `allSectionIds` → `allLessonIds`, `currentSectionIndex` → `currentLessonIndex`, `totalSections` → `totalLessons`
+  - `sectionId` → `lessonId`, `sectionTitle` → `lessonTitle` throughout
+  - Notes API calls: `sectionId` → `lessonId` in query params and POST body
+  - AI edit persist: PUT URL `/api/sections/` → `/api/lessons/`
+  - NotesSidebarContent props: `currentSectionIndex` → `currentLessonIndex`
+  - UI text: "Section" → "Lesson" in counter, badges, placeholders, confetti message
+- Updated `src/components/lms/pages/course-detail-page.tsx`:
+  - Import `LessonItem` instead of `SectionItem`
+  - `SectionProgress` → `LessonProgress` with `lessonId` field
+  - `fetchSectionProgress` → `fetchLessonProgress`, mapping `p.lesson?.id ?? p.lessonId`
+  - PPTX download: fetches from `/api/lessons/` and reads `json.data.slides[0].htmlBody`
+  - `handleSectionClick` → `handleLessonClick` with updated ClassroomState construction
+  - `totalLessons` computed from `course.lessons.length` instead of `course.sections.reduce(...totalPages)`
+  - `getSectionProgress` → `getLessonProgress`, `getSectionStatus` → `getLessonStatus`
+  - Accordion: `course.sections.map((section, ...))` → `course.lessons.map((lesson, ...))`
+  - `totalP` (pages) hardcoded to `1` since Lesson no longer has totalPages
+  - ProgressTimeline props: `sections={course.lessons}` → `lessons={course.lessons}`
+- Updated `src/components/lms/pages/create-course-page.tsx`:
+  - `SectionDraft` → `LessonDraft`, `SectionCard` → `LessonCard`, `SectionCardProps` → `LessonCardProps`
+  - `MAX_SECTIONS` → `MAX_LESSONS`, `sections` state → `lessons`, `setSections` → `setLessons`
+  - All modal state: `sectionName` → `lessonName`, `sectionPrompt` → `lessonPrompt`, `sectionLanguage` → `lessonLanguage`, `sectionPdfName` → `lessonPdfName`
+  - All handlers: `handleGenerateSection` → `handleGenerateLesson`, `handleDeleteSection` → `handleDeleteLesson`, `handleMoveSection` → `handleMoveLesson`, `handleSectionPdfUpload` → `handleLessonPdfUpload`, `handleSectionFileChange` → `handleLessonFileChange`
+  - `expandedSectionId` → `expandedLessonId`, `sectionFileInputRef` → `lessonFileInputRef`
+  - Save payload: kept `sections:` key in API body (contract with courses POST handler), but local variable is `lessons`
+  - Outline drafts: `SectionDraft` → `LessonDraft`, error messages updated
+  - UI text: "Sections" → "Lessons" header, "Generate Section" → "Generate Lesson", "Section Name" → "Lesson Name", aria-labels updated
+- Updated `src/components/lms/progress-timeline.tsx`:
+  - Import `LessonItem` instead of `SectionItem`
+  - `SectionTimelineData` → `LessonTimelineData` with `lessonId`/`lessonTitle`
+  - `TimelineData`: `totalSections` → `totalLessons`, `completedSections` → `completedLessons`, `sections` → `lessons`
+  - Props: `sections` → `lessons`
+  - `handleSectionClick` → `handleLessonClick`, fetches from `/api/lessons/`, reads slides for htmlBody
+  - CTA variables: `continueSection` → `continueLesson`, `nextSection` → `nextLesson`, `ctaSection` → `ctaLesson`, `ctaSectionItem` → `ctaLessonItem`
+  - Timeline items: all `section.*` references → `lesson.*`
+  - Summary footer: "X sections" → "X lessons"
+- Updated `src/components/lms/discussion-panel.tsx`:
+  - Two remaining `sectionId` references in POST bodies → `lessonId` (props already had `lessonId`)
+- Deleted `src/app/api/sections/[id]/route.ts` (old route file)
+- Ran `bun run lint` — zero errors
+
+Stage Summary:
+- 5 UI component files updated, 1 file deleted
+- All `section`/`Section` model references in UI components replaced with `lesson`/`Lesson`
+- HTML `<section>` semantic tags preserved (not renamed)
+- API body key `sections` preserved in create-course POST (contract with courses route)
+- ESLint passes with zero errors
+
+---
+Task ID: 8
+Agent: seed-rewriter
+Task: Rewrite prisma/seed.ts with Lesson/Slide models
+Work Log:
+- Read Prisma schema to understand Lesson (id, title, order, outlineJson, courseId, timestamps) and Slide (id, title, htmlBody, status, order, lessonId, timestamps) models
+- Read existing seed.ts (1575 lines) to extract all users, categories, courses, sections (25 total), enrollments, progress, comments, favorites, and notifications
+- Rewrote seed.ts completely: replaced `PrismaClient` import with `import { db } from '../src/lib/db'`
+- Converted all 25 sections (sec_001–sec_025) to lessons (lesson_001–lesson_025) with same titles and order
+- Added `outlineJson` field to each lesson with JSON structure: `{ topic, style: "professional", slides: [{ title, outline }] }`
+- Removed `content`, `htmlBody`, and `totalPages` from lesson data
+- Created one Slide per lesson using the provided dark-slate/teal-cyan gradient template with 3-4 real educational paragraphs each
+- Set all slides to status `READY` and order `0`
+- Updated all `sectionId` references to `lessonId` in comments (comment_001, 002, 003, 005, 006) and progress records
+- Updated delete order to respect FK constraints (added slide, note, rating before lesson)
+- Ran `prisma db push --force-reset` and `npx tsx prisma/seed.ts` — seed completed successfully
+Stage Summary:
+- Seed file rewritten from ~1575 lines to ~380 lines (much cleaner without inline HTML)
+- 5 users, 6 categories, 5 courses, 25 lessons, 25 slides, 2 enrollments, 2 favorites, 8 comments, 8 notifications created
+- All data verified: seed runs with zero errors
+
+---
+Task ID: schema-migration-section-to-lesson-slide
+Agent: main
+Task: Full Prisma schema migration — Section→Lesson rename + new Slide model
+
+Work Log:
+- Edited prisma/schema.prisma: renamed Section→Lesson (removed content/htmlBody/totalPages, added outlineJson), created Slide model (id, title, htmlBody, status, order, lessonId, @@unique([lessonId, order])), updated all FK relations (Comment, Note, Progress)
+- Generated SQL diff via prisma migrate diff, showed to user
+- Applied with `prisma db push --force-reset` (required due to NOT NULL lessonId on existing rows)
+- Regenerated Prisma client
+- Updated src/types/lms.ts: removed SlideContent/SlideItem (deprecated), renamed SectionItem→LessonItem, added SlideItem, updated ClassroomState (sectionId→lessonId, allSectionIds→allLessonIds, currentSectionIndex→currentLessonIndex), CourseItem.sections→CourseItem.lessons
+- Updated all API routes (15 files): courses, courses/[id], lessons/[id] (new), notes, comments, progress, progress-timeline, enrollments, enrollments/[id], analytics, achievements, leaderboard, favorites, user/[id], generate-pptx, generate-outline, challenges, social-feed
+- Updated all UI components (6 files): classroom-page, course-detail-page, create-course-page, progress-timeline, discussion-panel, social-feed
+- Deleted old /api/sections/[id]/route.ts, created /api/lessons/[id]/route.ts
+- Rewrote prisma/seed.ts: 25 lessons with 25 slides (each with real HTML+Tailwind content), outlineJson on each lesson
+- Updated all social-feed action types: completed_section→completed_lesson
+- Final lint: zero errors, zero warnings
+- Seed: 5 courses, 25 lessons, 25 slides, runs successfully
+
+Stage Summary:
+- Complete schema migration from Section to Lesson+Slide model
+- 30+ files updated across API routes, UI components, types, and seed data
+- All Prisma references to `section`/`sections` eliminated from src/
+- Dev server starts cleanly on port 3000
+- No SlideVersion model added (per plan: not needed yet)

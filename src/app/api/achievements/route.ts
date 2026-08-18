@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
         course: {
           include: {
             category: { select: { id: true } },
-            _count: { select: { sections: true } },
+            _count: { select: { lessons: true } },
           },
         },
         progresses: { select: { completed: true } },
@@ -44,12 +44,12 @@ export async function GET(request: NextRequest) {
     // Check for 100% progress on any course (Perfectionist)
     let hasPerfectCourse = false;
     for (const enrollment of enrollments) {
-      const totalSections = enrollment.course._count.sections;
-      if (totalSections > 0) {
-        const completedSections = enrollment.progresses.filter(
+      const totalLessons = enrollment.course._count.lessons;
+      if (totalLessons > 0) {
+        const completedLessons = enrollment.progresses.filter(
           (p) => p.completed
         ).length;
-        if (completedSections === totalSections && completedSections > 0) {
+        if (completedLessons === totalLessons && completedLessons > 0) {
           hasPerfectCourse = true;
           break;
         }

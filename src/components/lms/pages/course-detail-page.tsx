@@ -41,10 +41,10 @@ import { useNavigationStore, useUserStore } from "@/stores/lms-store";
 import { DiscussionPanel } from "@/components/lms/discussion-panel";
 import { ProgressTimeline } from "@/components/lms/progress-timeline";
 import { StarRating } from "@/components/lms/star-rating";
-import type { CourseItem, SectionItem, ClassroomState } from "@/types/lms";
+import type { CourseItem, LessonItem, ClassroomState } from "@/types/lms";
 
-type SectionProgress = {
-  sectionId: string;
+type LessonProgress = {
+  lessonId: string;
   currentPage: number;
   completed: boolean;
 };
@@ -68,7 +68,7 @@ export function CourseDetailPage() {
   const [enrolling, setEnrolling] = useState(false);
   const [togglingFav, setTogglingFav] = useState(false);
   const [imgError, setImgError] = useState(false);
-  const [sectionProgress, setSectionProgress] = useState<SectionProgress[]>([]);
+  const [lessonProgress, setLessonProgress] = useState<LessonProgress[]>([]);
   const [userRating, setUserRating] = useState<number | null>(null);
   const [ratingCount, setRatingCount] = useState(0);
   const [downloadingPptx, setDownloadingPptx] = useState(false);
@@ -126,8 +126,8 @@ export function CourseDetailPage() {
     fetchRatingData();
   }, [fetchRatingData]);
 
-  /** Fetch section progress if enrolled */
-  const fetchSectionProgress = useCallback(async () => {
+  /** Fetch lesson progress if enrolled */
+  const fetchLessonProgress = useCallback(async () => {
     if (!userId || !course?.isEnrolled) return;
     try {
       const enrollRes = await fetch(`/api/enrollments?userId=${userId}`);
@@ -140,12 +140,12 @@ export function CourseDetailPage() {
           const progRes = await fetch(`/api/progress?enrollmentId=${enrollment.id}`);
           const progJson = await progRes.json();
           if (progJson.success && Array.isArray(progJson.data)) {
-            const mapped: SectionProgress[] = progJson.data.map((p: Record<string, unknown>) => ({
-              sectionId: (p.section as Record<string, unknown>)?.id ?? p.sectionId,
+            const mapped: LessonProgress[] = progJson.data.map((p: Record<string, unknown>) => ({
+              lessonId: (p.lesson as Record<string, unknown>)?.id ?? p.lessonId,
               currentPage: (p.currentPage as number) || 0,
               completed: (p.completed as boolean) || false,
             }));
-            setSectionProgress(mapped);
+            setLessonProgress(mapped);
           }
         }
       }
@@ -155,8 +155,8 @@ export function CourseDetailPage() {
   }, [userId, course?.isEnrolled, selectedCourseId]);
 
   useEffect(() => {
-    fetchSectionProgress();
-  }, [fetchSectionProgress]);
+    fetchLessonProgress();
+  }, [fetchLessonProgress]);
 
   /** Handle enrollment */
   const handleEnroll = async () => {
@@ -219,27 +219,30 @@ export function CourseDetailPage() {
     setDownloadingPptx(true);
     try {
       // Fetch all sections' HTML content
-      const sectionHtmlBodies: { title: string; htmlBody: string }[] = [];
-      for (const section of course.sections) {
+      const lessonHtmlBodies: { title: string; htmlBody: string }[] = [];
+      for (const lesson of course.lessons) {
         try {
-          const res = await fetch(`/api/sections/${section.id}`);
+          const res = await fetch(`/api/lessons/${lesson.id}`);
           if (!res.ok) continue;
           const json = await res.json();
-          if (json.success && json.data.htmlBody) {
-            sectionHtmlBodies.push({ title: section.title, htmlBody: json.data.htmlBody });
+          const htmlBody = json.success && json.data.slides?.length > 0
+            ? json.data.slides[0].htmlBody
+            : null;
+          if (htmlBody) {
+            lessonHtmlBodies.push({ title: lesson.title, htmlBody });
           }
         } catch {
-          // Skip sections that fail to load
+          // Skip lessons that fail to load
         }
       }
-      if (sectionHtmlBodies.length === 0) {
+      if (lessonHtmlBodies.length === 0) {
         toast.error('No content available for download.');
         return;
       }
       const res = await fetch('/api/generate-pptx', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sections: sectionHtmlBodies, courseName: course.title }),
+        body: JSON.stringify({ sections: lessonHtmlBodies, courseName: course.title }),
       });
       if (!res.ok) {
         toast.error('Failed to generate PPT');
@@ -280,26 +283,26 @@ export function CourseDetailPage() {
     }
   };
 
-  /** Handle section click → open classroom */
-  const handleSectionClick = async (section: SectionItem) => {
+  /** Handle lesson click → open classroom */
+  const handleLessonClick = async (lesson: LessonItem) => {
     if (!course) return;
     try {
-      const res = await fetch(`/api/sections/${section.id}`);
+      const res = await fetch(`/api/lessons/${lesson.id}`);
       if (!res.ok) return;
       const json = await res.json();
-      const htmlBody = json.success && json.data.htmlBody
-        ? json.data.htmlBody
+      const htmlBody = json.success && json.data.slides?.length > 0
+        ? json.data.slides[0].htmlBody
         : '<div class="flex items-center justify-center h-full"><p class="text-gray-500">No content available.</p></div>';
-      const allSectionIds = course.sections.map((s) => s.id);
-      const currentSectionIndex = allSectionIds.indexOf(section.id);
+      const allLessonIds = course.lessons.map((s) => s.id);
+      const currentLessonIndex = allLessonIds.indexOf(lesson.id);
       const classroomState: ClassroomState = {
         courseId: course.id,
         courseTitle: course.title,
-        sectionId: section.id,
-        sectionTitle: section.title,
+        lessonId: lesson.id,
+        lessonTitle: lesson.title,
         htmlBody,
-        allSectionIds,
-        currentSectionIndex,
+        allLessonIds,
+        currentLessonIndex,
       };
       openClassroom(classroomState);
     } catch {
@@ -393,18 +396,18 @@ export function CourseDetailPage() {
     );
   }
 
-  const totalLessons = course.sections.reduce((sum, s) => sum + s.totalPages, 0);
+  const totalLessons = course.lessons.length;
   const estimatedMinutes = Math.max(5, Math.round(totalLessons * 1.5));
 
-  /** Get progress info for a section */
-  const getSectionProgress = (sectionId: string) => {
-    return sectionProgress.find((p) => p.sectionId === sectionId);
+  /** Get progress info for a lesson */
+  const getLessonProgress = (lessonId: string) => {
+    return lessonProgress.find((p) => p.lessonId === lessonId);
   };
 
-  /** Get section status badge */
-  const getSectionStatus = (section: SectionItem) => {
+  /** Get lesson status badge */
+  const getLessonStatus = (lesson: LessonItem) => {
     if (!course.isEnrolled) return null;
-    const prog = getSectionProgress(section.id);
+    const prog = getLessonProgress(lesson.id);
     if (!prog) return "not-started";
     if (prog.completed) return "completed";
     return "in-progress";
@@ -595,7 +598,7 @@ export function CourseDetailPage() {
           size="lg"
           className="gap-2 font-medium text-sm px-5 py-6"
           onClick={handleDownloadCoursePptx}
-          disabled={downloadingPptx || course.sections.length === 0}
+          disabled={downloadingPptx || course.lessons.length === 0}
         >
           {downloadingPptx ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -617,8 +620,8 @@ export function CourseDetailPage() {
             onClick={
               course.isEnrolled
                 ? () => {
-                    if (course.sections.length > 0) {
-                      handleSectionClick(course.sections[0]);
+                    if (course.lessons.length > 0) {
+                      handleLessonClick(course.lessons[0]);
                     }
                   }
                 : handleEnroll
@@ -646,30 +649,30 @@ export function CourseDetailPage() {
       <section>
         <h2 className="text-xl font-bold text-foreground mb-4">Curriculum</h2>
 
-        {course.sections.length === 0 ? (
+        {course.lessons.length === 0 ? (
           <p className="text-muted-foreground text-sm py-8 text-center">
             No chapters available yet.
           </p>
         ) : (
           <Accordion type="multiple" className="w-full border rounded-xl bg-card overflow-hidden">
-            {course.sections.map((section, index) => {
-              const status = getSectionStatus(section);
-              const prog = getSectionProgress(section.id);
+            {course.lessons.map((lesson, index) => {
+              const status = getLessonStatus(lesson);
+              const prog = getLessonProgress(lesson.id);
               const completedPages = prog ? prog.currentPage : 0;
-              const totalP = section.totalPages;
+              const totalP = 1;
               const progressPct = totalP > 0 ? Math.round((completedPages / totalP) * 100) : 0;
 
               return (
                 <AccordionItem
-                  key={section.id}
-                  value={section.id}
+                  key={lesson.id}
+                  value={lesson.id}
                   className="px-4 border-b last:border-b-0 transition-colors hover:bg-muted/50"
                 >
                   <AccordionTrigger
                     className="hover:no-underline py-4 group"
                     onClick={(e) => {
                       e.preventDefault();
-                      handleSectionClick(section);
+                      handleLessonClick(lesson);
                     }}
                   >
                     <div className="flex items-center gap-3 flex-1 min-w-0 text-left">
@@ -686,7 +689,7 @@ export function CourseDetailPage() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-0.5">
                           <span className="font-semibold text-sm text-foreground block truncate">
-                            {section.title}
+                            {lesson.title}
                           </span>
                           {/* Status Badge */}
                           {status === "completed" && (
@@ -733,7 +736,7 @@ export function CourseDetailPage() {
                   </AccordionTrigger>
                   <AccordionContent className="pb-4">
                     <p className="text-sm text-muted-foreground pl-11">
-                      Click &quot;{section.title}&quot; to open the lesson viewer and start learning.
+                      Click &quot;{lesson.title}&quot; to open the lesson viewer and start learning.
                     </p>
                   </AccordionContent>
                 </AccordionItem>
@@ -751,7 +754,7 @@ export function CourseDetailPage() {
             courseTitle={course.title}
             userId={userId}
             isEnrolled={course.isEnrolled}
-            sections={course.sections}
+            lessons={course.lessons}
             openClassroom={openClassroom}
             course={course}
           />

@@ -17,7 +17,7 @@ export async function GET(
         creator: {
           select: { id: true, name: true, email: true, avatar: true, department: true },
         },
-        sections: {
+        lessons: {
           orderBy: { order: 'asc' },
         },
         _count: {
@@ -79,15 +79,14 @@ export async function GET(
           }
         : null,
       creator: course.creator || null,
-      sections: course.sections.map((section) => ({
-        id: section.id,
-        title: section.title,
-        content: section.content,
-        order: section.order,
-        totalPages: section.totalPages,
-        courseId: section.courseId,
-        createdAt: section.createdAt,
-        updatedAt: section.updatedAt,
+      lessons: course.lessons.map((lesson) => ({
+        id: lesson.id,
+        title: lesson.title,
+        order: lesson.order,
+        outlineJson: lesson.outlineJson,
+        courseId: lesson.courseId,
+        createdAt: lesson.createdAt,
+        updatedAt: lesson.updatedAt,
       })),
       enrollmentsCount: course._count.enrollments,
       favoritesCount: course._count.favorites,

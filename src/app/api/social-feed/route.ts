@@ -9,7 +9,7 @@ interface SocialActivityItem {
   userName: string;
   userAvatar: string;
   userRole: string;
-  action: "completed_section" | "enrolled_course" | "posted_comment" | "earned_badge" | "rated_course" | "started_streak";
+  action: "completed_lesson" | "enrolled_course" | "posted_comment" | "earned_badge" | "rated_course" | "started_streak";
   targetTitle: string;
   targetType: string;
   timestamp: string;
@@ -83,7 +83,7 @@ const COURSE_TITLES = [
   "Python for Data Science",
 ];
 
-const SECTION_TITLES = [
+const LESSON_TITLES = [
   "Introduction & Setup",
   "Core Concepts",
   "Advanced Patterns",
@@ -105,7 +105,7 @@ const BADGE_NAMES = [
 ];
 
 const ACTION_TYPES: SocialActivityItem["action"][] = [
-  "completed_section",
+  "completed_lesson",
   "enrolled_course",
   "posted_comment",
   "earned_badge",
@@ -128,7 +128,7 @@ const RELATIVE_TIMESTAMPS = [
 ];
 
 const XP_MAP: Record<SocialActivityItem["action"], () => number | null> = {
-  completed_section: () => 25,
+  completed_lesson: () => 25,
   enrolled_course: () => 10,
   posted_comment: () => 5,
   earned_badge: () => 50,
@@ -155,9 +155,9 @@ function generateSocialFeed(seed: number, limit: number): SocialActivityItem[] {
     let targetType: string;
 
     switch (action) {
-      case "completed_section": {
-        targetTitle = pick(rng, SECTION_TITLES);
-        targetType = "section";
+      case "completed_lesson": {
+        targetTitle = pick(rng, LESSON_TITLES);
+        targetType = "lesson";
         break;
       }
       case "enrolled_course": {
