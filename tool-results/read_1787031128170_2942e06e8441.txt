@@ -1,0 +1,1004 @@
+     1→"use client";
+     2→
+     3→import { useState, useEffect, useMemo } from "react";
+     4→import {
+     5→  BookOpen,
+     6→  Clock,
+     7→  CheckCircle,
+     8→  Flame,
+     9→  Star,
+    10→  Users,
+    11→  GraduationCap,
+    12→  Trophy,
+    13→  BarChart3,
+    14→  TrendingUp,
+    15→  Award,
+    16→  ArrowUpRight,
+    17→  Calendar,
+    18→} from "lucide-react";
+    19→import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+    20→import { Badge } from "@/components/ui/badge";
+    21→import { Skeleton } from "@/components/ui/skeleton";
+    22→import { Button } from "@/components/ui/button";
+    23→import {
+    24→  Tooltip,
+    25→  TooltipContent,
+    26→  TooltipProvider,
+    27→  TooltipTrigger,
+    28→} from "@/components/ui/tooltip";
+    29→import { useUserStore, useNavigationStore } from "@/stores/lms-store";
+    30→import { cn } from "@/lib/utils";
+    31→
+    32→/* ------------------------------------------------------------------ */
+    33→/*  Types                                                              */
+    34→/* ------------------------------------------------------------------ */
+    35→
+    36→interface StatsCard {
+    37→  totalEnrolled: number;
+    38→  hoursStudied: number;
+    39→  coursesCompleted: number;
+    40→  currentStreak: number;
+    41→}
+    42→
+    43→interface CourseProgress {
+    44→  courseId: string;
+    45→  courseTitle: string;
+    46→  categoryName: string | null;
+    47→  categoryColor: string | null;
+    48→  progress: number;
+    49→  status: string;
+    50→}
+    51→
+    52→interface CategoryDistribution {
+    53→  categoryName: string;
+    54→  categoryColor: string | null;
+    55→  courseCount: number;
+    56→}
+    57→
+    58→interface RecentActivity {
+    59→  id: string;
+    60→  type: "enrollment" | "completion" | "rating" | "progress";
+    61→  description: string;
+    62→  timestamp: string;
+    63→  courseTitle: string;
+    64→}
+    65→
+    66→interface TopCourse {
+    67→  courseId: string;
+    68→  courseTitle: string;
+    69→  rating: number;
+    70→  studentCount: number;
+    71→  categoryName: string | null;
+    72→  categoryColor: string | null;
+    73→}
+    74→
+    75→interface AnalyticsData {
+    76→  stats: StatsCard;
+    77→  courseProgress: CourseProgress[];
+    78→  categoryDistribution: CategoryDistribution[];
+    79→  recentActivity: RecentActivity[];
+    80→  topCourses: TopCourse[];
+    81→}
+    82→
+    83→/* ------------------------------------------------------------------ */
+    84→/*  Activity icon mapping                                              */
+    85→/* ------------------------------------------------------------------ */
+    86→
+    87→function ActivityIcon({ type }: { type: RecentActivity["type"] }) {
+    88→  switch (type) {
+    89→    case "enrollment":
+    90→      return <GraduationCap className="h-4 w-4 text-teal-500" />;
+    91→    case "completion":
+    92→      return <Trophy className="h-4 w-4 text-amber-500" />;
+    93→    case "rating":
+    94→      return <Star className="h-4 w-4 text-yellow-500" />;
+    95→    case "progress":
+    96→      return <TrendingUp className="h-4 w-4 text-emerald-500" />;
+    97→    default:
+    98→      return <BarChart3 className="h-4 w-4 text-muted-foreground" />;
+    99→  }
+   100→}
+   101→
+   102→/* ------------------------------------------------------------------ */
+   103→/*  Seeded random for consistent sparkline data                        */
+   104→/* ------------------------------------------------------------------ */
+   105→
+   106→function seededRandom(seed: number) {
+   107→  let s = seed;
+   108→  return () => {
+   109→    s = (s * 16807 + 0) % 2147483647;
+   110→    return (s - 1) / 2147483646;
+   111→  };
+   112→}
+   113→
+   114→/* ------------------------------------------------------------------ */
+   115→/*  Sparkline Mini Chart                                               */
+   116→/* ------------------------------------------------------------------ */
+   117→
+   118→function SparklineChart({
+   119→  data,
+   120→  gradientFrom,
+   121→  gradientTo,
+   122→}: {
+   123→  data: number[];
+   124→  gradientFrom: string;
+   125→  gradientTo: string;
+   126→}) {
+   127→  const max = Math.max(...data, 1);
+   128→  return (
+   129→    <div className="flex items-end gap-[3px] h-8">
+   130→      {data.map((val, i) => {
+   131→        const height = Math.max(4, (val / max) * 100);
+   132→        return (
+   133→          <div
+   134→            key={i}
+   135→            className={cn(
+   136→              "w-[6px] rounded-full transition-all duration-500",
+   137→              `bg-gradient-to-t ${gradientFrom} ${gradientTo}`
+   138→            )}
+   139→            style={{
+   140→              height: `${height}%`,
+   141→              opacity: 0.5 + (i / data.length) * 0.5,
+   142→              animationDelay: `${i * 60}ms`,
+   143→            }}
+   144→          />
+   145→        );
+   146→      })}
+   147→    </div>
+   148→  );
+   149→}
+   150→
+   151→/* ------------------------------------------------------------------ */
+   152→/*  Stat Card Component (with Sparkline)                               */
+   153→/* ------------------------------------------------------------------ */
+   154→
+   155→interface StatCardProps {
+   156→  icon: React.ReactNode;
+   157→  label: string;
+   158→  value: string | number;
+   159→  gradient: string;
+   160→  gradientFrom: string;
+   161→  gradientTo: string;
+   162→  delay: number;
+   163→  seed: number;
+   164→}
+   165→
+   166→function StatCard({
+   167→  icon,
+   168→  label,
+   169→  value,
+   170→  gradient,
+   171→  gradientFrom,
+   172→  gradientTo,
+   173→  delay,
+   174→  seed,
+   175→}: StatCardProps) {
+   176→  const sparkData = useMemo(() => {
+   177→    const rand = seededRandom(seed);
+   178→    return Array.from({ length: 7 }, () => 20 + rand() * 80);
+   179→  }, [seed]);
+   180→
+   181→  return (
+   182→    <Card
+   183→      className="glass-card stat-pop hover-lift overflow-hidden border-border/50 transition-shadow hover:shadow-lg"
+   184→      style={{ animationDelay: `${delay}ms` }}
+   185→    >
+   186→      <CardContent className="p-4 sm:p-5">
+   187→        <div className="flex items-center gap-3.5">
+   188→          <div
+   189→            className={cn(
+   190→              "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br shadow-md transition-transform duration-200 hover:scale-110",
+   191→              gradient
+   192→            )}
+   193→          >
+   194→            {icon}
+   195→          </div>
+   196→          <div className="min-w-0 flex-1">
+   197→            <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+   198→              {label}
+   199→            </p>
+   200→            <p className="text-2xl font-bold tracking-tight text-foreground leading-tight">
+   201→              {value}
+   202→            </p>
+   203→          </div>
+   204→          <div className="shrink-0 opacity-60">
+   205→            <SparklineChart
+   206→              data={sparkData}
+   207→              gradientFrom={gradientFrom}
+   208→              gradientTo={gradientTo}
+   209→            />
+   210→          </div>
+   211→        </div>
+   212→      </CardContent>
+   213→    </Card>
+   214→  );
+   215→}
+   216→
+   217→/* ------------------------------------------------------------------ */
+   218→/*  Animated Progress Bar                                              */
+   219→/* ------------------------------------------------------------------ */
+   220→
+   221→function AnimatedProgressBar({
+   222→  value,
+   223→  isCompleted,
+   224→}: {
+   225→  value: number;
+   226→  isCompleted: boolean;
+   227→}) {
+   228→  const [animatedWidth, setAnimatedWidth] = useState(0);
+   229→
+   230→  useEffect(() => {
+   231→    const timer = setTimeout(() => setAnimatedWidth(value), 100);
+   232→    return () => clearTimeout(timer);
+   233→  }, [value]);
+   234→
+   235→  return (
+   236→    <div className="relative h-3 w-full overflow-hidden rounded-full bg-muted">
+   237→      <div
+   238→        className={cn(
+   239→          "h-full rounded-full transition-all duration-1000 ease-out",
+   240→          isCompleted
+   241→            ? "bg-gradient-to-r from-emerald-400 via-teal-400 to-emerald-500"
+   242→            : "bg-gradient-to-r from-amber-400 via-orange-400 to-amber-500"
+   243→        )}
+   244→        style={{ width: `${animatedWidth}%` }}
+   245→      >
+   246→        {/* Shimmer effect */}
+   247→        <div
+   248→          className={cn(
+   249→            "absolute inset-0 opacity-0",
+   250→            animatedWidth > 10 && "opacity-100"
+   251→          )}
+   252→          style={{
+   253→            background:
+   254→              "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.2) 50%, transparent 100%)",
+   255→            animation: "shimmer 2s infinite",
+   256→          }}
+   257→        />
+   258→      </div>
+   259→    </div>
+   260→  );
+   261→}
+   262→
+   263→/* ------------------------------------------------------------------ */
+   264→/*  Donut Chart                                                        */
+   265→/* ------------------------------------------------------------------ */
+   266→
+   267→function DonutChart({
+   268→  data,
+   269→  total,
+   270→}: {
+   271→  data: { categoryName: string; categoryColor: string | null; courseCount: number }[];
+   272→  total: number;
+   273→}) {
+   274→  // Build conic-gradient
+   275→  const gradientParts: string[] = [];
+   276→  let currentAngle = 0;
+   277→
+   278→  const DONUT_COLORS = [
+   279→    "#14b8a6",
+   280→    "#f59e0b",
+   281→    "#ef4444",
+   282→    "#8b5cf6",
+   283→    "#ec4899",
+   284→    "#06b6d4",
+   285→    "#84cc16",
+   286→    "#f97316",
+   287→  ];
+   288→
+   289→  data.forEach((item, i) => {
+   290→    const color = item.categoryColor || DONUT_COLORS[i % DONUT_COLORS.length];
+   291→    const angle = total > 0 ? (item.courseCount / total) * 360 : 0;
+   292→    gradientParts.push(`${color} ${currentAngle}deg ${currentAngle + angle}deg`);
+   293→    currentAngle += angle;
+   294→  });
+   295→
+   296→  const gradientStr =
+   297→    gradientParts.length > 0
+   298→      ? `conic-gradient(${gradientParts.join(", ")})`
+   299→      : "conic-gradient(#e5e7eb 0deg 360deg)";
+   300→
+   301→  return (
+   302→    <div className="flex flex-col items-center gap-4">
+   303→      {/* Donut */}
+   304→      <div
+   305→        className="relative h-40 w-40 sm:h-48 sm:w-48 rounded-full stat-pop"
+   306→        style={{
+   307→          background: gradientStr,
+   308→        }}
+   309→      >
+   310→        {/* Inner circle (donut hole) */}
+   311→        <div className="absolute inset-0 m-auto h-[60%] w-[60%] rounded-full bg-card flex flex-col items-center justify-center shadow-inner">
+   312→          <span className="text-2xl font-bold text-foreground">{total}</span>
+   313→          <span className="text-[11px] text-muted-foreground">courses</span>
+   314→        </div>
+   315→      </div>
+   316→
+   317→      {/* Legend */}
+   318→      <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 w-full max-w-[220px]">
+   319→        {data.map((item, i) => {
+   320→          const color =
+   321→            item.categoryColor || DONUT_COLORS[i % DONUT_COLORS.length];
+   322→          const pct = total > 0 ? Math.round((item.courseCount / total) * 100) : 0;
+   323→          return (
+   324→            <div key={item.categoryName} className="flex items-center gap-2">
+   325→              <span
+   326→                className="h-2.5 w-2.5 rounded-full shrink-0"
+   327→                style={{ backgroundColor: color }}
+   328→              />
+   329→              <div className="min-w-0">
+   330→                <span className="text-xs text-foreground truncate block">
+   331→                  {item.categoryName}
+   332→                </span>
+   333→                <span className="text-[10px] text-muted-foreground">
+   334→                  {pct}%
+   335→                </span>
+   336→              </div>
+   337→            </div>
+   338→          );
+   339→        })}
+   340→      </div>
+   341→    </div>
+   342→  );
+   343→}
+   344→
+   345→/* ------------------------------------------------------------------ */
+   346→/*  Weekly Heatmap                                                     */
+   347→/* ------------------------------------------------------------------ */
+   348→
+   349→function WeeklyHeatmap({
+   350→  userId,
+   351→}: {
+   352→  userId: string;
+   353→}) {
+   354→  const [heatmapData, setHeatmapData] = useState<number[][]>([]);
+   355→  const [monthLabels, setMonthLabels] = useState<string[]>([]);
+   356→
+   357→  useEffect(() => {
+   358→    async function fetchHeatmap() {
+   359→      try {
+   360→        const res = await fetch(`/api/activity?userId=${userId}`);
+   361→        const json = await res.json();
+   362→        if (json.success && json.data && json.data.dailyData) {
+   363→          // Use the activity data to build a heatmap
+   364→          const activityMap: Record<string, number> = {};
+   365→          const activities = json.data.dailyData;
+   366→          for (const act of activities) {
+   367→            const dateStr = act.date;
+   368→            // Use minutes to derive activity level
+   369→            const minutes = act.minutes || 0;
+   370→            // Keep the max minutes per day
+   371→            const existing = activityMap[dateStr] || 0;
+   372→            activityMap[dateStr] = Math.max(existing, minutes);
+   373→          }
+   374→
+   375→          // Build 12-week × 7-day grid
+   376→          const grid: number[][] = [];
+   377→          const today = new Date();
+   378→          const months: string[] = [];
+   379→          const seenMonths = new Set<string>();
+   380→
+   381→          // Start from 12 weeks ago, aligned to Sunday
+   382→          const startDate = new Date(today);
+   383→          startDate.setDate(startDate.getDate() - 83); // ~12 weeks
+   384→          const dayOfWeek = startDate.getDay();
+   385→          startDate.setDate(startDate.getDate() - dayOfWeek); // Align to Sunday
+   386→
+   387→          for (let week = 0; week < 12; week++) {
+   388→            for (let day = 0; day < 7; day++) {
+   389→              if (day === 0) grid.push([]);
+   390→              const cellDate = new Date(startDate);
+   391→              cellDate.setDate(cellDate.getDate() + week * 7 + day);
+   392→              const dateStr = cellDate.toISOString().split("T")[0];
+   393→              grid[week].push(activityMap[dateStr] || 0);
+   394→
+   395→              // Convert minutes to 0-4 level for heatmap coloring
+   396→              const mins = activityMap[dateStr] || 0;
+   397→              if (mins === 0) {
+   398→                // already 0
+   399→              } else {
+   400→                // Normalize: 0=none, 1=1-30min, 2=31-60min, 3=61-90min, 4=91+min
+   401→                grid[week][day] = mins <= 30 ? 1 : mins <= 60 ? 2 : mins <= 90 ? 3 : 4;
+   402→              }
+   403→              if (day === 0) {
+   404→                const monthName = cellDate.toLocaleString("en-US", {
+   405→                  month: "short",
+   406→                });
+   407→                if (!seenMonths.has(monthName)) {
+   408→                  seenMonths.add(monthName);
+   409→                  months.push(monthName);
+   410→                } else {
+   411→                  months.push("");
+   412→                }
+   413→              }
+   414→            }
+   415→          }
+   416→
+   417→          setHeatmapData(grid);
+   418→          setMonthLabels(months);
+   419→        }
+   420→      } catch {
+   421→        // Generate fallback random data
+   422→        const rand = seededRandom(42);
+   423→        const grid: number[][] = [];
+   424→        for (let week = 0; week < 12; week++) {
+   425→          grid.push([]);
+   426→          for (let day = 0; day < 7; day++) {
+   427→            grid[week].push(Math.floor(rand() * 5));
+   428→          }
+   429→        }
+   430→        setHeatmapData(grid);
+   431→        setMonthLabels(["Jan", "", "Feb", "", "Mar", "", "Apr"]);
+   432→      }
+   433→    }
+   434→    fetchHeatmap();
+   435→  }, [userId]);
+   436→
+   437→  const dayLabels = ["Sun", "", "Tue", "", "Thu", "", "Sat"];
+   438→
+   439→  const getHeatColor = (level: number) => {
+   440→    switch (level) {
+   441→      case 0:
+   442→        return "bg-muted";
+   443→      case 1:
+   444→        return "bg-emerald-200 dark:bg-emerald-900/50";
+   445→      case 2:
+   446→        return "bg-emerald-300 dark:bg-emerald-800/60";
+   447→      case 3:
+   448→        return "bg-emerald-400 dark:bg-emerald-700/70";
+   449→      default:
+   450→        return "bg-emerald-500 dark:bg-emerald-600";
+   451→    }
+   452→  };
+   453→
+   454→  if (heatmapData.length === 0) return null;
+   455→
+   456→  return (
+   457→    <TooltipProvider delayDuration={200}>
+   458→      <div className="space-y-2">
+   459→        {/* Month labels */}
+   460→        <div className="flex gap-0.5 pl-8">
+   461→          {monthLabels.map((label, i) => (
+   462→            <div
+   463→              key={i}
+   464→              className="flex-1 min-w-0"
+   465→            >
+   466→              <span className="text-[9px] text-muted-foreground truncate">
+   467→                {label}
+   468→              </span>
+   469→            </div>
+   470→          ))}
+   471→        </div>
+   472→
+   473→        <div className="flex gap-1.5">
+   474→          {/* Day labels */}
+   475→          <div className="flex flex-col gap-0.5 shrink-0 pt-0">
+   476→            {dayLabels.map((label, i) => (
+   477→              <div key={i} className="h-[14px] flex items-center">
+   478→                <span className="text-[9px] text-muted-foreground w-7 text-right pr-1.5">
+   479→                  {label}
+   480→                </span>
+   481→              </div>
+   482→            ))}
+   483→          </div>
+   484→
+   485→          {/* Heatmap grid */}
+   486→          <div className="flex gap-[3px] flex-1 overflow-x-auto">
+   487→            {heatmapData.map((week, weekIdx) => (
+   488→              <div key={weekIdx} className="flex flex-col gap-[3px]">
+   489→                {week.map((level, dayIdx) => (
+   490→                  <Tooltip key={dayIdx}>
+   491→                    <TooltipTrigger asChild>
+   492→                      <div
+   493→                        className={cn(
+   494→                          "h-[14px] w-[14px] rounded-[3px] transition-colors hover:ring-1 hover:ring-foreground/20",
+   495→                          getHeatColor(level)
+   496→                        )}
+   497→                      />
+   498→                    </TooltipTrigger>
+   499→                    <TooltipContent side="top" className="text-xs">
+   500→                      {level > 0
+   501→                        ? `${level === 1 ? "<30" : level === 2 ? "31-60" : level === 3 ? "61-90" : "90+"} min`
+   502→                        : "No activity"}
+   503→                    </TooltipContent>
+   504→                  </Tooltip>
+   505→                ))}
+   506→              </div>
+   507→            ))}
+   508→          </div>
+   509→        </div>
+   510→
+   511→        {/* Legend */}
+   512→        <div className="flex items-center justify-end gap-1.5 text-[10px] text-muted-foreground">
+   513→          <span>Less</span>
+   514→          {[0, 1, 2, 3, 4].map((level) => (
+   515→            <div
+   516→              key={level}
+   517→              className={cn("h-[10px] w-[10px] rounded-[2px]", getHeatColor(level))}
+   518→            />
+   519→          ))}
+   520→          <span>More</span>
+   521→        </div>
+   522→      </div>
+   523→    </TooltipProvider>
+   524→  );
+   525→}
+   526→
+   527→/* ------------------------------------------------------------------ */
+   528→/*  Star Rating Component                                              */
+   529→/* ------------------------------------------------------------------ */
+   530→
+   531→function StarRating({ rating }: { rating: number }) {
+   532→  return (
+   533→    <div className="flex items-center gap-0.5">
+   534→      {Array.from({ length: 5 }).map((_, i) => (
+   535→        <Star
+   536→          key={i}
+   537→          className={cn(
+   538→            "h-3.5 w-3.5",
+   539→            i < Math.round(rating)
+   540→              ? "fill-amber-400 text-amber-400"
+   541→              : "fill-muted text-muted"
+   542→          )}
+   543→        />
+   544→      ))}
+   545→      <span className="ml-1 text-xs font-medium text-muted-foreground">
+   546→        {rating.toFixed(1)}
+   547→      </span>
+   548→    </div>
+   549→  );
+   550→}
+   551→
+   552→/* ------------------------------------------------------------------ */
+   553→/*  Dashboard Page                                                     */
+   554→/* ------------------------------------------------------------------ */
+   555→
+   556→export function DashboardPage() {
+   557→  const { currentUserId } = useUserStore();
+   558→  const { openCourseDetail } = useNavigationStore();
+   559→  const [data, setData] = useState<AnalyticsData | null>(null);
+   560→  const [loading, setLoading] = useState(true);
+   561→  const [error, setError] = useState<string | null>(null);
+   562→
+   563→  useEffect(() => {
+   564→    async function fetchAnalytics() {
+   565→      try {
+   566→        const res = await fetch(`/api/analytics?userId=${currentUserId}`);
+   567→        const json = await res.json();
+   568→        if (json.success) {
+   569→          setData(json.data);
+   570→        } else {
+   571→          setError(json.error || "Failed to load analytics");
+   572→        }
+   573→      } catch {
+   574→        setError("Network error. Please try again.");
+   575→      } finally {
+   576→        setLoading(false);
+   577→      }
+   578→    }
+   579→    fetchAnalytics();
+   580→  }, [currentUserId]);
+   581→
+   582→  if (error) {
+   583→    return (
+   584→      <div className="flex min-h-[50vh] flex-col items-center justify-center px-4">
+   585→        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-destructive/10">
+   586→          <BarChart3 className="h-7 w-7 text-destructive" />
+   587→        </div>
+   588→        <h2 className="mt-4 text-lg font-semibold text-foreground">
+   589→          Something went wrong
+   590→        </h2>
+   591→        <p className="mt-1 text-sm text-muted-foreground">{error}</p>
+   592→        <Button
+   593→          variant="outline"
+   594→          className="mt-4"
+   595→          onClick={() => window.location.reload()}
+   596→        >
+   597→          Try Again
+   598→        </Button>
+   599→      </div>
+   600→    );
+   601→  }
+   602→
+   603→  return (
+   604→    <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
+   605→      {/* Page Header */}
+   606→      <div className="content-reveal mb-6">
+   607→        <div className="flex items-center gap-3">
+   608→          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-emerald-600 shadow-md">
+   609→            <BarChart3 className="h-5 w-5 text-white" />
+   610→          </div>
+   611→          <div>
+   612→            <h1 className="text-2xl font-bold tracking-tight gradient-text">
+   613→              Analytics Dashboard
+   614→            </h1>
+   615→            <p className="text-sm text-muted-foreground">
+   616→              Track your learning progress and performance
+   617→            </p>
+   618→          </div>
+   619→        </div>
+   620→      </div>
+   621→
+   622→      {loading ? (
+   623→        <DashboardSkeleton />
+   624→      ) : data ? (
+   625→        <div className="space-y-6">
+   626→          {/* ---- Top Stats Row ---- */}
+   627→          <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+   628→            <StatCard
+   629→              icon={<BookOpen className="h-5 w-5 text-white" />}
+   630→              label="Courses Enrolled"
+   631→              value={data.stats.totalEnrolled}
+   632→              gradient="from-teal-500 to-cyan-600"
+   633→              gradientFrom="from-teal-400"
+   634→              gradientTo="to-cyan-300"
+   635→              delay={0}
+   636→              seed={101}
+   637→            />
+   638→            <StatCard
+   639→              icon={<Clock className="h-5 w-5 text-white" />}
+   640→              label="Hours of Study"
+   641→              value={data.stats.hoursStudied}
+   642→              gradient="from-amber-500 to-orange-500"
+   643→              gradientFrom="from-amber-400"
+   644→              gradientTo="to-orange-300"
+   645→              delay={50}
+   646→              seed={202}
+   647→            />
+   648→            <StatCard
+   649→              icon={<CheckCircle className="h-5 w-5 text-white" />}
+   650→              label="Courses Completed"
+   651→              value={data.stats.coursesCompleted}
+   652→              gradient="from-emerald-500 to-green-600"
+   653→              gradientFrom="from-emerald-400"
+   654→              gradientTo="to-green-300"
+   655→              delay={100}
+   656→              seed={303}
+   657→            />
+   658→            <StatCard
+   659→              icon={<Flame className="h-5 w-5 text-white" />}
+   660→              label="Current Streak"
+   661→              value={`${data.stats.currentStreak} days`}
+   662→              gradient="from-rose-500 to-pink-600"
+   663→              gradientFrom="from-rose-400"
+   664→              gradientTo="to-pink-300"
+   665→              delay={150}
+   666→              seed={404}
+   667→            />
+   668→          </div>
+   669→
+   670→          {/* ---- Charts Row ---- */}
+   671→          <div className="grid gap-4 lg:grid-cols-2">
+   672→            {/* Learning Progress Chart */}
+   673→            <Card className="glass-card content-reveal-delay-1 content-reveal hover-lift border-border/50">
+   674→              <CardHeader className="pb-3">
+   675→                <CardTitle className="flex items-center gap-2 text-base gradient-text">
+   676→                  <TrendingUp className="h-4 w-4 text-teal-500" />
+   677→                  Learning Progress
+   678→                </CardTitle>
+   679→              </CardHeader>
+   680→              <CardContent className="space-y-3">
+   681→                {data.courseProgress.length === 0 ? (
+   682→                  <div className="flex flex-col items-center justify-center py-8 text-center">
+   683→                    <BookOpen className="h-8 w-8 text-muted-foreground/30" />
+   684→                    <p className="mt-2 text-sm text-muted-foreground">
+   685→                      No courses enrolled yet
+   686→                    </p>
+   687→                    <Button
+   688→                      variant="outline"
+   689→                      size="sm"
+   690→                      className="mt-3"
+   691→                      onClick={() =>
+   692→                        useNavigationStore.getState().navigateTo("courses")
+   693→                      }
+   694→                    >
+   695→                      Browse Courses
+   696→                    </Button>
+   697→                  </div>
+   698→                ) : (
+   699→                  <div className="space-y-3 max-h-80 overflow-y-auto pr-1 custom-scrollbar">
+   700→                    {data.courseProgress.map((cp) => (
+   701→                      <div key={cp.courseId}>
+   702→                        <div className="mb-1.5 flex items-center justify-between">
+   703→                          <span className="max-w-[200px] truncate text-sm font-medium text-foreground">
+   704→                            {cp.courseTitle}
+   705→                          </span>
+   706→                          <Badge
+   707→                            variant="secondary"
+   708→                            className={cn(
+   709→                              "text-[10px] font-semibold shrink-0",
+   710→                              cp.progress === 100
+   711→                                ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400"
+   712→                                : "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400"
+   713→                            )}
+   714→                          >
+   715→                            {cp.progress}%
+   716→                          </Badge>
+   717→                        </div>
+   718→                        <AnimatedProgressBar
+   719→                          value={cp.progress}
+   720→                          isCompleted={cp.progress === 100}
+   721→                        />
+   722→                      </div>
+   723→                    ))}
+   724→                  </div>
+   725→                )}
+   726→              </CardContent>
+   727→            </Card>
+   728→
+   729→            {/* Category Distribution - Donut Chart */}
+   730→            <Card className="glass-card content-reveal-delay-2 content-reveal hover-lift border-border/50">
+   731→              <CardHeader className="pb-3">
+   732→                <CardTitle className="flex items-center gap-2 text-base gradient-text">
+   733→                  <Award className="h-4 w-4 text-amber-500" />
+   734→                  Category Distribution
+   735→                </CardTitle>
+   736→              </CardHeader>
+   737→              <CardContent>
+   738→                {data.categoryDistribution.length === 0 ? (
+   739→                  <div className="flex flex-col items-center justify-center py-8 text-center">
+   740→                    <BarChart3 className="h-8 w-8 text-muted-foreground/30" />
+   741→                    <p className="mt-2 text-sm text-muted-foreground">
+   742→                      No category data yet
+   743→                    </p>
+   744→                  </div>
+   745→                ) : (
+   746→                  <DonutChart
+   747→                    data={data.categoryDistribution}
+   748→                    total={data.categoryDistribution.reduce(
+   749→                      (sum, c) => sum + c.courseCount,
+   750→                      0
+   751→                    )}
+   752→                  />
+   753→                )}
+   754→              </CardContent>
+   755→            </Card>
+   756→          </div>
+   757→
+   758→          {/* ---- Weekly Heatmap Section ---- */}
+   759→          <Card className="glass-card content-reveal-delay-2 content-reveal hover-lift border-border/50">
+   760→            <CardHeader className="pb-3">
+   761→              <CardTitle className="flex items-center gap-2 text-base gradient-text">
+   762→                <Calendar className="h-4 w-4 text-teal-500" />
+   763→                Learning Activity
+   764→              </CardTitle>
+   765→            </CardHeader>
+   766→            <CardContent>
+   767→              <WeeklyHeatmap userId={currentUserId} />
+   768→            </CardContent>
+   769→          </Card>
+   770→
+   771→          {/* ---- Bottom Row ---- */}
+   772→          <div className="grid gap-4 lg:grid-cols-2">
+   773→            {/* Recent Activity Feed */}
+   774→            <Card className="glass-card content-reveal-delay-3 content-reveal hover-lift border-border/50">
+   775→              <CardHeader className="pb-3">
+   776→                <CardTitle className="flex items-center gap-2 text-base gradient-text">
+   777→                  <Clock className="h-4 w-4 text-emerald-500" />
+   778→                  Recent Activity
+   779→                </CardTitle>
+   780→              </CardHeader>
+   781→              <CardContent>
+   782→                {data.recentActivity.length === 0 ? (
+   783→                  <div className="flex flex-col items-center justify-center py-8 text-center">
+   784→                    <Clock className="h-8 w-8 text-muted-foreground/30" />
+   785→                    <p className="mt-2 text-sm text-muted-foreground">
+   786→                      No recent activity
+   787→                    </p>
+   788→                  </div>
+   789→                ) : (
+   790→                  <div className="space-y-1 max-h-80 overflow-y-auto pr-1 custom-scrollbar">
+   791→                    {data.recentActivity.map((activity) => (
+   792→                      <div
+   793→                        key={activity.id}
+   794→                        className="flex items-start gap-3 rounded-lg p-2.5 transition-colors hover:bg-muted/50"
+   795→                      >
+   796→                        <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted">
+   797→                          <ActivityIcon type={activity.type} />
+   798→                        </div>
+   799→                        <div className="min-w-0 flex-1">
+   800→                          <p className="text-sm text-foreground">
+   801→                            <span className="font-medium">
+   802→                              {activity.description}
+   803→                            </span>{" "}
+   804→                            <span className="truncate">{activity.courseTitle}</span>
+   805→                          </p>
+   806→                          <p className="text-xs text-muted-foreground">
+   807→                            {activity.timestamp}
+   808→                          </p>
+   809→                        </div>
+   810→                      </div>
+   811→                    ))}
+   812→                  </div>
+   813→                )}
+   814→              </CardContent>
+   815→            </Card>
+   816→
+   817→            {/* Top Courses Card */}
+   818→            <Card className="glass-card content-reveal-delay-4 content-reveal hover-lift border-border/50">
+   819→              <CardHeader className="pb-3">
+   820→                <CardTitle className="flex items-center gap-2 text-base gradient-text">
+   821→                  <Trophy className="h-4 w-4 text-amber-500" />
+   822→                  Top Rated Courses
+   823→                </CardTitle>
+   824→              </CardHeader>
+   825→              <CardContent>
+   826→                {data.topCourses.length === 0 ? (
+   827→                  <div className="flex flex-col items-center justify-center py-8 text-center">
+   828→                    <Star className="h-8 w-8 text-muted-foreground/30" />
+   829→                    <p className="mt-2 text-sm text-muted-foreground">
+   830→                      No rated courses yet
+   831→                    </p>
+   832→                  </div>
+   833→                ) : (
+   834→                  <div className="space-y-2">
+   835→                    {data.topCourses.map((course, index) => (
+   836→                      <button
+   837→                        key={course.courseId}
+   838→                        onClick={() => openCourseDetail(course.courseId)}
+   839→                        className="group flex w-full items-center gap-3 rounded-xl border border-border/50 p-3 text-left transition-all hover:border-primary/30 hover:shadow-sm"
+   840→                      >
+   841→                        {/* Rank number */}
+   842→                        <div
+   843→                          className={cn(
+   844→                            "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-sm font-bold text-white",
+   845→                            index === 0
+   846→                              ? "bg-gradient-to-br from-amber-400 to-yellow-500"
+   847→                              : index === 1
+   848→                                ? "bg-gradient-to-br from-slate-300 to-slate-400"
+   849→                                : "bg-gradient-to-br from-amber-600 to-orange-600"
+   850→                          )}
+   851→                        >
+   852→                          {index + 1}
+   853→                        </div>
+   854→                        {/* Course info */}
+   855→                        <div className="min-w-0 flex-1">
+   856→                          <p className="truncate text-sm font-semibold text-foreground group-hover:text-primary transition-colors">
+   857→                            {course.courseTitle}
+   858→                          </p>
+   859→                          <div className="mt-1 flex items-center gap-3">
+   860→                            <StarRating rating={course.rating} />
+   861→                            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+   862→                              <Users className="h-3 w-3" />
+   863→                              {course.studentCount} students
+   864→                            </span>
+   865→                          </div>
+   866→                        </div>
+   867→                        {/* Category */}
+   868→                        {course.categoryName && (
+   869→                          <Badge
+   870→                            variant="secondary"
+   871→                            className="shrink-0 text-[10px]"
+   872→                            style={
+   873→                              course.categoryColor
+   874→                                ? {
+   875→                                    backgroundColor: `${course.categoryColor}20`,
+   876→                                    color: course.categoryColor,
+   877→                                    borderColor: `${course.categoryColor}40`,
+   878→                                  }
+   879→                                : undefined
+   880→                            }
+   881→                          >
+   882→                            {course.categoryName}
+   883→                          </Badge>
+   884→                        )}
+   885→                        <ArrowUpRight className="h-4 w-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+   886→                      </button>
+   887→                    ))}
+   888→                  </div>
+   889→                )}
+   890→              </CardContent>
+   891→            </Card>
+   892→          </div>
+   893→        </div>
+   894→      ) : null}
+   895→    </div>
+   896→  );
+   897→}
+   898→
+   899→/* ------------------------------------------------------------------ */
+   900→/*  Loading Skeleton                                                   */
+   901→/* ------------------------------------------------------------------ */
+   902→
+   903→function DashboardSkeleton() {
+   904→  return (
+   905→    <div className="space-y-6">
+   906→      {/* Stats row skeleton */}
+   907→      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+   908→        {Array.from({ length: 4 }).map((_, i) => (
+   909→          <Card key={i} className="border-border/50">
+   910→            <CardContent className="p-4 sm:p-6">
+   911→              <div className="flex items-center gap-4">
+   912→                <Skeleton className="h-11 w-11 rounded-xl" />
+   913→                <div className="flex-1 space-y-2">
+   914→                  <Skeleton className="h-3 w-24" />
+   915→                  <Skeleton className="h-7 w-16" />
+   916→                </div>
+   917→                <Skeleton className="h-8 w-16" />
+   918→              </div>
+   919→            </CardContent>
+   920→          </Card>
+   921→        ))}
+   922→      </div>
+   923→
+   924→      {/* Charts row skeleton */}
+   925→      <div className="grid gap-4 lg:grid-cols-2">
+   926→        <Card className="border-border/50">
+   927→          <CardHeader className="pb-3">
+   928→            <Skeleton className="h-5 w-36" />
+   929→          </CardHeader>
+   930→          <CardContent className="space-y-4">
+   931→            {Array.from({ length: 4 }).map((_, i) => (
+   932→              <div key={i} className="space-y-1.5">
+   933→                <div className="flex items-center justify-between">
+   934→                  <Skeleton className="h-3 w-40" />
+   935→                  <Skeleton className="h-4 w-10 rounded" />
+   936→                </div>
+   937→                <Skeleton className="h-3 w-full rounded-full" />
+   938→              </div>
+   939→            ))}
+   940→          </CardContent>
+   941→        </Card>
+   942→        <Card className="border-border/50">
+   943→          <CardHeader className="pb-3">
+   944→            <Skeleton className="h-5 w-40" />
+   945→          </CardHeader>
+   946→          <CardContent className="flex justify-center py-6">
+   947→            <Skeleton className="h-44 w-44 rounded-full" />
+   948→          </CardContent>
+   949→        </Card>
+   950→      </div>
+   951→
+   952→      {/* Heatmap skeleton */}
+   953→      <Card className="border-border/50">
+   954→        <CardHeader className="pb-3">
+   955→          <Skeleton className="h-5 w-36" />
+   956→        </CardHeader>
+   957→        <CardContent>
+   958→          <Skeleton className="h-28 w-full rounded-lg" />
+   959→        </CardContent>
+   960→      </Card>
+   961→
+   962→      {/* Bottom row skeleton */}
+   963→      <div className="grid gap-4 lg:grid-cols-2">
+   964→        <Card className="border-border/50">
+   965→          <CardHeader className="pb-3">
+   966→            <Skeleton className="h-5 w-32" />
+   967→          </CardHeader>
+   968→          <CardContent className="space-y-3">
+   969→            {Array.from({ length: 5 }).map((_, i) => (
+   970→              <div key={i} className="flex items-start gap-3">
+   971→                <Skeleton className="h-8 w-8 rounded-full" />
+   972→                <div className="flex-1 space-y-1.5">
+   973→                  <Skeleton className="h-3 w-full" />
+   974→                  <Skeleton className="h-2.5 w-16" />
+   975→                </div>
+   976→              </div>
+   977→            ))}
+   978→          </CardContent>
+   979→        </Card>
+   980→        <Card className="border-border/50">
+   981→          <CardHeader className="pb-3">
+   982→            <Skeleton className="h-5 w-36" />
+   983→          </CardHeader>
+   984→          <CardContent className="space-y-2">
+   985→            {Array.from({ length: 3 }).map((_, i) => (
+   986→              <div
+   987→                key={i}
+   988→                className="flex items-center gap-3 rounded-xl border border-border/50 p-3"
+   989→              >
+   990→                <Skeleton className="h-8 w-8 rounded-lg" />
+   991→                <div className="flex-1 space-y-1.5">
+   992→                  <Skeleton className="h-3 w-40" />
+   993→                  <Skeleton className="h-3 w-24" />
+   994→                </div>
+   995→                <Skeleton className="h-5 w-16 rounded" />
+   996→              </div>
+   997→            ))}
+   998→          </CardContent>
+   999→        </Card>
+  1000→      </div>
+  1001→    </div>
+  1002→  );
+  1003→}
+  1004→

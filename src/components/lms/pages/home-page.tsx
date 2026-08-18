@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Sparkles, BookOpen, Star, GraduationCap, FolderOpen, Users, Play, ChevronDown, TrendingUp, BarChart3, BookMarked, ArrowRight, Zap } from "lucide-react";
+import { Sparkles, BookOpen, Star, GraduationCap, FolderOpen, Users, Play, ChevronDown, TrendingUp, BarChart3, BookMarked, ArrowRight, Zap, Search, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -309,6 +309,68 @@ export function HomePage() {
 
   return (
     <div className="flex flex-col min-h-0 overflow-x-hidden">
+
+      {/* ─── Hero Section ────────────────────────────────────────── */}
+      <section className="relative overflow-hidden px-4 pt-8 pb-6 sm:px-6 sm:pt-12 sm:pb-8 md:px-12 lg:pt-16 lg:pb-10">
+        {/* Background decoration */}
+        <div className="pointer-events-none absolute inset-0 -z-10">
+          <div className="absolute -left-20 -top-20 h-72 w-72 rounded-full bg-teal-500/10 blur-3xl" />
+          <div className="absolute -right-20 top-10 h-64 w-64 rounded-full bg-emerald-500/8 blur-3xl" />
+          <div className="absolute bottom-0 left-1/2 h-48 w-96 -translate-x-1/2 rounded-full bg-cyan-500/6 blur-3xl" />
+        </div>
+
+        <div className="mx-auto max-w-3xl text-center">
+          <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl md:text-5xl">
+            <span className="gradient-text">Unlock Your Potential</span>{" "}
+            <span className="text-foreground">
+              {TYPING_WORDS[typingIndex].slice(0, typingCharIndex)}
+              <span className="animate-pulse text-primary">|</span>
+            </span>
+          </h1>
+          <p className="mt-4 text-base text-muted-foreground sm:text-lg">
+            Explore expert-led courses, track your progress, and achieve your learning goals with Ecotech LMS.
+          </p>
+
+          {/* AI Prompt Input */}
+          {currentRole === "instructor" && (
+            <div className="mt-6 mx-auto max-w-xl">
+              <div className="relative flex items-center rounded-xl border border-border/60 bg-card shadow-sm focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/20 transition-all">
+                <Sparkles className="ml-3 h-4 w-4 shrink-0 text-muted-foreground" />
+                <input
+                  type="text"
+                  value={heroPrompt}
+                  onChange={(e) => setHeroPrompt(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleCreateCourse()}
+                  placeholder="Describe a course topic to create with AI..."
+                  className="flex-1 bg-transparent px-3 py-3 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none"
+                />
+                <Button
+                  size="sm"
+                  onClick={handleCreateCourse}
+                  disabled={!heroPrompt.trim()}
+                  className="mr-1.5 gap-1.5 rounded-lg"
+                >
+                  <Send className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Create</span>
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {currentRole === "student" && (
+            <div className="mt-6 flex items-center justify-center gap-3">
+              <Button onClick={() => navigateTo("courses")} className="gap-2">
+                <Search className="h-4 w-4" />
+                Browse Courses
+              </Button>
+              <Button variant="outline" onClick={() => navigateTo("my-learning")} className="gap-2">
+                <Play className="h-4 w-4" />
+                My Learning
+              </Button>
+            </div>
+          )}
+        </div>
+      </section>
 
       {/* ─── Quick Stats Dashboard ──────────────────────────────── */}
       <section className="px-4 py-4 sm:px-6 md:px-8 lg:px-12" ref={statsRef}>

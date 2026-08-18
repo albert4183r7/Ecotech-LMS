@@ -5,12 +5,45 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get('userId');
+    const creatorId = searchParams.get('creatorId');
 
-    if (!userId) {
+    if (!userId && !creatorId) {
       return NextResponse.json(
-        { success: false, error: 'userId is required' },
+        { success: false, error: 'userId or creatorId is required' },
         { status: 400 }
       );
+    }
+
+    // When creatorId is provided, fetch enrollments for courses created by that instructor
+    if (creatorId) {
+      const enrollments = await db.enrollment.findMany({
+        where: {
+          course: { creatorId },
+        },
+        include: {
+          user: {
+            select: { id: true, name: true, avatar: true },
+          },
+          course: {
+            select: {
+              id: true,
+              title: true,
+            },
+          },
+        },
+        orderBy: { enrolledAt: 'desc' },
+        take: 20,
+      });
+
+      const formatted = enrollments.map((e) => ({
+        id: e.id,
+        studentName: e.user.name || 'Anonymous Student',
+        studentAvatar: e.user.avatar,
+        courseTitle: e.course.title,
+        enrolledAt: e.enrolledAt,
+      }));
+
+      return NextResponse.json({ success: true, data: formatted });
     }
 
     const enrollments = await db.enrollment.findMany({

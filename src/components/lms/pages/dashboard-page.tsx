@@ -1,20 +1,18 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import {
   BookOpen,
-  Clock,
-  CheckCircle,
-  Flame,
   Star,
   Users,
   GraduationCap,
-  Trophy,
   BarChart3,
-  TrendingUp,
-  Award,
   ArrowUpRight,
-  Calendar,
+  Plus,
+  Compass,
+  UserPlus,
+  Eye,
+  Clock,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -33,70 +31,51 @@ import { cn } from "@/lib/utils";
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
 
-interface StatsCard {
-  totalEnrolled: number;
-  hoursStudied: number;
-  coursesCompleted: number;
-  currentStreak: number;
-}
-
-interface CourseProgress {
-  courseId: string;
-  courseTitle: string;
-  categoryName: string | null;
-  categoryColor: string | null;
-  progress: number;
-  status: string;
-}
-
-interface CategoryDistribution {
-  categoryName: string;
-  categoryColor: string | null;
-  courseCount: number;
-}
-
-interface RecentActivity {
+interface InstructorCourse {
   id: string;
-  type: "enrollment" | "completion" | "rating" | "progress";
-  description: string;
-  timestamp: string;
-  courseTitle: string;
-}
-
-interface TopCourse {
-  courseId: string;
-  courseTitle: string;
+  title: string;
+  description: string | null;
+  coverImage: string | null;
   rating: number;
   studentCount: number;
-  categoryName: string | null;
-  categoryColor: string | null;
+  status: string;
+  language: string;
+  category: { id: string; name: string; color: string | null } | null;
+  lessonsCount: number;
+  enrollmentsCount: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
-interface AnalyticsData {
-  stats: StatsCard;
-  courseProgress: CourseProgress[];
-  categoryDistribution: CategoryDistribution[];
-  recentActivity: RecentActivity[];
-  topCourses: TopCourse[];
+interface StudentActivity {
+  id: string;
+  studentName: string;
+  studentAvatar: string | null;
+  courseTitle: string;
+  enrolledAt: string;
 }
 
 /* ------------------------------------------------------------------ */
-/*  Activity icon mapping                                              */
+/*  Helpers                                                            */
 /* ------------------------------------------------------------------ */
 
-function ActivityIcon({ type }: { type: RecentActivity["type"] }) {
-  switch (type) {
-    case "enrollment":
-      return <GraduationCap className="h-4 w-4 text-teal-500" />;
-    case "completion":
-      return <Trophy className="h-4 w-4 text-amber-500" />;
-    case "rating":
-      return <Star className="h-4 w-4 text-yellow-500" />;
-    case "progress":
-      return <TrendingUp className="h-4 w-4 text-emerald-500" />;
-    default:
-      return <BarChart3 className="h-4 w-4 text-muted-foreground" />;
-  }
+function timeAgo(dateStr: string): string {
+  const now = new Date();
+  const date = new Date(dateStr);
+  const diffMs = now.getTime() - date.getTime();
+  const diffSec = Math.floor(diffMs / 1000);
+  const diffMin = Math.floor(diffSec / 60);
+  const diffHr = Math.floor(diffMin / 60);
+  const diffDay = Math.floor(diffHr / 24);
+  const diffWeek = Math.floor(diffDay / 7);
+  const diffMonth = Math.floor(diffDay / 30);
+
+  if (diffSec < 60) return "just now";
+  if (diffMin < 60) return `${diffMin}m ago`;
+  if (diffHr < 24) return `${diffHr}h ago`;
+  if (diffDay < 7) return `${diffDay}d ago`;
+  if (diffWeek < 5) return `${diffWeek}w ago`;
+  return `${diffMonth}mo ago`;
 }
 
 /* ------------------------------------------------------------------ */
@@ -215,316 +194,6 @@ function StatCard({
 }
 
 /* ------------------------------------------------------------------ */
-/*  Animated Progress Bar                                              */
-/* ------------------------------------------------------------------ */
-
-function AnimatedProgressBar({
-  value,
-  isCompleted,
-}: {
-  value: number;
-  isCompleted: boolean;
-}) {
-  const [animatedWidth, setAnimatedWidth] = useState(0);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setAnimatedWidth(value), 100);
-    return () => clearTimeout(timer);
-  }, [value]);
-
-  return (
-    <div className="relative h-3 w-full overflow-hidden rounded-full bg-muted">
-      <div
-        className={cn(
-          "h-full rounded-full transition-all duration-1000 ease-out",
-          isCompleted
-            ? "bg-gradient-to-r from-emerald-400 via-teal-400 to-emerald-500"
-            : "bg-gradient-to-r from-amber-400 via-orange-400 to-amber-500"
-        )}
-        style={{ width: `${animatedWidth}%` }}
-      >
-        {/* Shimmer effect */}
-        <div
-          className={cn(
-            "absolute inset-0 opacity-0",
-            animatedWidth > 10 && "opacity-100"
-          )}
-          style={{
-            background:
-              "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.2) 50%, transparent 100%)",
-            animation: "shimmer 2s infinite",
-          }}
-        />
-      </div>
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/*  Donut Chart                                                        */
-/* ------------------------------------------------------------------ */
-
-function DonutChart({
-  data,
-  total,
-}: {
-  data: { categoryName: string; categoryColor: string | null; courseCount: number }[];
-  total: number;
-}) {
-  // Build conic-gradient
-  const gradientParts: string[] = [];
-  let currentAngle = 0;
-
-  const DONUT_COLORS = [
-    "#14b8a6",
-    "#f59e0b",
-    "#ef4444",
-    "#8b5cf6",
-    "#ec4899",
-    "#06b6d4",
-    "#84cc16",
-    "#f97316",
-  ];
-
-  data.forEach((item, i) => {
-    const color = item.categoryColor || DONUT_COLORS[i % DONUT_COLORS.length];
-    const angle = total > 0 ? (item.courseCount / total) * 360 : 0;
-    gradientParts.push(`${color} ${currentAngle}deg ${currentAngle + angle}deg`);
-    currentAngle += angle;
-  });
-
-  const gradientStr =
-    gradientParts.length > 0
-      ? `conic-gradient(${gradientParts.join(", ")})`
-      : "conic-gradient(#e5e7eb 0deg 360deg)";
-
-  return (
-    <div className="flex flex-col items-center gap-4">
-      {/* Donut */}
-      <div
-        className="relative h-40 w-40 sm:h-48 sm:w-48 rounded-full stat-pop"
-        style={{
-          background: gradientStr,
-        }}
-      >
-        {/* Inner circle (donut hole) */}
-        <div className="absolute inset-0 m-auto h-[60%] w-[60%] rounded-full bg-card flex flex-col items-center justify-center shadow-inner">
-          <span className="text-2xl font-bold text-foreground">{total}</span>
-          <span className="text-[11px] text-muted-foreground">courses</span>
-        </div>
-      </div>
-
-      {/* Legend */}
-      <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 w-full max-w-[220px]">
-        {data.map((item, i) => {
-          const color =
-            item.categoryColor || DONUT_COLORS[i % DONUT_COLORS.length];
-          const pct = total > 0 ? Math.round((item.courseCount / total) * 100) : 0;
-          return (
-            <div key={item.categoryName} className="flex items-center gap-2">
-              <span
-                className="h-2.5 w-2.5 rounded-full shrink-0"
-                style={{ backgroundColor: color }}
-              />
-              <div className="min-w-0">
-                <span className="text-xs text-foreground truncate block">
-                  {item.categoryName}
-                </span>
-                <span className="text-[10px] text-muted-foreground">
-                  {pct}%
-                </span>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/*  Weekly Heatmap                                                     */
-/* ------------------------------------------------------------------ */
-
-function WeeklyHeatmap({
-  userId,
-}: {
-  userId: string;
-}) {
-  const [heatmapData, setHeatmapData] = useState<number[][]>([]);
-  const [monthLabels, setMonthLabels] = useState<string[]>([]);
-
-  useEffect(() => {
-    async function fetchHeatmap() {
-      try {
-        const res = await fetch(`/api/activity?userId=${userId}`);
-        const json = await res.json();
-        if (json.success && json.data && json.data.dailyData) {
-          // Use the activity data to build a heatmap
-          const activityMap: Record<string, number> = {};
-          const activities = json.data.dailyData;
-          for (const act of activities) {
-            const dateStr = act.date;
-            // Use minutes to derive activity level
-            const minutes = act.minutes || 0;
-            // Keep the max minutes per day
-            const existing = activityMap[dateStr] || 0;
-            activityMap[dateStr] = Math.max(existing, minutes);
-          }
-
-          // Build 12-week × 7-day grid
-          const grid: number[][] = [];
-          const today = new Date();
-          const months: string[] = [];
-          const seenMonths = new Set<string>();
-
-          // Start from 12 weeks ago, aligned to Sunday
-          const startDate = new Date(today);
-          startDate.setDate(startDate.getDate() - 83); // ~12 weeks
-          const dayOfWeek = startDate.getDay();
-          startDate.setDate(startDate.getDate() - dayOfWeek); // Align to Sunday
-
-          for (let week = 0; week < 12; week++) {
-            for (let day = 0; day < 7; day++) {
-              if (day === 0) grid.push([]);
-              const cellDate = new Date(startDate);
-              cellDate.setDate(cellDate.getDate() + week * 7 + day);
-              const dateStr = cellDate.toISOString().split("T")[0];
-              grid[week].push(activityMap[dateStr] || 0);
-
-              // Convert minutes to 0-4 level for heatmap coloring
-              const mins = activityMap[dateStr] || 0;
-              if (mins === 0) {
-                // already 0
-              } else {
-                // Normalize: 0=none, 1=1-30min, 2=31-60min, 3=61-90min, 4=91+min
-                grid[week][day] = mins <= 30 ? 1 : mins <= 60 ? 2 : mins <= 90 ? 3 : 4;
-              }
-              if (day === 0) {
-                const monthName = cellDate.toLocaleString("en-US", {
-                  month: "short",
-                });
-                if (!seenMonths.has(monthName)) {
-                  seenMonths.add(monthName);
-                  months.push(monthName);
-                } else {
-                  months.push("");
-                }
-              }
-            }
-          }
-
-          setHeatmapData(grid);
-          setMonthLabels(months);
-        }
-      } catch {
-        // Generate fallback random data
-        const rand = seededRandom(42);
-        const grid: number[][] = [];
-        for (let week = 0; week < 12; week++) {
-          grid.push([]);
-          for (let day = 0; day < 7; day++) {
-            grid[week].push(Math.floor(rand() * 5));
-          }
-        }
-        setHeatmapData(grid);
-        setMonthLabels(["Jan", "", "Feb", "", "Mar", "", "Apr"]);
-      }
-    }
-    fetchHeatmap();
-  }, [userId]);
-
-  const dayLabels = ["Sun", "", "Tue", "", "Thu", "", "Sat"];
-
-  const getHeatColor = (level: number) => {
-    switch (level) {
-      case 0:
-        return "bg-muted";
-      case 1:
-        return "bg-emerald-200 dark:bg-emerald-900/50";
-      case 2:
-        return "bg-emerald-300 dark:bg-emerald-800/60";
-      case 3:
-        return "bg-emerald-400 dark:bg-emerald-700/70";
-      default:
-        return "bg-emerald-500 dark:bg-emerald-600";
-    }
-  };
-
-  if (heatmapData.length === 0) return null;
-
-  return (
-    <TooltipProvider delayDuration={200}>
-      <div className="space-y-2">
-        {/* Month labels */}
-        <div className="flex gap-0.5 pl-8">
-          {monthLabels.map((label, i) => (
-            <div
-              key={i}
-              className="flex-1 min-w-0"
-            >
-              <span className="text-[9px] text-muted-foreground truncate">
-                {label}
-              </span>
-            </div>
-          ))}
-        </div>
-
-        <div className="flex gap-1.5">
-          {/* Day labels */}
-          <div className="flex flex-col gap-0.5 shrink-0 pt-0">
-            {dayLabels.map((label, i) => (
-              <div key={i} className="h-[14px] flex items-center">
-                <span className="text-[9px] text-muted-foreground w-7 text-right pr-1.5">
-                  {label}
-                </span>
-              </div>
-            ))}
-          </div>
-
-          {/* Heatmap grid */}
-          <div className="flex gap-[3px] flex-1 overflow-x-auto">
-            {heatmapData.map((week, weekIdx) => (
-              <div key={weekIdx} className="flex flex-col gap-[3px]">
-                {week.map((level, dayIdx) => (
-                  <Tooltip key={dayIdx}>
-                    <TooltipTrigger asChild>
-                      <div
-                        className={cn(
-                          "h-[14px] w-[14px] rounded-[3px] transition-colors hover:ring-1 hover:ring-foreground/20",
-                          getHeatColor(level)
-                        )}
-                      />
-                    </TooltipTrigger>
-                    <TooltipContent side="top" className="text-xs">
-                      {level > 0
-                        ? `${level === 1 ? "<30" : level === 2 ? "31-60" : level === 3 ? "61-90" : "90+"} min`
-                        : "No activity"}
-                    </TooltipContent>
-                  </Tooltip>
-                ))}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Legend */}
-        <div className="flex items-center justify-end gap-1.5 text-[10px] text-muted-foreground">
-          <span>Less</span>
-          {[0, 1, 2, 3, 4].map((level) => (
-            <div
-              key={level}
-              className={cn("h-[10px] w-[10px] rounded-[2px]", getHeatColor(level))}
-            />
-          ))}
-          <span>More</span>
-        </div>
-      </div>
-    </TooltipProvider>
-  );
-}
-
-/* ------------------------------------------------------------------ */
 /*  Star Rating Component                                              */
 /* ------------------------------------------------------------------ */
 
@@ -537,8 +206,8 @@ function StarRating({ rating }: { rating: number }) {
           className={cn(
             "h-3.5 w-3.5",
             i < Math.round(rating)
-              ? "fill-amber-400 text-amber-400"
-              : "fill-muted text-muted"
+            ? "fill-amber-400 text-amber-400"
+            : "fill-muted text-muted"
           )}
         />
       ))}
@@ -550,34 +219,87 @@ function StarRating({ rating }: { rating: number }) {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Status Badge                                                       */
+/* ------------------------------------------------------------------ */
+
+function StatusBadge({ status }: { status: string }) {
+  const isPublished = status === "published";
+  return (
+    <Badge
+      variant="secondary"
+      className={cn(
+        "text-[10px] font-semibold uppercase tracking-wider",
+        isPublished
+          ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400"
+          : "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400"
+      )}
+    >
+      {isPublished ? "Published" : "Draft"}
+    </Badge>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Dashboard Page                                                     */
 /* ------------------------------------------------------------------ */
 
 export function DashboardPage() {
   const { currentUserId } = useUserStore();
-  const { openCourseDetail } = useNavigationStore();
-  const [data, setData] = useState<AnalyticsData | null>(null);
+  const { openCourseDetail, navigateTo } = useNavigationStore();
+  const [courses, setCourses] = useState<InstructorCourse[] | null>(null);
+  const [activities, setActivities] = useState<StudentActivity[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function fetchAnalytics() {
-      try {
-        const res = await fetch(`/api/analytics?userId=${currentUserId}`);
-        const json = await res.json();
-        if (json.success) {
-          setData(json.data);
-        } else {
-          setError(json.error || "Failed to load analytics");
-        }
-      } catch {
-        setError("Network error. Please try again.");
-      } finally {
-        setLoading(false);
+  const fetchDashboardData = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const [coursesRes, activitiesRes] = await Promise.all([
+        fetch(`/api/courses?creatorId=${currentUserId}`),
+        fetch(`/api/enrollments?creatorId=${currentUserId}`),
+      ]);
+
+      const coursesJson = await coursesRes.json();
+      const activitiesJson = await activitiesRes.json();
+
+      if (coursesJson.success) {
+        setCourses(coursesJson.data);
+      } else {
+        setError(coursesJson.error || "Failed to load courses");
+        return;
       }
+
+      if (activitiesJson.success) {
+        setActivities(activitiesJson.data);
+      } else {
+        setActivities([]);
+      }
+    } catch {
+      setError("Network error. Please try again.");
+    } finally {
+      setLoading(false);
     }
-    fetchAnalytics();
   }, [currentUserId]);
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, [fetchDashboardData]);
+
+  /* ---- Computed stats ---- */
+  const stats = useMemo(() => {
+    if (!courses) return { totalCourses: 0, totalStudents: 0, avgRating: "0.0", totalLessons: 0 };
+    const totalCourses = courses.length;
+    const totalStudents = courses.reduce((sum, c) => sum + (c.studentCount || 0), 0);
+    const ratedCourses = courses.filter((c) => c.rating > 0);
+    const avgRating =
+      ratedCourses.length > 0
+        ? (ratedCourses.reduce((sum, c) => sum + c.rating, 0) / ratedCourses.length).toFixed(1)
+        : "0.0";
+    const totalLessons = courses.reduce((sum, c) => sum + (c.lessonsCount || 0), 0);
+    return { totalCourses, totalStudents, avgRating, totalLessons };
+  }, [courses]);
 
   if (error) {
     return (
@@ -610,10 +332,10 @@ export function DashboardPage() {
           </div>
           <div>
             <h1 className="text-2xl font-bold tracking-tight gradient-text">
-              Analytics Dashboard
+              Instructor Dashboard
             </h1>
             <p className="text-sm text-muted-foreground">
-              Track your learning progress and performance
+              Manage your courses and track student engagement
             </p>
           </div>
         </div>
@@ -621,14 +343,14 @@ export function DashboardPage() {
 
       {loading ? (
         <DashboardSkeleton />
-      ) : data ? (
+      ) : courses ? (
         <div className="space-y-6">
           {/* ---- Top Stats Row ---- */}
           <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
             <StatCard
               icon={<BookOpen className="h-5 w-5 text-white" />}
-              label="Courses Enrolled"
-              value={data.stats.totalEnrolled}
+              label="Total Courses"
+              value={stats.totalCourses}
               gradient="from-teal-500 to-cyan-600"
               gradientFrom="from-teal-400"
               gradientTo="to-cyan-300"
@@ -636,9 +358,9 @@ export function DashboardPage() {
               seed={101}
             />
             <StatCard
-              icon={<Clock className="h-5 w-5 text-white" />}
-              label="Hours of Study"
-              value={data.stats.hoursStudied}
+              icon={<Users className="h-5 w-5 text-white" />}
+              label="Total Students"
+              value={stats.totalStudents}
               gradient="from-amber-500 to-orange-500"
               gradientFrom="from-amber-400"
               gradientTo="to-orange-300"
@@ -646,9 +368,9 @@ export function DashboardPage() {
               seed={202}
             />
             <StatCard
-              icon={<CheckCircle className="h-5 w-5 text-white" />}
-              label="Courses Completed"
-              value={data.stats.coursesCompleted}
+              icon={<Star className="h-5 w-5 text-white" />}
+              label="Average Rating"
+              value={stats.avgRating}
               gradient="from-emerald-500 to-green-600"
               gradientFrom="from-emerald-400"
               gradientTo="to-green-300"
@@ -656,9 +378,9 @@ export function DashboardPage() {
               seed={303}
             />
             <StatCard
-              icon={<Flame className="h-5 w-5 text-white" />}
-              label="Current Streak"
-              value={`${data.stats.currentStreak} days`}
+              icon={<GraduationCap className="h-5 w-5 text-white" />}
+              label="Total Lessons"
+              value={stats.totalLessons}
               gradient="from-rose-500 to-pink-600"
               gradientFrom="from-rose-400"
               gradientTo="to-pink-300"
@@ -667,144 +389,183 @@ export function DashboardPage() {
             />
           </div>
 
-          {/* ---- Charts Row ---- */}
-          <div className="grid gap-4 lg:grid-cols-2">
-            {/* Learning Progress Chart */}
-            <Card className="glass-card content-reveal-delay-1 content-reveal hover-lift border-border/50">
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-base gradient-text">
-                  <TrendingUp className="h-4 w-4 text-teal-500" />
-                  Learning Progress
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {data.courseProgress.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-8 text-center">
-                    <BookOpen className="h-8 w-8 text-muted-foreground/30" />
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      No courses enrolled yet
-                    </p>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="mt-3"
-                      onClick={() =>
-                        useNavigationStore.getState().navigateTo("courses")
-                      }
-                    >
-                      Browse Courses
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="space-y-3 max-h-80 overflow-y-auto pr-1 custom-scrollbar">
-                    {data.courseProgress.map((cp) => (
-                      <div key={cp.courseId}>
-                        <div className="mb-1.5 flex items-center justify-between">
-                          <span className="max-w-[200px] truncate text-sm font-medium text-foreground">
-                            {cp.courseTitle}
-                          </span>
-                          <Badge
-                            variant="secondary"
-                            className={cn(
-                              "text-[10px] font-semibold shrink-0",
-                              cp.progress === 100
-                                ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400"
-                                : "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400"
-                            )}
-                          >
-                            {cp.progress}%
-                          </Badge>
-                        </div>
-                        <AnimatedProgressBar
-                          value={cp.progress}
-                          isCompleted={cp.progress === 100}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Category Distribution - Donut Chart */}
-            <Card className="glass-card content-reveal-delay-2 content-reveal hover-lift border-border/50">
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-base gradient-text">
-                  <Award className="h-4 w-4 text-amber-500" />
-                  Category Distribution
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {data.categoryDistribution.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-8 text-center">
-                    <BarChart3 className="h-8 w-8 text-muted-foreground/30" />
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      No category data yet
-                    </p>
-                  </div>
-                ) : (
-                  <DonutChart
-                    data={data.categoryDistribution}
-                    total={data.categoryDistribution.reduce(
-                      (sum, c) => sum + c.courseCount,
-                      0
-                    )}
-                  />
-                )}
-              </CardContent>
-            </Card>
+          {/* ---- Quick Actions ---- */}
+          <div className="content-reveal-delay-1 content-reveal flex flex-wrap gap-3">
+            <Button
+              onClick={() => navigateTo("create-course")}
+              className="gap-2 bg-gradient-to-r from-teal-500 to-emerald-600 text-white hover:from-teal-600 hover:to-emerald-700 shadow-md transition-all hover:shadow-lg"
+            >
+              <Plus className="h-4 w-4" />
+              Create New Course
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => navigateTo("courses")}
+              className="gap-2 hover:bg-muted/80 transition-colors"
+            >
+              <Compass className="h-4 w-4" />
+              Browse All Courses
+            </Button>
           </div>
 
-          {/* ---- Weekly Heatmap Section ---- */}
+          {/* ---- My Courses Table ---- */}
           <Card className="glass-card content-reveal-delay-2 content-reveal hover-lift border-border/50">
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-base gradient-text">
-                <Calendar className="h-4 w-4 text-teal-500" />
-                Learning Activity
+                <BookOpen className="h-4 w-4 text-teal-500" />
+                My Courses
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <WeeklyHeatmap userId={currentUserId} />
+              {courses.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <BookOpen className="h-8 w-8 text-muted-foreground/30" />
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    You haven&apos;t created any courses yet
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-3 gap-2"
+                    onClick={() => navigateTo("create-course")}
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Create Your First Course
+                  </Button>
+                </div>
+              ) : (
+                <div className="max-h-96 overflow-y-auto custom-scrollbar">
+                  {/* Desktop table header */}
+                  <div className="hidden sm:grid sm:grid-cols-[1fr_auto_auto_auto_auto] sm:gap-4 sm:items-center sm:px-3 sm:py-2 sm:text-[11px] sm:font-semibold sm:uppercase sm:tracking-wider sm:text-muted-foreground border-b border-border/50 mb-2">
+                    <span>Course</span>
+                    <span className="text-center">Students</span>
+                    <span className="text-center">Rating</span>
+                    <span className="text-center">Status</span>
+                    <span className="text-center w-16">Action</span>
+                  </div>
+                  <div className="space-y-1">
+                    {courses.map((course) => (
+                      <div
+                        key={course.id}
+                        className="group flex flex-col sm:grid sm:grid-cols-[1fr_auto_auto_auto_auto] sm:gap-4 sm:items-center rounded-xl p-3 transition-colors hover:bg-muted/50"
+                      >
+                        {/* Course title + category */}
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-semibold text-foreground group-hover:text-primary transition-colors">
+                            {course.title}
+                          </p>
+                          <div className="mt-1 flex items-center gap-2">
+                            {course.category && (
+                              <Badge
+                                variant="secondary"
+                                className="text-[10px] font-semibold"
+                                style={
+                                  course.category.color
+                                    ? {
+                                        backgroundColor: `${course.category.color}20`,
+                                        color: course.category.color,
+                                        borderColor: `${course.category.color}40`,
+                                      }
+                                    : undefined
+                                }
+                              >
+                                {course.category.name}
+                              </Badge>
+                            )}
+                            <span className="text-xs text-muted-foreground">
+                              {course.lessonsCount} lesson{course.lessonsCount !== 1 ? "s" : ""}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Students enrolled */}
+                        <div className="flex items-center gap-1.5 mt-2 sm:mt-0 sm:justify-center sm:min-w-[70px]">
+                          <Users className="h-3.5 w-3.5 text-muted-foreground" />
+                          <span className="text-sm font-medium text-foreground">
+                            {course.studentCount}
+                          </span>
+                        </div>
+
+                        {/* Rating */}
+                        <div className="mt-2 sm:mt-0 sm:justify-center sm:min-w-[90px]">
+                          <StarRating rating={course.rating} />
+                        </div>
+
+                        {/* Status */}
+                        <div className="mt-2 sm:mt-0 sm:justify-center">
+                          <StatusBadge status={course.status} />
+                        </div>
+
+                        {/* View button */}
+                        <div className="mt-2 sm:mt-0 sm:justify-center">
+                          <TooltipProvider delayDuration={200}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 w-8 p-0 opacity-0 transition-opacity group-hover:opacity-100"
+                                  onClick={() => openCourseDetail(course.id)}
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>View Course</TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 
           {/* ---- Bottom Row ---- */}
           <div className="grid gap-4 lg:grid-cols-2">
-            {/* Recent Activity Feed */}
+            {/* Recent Student Activity */}
             <Card className="glass-card content-reveal-delay-3 content-reveal hover-lift border-border/50">
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-base gradient-text">
-                  <Clock className="h-4 w-4 text-emerald-500" />
-                  Recent Activity
+                  <UserPlus className="h-4 w-4 text-emerald-500" />
+                  Recent Student Activity
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {data.recentActivity.length === 0 ? (
+                {!activities || activities.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-8 text-center">
-                    <Clock className="h-8 w-8 text-muted-foreground/30" />
+                    <Users className="h-8 w-8 text-muted-foreground/30" />
                     <p className="mt-2 text-sm text-muted-foreground">
-                      No recent activity
+                      No student enrollments yet
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground/70">
+                      Enrollments will appear here once students join your courses
                     </p>
                   </div>
                 ) : (
-                  <div className="space-y-1 max-h-80 overflow-y-auto pr-1 custom-scrollbar">
-                    {data.recentActivity.map((activity) => (
+                  <div className="space-y-1 max-h-96 overflow-y-auto pr-1 custom-scrollbar">
+                    {activities.map((activity) => (
                       <div
                         key={activity.id}
                         className="flex items-start gap-3 rounded-lg p-2.5 transition-colors hover:bg-muted/50"
                       >
-                        <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted">
-                          <ActivityIcon type={activity.type} />
+                        <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-teal-100 to-emerald-100 dark:from-teal-950 dark:to-emerald-950">
+                          <UserPlus className="h-4 w-4 text-teal-600 dark:text-teal-400" />
                         </div>
                         <div className="min-w-0 flex-1">
                           <p className="text-sm text-foreground">
                             <span className="font-medium">
-                              {activity.description}
+                              {activity.studentName}
                             </span>{" "}
-                            <span className="truncate">{activity.courseTitle}</span>
+                            enrolled in{" "}
+                            <span className="font-medium text-teal-600 dark:text-teal-400">
+                              {activity.courseTitle}
+                            </span>
                           </p>
-                          <p className="text-xs text-muted-foreground">
-                            {activity.timestamp}
+                          <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                            <Clock className="h-3 w-3" />
+                            {timeAgo(activity.enrolledAt)}
                           </p>
                         </div>
                       </div>
@@ -814,77 +575,99 @@ export function DashboardPage() {
               </CardContent>
             </Card>
 
-            {/* Top Courses Card */}
+            {/* Quick Stats Summary */}
             <Card className="glass-card content-reveal-delay-4 content-reveal hover-lift border-border/50">
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-base gradient-text">
-                  <Trophy className="h-4 w-4 text-amber-500" />
-                  Top Rated Courses
+                  <GraduationCap className="h-4 w-4 text-amber-500" />
+                  Course Overview
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {data.topCourses.length === 0 ? (
+                {courses.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-8 text-center">
-                    <Star className="h-8 w-8 text-muted-foreground/30" />
+                    <GraduationCap className="h-8 w-8 text-muted-foreground/30" />
                     <p className="mt-2 text-sm text-muted-foreground">
-                      No rated courses yet
+                      No course data yet
                     </p>
                   </div>
                 ) : (
-                  <div className="space-y-2">
-                    {data.topCourses.map((course, index) => (
-                      <button
-                        key={course.courseId}
-                        onClick={() => openCourseDetail(course.courseId)}
-                        className="group flex w-full items-center gap-3 rounded-xl border border-border/50 p-3 text-left transition-all hover:border-primary/30 hover:shadow-sm"
-                      >
-                        {/* Rank number */}
-                        <div
-                          className={cn(
-                            "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-sm font-bold text-white",
-                            index === 0
-                              ? "bg-gradient-to-br from-amber-400 to-yellow-500"
-                              : index === 1
-                                ? "bg-gradient-to-br from-slate-300 to-slate-400"
-                                : "bg-gradient-to-br from-amber-600 to-orange-600"
-                          )}
+                  <div className="space-y-3 max-h-96 overflow-y-auto pr-1 custom-scrollbar">
+                    {/* Published vs Draft breakdown */}
+                    <div className="grid grid-cols-2 gap-3 mb-4">
+                      <div className="rounded-xl border border-border/50 p-3 text-center">
+                        <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+                          {courses.filter((c) => c.status === "published").length}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">Published</p>
+                      </div>
+                      <div className="rounded-xl border border-border/50 p-3 text-center">
+                        <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">
+                          {courses.filter((c) => c.status === "draft").length}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">Drafts</p>
+                      </div>
+                    </div>
+
+                    {/* Top courses by students */}
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Most Popular
+                    </p>
+                    {courses
+                      .sort((a, b) => (b.studentCount || 0) - (a.studentCount || 0))
+                      .slice(0, 5)
+                      .map((course, index) => (
+                        <button
+                          key={course.id}
+                          onClick={() => openCourseDetail(course.id)}
+                          className="group flex w-full items-center gap-3 rounded-xl border border-border/50 p-3 text-left transition-all hover:border-primary/30 hover:shadow-sm"
                         >
-                          {index + 1}
-                        </div>
-                        {/* Course info */}
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-semibold text-foreground group-hover:text-primary transition-colors">
-                            {course.courseTitle}
-                          </p>
-                          <div className="mt-1 flex items-center gap-3">
-                            <StarRating rating={course.rating} />
-                            <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                              <Users className="h-3 w-3" />
-                              {course.studentCount} students
-                            </span>
-                          </div>
-                        </div>
-                        {/* Category */}
-                        {course.categoryName && (
-                          <Badge
-                            variant="secondary"
-                            className="shrink-0 text-[10px]"
-                            style={
-                              course.categoryColor
-                                ? {
-                                    backgroundColor: `${course.categoryColor}20`,
-                                    color: course.categoryColor,
-                                    borderColor: `${course.categoryColor}40`,
-                                  }
-                                : undefined
-                            }
+                          <div
+                            className={cn(
+                              "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-sm font-bold text-white",
+                              index === 0
+                                ? "bg-gradient-to-br from-amber-400 to-yellow-500"
+                                : index === 1
+                                  ? "bg-gradient-to-br from-slate-300 to-slate-400"
+                                  : index === 2
+                                    ? "bg-gradient-to-br from-amber-600 to-orange-600"
+                                    : "bg-gradient-to-br from-muted-foreground/30 to-muted-foreground/20"
+                            )}
                           >
-                            {course.categoryName}
-                          </Badge>
-                        )}
-                        <ArrowUpRight className="h-4 w-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
-                      </button>
-                    ))}
+                            {index + 1}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-semibold text-foreground group-hover:text-primary transition-colors">
+                              {course.title}
+                            </p>
+                            <div className="mt-1 flex items-center gap-3">
+                              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                                <Users className="h-3 w-3" />
+                                {course.studentCount} students
+                              </span>
+                              <StarRating rating={course.rating} />
+                            </div>
+                          </div>
+                          {course.category && (
+                            <Badge
+                              variant="secondary"
+                              className="shrink-0 text-[10px]"
+                              style={
+                                course.category.color
+                                  ? {
+                                      backgroundColor: `${course.category.color}20`,
+                                      color: course.category.color,
+                                      borderColor: `${course.category.color}40`,
+                                    }
+                                  : undefined
+                              }
+                            >
+                              {course.category.name}
+                            </Badge>
+                          )}
+                          <ArrowUpRight className="h-4 w-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+                        </button>
+                      ))}
                   </div>
                 )}
               </CardContent>
@@ -921,49 +704,50 @@ function DashboardSkeleton() {
         ))}
       </div>
 
-      {/* Charts row skeleton */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card className="border-border/50">
-          <CardHeader className="pb-3">
-            <Skeleton className="h-5 w-36" />
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <Skeleton className="h-3 w-40" />
-                  <Skeleton className="h-4 w-10 rounded" />
-                </div>
-                <Skeleton className="h-3 w-full rounded-full" />
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-        <Card className="border-border/50">
-          <CardHeader className="pb-3">
-            <Skeleton className="h-5 w-40" />
-          </CardHeader>
-          <CardContent className="flex justify-center py-6">
-            <Skeleton className="h-44 w-44 rounded-full" />
-          </CardContent>
-        </Card>
+      {/* Quick actions skeleton */}
+      <div className="flex gap-3">
+        <Skeleton className="h-10 w-44 rounded-md" />
+        <Skeleton className="h-10 w-40 rounded-md" />
       </div>
 
-      {/* Heatmap skeleton */}
+      {/* My Courses table skeleton */}
       <Card className="border-border/50">
         <CardHeader className="pb-3">
-          <Skeleton className="h-5 w-36" />
+          <Skeleton className="h-5 w-28" />
         </CardHeader>
-        <CardContent>
-          <Skeleton className="h-28 w-full rounded-lg" />
+        <CardContent className="space-y-3">
+          {/* Table header skeleton */}
+          <div className="hidden sm:grid sm:grid-cols-[1fr_auto_auto_auto_auto] sm:gap-4 sm:items-center sm:px-3 sm:py-2 border-b border-border/50">
+            <Skeleton className="h-3 w-16" />
+            <Skeleton className="h-3 w-16" />
+            <Skeleton className="h-3 w-12" />
+            <Skeleton className="h-3 w-12" />
+            <Skeleton className="h-3 w-12" />
+          </div>
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div
+              key={i}
+              className="flex flex-col sm:grid sm:grid-cols-[1fr_auto_auto_auto_auto] sm:gap-4 sm:items-center sm:px-3 sm:py-3"
+            >
+              <div className="space-y-1.5">
+                <Skeleton className="h-4 w-56" />
+                <Skeleton className="h-4 w-16 rounded" />
+              </div>
+              <Skeleton className="h-4 w-12" />
+              <Skeleton className="h-4 w-20" />
+              <Skeleton className="h-5 w-16 rounded" />
+              <Skeleton className="h-8 w-8 rounded" />
+            </div>
+          ))}
         </CardContent>
       </Card>
 
       {/* Bottom row skeleton */}
       <div className="grid gap-4 lg:grid-cols-2">
+        {/* Recent activity skeleton */}
         <Card className="border-border/50">
           <CardHeader className="pb-3">
-            <Skeleton className="h-5 w-32" />
+            <Skeleton className="h-5 w-44" />
           </CardHeader>
           <CardContent className="space-y-3">
             {Array.from({ length: 5 }).map((_, i) => (
@@ -977,11 +761,18 @@ function DashboardSkeleton() {
             ))}
           </CardContent>
         </Card>
+
+        {/* Course overview skeleton */}
         <Card className="border-border/50">
           <CardHeader className="pb-3">
             <Skeleton className="h-5 w-36" />
           </CardHeader>
-          <CardContent className="space-y-2">
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <Skeleton className="h-16 w-full rounded-xl" />
+              <Skeleton className="h-16 w-full rounded-xl" />
+            </div>
+            <Skeleton className="h-3 w-28" />
             {Array.from({ length: 3 }).map((_, i) => (
               <div
                 key={i}

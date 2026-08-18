@@ -545,3 +545,22 @@ Stage Summary:
 - API parameter `sectionTitle` → `slideTitle` (generate-slide-html) or `lessonTitle` (generate-pptx)
 - Display text updated: "sections" → "lessons" in UI
 - Step 1 (Schema Migration) of the 15-step implementation plan is COMPLETE
+
+---
+Task ID: fix-three-ux-issues
+Agent: main
+Task: Fix 3 user-reported UX issues: redundant outline button, missing hero section, instructor dashboard showing learning progress
+
+Work Log:
+- **Outline button removed** from create-course-page.tsx: removed OutlineSection interface, 4 state variables, 3 handler functions, the "Outline" toolbar button, hint text, and the entire AI Outline Generation Modal (~190 lines removed). Kept "+ Add" and per-lesson "Generate Lesson with AI" buttons.
+- **Hero section added** to home-page.tsx: gradient background with floating orbs, typing animation ("Learn. Grow. Excel. Achieve. Thrive. Innovate."), subtitle text, AI prompt input for instructors, Browse Courses + My Learning buttons for students.
+- **Instructor dashboard rewritten**: removed all student learning content (learning progress bars, hours studied, courses enrolled, streak, heatmap, donut chart). Replaced with: Total Courses Created, Total Students, Average Rating, Total Lessons stats; My Courses table; Recent Student Activity feed; Quick Actions; Course Overview section. Added `creatorId` query param to `/api/courses` and `/api/enrollments` routes.
+- Lint: zero errors
+- Dev server compiles and runs
+- APIs verified: courses?creatorId= and enrollments?creatorId= return correct data
+
+Stage Summary:
+- Three UX issues resolved in single pass
+- Instructor dashboard now shows only course management data
+- Home page hero section restored with typing animation
+- AI course creation flow simplified (outline removed, per-lesson generation kept)

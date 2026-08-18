@@ -9,9 +9,17 @@ export async function GET(request: NextRequest) {
     const timeRange = searchParams.get('timeRange');
     const search = searchParams.get('search');
     const tab = searchParams.get('tab');
+    const creatorId = searchParams.get('creatorId');
 
     // Build where clause
-    const where: Record<string, unknown> = { status: 'published' };
+    const where: Record<string, unknown> = {};
+
+    // When filtering by creatorId (instructor dashboard), show all statuses including drafts
+    if (creatorId) {
+      where.creatorId = creatorId;
+    } else {
+      where.status = 'published';
+    }
 
     if (category) {
       where.categoryId = category;

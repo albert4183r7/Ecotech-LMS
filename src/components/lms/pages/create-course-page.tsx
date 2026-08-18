@@ -55,11 +55,6 @@ interface LessonDraft {
   language: string;
 }
 
-interface OutlineSection {
-  title: string;
-  summary: string;
-}
-
 // ============================================
 // Create Course Page Component
 // ============================================
@@ -102,12 +97,6 @@ export function CreateCoursePage() {
   const [streamingHtml, setStreamingHtml] = useState("");
   const [showStreamPreview, setShowStreamPreview] = useState(false);
    const streamPreviewRef = useRef<HTMLDivElement>(null);
-
-  // ---- Outline generation state ----
-  const [outlineGenerating, setOutlineGenerating] = useState(false);
-  const [outlineModalOpen, setOutlineModalOpen] = useState(false);
-  const [outlineTopic, setOutlineTopic] = useState("");
-  const [outlineSections, setOutlineSections] = useState<OutlineSection[]>([]);
 
   // ---- Expanded lesson preview ----
   const [expandedLessonId, setExpandedLessonId] = useState<string | null>(null);
@@ -304,69 +293,6 @@ export function CreateCoursePage() {
       newLessons[index],
     ];
     setLessons(newLessons);
-  };
-
-  // ---- Outline generation ----
-  const handleOpenOutlineModal = () => {
-    setOutlineTopic(title || "");
-    setOutlineSections([]);
-    setOutlineModalOpen(true);
-  };
-
-  const handleGenerateOutline = useCallback(async () => {
-    if (!outlineTopic.trim()) {
-      toast.error("Please enter a course topic");
-      return;
-    }
-
-    setOutlineGenerating(true);
-    try {
-      const res = await fetch("/api/generate-outline", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          topic: outlineTopic.trim(),
-          prompt: `Create a comprehensive course outline for: ${outlineTopic.trim()}. Include 4-6 lessons that progressively build understanding.`,
-          language,
-        }),
-      });
-
-      const json = await res.json();
-      if (json.success && json.data) {
-        setOutlineSections(json.data.lessons || []);
-        if (json.data.title && !title) {
-          setTitle(json.data.title);
-        }
-        toast.success("Outline generated! Select lessons to generate.");
-      } else {
-        toast.error(json.error || "Failed to generate outline");
-      }
-    } catch {
-      toast.error("Failed to generate outline. Please try again.");
-    } finally {
-      setOutlineGenerating(false);
-    }
-  }, [outlineTopic, language, title]);
-
-  const handleAddOutlineSections = () => {
-    // Add outline lessons as drafts (without htmlBody yet)
-    const newDrafts: LessonDraft[] = outlineSections.map((sec, i) => ({
-      id: `sec_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 8)}`,
-      title: sec.title,
-      totalPages: 1,
-      htmlBody: "",
-      language,
-    }));
-
-    const total = lessons.length + newDrafts.length;
-    if (total > MAX_LESSONS) {
-      toast.error(`Can only add ${MAX_LESSONS - lessons.length} more lessons`);
-      return;
-    }
-
-    setLessons((prev) => [...prev, ...newDrafts]);
-    setOutlineModalOpen(false);
-    toast.success(`${newDrafts.length} lessons added. Click the generate button on each to create content.`);
   };
 
   // ---- Form submission ----
@@ -680,17 +606,6 @@ export function CreateCoursePage() {
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={handleOpenOutlineModal}
-                    disabled={lessons.length >= MAX_LESSONS}
-                    className="gap-1.5"
-                    title="AI Generate Outline"
-                  >
-                    <Sparkles className="h-3.5 w-3.5" />
-                    <span className="hidden sm:inline">Outline</span>
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
                     onClick={handleOpenModal}
                     disabled={lessons.length >= MAX_LESSONS}
                     className="gap-1.5"
@@ -711,7 +626,7 @@ export function CreateCoursePage() {
                     No lessons yet
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground/70">
-                    Click <span className="font-medium text-foreground">Outline</span> to AI-generate a structure, or <span className="font-medium text-foreground">+ Add</span> manually
+                    Click <span className="font-medium text-foreground">+ Add</span> to create a lesson, then use the AI generate button to create content.
                   </p>
                 </div>
               ) : (
@@ -923,113 +838,6 @@ export function CreateCoursePage() {
                   Generate
                 </Button>
               </>
-            )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* ======== AI Outline Generation Modal ======== */}
-      <Dialog open={outlineModalOpen} onOpenChange={setOutlineModalOpen}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-primary" />
-              AI Course Outline
-            </DialogTitle>
-            <DialogDescription>
-              Enter a topic and the AI will generate a structured course outline with suggested lessons.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">
-                Course Topic <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                placeholder="e.g., Introduction to Data Science"
-                value={outlineTopic}
-                onChange={(e) => setOutlineTopic(e.target.value)}
-                disabled={outlineGenerating}
-                className="h-10"
-              />
-            </div>
-
-            {outlineSections.length > 0 && (
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">
-                  Generated Outline
-                  <Badge variant="secondary" className="ml-2 text-xs">
-                    {outlineSections.length} lessons
-                  </Badge>
-                </Label>
-                <div className="rounded-lg border border-border/60 bg-muted/20 p-3 space-y-2 max-h-64 overflow-y-auto">
-                  {outlineSections.map((sec, i) => (
-                    <div
-                      key={i}
-                      className="flex items-start gap-3 rounded-md bg-background p-2.5 border border-border/40"
-                    >
-                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
-                        {i + 1}
-                      </span>
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-foreground">{sec.title}</p>
-                        <p className="mt-0.5 text-xs text-muted-foreground leading-relaxed">
-                          {sec.summary}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-          <DialogFooter className="mt-2">
-            <Button
-              variant="ghost"
-              onClick={() => setOutlineModalOpen(false)}
-              disabled={outlineGenerating}
-            >
-              Cancel
-            </Button>
-            {outlineSections.length === 0 ? (
-              <Button
-                onClick={handleGenerateOutline}
-                disabled={!outlineTopic.trim() || outlineGenerating}
-                className="gap-2"
-              >
-                {outlineGenerating ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="h-4 w-4" />
-                    Generate Outline
-                  </>
-                )}
-              </Button>
-            ) : (
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  onClick={handleGenerateOutline}
-                  disabled={outlineGenerating}
-                  className="gap-2"
-                >
-                  <Sparkles className="h-4 w-4" />
-                  Regenerate
-                </Button>
-                <Button
-                  onClick={handleAddOutlineSections}
-                  disabled={lessons.length + outlineSections.length > MAX_LESSONS}
-                  className="gap-2"
-                >
-                  Add {outlineSections.length} Lessons
-                </Button>
-              </div>
             )}
           </DialogFooter>
         </DialogContent>
