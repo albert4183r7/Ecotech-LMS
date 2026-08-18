@@ -218,7 +218,7 @@ export function CourseDetailPage() {
     if (!course || downloadingPptx) return;
     setDownloadingPptx(true);
     try {
-      // Fetch all sections' HTML content
+      // Fetch all lessons' HTML content
       const lessonHtmlBodies: { title: string; htmlBody: string }[] = [];
       for (const lesson of course.lessons) {
         try {
@@ -242,7 +242,7 @@ export function CourseDetailPage() {
       const res = await fetch('/api/generate-pptx', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sections: lessonHtmlBodies, courseName: course.title }),
+        body: JSON.stringify({ slides: lessonHtmlBodies, courseName: course.title }),
       });
       if (!res.ok) {
         toast.error('Failed to generate PPT');

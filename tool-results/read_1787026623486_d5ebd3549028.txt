@@ -1,0 +1,898 @@
+   316→  const handleGenerateOutline = useCallback(async () => {
+   317→    if (!outlineTopic.trim()) {
+   318→      toast.error("Please enter a course topic");
+   319→      return;
+   320→    }
+   321→
+   322→    setOutlineGenerating(true);
+   323→    try {
+   324→      const res = await fetch("/api/generate-outline", {
+   325→        method: "POST",
+   326→        headers: { "Content-Type": "application/json" },
+   327→        body: JSON.stringify({
+   328→          topic: outlineTopic.trim(),
+   329→          prompt: `Create a comprehensive course outline for: ${outlineTopic.trim()}. Include 4-6 lessons that progressively build understanding.`,
+   330→          language,
+   331→        }),
+   332→      });
+   333→
+   334→      const json = await res.json();
+   335→      if (json.success && json.data) {
+   336→        setOutlineSections(json.data.lessons || []);
+   337→        if (json.data.title && !title) {
+   338→          setTitle(json.data.title);
+   339→        }
+   340→        toast.success("Outline generated! Select lessons to generate.");
+   341→      } else {
+   342→        toast.error(json.error || "Failed to generate outline");
+   343→      }
+   344→    } catch {
+   345→      toast.error("Failed to generate outline. Please try again.");
+   346→    } finally {
+   347→      setOutlineGenerating(false);
+   348→    }
+   349→  }, [outlineTopic, language, title]);
+   350→
+   351→  const handleAddOutlineSections = () => {
+   352→    // Add outline lessons as drafts (without htmlBody yet)
+   353→    const newDrafts: LessonDraft[] = outlineSections.map((sec, i) => ({
+   354→      id: `sec_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 8)}`,
+   355→      title: sec.title,
+   356→      totalPages: 1,
+   357→      htmlBody: "",
+   358→      language,
+   359→    }));
+   360→
+   361→    const total = lessons.length + newDrafts.length;
+   362→    if (total > MAX_LESSONS) {
+   363→      toast.error(`Can only add ${MAX_LESSONS - lessons.length} more lessons`);
+   364→      return;
+   365→    }
+   366→
+   367→    setLessons((prev) => [...prev, ...newDrafts]);
+   368→    setOutlineModalOpen(false);
+   369→    toast.success(`${newDrafts.length} lessons added. Click the generate button on each to create content.`);
+   370→  };
+   371→
+   372→  // ---- Form submission ----
+   373→  const handleSave = async () => {
+   374→    if (!title.trim()) {
+   375→      toast.error("Course title is required");
+   376→      return;
+   377→    }
+   378→
+   379→    // Check if any lesson is missing htmlBody
+   380→    const missingContent = lessons.filter((s) => !s.htmlBody);
+   381→    if (missingContent.length > 0) {
+   382→      toast.error(`${missingContent.length} lesson(s) have no content yet. Generate content for all lessons first.`);
+   383→      return;
+   384→    }
+   385→
+   386→    setSaving(true);
+   387→    try {
+   388→      const payload = {
+   389→        title: title.trim(),
+   390→        description: description.trim() || null,
+   391→        categoryId: categoryId || null,
+   392→        language,
+   393→        creatorId: currentUserId,
+   394→        coverImage: coverImage || null,
+   395→        lessons: lessons.map((sec, index) => ({
+   396→          title: sec.title,
+   397→          htmlBody: sec.htmlBody,
+   398→          totalPages: sec.totalPages,
+   399→          order: index,
+   400→        })),
+   401→      };
+   402→
+   403→      const res = await fetch("/api/courses", {
+   404→        method: "POST",
+   405→        headers: { "Content-Type": "application/json" },
+   406→        body: JSON.stringify(payload),
+   407→      });
+   408→
+   409→      const json = await res.json();
+   410→
+   411→      if (json.success) {
+   412→        toast.success("Course created successfully!");
+   413→        goBack();
+   414→      } else {
+   415→        toast.error(json.error || "Failed to create course");
+   416→      }
+   417→    } catch {
+   418→      toast.error("Failed to create course. Please try again.");
+   419→    } finally {
+   420→      setSaving(false);
+   421→    }
+   422→  };
+   423→
+   424→  // ---- Lesson PDF upload simulation ----
+   425→  const handleLessonPdfUpload = () => {
+   426→    lessonFileInputRef.current?.click();
+   427→  };
+   428→
+   429→  const handleLessonFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+   430→    const file = e.target.files?.[0];
+   431→    if (file) {
+   432→      setLessonPdfName(file.name);
+   433→      if (!lessonPrompt.trim()) {
+   434→        const nameWithoutExt = file.name.replace(/\.pdf$/i, "");
+   435→        setLessonPrompt(
+   436→          `Generate course content based on the uploaded PDF: ${nameWithoutExt}`
+   437→        );
+   438→        if (!lessonName.trim()) {
+   439→          setLessonName(nameWithoutExt);
+   440→        }
+   441→      }
+   442→    }
+   443→  };
+   444→
+   445→  // ============================================
+   446→  // Render
+   447→  // ============================================
+   448→
+   449→  return (
+   450→    <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+   451→      {/* ---- Breadcrumbs ---- */}
+   452→      <div className="mb-6 flex items-center gap-3">
+   453→        <button
+   454→          onClick={goBack}
+   455→          className="flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+   456→        >
+   457→          <ArrowLeft className="h-4 w-4" />
+   458→          Back
+   459→        </button>
+   460→        <Separator orientation="vertical" className="h-4" />
+   461→        <h1 className="text-lg font-semibold text-foreground">Create Course</h1>
+   462→      </div>
+   463→
+   464→      {/* ---- Two-Column Layout ---- */}
+   465→      <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
+   466→        {/* ======== Left Panel: Course Metadata (3 cols) ======== */}
+   467→        <div className="lg:col-span-3">
+   468→          <Card className="border-border/50">
+   469→            <CardContent className="space-y-6 p-6">
+   470→              {/* Cover Image Upload */}
+   471→              <div className="space-y-2">
+   472→                <Label className="text-sm font-medium">Cover Image</Label>
+   473→                {coverPreview ? (
+   474→                  <div className="relative overflow-hidden rounded-lg border border-border">
+   475→                    <img
+   476→                      src={coverPreview}
+   477→                      alt="Course cover"
+   478→                      className="h-48 w-full object-cover"
+   479→                      onError={() => setCoverPreview(null)}
+   480→                    />
+   481→                    <button
+   482→                      onClick={handleRemoveCover}
+   483→                      className="absolute top-2 right-2 flex h-7 w-7 items-center justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-black/80"
+   484→                    >
+   485→                      <X className="h-3.5 w-3.5" />
+   486→                    </button>
+   487→                  </div>
+   488→                ) : (
+   489→                  <button
+   490→                    type="button"
+   491→                    onClick={handleCoverUpload}
+   492→                    className="flex h-48 w-full flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-border/70 bg-muted/30 transition-colors hover:border-primary/50 hover:bg-muted/50"
+   493→                  >
+   494→                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+   495→                      <ImageIcon className="h-5 w-5 text-muted-foreground" />
+   496→                    </div>
+   497→                    <div className="text-center">
+   498→                      <p className="text-sm font-medium text-foreground">
+   499→                        Upload cover image
+   500→                      </p>
+   501→                      <p className="mt-0.5 text-xs text-muted-foreground">
+   502→                        Recommended 1920×1080
+   503→                      </p>
+   504→                    </div>
+   505→                  </button>
+   506→                )}
+   507→
+   508→                {/* URL Input */}
+   509→                {urlInputOpen && (
+   510→                  <div className="flex items-center gap-2">
+   511→                    <Input
+   512→                      placeholder="Paste image URL here..."
+   513→                      value={imageUrl}
+   514→                      onChange={(e) => setImageUrl(e.target.value)}
+   515→                      onKeyDown={(e) => e.key === "Enter" && handleUrlConfirm()}
+   516→                      className="flex-1"
+   517→                    />
+   518→                    <Button size="sm" onClick={handleUrlConfirm}>
+   519→                      Apply
+   520→                    </Button>
+   521→                    <Button
+   522→                      size="sm"
+   523→                      variant="ghost"
+   524→                      onClick={() => {
+   525→                        setUrlInputOpen(false);
+   526→                        setImageUrl("");
+   527→                      }}
+   528→                    >
+   529→                      Cancel
+   530→                    </Button>
+   531→                  </div>
+   532→                )}
+   533→                <input
+   534→                  ref={fileInputRef}
+   535→                  type="file"
+   536→                  accept="image/*"
+   537→                  className="hidden"
+   538→                />
+   539→              </div>
+   540→
+   541→              <Separator />
+   542→
+   543→              {/* Course Title */}
+   544→              <div className="space-y-2">
+   545→                <div className="flex items-center justify-between">
+   546→                  <Label htmlFor="course-title" className="text-sm font-medium">
+   547→                    Course Title <span className="text-destructive">*</span>
+   548→                  </Label>
+   549→                  <span className="text-xs text-muted-foreground">
+   550→                    {title.length}/{MAX_TITLE_LENGTH}
+   551→                  </span>
+   552→                </div>
+   553→                <Input
+   554→                  id="course-title"
+   555→                  placeholder="Enter course title"
+   556→                  value={title}
+   557→                  onChange={(e) => {
+   558→                    if (e.target.value.length <= MAX_TITLE_LENGTH) {
+   559→                      setTitle(e.target.value);
+   560→                    }
+   561→                  }}
+   562→                  className="h-10"
+   563→                />
+   564→              </div>
+   565→
+   566→              {/* Course Description */}
+   567→              <div className="space-y-2">
+   568→                <div className="flex items-center justify-between">
+   569→                  <Label
+   570→                    htmlFor="course-description"
+   571→                    className="text-sm font-medium"
+   572→                  >
+   573→                    Description
+   574→                  </Label>
+   575→                  <span className="text-xs text-muted-foreground">
+   576→                    {description.length}/{MAX_COURSE_DESC_LENGTH}
+   577→                  </span>
+   578→                </div>
+   579→                <Textarea
+   580→                  id="course-description"
+   581→                  placeholder="Describe what this course is about..."
+   582→                  value={description}
+   583→                  onChange={(e) => {
+   584→                    if (e.target.value.length <= MAX_COURSE_DESC_LENGTH) {
+   585→                      setDescription(e.target.value);
+   586→                    }
+   587→                  }}
+   588→                  rows={4}
+   589→                  className="resize-none"
+   590→                />
+   591→              </div>
+   592→
+   593→              <Separator />
+   594→
+   595→              {/* Category */}
+   596→              <div className="space-y-2">
+   597→                <Label className="text-sm font-medium">Category</Label>
+   598→                <Select value={categoryId} onValueChange={setCategoryId}>
+   599→                  <SelectTrigger className="w-full h-10">
+   600→                    <SelectValue placeholder="Select a category" />
+   601→                  </SelectTrigger>
+   602→                  <SelectContent>
+   603→                    {categories.map((cat) => (
+   604→                      <SelectItem key={cat.id} value={cat.id}>
+   605→                        {cat.name}
+   606→                      </SelectItem>
+   607→                    ))}
+   608→                  </SelectContent>
+   609→                </Select>
+   610→              </div>
+   611→
+   612→              {/* Language */}
+   613→              <div className="space-y-3">
+   614→                <Label className="text-sm font-medium">Language</Label>
+   615→                <RadioGroup
+   616→                  value={language}
+   617→                  onValueChange={setLanguage}
+   618→                  className="flex gap-6"
+   619→                >
+   620→                  <div className="flex items-center gap-2">
+   621→                    <RadioGroupItem value="chinese" id="lang-zh" />
+   622→                    <Label
+   623→                      htmlFor="lang-zh"
+   624→                      className="cursor-pointer text-sm font-normal"
+   625→                    >
+   626→                      Chinese
+   627→                    </Label>
+   628→                  </div>
+   629→                  <div className="flex items-center gap-2">
+   630→                    <RadioGroupItem value="english" id="lang-en" />
+   631→                    <Label
+   632→                      htmlFor="lang-en"
+   633→                      className="cursor-pointer text-sm font-normal"
+   634→                    >
+   635→                      English
+   636→                    </Label>
+   637→                  </div>
+   638→                </RadioGroup>
+   639→              </div>
+   640→
+   641→              <Separator />
+   642→
+   643→              {/* Save Button */}
+   644→              <Button
+   645→                onClick={handleSave}
+   646→                disabled={saving || !title.trim()}
+   647→                className="w-full h-10"
+   648→              >
+   649→                {saving ? (
+   650→                  <>
+   651→                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+   652→                    Saving...
+   653→                  </>
+   654→                ) : (
+   655→                  "Save Course"
+   656→                )}
+   657→              </Button>
+   658→            </CardContent>
+   659→          </Card>
+   660→        </div>
+   661→
+   662→        {/* ======== Right Panel: Lessons (2 cols) ======== */}
+   663→        <div className="lg:col-span-2">
+   664→          <Card className="border-border/50">
+   665→            <CardContent className="p-6">
+   666→              {/* Header */}
+   667→              <div className="mb-4 flex items-center justify-between">
+   668→                <div className="flex items-center gap-2">
+   669→                  <h2 className="text-base font-semibold text-foreground">
+   670→                    Lessons
+   671→                  </h2>
+   672→                  <Badge
+   673→                    variant="secondary"
+   674→                    className="text-xs font-normal"
+   675→                  >
+   676→                    {lessons.length}/{MAX_LESSONS}
+   677→                  </Badge>
+   678→                </div>
+   679→                <div className="flex items-center gap-2">
+   680→                  <Button
+   681→                    size="sm"
+   682→                    variant="outline"
+   683→                    onClick={handleOpenOutlineModal}
+   684→                    disabled={lessons.length >= MAX_LESSONS}
+   685→                    className="gap-1.5"
+   686→                    title="AI Generate Outline"
+   687→                  >
+   688→                    <Sparkles className="h-3.5 w-3.5" />
+   689→                    <span className="hidden sm:inline">Outline</span>
+   690→                  </Button>
+   691→                  <Button
+   692→                    size="sm"
+   693→                    variant="outline"
+   694→                    onClick={handleOpenModal}
+   695→                    disabled={lessons.length >= MAX_LESSONS}
+   696→                    className="gap-1.5"
+   697→                  >
+   698→                    <Plus className="h-3.5 w-3.5" />
+   699→                    Add
+   700→                  </Button>
+   701→                </div>
+   702→              </div>
+   703→
+   704→              {/* Lesson List */}
+   705→              {lessons.length === 0 ? (
+   706→                <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border/70 bg-muted/20 py-16">
+   707→                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+   708→                    <FileText className="h-5 w-5 text-muted-foreground" />
+   709→                  </div>
+   710→                  <p className="mt-3 text-sm text-muted-foreground">
+   711→                    No lessons yet
+   712→                  </p>
+   713→                  <p className="mt-1 text-xs text-muted-foreground/70">
+   714→                    Click <span className="font-medium text-foreground">Outline</span> to AI-generate a structure, or <span className="font-medium text-foreground">+ Add</span> manually
+   715→                  </p>
+   716→                </div>
+   717→              ) : (
+   718→                <div className="space-y-2 max-h-[600px] overflow-y-auto pr-1">
+   719→                  {lessons.map((lesson, index) => (
+   720→                    <LessonCard
+   721→                      key={lesson.id}
+   722→                      lesson={lesson}
+   723→                      index={index}
+   724→                      totalCount={lessons.length}
+   725→                      expanded={expandedLessonId === lesson.id}
+   726→                      onToggleExpand={() =>
+   727→                        setExpandedLessonId((prev) =>
+   728→                          prev === lesson.id ? null : lesson.id
+   729→                        )
+   730→                      }
+   731→                      onMoveUp={() => handleMoveLesson(index, "up")}
+   732→                      onMoveDown={() => handleMoveLesson(index, "down")}
+   733→                      onDelete={() => handleDeleteLesson(lesson.id)}
+   734→                    />
+   735→                  ))}
+   736→                </div>
+   737→              )}
+   738→            </CardContent>
+   739→          </Card>
+   740→        </div>
+   741→      </div>
+   742→
+   743→      {/* ======== Add Lesson Modal ======== */}
+   744→      <Dialog open={modalOpen} onOpenChange={(open) => { if (!open && generating) return; setModalOpen(open); }}>
+   745→        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+   746→          <DialogHeader>
+   747→            <DialogTitle className="flex items-center gap-2">
+   748→              <Sparkles className="h-5 w-5 text-primary" />
+   749→              Generate Lesson with AI
+   750→            </DialogTitle>
+   751→            <DialogDescription>
+   752→              Provide a lesson name and prompt. The AI will generate slide content in real time.
+   753→            </DialogDescription>
+   754→          </DialogHeader>
+   755→
+   756→          <div className="space-y-5">
+   757→            {/* Lesson Name */}
+   758→            <div className="space-y-2">
+   759→              <div className="flex items-center justify-between">
+   760→                <Label className="text-sm font-medium">
+   761→                  Lesson Name <span className="text-destructive">*</span>
+   762→                </Label>
+   763→                <span className="text-xs text-muted-foreground">
+   764→                  {lessonName.length}/{MAX_TITLE_LENGTH}
+   765→                </span>
+   766→              </div>
+   767→              <Input
+   768→                placeholder="e.g., Introduction to Machine Learning"
+   769→                value={lessonName}
+   770→                onChange={(e) => {
+   771→                  if (e.target.value.length <= MAX_TITLE_LENGTH) {
+   772→                    setLessonName(e.target.value);
+   773→                  }
+   774→                }}
+   775→                className="h-10"
+   776→                disabled={generating}
+   777→              />
+   778→            </div>
+   779→
+   780→            {/* Course Prompt */}
+   781→            <div className="space-y-2">
+   782→              <div className="flex items-center justify-between">
+   783→                <Label className="text-sm font-medium">
+   784→                  Content Prompt <span className="text-destructive">*</span>
+   785→                </Label>
+   786→                <span className="text-xs text-muted-foreground">
+   787→                  {lessonPrompt.length}/{MAX_DESC_LENGTH}
+   788→                </span>
+   789→              </div>
+   790→              <Textarea
+   791→                placeholder="Describe the content you want to generate..."
+   792→                value={lessonPrompt}
+   793→                onChange={(e) => {
+   794→                  if (e.target.value.length <= MAX_DESC_LENGTH) {
+   795→                    setLessonPrompt(e.target.value);
+   796→                  }
+   797→                }}
+   798→                rows={4}
+   799→                className="resize-none"
+   800→                disabled={generating}
+   801→              />
+   802→            </div>
+   803→
+   804→            {/* PDF Courseware Upload */}
+   805→            <div className="space-y-2">
+   806→              <Label className="text-sm font-medium">PDF Courseware</Label>
+   807→              <button
+   808→                type="button"
+   809→                onClick={handleLessonPdfUpload}
+   810→                disabled={generating}
+   811→                className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-border/70 bg-muted/20 px-4 py-5 text-sm text-muted-foreground transition-colors hover:border-primary/50 hover:bg-muted/30 disabled:opacity-50"
+   812→              >
+   813→                <FileUp className="h-4 w-4" />
+   814→                {lessonPdfName ? (
+   815→                  <span className="text-foreground font-medium">
+   816→                    {lessonPdfName}
+   817→                  </span>
+   818→                ) : (
+   819→                  "Click to upload PDF courseware (optional)"
+   820→                )}
+   821→              </button>
+   822→              <input
+   823→                ref={lessonFileInputRef}
+   824→                type="file"
+   825→                accept=".pdf"
+   826→                className="hidden"
+   827→                onChange={handleLessonFileChange}
+   828→              />
+   829→            </div>
+   830→
+   831→            {/* Language */}
+   832→            <div className="space-y-3">
+   833→              <Label className="text-sm font-medium">
+   834→                Generated Content Language
+   835→              </Label>
+   836→              <RadioGroup
+   837→                value={lessonLanguage}
+   838→                onValueChange={setLessonLanguage}
+   839→                className="flex gap-6"
+   840→                disabled={generating}
+   841→              >
+   842→                <div className="flex items-center gap-2">
+   843→                  <RadioGroupItem
+   844→                    value="chinese"
+   845→                    id="sec-lang-zh"
+   846→                  />
+   847→                  <Label
+   848→                    htmlFor="sec-lang-zh"
+   849→                    className="cursor-pointer text-sm font-normal"
+   850→                  >
+   851→                    Chinese
+   852→                  </Label>
+   853→                </div>
+   854→                <div className="flex items-center gap-2">
+   855→                  <RadioGroupItem
+   856→                    value="english"
+   857→                    id="sec-lang-en"
+   858→                  />
+   859→                  <Label
+   860→                    htmlFor="sec-lang-en"
+   861→                    className="cursor-pointer text-sm font-normal"
+   862→                  >
+   863→                    English
+   864→                  </Label>
+   865→                </div>
+   866→              </RadioGroup>
+   867→            </div>
+   868→
+   869→            {/* ---- Live Streaming Preview ---- */}
+   870→            {showStreamPreview && (
+   871→              <div ref={streamPreviewRef} className="space-y-2">
+   872→                <div className="flex items-center gap-2">
+   873→                  {generating && (
+   874→                    <div className="flex items-center gap-1.5 text-xs text-primary">
+   875→                      <Loader2 className="h-3 w-3 animate-spin" />
+   876→                      <span>Generating live preview...</span>
+   877→                    </div>
+   878→                  )}
+   879→                  {!generating && streamingHtml && (
+   880→                    <div className="flex items-center gap-1.5 text-xs text-emerald-600">
+   881→                      <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
+   882→                      <span>Generation complete</span>
+   883→                    </div>
+   884→                  )}
+   885→                </div>
+   886→                <div className="rounded-lg border border-border/60 overflow-hidden bg-muted/10">
+   887→                  <iframe
+   888→                    srcDoc={streamingHtml || "<div style=\"display:flex;align-items:center;justify-content:center;height:100%;color:#999;font-size:14px;\">Waiting for content...</div>"}
+   889→                    sandbox="allow-same-origin"
+   890→                    className="w-full border-0"
+   891→                    style={{ aspectRatio: "16/9" }}
+   892→                    title="Live generation preview"
+   893→                  />
+   894→                </div>
+   895→              </div>
+   896→            )}
+   897→          </div>
+   898→
+   899→          <DialogFooter className="mt-2">
+   900→            {generating ? (
+   901→              <Button
+   902→                variant="destructive"
+   903→                onClick={handleCancelGeneration}
+   904→                className="gap-2"
+   905→              >
+   906→                <X className="h-4 w-4" />
+   907→                Cancel Generation
+   908→              </Button>
+   909→            ) : (
+   910→              <>
+   911→                <Button
+   912→                  variant="ghost"
+   913→                  onClick={() => setModalOpen(false)}
+   914→                >
+   915→                  Cancel
+   916→                </Button>
+   917→                <Button
+   918→                  onClick={handleGenerateLesson}
+   919→                  disabled={!lessonName.trim() || !lessonPrompt.trim()}
+   920→                  className="gap-2"
+   921→                >
+   922→                  <Sparkles className="h-4 w-4" />
+   923→                  Generate
+   924→                </Button>
+   925→              </>
+   926→            )}
+   927→          </DialogFooter>
+   928→        </DialogContent>
+   929→      </Dialog>
+   930→
+   931→      {/* ======== AI Outline Generation Modal ======== */}
+   932→      <Dialog open={outlineModalOpen} onOpenChange={setOutlineModalOpen}>
+   933→        <DialogContent className="sm:max-w-lg">
+   934→          <DialogHeader>
+   935→            <DialogTitle className="flex items-center gap-2">
+   936→              <Sparkles className="h-5 w-5 text-primary" />
+   937→              AI Course Outline
+   938→            </DialogTitle>
+   939→            <DialogDescription>
+   940→              Enter a topic and the AI will generate a structured course outline with suggested lessons.
+   941→            </DialogDescription>
+   942→          </DialogHeader>
+   943→
+   944→          <div className="space-y-4">
+   945→            <div className="space-y-2">
+   946→              <Label className="text-sm font-medium">
+   947→                Course Topic <span className="text-destructive">*</span>
+   948→              </Label>
+   949→              <Input
+   950→                placeholder="e.g., Introduction to Data Science"
+   951→                value={outlineTopic}
+   952→                onChange={(e) => setOutlineTopic(e.target.value)}
+   953→                disabled={outlineGenerating}
+   954→                className="h-10"
+   955→              />
+   956→            </div>
+   957→
+   958→            {outlineSections.length > 0 && (
+   959→              <div className="space-y-2">
+   960→                <Label className="text-sm font-medium">
+   961→                  Generated Outline
+   962→                  <Badge variant="secondary" className="ml-2 text-xs">
+   963→                    {outlineSections.length} lessons
+   964→                  </Badge>
+   965→                </Label>
+   966→                <div className="rounded-lg border border-border/60 bg-muted/20 p-3 space-y-2 max-h-64 overflow-y-auto">
+   967→                  {outlineSections.map((sec, i) => (
+   968→                    <div
+   969→                      key={i}
+   970→                      className="flex items-start gap-3 rounded-md bg-background p-2.5 border border-border/40"
+   971→                    >
+   972→                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+   973→                        {i + 1}
+   974→                      </span>
+   975→                      <div className="min-w-0">
+   976→                        <p className="text-sm font-medium text-foreground">{sec.title}</p>
+   977→                        <p className="mt-0.5 text-xs text-muted-foreground leading-relaxed">
+   978→                          {sec.summary}
+   979→                        </p>
+   980→                      </div>
+   981→                    </div>
+   982→                  ))}
+   983→                </div>
+   984→              </div>
+   985→            )}
+   986→          </div>
+   987→
+   988→          <DialogFooter className="mt-2">
+   989→            <Button
+   990→              variant="ghost"
+   991→              onClick={() => setOutlineModalOpen(false)}
+   992→              disabled={outlineGenerating}
+   993→            >
+   994→              Cancel
+   995→            </Button>
+   996→            {outlineSections.length === 0 ? (
+   997→              <Button
+   998→                onClick={handleGenerateOutline}
+   999→                disabled={!outlineTopic.trim() || outlineGenerating}
+  1000→                className="gap-2"
+  1001→              >
+  1002→                {outlineGenerating ? (
+  1003→                  <>
+  1004→                    <Loader2 className="h-4 w-4 animate-spin" />
+  1005→                    Generating...
+  1006→                  </>
+  1007→                ) : (
+  1008→                  <>
+  1009→                    <Sparkles className="h-4 w-4" />
+  1010→                    Generate Outline
+  1011→                  </>
+  1012→                )}
+  1013→              </Button>
+  1014→            ) : (
+  1015→              <div className="flex gap-2">
+  1016→                <Button
+  1017→                  variant="outline"
+  1018→                  onClick={handleGenerateOutline}
+  1019→                  disabled={outlineGenerating}
+  1020→                  className="gap-2"
+  1021→                >
+  1022→                  <Sparkles className="h-4 w-4" />
+  1023→                  Regenerate
+  1024→                </Button>
+  1025→                <Button
+  1026→                  onClick={handleAddOutlineSections}
+  1027→                  disabled={lessons.length + outlineSections.length > MAX_LESSONS}
+  1028→                  className="gap-2"
+  1029→                >
+  1030→                  Add {outlineSections.length} Lessons
+  1031→                </Button>
+  1032→              </div>
+  1033→            )}
+  1034→          </DialogFooter>
+  1035→        </DialogContent>
+  1036→      </Dialog>
+  1037→    </div>
+  1038→  );
+  1039→}
+  1040→
+  1041→// ============================================
+  1042→// Lesson Card with mini preview
+  1043→// ============================================
+  1044→
+  1045→interface LessonCardProps {
+  1046→  lesson: LessonDraft;
+  1047→  index: number;
+  1048→  totalCount: number;
+  1049→  expanded: boolean;
+  1050→  onToggleExpand: () => void;
+  1051→  onMoveUp: () => void;
+  1052→  onMoveDown: () => void;
+  1053→  onDelete: () => void;
+  1054→}
+  1055→
+  1056→function LessonCard({
+  1057→  lesson,
+  1058→  index,
+  1059→  totalCount,
+  1060→  expanded,
+  1061→  onToggleExpand,
+  1062→  onMoveUp,
+  1063→  onMoveDown,
+  1064→  onDelete,
+  1065→}: LessonCardProps) {
+  1066→  const hasContent = !!lesson.htmlBody;
+  1067→
+  1068→  return (
+  1069→    <div
+  1070→      className={`group rounded-lg border transition-colors ${
+  1071→        hasContent
+  1072→          ? "border-border/60 bg-card hover:bg-accent/30"
+  1073→          : "border-dashed border-amber-400/50 bg-amber-50/50 dark:bg-amber-950/10"
+  1074→      }`}
+  1075→    >
+  1076→      <div className="flex items-center gap-3 p-3">
+  1077→        {/* Grip / Reorder */}
+  1078→        <div className="flex flex-col items-center gap-0.5 text-muted-foreground/50">
+  1079→          <button
+  1080→            onClick={onMoveUp}
+  1081→            disabled={index === 0}
+  1082→            className="rounded p-0.5 hover:text-muted-foreground disabled:opacity-30 disabled:hover:text-muted-foreground/50"
+  1083→            aria-label="Move lesson up"
+  1084→          >
+  1085→            <ChevronUp className="h-3.5 w-3.5" />
+  1086→          </button>
+  1087→          <GripVertical className="h-3.5 w-3.5" />
+  1088→          <button
+  1089→            onClick={onMoveDown}
+  1090→            disabled={index === totalCount - 1}
+  1091→            className="rounded p-0.5 hover:text-muted-foreground disabled:opacity-30 disabled:hover:text-muted-foreground/50"
+  1092→            aria-label="Move lesson down"
+  1093→          >
+  1094→            <ChevronDown className="h-3.5 w-3.5" />
+  1095→          </button>
+  1096→        </div>
+  1097→
+  1098→        {/* Number Badge */}
+  1099→        <div
+  1100→          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
+  1101→            hasContent
+  1102→              ? "bg-primary/10 text-primary"
+  1103→              : "bg-amber-400/20 text-amber-600"
+  1104→          }`}
+  1105→        >
+  1106→          {index + 1}
+  1107→        </div>
+  1108→
+  1109→        {/* Content */}
+  1110→        <div className="min-w-0 flex-1">
+  1111→          <p className="truncate text-sm font-medium text-foreground">
+  1112→            {lesson.title}
+  1113→          </p>
+  1114→          <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+  1115→            {hasContent ? (
+  1116→              <>
+  1117→                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 dark:bg-emerald-900/30 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-400">
+  1118→                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
+  1119→                  Ready
+  1120→                </span>
+  1121→                <span>·</span>
+  1122→                <span>{lesson.language === "chinese" ? "中文" : "English"}</span>
+  1123→              </>
+  1124→            ) : (
+  1125→              <span className="rounded-full bg-amber-100 dark:bg-amber-900/30 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-400">
+  1126→                No content
+  1127→              </span>
+  1128→            )}
+  1129→          </div>
+  1130→        </div>
+  1131→
+  1132→        {/* Preview Toggle */}
+  1133→        {hasContent && (
+  1134→          <button
+  1135→            onClick={onToggleExpand}
+  1136→            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors ${
+  1137→              expanded
+  1138→                ? "bg-primary/10 text-primary"
+  1139→                : "text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted"
+  1140→            }`}
+  1141→            title={expanded ? "Hide preview" : "Show preview"}
+  1142→          >
+  1143→            <Eye className="h-3.5 w-3.5" />
+  1144→          </button>
+  1145→        )}
+  1146→
+  1147→        {/* Delete Button */}
+  1148→        <button
+  1149→          onClick={onDelete}
+  1150→          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground/50 opacity-0 transition-all hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
+  1151→          aria-label="Delete lesson"
+  1152→        >
+  1153→          <Trash2 className="h-3.5 w-3.5" />
+  1154→        </button>
+  1155→      </div>
+  1156→
+  1157→      {/* ---- Expanded iframe preview ---- */}
+  1158→      {expanded && hasContent && (
+  1159→        <div className="border-t border-border/40 px-3 pb-3 pt-2">
+  1160→          <div className="rounded-md overflow-hidden border border-border/40">
+  1161→            <iframe
+  1162→              srcDoc={lesson.htmlBody}
+  1163→              sandbox="allow-same-origin"
+  1164→              className="w-full border-0"
+  1165→              style={{ aspectRatio: "16/9" }}
+  1166→              title={`Preview of ${lesson.title}`}
+  1167→            />
+  1168→          </div>
+  1169→        </div>
+  1170→      )}
+  1171→    </div>
+  1172→  );
+  1173→}
+  1174→
+  1175→// ============================================
+  1176→// Helpers
+  1177→// ============================================
+  1178→
+  1179→/** Build a live preview document from raw streaming HTML fragments */
+  1180→function buildLivePreviewDoc(rawHtml: string, title: string): string {
+  1181→  return `<!DOCTYPE html>
+  1182→<html lang="en">
+  1183→<head>
+  1184→<meta charset="UTF-8" />
+  1185→<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  1186→<title>${escapeAttr(title)}</title>
+  1187→<script src="https://cdn.tailwindcss.com"></script>
+  1188→<style>
+  1189→  body { margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
+  1190→  * { box-sizing: border-box; }
+  1191→  .streaming-cursor::after {
+  1192→    content: '▊';
+  1193→    animation: blink 0.7s infinite;
+  1194→    color: currentColor;
+  1195→    opacity: 0.7;
+  1196→  }
+  1197→  @keyframes blink { 0%, 50% { opacity: 0.7; } 51%, 100% { opacity: 0; } }
+  1198→</style>
+  1199→</head>
+  1200→<body class="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">
+  1201→  <div class="streaming-cursor">${rawHtml}</div>
+  1202→</body>
+  1203→</html>`;
+  1204→}
+  1205→
+  1206→function escapeAttr(str: string): string {
+  1207→  return str
+  1208→    .replace(/&/g, "&amp;")
+  1209→    .replace(/</g, "&lt;")
+  1210→    .replace(/>/g, "&gt;")
+  1211→    .replace(/"/g, "&quot;");
+  1212→}
+  1213→

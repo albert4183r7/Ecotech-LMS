@@ -44,7 +44,7 @@ interface EnrollmentCourse {
   rating: number;
   language: string;
   category: { id: string; name: string; color: string | null } | null;
-  sectionsCount: number;
+  lessonsCount: number;
 }
 
 interface EnrollmentItem {
@@ -65,7 +65,7 @@ interface FavoriteCourse {
   studentCount: number;
   language: string;
   category: { id: string; name: string; color: string | null } | null;
-  sectionsCount: number;
+  lessonsCount: number;
   enrollmentsCount: number;
 }
 
@@ -96,7 +96,7 @@ function enrollmentToCourseItem(e: EnrollmentItem): CourseItem {
     language: e.course.language,
     category: e.course.category,
     creator: null,
-    sections: [],
+    lessons: [],
     createdAt: e.enrolledAt,
     updatedAt: e.enrolledAt,
   };
@@ -115,7 +115,7 @@ function favoriteToCourseItem(f: FavoriteItem): CourseItem {
     language: f.course.language,
     category: f.course.category,
     creator: null,
-    sections: [],
+    lessons: [],
     createdAt: f.createdAt,
     updatedAt: f.createdAt,
   };
@@ -130,11 +130,11 @@ function formatDate(dateStr: string): string {
   });
 }
 
-/** Estimate remaining time based on sections left */
-function estimateRemainingTime(progress: number, totalSections: number): string {
-  const remaining = Math.ceil(totalSections * (1 - progress / 100));
+/** Estimate remaining time based on lessons left */
+function estimateRemainingTime(progress: number, totalLessons: number): string {
+  const remaining = Math.ceil(totalLessons * (1 - progress / 100));
   if (remaining <= 0) return "Almost done!";
-  const hours = remaining * 0.5; // ~30 min per section
+  const hours = remaining * 0.5; // ~30 min per lesson
   if (hours < 1) return `~${Math.ceil(hours * 60)} min left`;
   if (hours < 4) return `~${Math.ceil(hours * 10) / 10} hrs left`;
   return `~${Math.ceil(hours)} hrs left`;
@@ -400,7 +400,7 @@ function CourseProgressCard({
                 <div className="flex items-center gap-1 rounded-md bg-black/40 px-2 py-0.5 backdrop-blur-sm">
                   <Clock className="h-3 w-3 text-white/80" />
                   <span className="text-[10px] font-medium text-white/80">
-                    {estimateRemainingTime(enrollment.progress, enrollment.course.sectionsCount)}
+                    {estimateRemainingTime(enrollment.progress, enrollment.course.lessonsCount)}
                   </span>
                 </div>
               </div>
@@ -421,7 +421,7 @@ function CourseProgressCard({
                   </Badge>
                 )}
                 <span className="text-[11px] text-muted-foreground">
-                  {enrollment.course.sectionsCount} sections
+                  {enrollment.course.lessonsCount} lessons
                 </span>
               </div>
 
@@ -723,7 +723,7 @@ function FavoritesCard({
                 {favorite.course.rating.toFixed(1)}
               </span>
             )}
-            <span>{favorite.course.sectionsCount} sections</span>
+            <span>{favorite.course.lessonsCount} lessons</span>
             <span>{favorite.course.studentCount} students</span>
           </div>
 
@@ -910,7 +910,7 @@ function ContinueLearningWidget({
             </h3>
 
             <p className="text-xs text-muted-foreground">
-              {course.sectionsCount} sections - Enrolled {formatDate(enrolledAt)}
+              {course.lessonsCount} lessons - Enrolled {formatDate(enrolledAt)}
             </p>
 
             <div className="flex items-center gap-3">
@@ -1057,10 +1057,10 @@ export function MyLearningPage() {
     enrollments.length > 0
       ? Math.round(
           enrollments.reduce((acc, e) => {
-            const completedSections = Math.round(
-              (e.progress / 100) * e.course.sectionsCount
+            const completedLessons = Math.round(
+              (e.progress / 100) * e.course.lessonsCount
             );
-            return acc + completedSections * 0.5; // ~30 min per section
+            return acc + completedLessons * 0.5; // ~30 min per lesson
           }, 0) * 10
         ) / 10
       : 0;

@@ -55,7 +55,7 @@ ${isChinese ? '每个部分用中文命名。' : 'Name each section in English.'
 
     const data = {
       title: parsed.title || topic,
-      sections: Array.isArray(parsed.sections)
+      lessons: Array.isArray(parsed.sections)
         ? parsed.sections.map((s: Record<string, unknown>) => ({
             title: String(s.title || 'Untitled Lesson'),
             summary: String(s.summary || ''),

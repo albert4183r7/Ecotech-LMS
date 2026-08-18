@@ -200,7 +200,7 @@ export function CreateCoursePage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          sectionTitle: lessonName.trim(),
+          slideTitle: lessonName.trim(),
           prompt: lessonPrompt.trim(),
           language: lessonLanguage,
         }),
@@ -219,7 +219,7 @@ export function CreateCoursePage() {
       const decoder = new TextDecoder();
       let buffer = "";
       let htmlBody = "";
-      let sectionTitle = lessonName.trim();
+      let slideTitle = lessonName.trim();
       let rawHtml = ""; // accumulating raw HTML fragments for live preview
 
       while (true) {
@@ -237,13 +237,13 @@ export function CreateCoursePage() {
             if (data.htmlBody) {
               htmlBody = data.htmlBody;
             }
-            if (data.sectionTitle) {
-              sectionTitle = data.sectionTitle;
+            if (data.slideTitle) {
+              slideTitle = data.slideTitle;
             }
             if (data.html) {
               rawHtml += data.html;
               // Build live preview from accumulated raw HTML
-              const previewDoc = buildLivePreviewDoc(rawHtml, sectionTitle);
+              const previewDoc = buildLivePreviewDoc(rawHtml, slideTitle);
               setStreamingHtml(previewDoc);
               // Auto-scroll preview into view
               streamPreviewRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -263,7 +263,7 @@ export function CreateCoursePage() {
 
       const newLesson: LessonDraft = {
         id: `sec_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-        title: sectionTitle,
+        title: slideTitle,
         totalPages: 1,
         htmlBody,
         language: lessonLanguage,
@@ -273,7 +273,7 @@ export function CreateCoursePage() {
       setModalOpen(false);
       setShowStreamPreview(false);
       setStreamingHtml("");
-      toast.success(`Lesson \"${sectionTitle}\" generated successfully`);
+      toast.success(`Lesson \"${slideTitle}\" generated successfully`);
     } catch (err) {
       if (err instanceof Error && err.name === "AbortError") return;
       toast.error("Failed to generate lesson. Please try again.");
@@ -1027,7 +1027,7 @@ export function CreateCoursePage() {
                   disabled={lessons.length + outlineSections.length > MAX_LESSONS}
                   className="gap-2"
                 >
-                  Add {outlineSections.length} Sections
+                  Add {outlineSections.length} Lessons
                 </Button>
               </div>
             )}

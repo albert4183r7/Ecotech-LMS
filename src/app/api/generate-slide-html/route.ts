@@ -3,7 +3,7 @@ import { streamSlideHtml, parseSSEStream } from '@/lib/ai';
 import { sanitizeHtml, wrapSlideHtml } from '@/lib/sanitize';
 
 interface GenerateSlideHtmlRequest {
-  sectionTitle: string;
+  slideTitle: string;
   prompt: string;
   language?: string;
 }
@@ -24,10 +24,10 @@ export async function POST(request: NextRequest) {
         return;
       }
 
-      const { sectionTitle, prompt, language = 'english' } = body;
+      const { slideTitle, prompt, language = 'english' } = body;
 
-      if (!sectionTitle || !prompt) {
-        const errorEvent = `event: error\ndata: ${JSON.stringify({ error: 'sectionTitle and prompt are required' })}\n\n`;
+      if (!slideTitle || !prompt) {
+        const errorEvent = `event: error\ndata: ${JSON.stringify({ error: 'slideTitle and prompt are required' })}\n\n`;
         controller.enqueue(encoder.encode(errorEvent));
         controller.close();
         return;
@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
 
       try {
         // Emit slide_start
-        const startEvent = `event: slide_start\ndata: ${JSON.stringify({ sectionTitle })}\n\n`;
+        const startEvent = `event: slide_start\ndata: ${JSON.stringify({ slideTitle })}\n\n`;
         controller.enqueue(encoder.encode(startEvent));
 
         // Build user prompt
@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
           ? '请使用中文生成所有幻灯片内容。'
           : 'Generate all slide content in English.';
 
-        const userPrompt = `${isChinese ? '幻灯片标题' : 'Slide title'}: ${sectionTitle}
+        const userPrompt = `${isChinese ? '幻灯片标题' : 'Slide title'}: ${slideTitle}
 ${isChinese ? '要求' : 'Instructions'}: ${prompt}
 
 ${languageInstruction}`;
@@ -69,7 +69,7 @@ ${languageInstruction}`;
 
         // Sanitize and wrap the complete HTML
         const sanitized = sanitizeHtml(fullHtml);
-        const wrapped = wrapSlideHtml(sanitized, { title: sectionTitle });
+        const wrapped = wrapSlideHtml(sanitized, { title: slideTitle });
 
         // Emit slide_complete
         const completeEvent = `event: slide_complete\ndata: ${JSON.stringify({ htmlBody: wrapped })}\n\n`;

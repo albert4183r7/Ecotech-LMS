@@ -977,12 +977,12 @@ export function ProfilePage() {
   /* ---- XP calculation ---- */
   const completedEnrollments = enrollments.filter(e => e.status === 'completed');
   const xpFromCompletedCourses = completedEnrollments.length * 100;
-  const xpFromSections = enrollments.reduce((sum, e) => {
-    // Each section = 10 XP; estimate completed sections from progress percentage
-    const completedSections = Math.round((e.progress / 100) * (e.course.sectionsCount || 0));
-    return sum + completedSections * 10;
+  const xpFromLessons = enrollments.reduce((sum, e) => {
+    // Each lesson = 10 XP; estimate completed lessons from progress percentage
+    const completedLessons = Math.round((e.progress / 100) * (e.course.lessonsCount || 0));
+    return sum + completedLessons * 10;
   }, 0);
-  const totalXP = xpFromCompletedCourses + xpFromSections;
+  const totalXP = xpFromCompletedCourses + xpFromLessons;
   const level = Math.floor(totalXP / 500) + 1;
   const progressToNext = (totalXP % 500) / 5; // percentage toward next 500 XP
 
@@ -994,10 +994,10 @@ export function ProfilePage() {
     const diffMs = completed.getTime() - enrolled.getTime();
     return diffMs <= 24 * 60 * 60 * 1000;
   });
-  // Estimate total slides viewed: each completed section ~ 10 slides
+  // Estimate total slides viewed: each completed lesson ~ 10 slides
   const totalSlidesViewed = enrollments.reduce((sum, e) => {
-    const completedSections = Math.round((e.progress / 100) * (e.course.sectionsCount || 0));
-    return sum + completedSections * 10;
+    const completedLessons = Math.round((e.progress / 100) * (e.course.lessonsCount || 0));
+    return sum + completedLessons * 10;
   }, 0);
   // Comment count: use a mock estimate (no comments API tied to user)
   const commentCount = 3; // placeholder; adjust when comments API supports user filtering

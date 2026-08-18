@@ -170,7 +170,7 @@ export async function GET(request: Request) {
           ? c.type === 'study_15min'
             ? '15/15 minutes studied ✓'
             : c.type === 'complete_lesson'
-              ? '1/1 sections completed ✓'
+              ? '1/1 lessons completed ✓'
               : c.type === 'take_quiz'
                 ? '1/1 quizzes attempted ✓'
                 : c.type === 'leave_comment'

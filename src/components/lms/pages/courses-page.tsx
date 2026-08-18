@@ -295,7 +295,7 @@ export function CoursesPage() {
                   color: ((c.category as Record<string, unknown>).color as string) ?? null,
                 }
               : null,
-            sections: [],
+            lessons: [],
             createdAt: (c.createdAt as string) ?? "",
             updatedAt: (c.updatedAt as string) ?? "",
           }))

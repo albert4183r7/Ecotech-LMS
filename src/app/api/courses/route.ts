@@ -131,7 +131,7 @@ export async function POST(request: NextRequest) {
       language,
       creatorId,
       coverImage,
-      sections,
+      lessons,
     } = body;
 
     if (!title || !creatorId) {
@@ -150,15 +150,15 @@ export async function POST(request: NextRequest) {
         creatorId,
         coverImage: coverImage || null,
         status: 'draft',
-        lessons: sections
+        lessons: lessons
           ? {
-              create: sections.map(
+              create: lessons.map(
                 (
-                  sec: { title: string; order: number },
+                  lesson: { title: string; order: number },
                   index: number
                 ) => ({
-                  title: sec.title,
-                  order: sec.order ?? index,
+                  title: lesson.title,
+                  order: lesson.order ?? index,
                 })
               ),
             }

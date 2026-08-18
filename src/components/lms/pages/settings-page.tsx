@@ -334,9 +334,9 @@ export function SettingsPage() {
           {/* Auto-play Next */}
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
-              <Label className="text-sm font-medium">Auto-play Next Section</Label>
+              <Label className="text-sm font-medium">Auto-play Next Lesson</Label>
               <p className="text-xs text-muted-foreground">
-                Automatically advance to the next section
+                Automatically advance to the next lesson
               </p>
             </div>
             <Switch

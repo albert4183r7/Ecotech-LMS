@@ -1,0 +1,767 @@
+     1→import { db } from '../src/lib/db'
+     2→
+     3→// ============================================================
+     4→// Helper: build a full HTML+Tailwind slide document
+     5→// ============================================================
+     6→function makeSlideHtml(title: string, paragraphs: string[]): string {
+     7→  const bodyHtml = paragraphs
+     8→    .map((p) => `      <p class="text-slate-300 text-lg leading-relaxed">${p}</p>`)
+     9→    .join('\n')
+    10→  return `<!DOCTYPE html>
+    11→<html lang="en">
+    12→<head>
+    13→<meta charset="UTF-8">
+    14→<meta name="viewport" content="width=device-width, initial-scale=1.0">
+    15→<script src="https://cdn.tailwindcss.com"></script>
+    16→</head>
+    17→<body class="bg-gradient-to-br from-slate-900 to-slate-800 text-white flex items-center justify-center min-h-screen m-0 p-0">
+    18→  <div class="max-w-3xl w-full px-12">
+    19→    <h1 class="text-3xl font-bold mb-6 bg-gradient-to-r from-teal-400 to-cyan-300 bg-clip-text text-transparent">${title}</h1>
+    20→    <div class="space-y-4 text-slate-300 text-lg leading-relaxed">
+    21→${bodyHtml}
+    22→    </div>
+    23→  </div>
+    24→</body>
+    25→</html>`
+    26→}
+    27→
+    28→// ============================================================
+    29→// Lesson seed data: title, topic (for outlineJson), slide content
+    30→// ============================================================
+    31→interface LessonSeed {
+    32→  id: string
+    33→  title: string
+    34→  topic: string
+    35→  outline: string
+    36→  paragraphs: string[]
+    37→}
+    38→
+    39→// ============================================================
+    40→// Course seed data
+    41→// ============================================================
+    42→interface CourseSeed {
+    43→  id: string
+    44→  title: string
+    45→  description: string
+    46→  categoryId: string
+    47→  coverImage: string
+    48→  language: string
+    49→  studentCount: number
+    50→  rating: number
+    51→  lessons: LessonSeed[]
+    52→}
+    53→
+    54→const courseSeeds: CourseSeed[] = [
+    55→  // ========================================
+    56→  // Course 1: Mathematical Thinking
+    57→  // ========================================
+    58→  {
+    59→    id: 'course_001',
+    60→    title: 'Mathematical Thinking',
+    61→    description:
+    62→      'Develop logical reasoning and problem-solving skills through mathematical concepts. Learn to approach complex problems systematically and build strong analytical foundations.',
+    63→    categoryId: 'cat_001',
+    64→    coverImage: 'https://placehold.co/800x450/0d9488/white?text=Mathematical+Thinking',
+    65→    language: 'english',
+    66→    studentCount: 142,
+    67→    rating: 4.5,
+    68→    lessons: [
+    69→      {
+    70→        id: 'lesson_001',
+    71→        title: 'Introduction to Logical Reasoning',
+    72→        topic: 'Mathematical Thinking',
+    73→        outline: 'Building the foundation for mathematical thinking and analytical problem solving',
+    74→        paragraphs: [
+    75→          'Logical reasoning is the process of drawing valid conclusions from given premises using structured thinking. It forms the backbone of mathematics, computer science, and everyday decision-making.',
+    76→          'There are three main types of logical reasoning: <strong>Deductive reasoning</strong> moves from general principles to specific conclusions, <strong>Inductive reasoning</strong> generalizes from specific observations, and <strong>Abductive reasoning</strong> seeks the most likely explanation for incomplete observations.',
+    77→          'Mastering logical reasoning helps you identify flawed arguments, avoid cognitive biases, and make better decisions in both academic and professional settings.',
+    78→        ],
+    79→      },
+    80→      {
+    81→        id: 'lesson_002',
+    82→        title: 'Deductive and Inductive Reasoning',
+    83→        topic: 'Mathematical Thinking',
+    84→        outline: 'Comparing deductive and inductive approaches to logical reasoning',
+    85→        paragraphs: [
+    86→          '<strong>Deductive reasoning</strong> starts with a general premise and reaches a specific, guaranteed conclusion. For example: if all humans are mortal and Socrates is human, then Socrates is mortal. If the premises are true, the conclusion must be true.',
+    87→          '<strong>Inductive reasoning</strong> observes specific instances and draws a probable general conclusion. For example: every swan you have seen is white, so all swans might be white. Conclusions are probable but never guaranteed — a single black swan disproves the rule.',
+    88→          'In practice, mathematicians use both: deduction to prove theorems and induction to form hypotheses. Understanding when to apply each approach is essential for rigorous analytical thinking.',
+    89→        ],
+    90→      },
+    91→      {
+    92→        id: 'lesson_003',
+    93→        title: 'Patterns and Sequences',
+    94→        topic: 'Mathematical Thinking',
+    95→        outline: 'Recognizing and working with arithmetic, geometric, and Fibonacci sequences',
+    96→        paragraphs: [
+    97→          '<strong>Arithmetic sequences</strong> increase (or decrease) by a constant difference. The formula a<sub>n</sub> = a<sub>1</sub> + (n-1)d lets you find any term directly. Example: 2, 5, 8, 11, 14… where each step adds 3.',
+    98→          '<strong>Geometric sequences</strong> multiply each term by a constant ratio. The formula a<sub>n</sub> = a<sub>1</sub> &middot; r<sup>(n-1)</sup> applies. Example: 3, 6, 12, 24, 48… where each step doubles.',
+    99→          'The <strong>Fibonacci sequence</strong> (1, 1, 2, 3, 5, 8, 13…) is generated by adding the two previous terms. It appears throughout nature in sunflower spirals, nautilus shells, and branching trees — a beautiful link between math and the natural world.',
+   100→        ],
+   101→      },
+   102→      {
+   103→        id: 'lesson_004',
+   104→        title: 'Common Logical Fallacies',
+   105→        topic: 'Mathematical Thinking',
+   106→        outline: 'Identifying and avoiding logical fallacies that weaken arguments',
+   107→        paragraphs: [
+   108→          '<strong>Ad Hominem</strong> attacks the person instead of their argument. Example: "You cannot trust his math because he is a musician." The person\'s profession has no bearing on the validity of their reasoning.',
+   109→          '<strong>Straw Man</strong> misrepresents or oversimplifies an argument to make it easier to attack. Always represent your opponent\'s position fairly before responding.',
+   110→          '<strong>Circular Reasoning</strong> assumes the conclusion within the premise — essentially saying "X is true because X is true." <strong>False Dilemma</strong> presents only two options when more exist. Recognizing these fallacies makes you a stronger thinker and communicator.',
+   111→        ],
+   112→      },
+   113→      {
+   114→        id: 'lesson_005',
+   115→        title: 'Problem Solving Strategies',
+   116→        topic: 'Mathematical Thinking',
+   117→        outline: 'Applying Polya\'s four-step method and other strategies to solve problems',
+   118→        paragraphs: [
+   119→          'George P&oacute;lya\'s <strong>four-step method</strong> provides a universal framework: <strong>(1) Understand</strong> the problem — identify what is given and what is asked; <strong>(2) Devise a plan</strong> — choose a strategy such as drawing a diagram, working backwards, or looking for a pattern.',
+   120→          '<strong>(3) Carry out the plan</strong> — execute your strategy step by step, checking your work as you go. <strong>(4) Look back</strong> — verify the answer, consider alternative solutions, and reflect on what you learned.',
+   121→          'This structured approach works far beyond mathematics — it is used in engineering, software development, and business strategy. The "Look Back" step is often skipped but is critical for deep learning and improvement.',
+   122→        ],
+   123→      },
+   124→    ],
+   125→  },
+   126→  // ========================================
+   127→  // Course 2: Data Science Fundamentals
+   128→  // ========================================
+   129→  {
+   130→    id: 'course_002',
+   131→    title: 'Data Science Fundamentals',
+   132→    description:
+   133→      'Learn the fundamentals of data science including data collection, cleaning, statistical analysis, and visualization. Build a strong foundation for working with data.',
+   134→    categoryId: 'cat_004',
+   135→    coverImage: 'https://placehold.co/800x450/7c3aed/white?text=Data+Science+Fundamentals',
+   136→    language: 'english',
+   137→    studentCount: 189,
+   138→    rating: 4.6,
+   139→    lessons: [
+   140→      {
+   141→        id: 'lesson_006',
+   142→        title: 'What is Data Science?',
+   143→        topic: 'Data Science Fundamentals',
+   144→        outline: 'Understanding the interdisciplinary field of data science and its workflow',
+   145→        paragraphs: [
+   146→          'Data science is an interdisciplinary field that uses scientific methods, processes, algorithms, and systems to extract knowledge and actionable insights from structured and unstructured data.',
+   147→          'The typical data science workflow follows four stages: <strong>Collect</strong> data from databases, APIs, and surveys; <strong>Clean</strong> it by removing errors and inconsistencies; <strong>Analyze</strong> it with statistical methods and machine learning; and <strong>Visualize</strong> the results through charts and dashboards.',
+   148→          'Data scientists work at the intersection of statistics, programming, and domain expertise. Their insights drive decisions in healthcare, finance, marketing, and virtually every industry today.',
+   149→        ],
+   150→      },
+   151→      {
+   152→        id: 'lesson_007',
+   153→        title: 'Data Collection and Cleaning',
+   154→        topic: 'Data Science Fundamentals',
+   155→        outline: 'Methods for gathering data and techniques for cleaning messy datasets',
+   156→        paragraphs: [
+   157→          'Data can be collected from many sources: <strong>databases</strong> and data warehouses, <strong>REST APIs</strong> and web services, <strong>web scraping</strong>, and <strong>surveys</strong>. Each source has different reliability and format considerations.',
+   158→          'Real-world data is messy. Common issues include <strong>missing values</strong> (impute or drop), <strong>duplicates</strong> (deduplicate rows), <strong>outliers</strong> (cap or investigate), and <strong>inconsistent formats</strong> (standardize dates, units, and naming conventions).',
+   159→          'Data scientists estimate spending 60–80% of their time on cleaning and preparation. Thorough cleaning is essential — models are only as good as the data they train on. The principle is "garbage in, garbage out."',
+   160→        ],
+   161→      },
+   162→      {
+   163→        id: 'lesson_008',
+   164→        title: 'Statistical Foundations',
+   165→        topic: 'Data Science Fundamentals',
+   166→        outline: 'Core statistical measures: mean, median, and standard deviation',
+   167→        paragraphs: [
+   168→          'The <strong>mean</strong> (average) is calculated as the sum of all values divided by the count. While intuitive, it is sensitive to outliers — a single extreme value can skew the mean significantly.',
+   169→          'The <strong>median</strong> is the middle value when data is sorted. It is robust to outliers and is preferred for skewed distributions like income data, where a few very high earners would distort the mean.',
+   170→          '<strong>Standard deviation</strong> (&sigma;) measures how spread out values are from the mean. A low standard deviation means data points cluster tightly around the mean; a high standard deviation indicates wide spread. Together, these measures give you a complete picture of your data\'s central tendency and variability.',
+   171→        ],
+   172→      },
+   173→      {
+   174→        id: 'lesson_009',
+   175→        title: 'Data Visualization',
+   176→        topic: 'Data Science Fundamentals',
+   177→        outline: 'Choosing the right chart types to communicate data insights effectively',
+   178→        paragraphs: [
+   179→          'Choosing the right chart type is crucial for communicating insights clearly. <strong>Bar charts</strong> are best for comparing categories (e.g., sales by region). <strong>Line charts</strong> show trends over time (e.g., monthly revenue growth).',
+   180→          '<strong>Pie charts</strong> display proportions of a whole (e.g., market share breakdown) but should be limited to 5–6 slices. <strong>Scatter plots</strong> reveal relationships and correlations between two variables (e.g., height vs. weight).',
+   181→          'Good visualizations follow Edward Tufte\'s principles: maximize the data-ink ratio, avoid chartjunk, and ensure every visual element serves a purpose. The best chart is the one that makes your audience say "I see it now" immediately.',
+   182→        ],
+   183→      },
+   184→      {
+   185→        id: 'lesson_010',
+   186→        title: 'Introduction to Machine Learning',
+   187→        topic: 'Data Science Fundamentals',
+   188→        outline: 'Overview of supervised, unsupervised, and reinforcement learning paradigms',
+   189→        paragraphs: [
+   190→          '<strong>Supervised learning</strong> trains on labeled data to make predictions. It includes <strong>classification</strong> (predicting categories like spam/not spam) and <strong>regression</strong> (predicting continuous values like house prices from square footage).',
+   191→          '<strong>Unsupervised learning</strong> finds hidden patterns in unlabeled data. Common techniques include <strong>clustering</strong> (grouping similar customers) and <strong>dimensionality reduction</strong> (simplifying data while preserving important structure).',
+   192→          '<strong>Reinforcement learning</strong> trains an agent through trial and error, rewarding desired behaviors. It powers game-playing AI, robotics, and recommendation systems. Each paradigm suits different problem types and data availability.',
+   193→        ],
+   194→      },
+   195→    ],
+   196→  },
+   197→  // ========================================
+   198→  // Course 3: Python Programming
+   199→  // ========================================
+   200→  {
+   201→    id: 'course_003',
+   202→    title: 'Python Programming',
+   203→    description:
+   204→      'Learn Python from the ground up. Master syntax, data structures, functions, OOP, and file handling through practical examples and exercises.',
+   205→    categoryId: 'cat_004',
+   206→    coverImage: 'https://placehold.co/800x450/059669/white?text=Python+Programming',
+   207→    language: 'english',
+   208→    studentCount: 256,
+   209→    rating: 4.7,
+   210→    lessons: [
+   211→      {
+   212→        id: 'lesson_011',
+   213→        title: 'Python Basics and Syntax',
+   214→        topic: 'Python Programming',
+   215→        outline: 'Variables, data types, control flow, and core Python syntax',
+   216→        paragraphs: [
+   217→          'Python is <strong>dynamically typed</strong> — you do not need to declare variable types. Core data types include <strong>int</strong>, <strong>float</strong>, <strong>str</strong>, <strong>bool</strong>, <strong>list</strong>, <strong>dict</strong>, <strong>tuple</strong>, and <strong>set</strong>. Use meaningful variable names for readability.',
+   218→          '<strong>Control flow</strong> uses <code>if / elif / else</code> for branching and <code>for / while</code> for loops. Python uses indentation (typically 4 spaces) instead of braces to define code blocks, making it highly readable.',
+   219→          'Python\'s philosophy emphasizes readability and simplicity. The Zen of Python (accessible via <code>import this</code>) includes guiding principles like "Simple is better than complex" and "There should be one obvious way to do it."',
+   220→        ],
+   221→      },
+   222→      {
+   223→        id: 'lesson_012',
+   224→        title: 'Data Structures',
+   225→        topic: 'Python Programming',
+   226→        outline: 'Python built-in data structures: lists, tuples, dictionaries, and sets',
+   227→        paragraphs: [
+   228→          '<strong>Lists</strong> are ordered, mutable collections: <code>fruits = ["apple", "banana", "cherry"]</code>. They support indexing, slicing, appending, and comprehension for concise creation.',
+   229→          '<strong>Tuples</strong> are ordered but immutable — once created, their elements cannot change: <code>point = (10, 20)</code>. Use them for fixed collections like coordinates. <strong>Dictionaries</strong> store key-value pairs: <code>person = {"name": "Alice", "age": 25}</code>.',
+   230→          '<strong>Sets</strong> store unique elements with no duplicates and support mathematical operations like union, intersection, and difference: <code>{1, 2, 3, 2}</code> becomes <code>{1, 2, 3}</code>. Choosing the right structure improves both performance and code clarity.',
+   231→        ],
+   232→      },
+   233→      {
+   234→        id: 'lesson_013',
+   235→        title: 'Functions and Modules',
+   236→        topic: 'Python Programming',
+   237→        outline: 'Defining functions, using lambda expressions, and importing modules',
+   238→        paragraphs: [
+   239→          'Define functions with the <code>def</code> keyword. Python supports <strong>default arguments</strong>, <strong>*args</strong> (variable positional), and <strong>**kwargs</strong> (variable keyword) for flexible function signatures. Always include a docstring to document behavior.',
+   240→          '<strong>Lambda functions</strong> are anonymous one-liners for simple operations: <code>square = lambda x: x ** 2</code>. They are commonly used with <code>map()</code>, <code>filter()</code>, and <code>sorted()</code> for concise data transformations.',
+   241→          '<strong>Modules</strong> let you organize code into reusable files. Use <code>import math</code> to import an entire module, or <code>from datetime import date</code> for specific items. The <code>pip</code> package manager installs third-party libraries from PyPI.',
+   242→        ],
+   243→      },
+   244→      {
+   245→        id: 'lesson_014',
+   246→        title: 'Object-Oriented Programming',
+   247→        topic: 'Python Programming',
+   248→        outline: 'Classes, objects, inheritance, and encapsulation in Python',
+   249→        paragraphs: [
+   250→          '<strong>Classes</strong> are blueprints for creating objects. A class defines attributes (data) and methods (behavior). For example, a <code>Dog</code> class might have attributes <code>name</code> and <code>breed</code>, and a method <code>bark()</code>.',
+   251→          '<strong>Inheritance</strong> lets you create specialized classes that extend a base class, reusing and overriding its behavior. For example, a <code>GuideDog</code> class could inherit from <code>Dog</code> and add navigation-specific methods.',
+   252→          '<strong>Encapsulation</strong> bundles data and methods together, controlling access through public and private conventions (prefix with <code>_</code> or <code>__</code>). This prevents unintended interference and makes code more maintainable and robust.',
+   253→        ],
+   254→      },
+   255→      {
+   256→        id: 'lesson_015',
+   257→        title: 'File I/O and Error Handling',
+   258→        topic: 'Python Programming',
+   259→        outline: 'Reading and writing files, and using try/except for graceful error handling',
+   260→        paragraphs: [
+   261→          'Use <code>open()</code> with a <strong>context manager</strong> (<code>with</code> statement) to read and write files safely — it automatically closes the file when done. Modes: <code>"r"</code> for reading, <code>"w"</code> for writing (overwrites), <code>"a"</code> for appending.',
+   262→          'Python uses <strong>try / except / else / finally</strong> blocks for error handling. Wrap code that might fail in <code>try</code>, handle specific exceptions in <code>except</code>, and use <code>finally</code> for cleanup that always runs (like closing connections).',
+   263→          'Handle specific exceptions (e.g., <code>FileNotFoundError</code>, <code>ValueError</code>) rather than catching all exceptions with a bare <code>except:</code>. This makes debugging easier and prevents hiding unexpected errors. Good error handling makes programs robust and user-friendly.',
+   264→        ],
+   265→      },
+   266→    ],
+   267→  },
+   268→  // ========================================
+   269→  // Course 4: Environmental Science
+   270→  // ========================================
+   271→  {
+   272→    id: 'course_004',
+   273→    title: 'Environmental Science',
+   274→    description:
+   275→      'Explore ecosystems, climate science, biodiversity, renewable energy, and environmental policy. Understand our planet and how to protect it.',
+   276→    categoryId: 'cat_002',
+   277→    coverImage: 'https://placehold.co/800x450/d97706/white?text=Environmental+Science',
+   278→    language: 'english',
+   279→    studentCount: 134,
+   280→    rating: 4.4,
+   281→    lessons: [
+   282→      {
+   283→        id: 'lesson_016',
+   284→        title: 'Introduction to Ecosystems',
+   285→        topic: 'Environmental Science',
+   286→        outline: 'Understanding ecosystems, food chains, and biodiversity',
+   287→        paragraphs: [
+   288→          'An <strong>ecosystem</strong> is a community of living organisms (plants, animals, microbes) interacting with their physical environment (soil, water, climate). Ecosystems range from a small pond to the entire biosphere.',
+   289→          '<strong>Food chains</strong> describe the flow of energy from producers (plants) through primary consumers (herbivores) to secondary and tertiary consumers (carnivores) and finally decomposers. Each transfer loses about 90% of energy as heat.',
+   290→          '<strong>Biodiversity</strong> — the variety of life at genetic, species, and ecosystem levels — provides resilience against environmental changes, supports ecosystem services like pollination and water purification, and holds potential for undiscovered medicines and materials.',
+   291→        ],
+   292→      },
+   293→      {
+   294→        id: 'lesson_017',
+   295→        title: 'Climate Change Science',
+   296→        topic: 'Environmental Science',
+   297→        outline: 'Greenhouse gases, evidence of climate change, and its impacts',
+   298→        paragraphs: [
+   299→          'The <strong>greenhouse effect</strong> occurs when gases like CO<sub>2</sub> (from fossil fuels and deforestation), CH<sub>4</sub> (methane from agriculture), and N<sub>2</sub>O trap heat in the atmosphere, raising global temperatures. This is a natural process amplified by human activity.',
+   300→          'Key evidence of climate change includes: global temperature up 1.1&deg;C since the pre-industrial era, sea levels rising 3.6mm per year, Arctic ice shrinking ~13% per decade, and increasing frequency of extreme weather events like hurricanes and droughts.',
+   301→          'Climate change threatens ecosystems through habitat loss, disrupts agriculture and water supplies, and endangers human settlements in coastal and drought-prone regions. Mitigation requires reducing emissions while adaptation prepares communities for unavoidable changes.',
+   302→        ],
+   303→      },
+   304→      {
+   305→        id: 'lesson_018',
+   306→        title: 'Biodiversity and Conservation',
+   307→        topic: 'Environmental Science',
+   308→        outline: 'Threat levels, conservation strategies, and species protection',
+   309→        paragraphs: [
+   310→          'The IUCN Red List classifies species by threat level: <strong>Vulnerable</strong> (high risk, e.g., Giant Panda), <strong>Endangered</strong> (very high risk, e.g., Blue Whale), and <strong>Critically Endangered</strong> (extremely high risk, e.g., Amur Leopard).',
+   311→          'Major conservation strategies include <strong>protected areas</strong> (national parks, marine sanctuaries), <strong>captive breeding programs</strong> (zoos and breeding centers), and <strong>legislation</strong> like the Endangered Species Act and CITES treaty.',
+   312→          'Biodiversity loss is driven by habitat destruction, climate change, pollution, overexploitation, and invasive species. Conservation requires a combination of legal protection, habitat restoration, sustainable practices, and community engagement.',
+   313→        ],
+   314→      },
+   315→      {
+   316→        id: 'lesson_019',
+   317→        title: 'Renewable Energy',
+   318→        topic: 'Environmental Science',
+   319→        outline: 'Solar, wind, hydropower, and geothermal energy sources',
+   320→        paragraphs: [
+   321→          '<strong>Solar energy</strong> converts sunlight into electricity using photovoltaic cells. It is the fastest-growing energy source globally, with costs dropping over 90% in the last decade, making it cost-competitive with fossil fuels in many regions.',
+   322→          '<strong>Wind energy</strong> uses turbines to capture kinetic energy from wind. Offshore wind farms can generate massive amounts of clean electricity. <strong>Hydropower</strong> harnesses flowing water and remains the largest source of renewable electricity worldwide.',
+   323→          '<strong>Geothermal energy</strong> taps heat from the Earth\'s core for consistent baseload power 24/7. The transition to renewables is accelerated by battery storage advances, smart grids, and declining costs — but challenges remain in grid integration and energy storage.',
+   324→        ],
+   325→      },
+   326→      {
+   327→        id: 'lesson_020',
+   328→        title: 'Environmental Policy',
+   329→        topic: 'Environmental Science',
+   330→        outline: 'International treaties, agreements, and principles of environmental governance',
+   331→        paragraphs: [
+   332→          'The <strong>Kyoto Protocol (1997)</strong> was the first international treaty to set legally binding emission reduction targets for developed nations. While imperfect in execution, it established the framework for global climate cooperation.',
+   333→          'The <strong>Paris Agreement (2015)</strong> aims to limit global warming to 1.5&deg;C above pre-industrial levels. Unlike Kyoto, it requires all nations — not just developed ones — to set Nationally Determined Contributions (NDCs) and regularly report progress.',
+   334→          'A core principle of environmental policy is "common but differentiated responsibilities" — all countries share the obligation to act, but developed nations (historically the largest emitters) bear greater responsibility. Effective policy combines regulation, carbon pricing, and incentives for innovation.',
+   335→        ],
+   336→      },
+   337→    ],
+   338→  },
+   339→  // ========================================
+   340→  // Course 5: Business Communication
+   341→  // ========================================
+   342→  {
+   343→    id: 'course_005',
+   344→    title: 'Business Communication',
+   345→    description:
+   346→      'Master professional communication skills including email writing, presentations, cross-team collaboration, negotiation, and report writing.',
+   347→    categoryId: 'cat_005',
+   348→    coverImage: 'https://placehold.co/800x450/059669/white?text=Business+Communication',
+   349→    language: 'english',
+   350→    studentCount: 238,
+   351→    rating: 4.8,
+   352→    lessons: [
+   353→      {
+   354→        id: 'lesson_021',
+   355→        title: 'Email Writing Fundamentals',
+   356→        topic: 'Business Communication',
+   357→        outline: 'Writing clear, professional emails with proper structure and tone',
+   358→        paragraphs: [
+   359→          'A professional email follows a clear structure: <strong>Subject line</strong> (specific and action-oriented, e.g., "Action Required: Q3 Budget Review — Due Friday"), <strong>greeting</strong>, <strong>concise body</strong>, <strong>clear call to action</strong>, and <strong>professional sign-off</strong>.',
+   360→          'Match your <strong>tone</strong> to the audience — formal for executives and external clients, conversational for close colleagues. Avoid common mistakes: vague subjects, walls of text, missing calls to action, and unnecessary "reply all" usage.',
+   361→          'Use bullet points and short paragraphs for scannability. Put the most important information first (bottom-line up front). Proofread every email before sending — typos and grammatical errors undermine your credibility.',
+   362→        ],
+   363→      },
+   364→      {
+   365→        id: 'lesson_022',
+   366→        title: 'Presentation Skills',
+   367→        topic: 'Business Communication',
+   368→        outline: 'Slide design principles and delivery techniques for effective presentations',
+   369→        paragraphs: [
+   370→          'Effective slide design follows key principles: <strong>one idea per slide</strong> (do not overcrowd), <strong>visuals over text</strong> (people remember images 65% better than words), <strong>consistent formatting</strong> (same fonts, colors, and layouts throughout), and <strong>limit text to 6 lines per slide</strong>.',
+   371→          'Delivery matters as much as content. Maintain <strong>eye contact</strong> with your audience, use <strong>open gestures</strong>, and move purposefully. Vary your <strong>pace, volume, and tone</strong> to maintain engagement and emphasize key points.',
+   372→          'Rehearse out loud at least three times before presenting. Practice with your slides, time yourself, and if possible, get feedback from a colleague. Preparation builds confidence and helps you handle unexpected questions smoothly.',
+   373→        ],
+   374→      },
+   375→      {
+   376→        id: 'lesson_023',
+   377→        title: 'Cross-Team Communication',
+   378→        topic: 'Business Communication',
+   379→        outline: 'Choosing the right tools and practices for effective cross-team collaboration',
+   380→        paragraphs: [
+   381→          'Different tools serve different purposes in cross-team communication. <strong>Slack/Teams</strong> for quick questions and updates; <strong>email</strong> for formal communication and records; <strong>video calls</strong> for brainstorming and complex topics; <strong>documentation</strong> for reference material and SOPs.',
+   382→          'When communicating across teams, always <strong>provide context</strong> — assume no prior knowledge. A developer explaining a technical issue to marketing should translate jargon into business impact. Over-communicating is better than under-communicating.',
+   383→          'Establish clear <strong>communication norms</strong>: expected response times, which channel to use for which type of message, and how to escalate blockers. Regular cross-team syncs and shared documentation (like wikis or Notion pages) keep everyone aligned.',
+   384→        ],
+   385→      },
+   386→      {
+   387→        id: 'lesson_024',
+   388→        title: 'Negotiation Skills',
+   389→        topic: 'Business Communication',
+   390→        outline: 'Preparation, active listening, and win-win negotiation frameworks',
+   391→        paragraphs: [
+   392→          '<strong>Preparation</strong> is the most important phase. Research the other party\'s interests and constraints. Define your <strong>BATNA</strong> (Best Alternative to a Negotiated Agreement) — your walk-away option. Knowing your limits prevents you from accepting bad deals.',
+   393→          '<strong>Active listening</strong> means listening to understand, not just to respond. Ask clarifying questions, paraphrase to confirm understanding, and pay attention to non-verbal cues. People are more willing to negotiate with someone who genuinely understands their position.',
+   394→          'Adopt a <strong>win-win mindset</strong> — seek solutions that create value for both parties rather than treating negotiation as a zero-sum game. The Harvard Negotiation Project teaches: separate people from the problem, focus on interests not positions, generate options for mutual gain, and use objective criteria.',
+   395→        ],
+   396→      },
+   397→      {
+   398→        id: 'lesson_025',
+   399→        title: 'Written Reports and Proposals',
+   400→        topic: 'Business Communication',
+   401→        outline: 'Structuring professional reports and persuasive business proposals',
+   402→        paragraphs: [
+   403→          'A well-structured report follows a standard format: <strong>Executive Summary</strong> (key findings and recommendations on one page), <strong>Introduction</strong> (context, objectives, and scope), and <strong>Methodology</strong> (how you gathered and analyzed data).',
+   404→          'The <strong>Findings</strong> section presents data with clear visualizations — charts, tables, and infographics that tell a story. Each finding should link back to the original objectives. Avoid raw data dumps; instead, highlight patterns, trends, and actionable insights.',
+   405→          'End with <strong>Conclusion and Recommendations</strong> — specific, actionable next steps with owners and timelines. In proposals, include a clear ask, expected outcomes, and ROI justification. Executive readers should be able to grasp the entire report from the summary alone.',
+   406→        ],
+   407→      },
+   408→    ],
+   409→  },
+   410→]
+   411→
+   412→// ============================================================
+   413→// Main seed function
+   414→// ============================================================
+   415→async function main() {
+   416→  console.log('Seeding LMS database...\n')
+   417→
+   418→  // Clean existing data (respect FK order)
+   419→  await db.notification.deleteMany()
+   420→  await db.comment.deleteMany()
+   421→  await db.note.deleteMany()
+   422→  await db.rating.deleteMany()
+   423→  await db.favorite.deleteMany()
+   424→  await db.progress.deleteMany()
+   425→  await db.enrollment.deleteMany()
+   426→  await db.slide.deleteMany()
+   427→  await db.lesson.deleteMany()
+   428→  await db.course.deleteMany()
+   429→  await db.category.deleteMany()
+   430→  await db.user.deleteMany()
+   431→
+   432→  // ============================================
+   433→  // Create users (instructor + students)
+   434→  // ============================================
+   435→  const instructor = await db.user.create({
+   436→    data: {
+   437→      id: 'user_instructor_001',
+   438→      email: 'instructor@ecotech.com',
+   439→      password: 'instructor123',
+   440→      name: 'Dr. Sarah Chen',
+   441→      avatar: null,
+   442→      role: 'instructor',
+   443→      department: 'Faculty',
+   444→    },
+   445→  })
+   446→  console.log(`Created user: ${instructor.name}`)
+   447→
+   448→  const student1 = await db.user.create({
+   449→    data: {
+   450→      id: 'user_student_001',
+   451→      email: 'alex.student@ecotech.com',
+   452→      password: 'student123',
+   453→      name: 'Alex Johnson',
+   454→      avatar: null,
+   455→      role: 'student',
+   456→      department: 'Computer Science',
+   457→    },
+   458→  })
+   459→
+   460→  const student2 = await db.user.create({
+   461→    data: {
+   462→      id: 'user_student_002',
+   463→      email: 'maria.student@ecotech.com',
+   464→      password: 'student123',
+   465→      name: 'Maria Garcia',
+   466→      avatar: null,
+   467→      role: 'student',
+   468→      department: 'Data Science',
+   469→    },
+   470→  })
+   471→  console.log(`Created students: ${student1.name}, ${student2.name}`)
+   472→
+   473→  // ============================================
+   474→  // Create categories
+   475→  // ============================================
+   476→  const categories = await Promise.all([
+   477→    db.category.create({ data: { id: 'cat_001', name: 'Subject Education', description: 'Core academic subjects and foundational knowledge', color: '#0d9488' } }),
+   478→    db.category.create({ data: { id: 'cat_002', name: 'Life Skills', description: 'Practical skills for everyday life', color: '#d97706' } }),
+   479→    db.category.create({ data: { id: 'cat_003', name: 'Business Knowledge', description: 'Business acumen and professional skills', color: '#e11d48' } }),
+   480→    db.category.create({ data: { id: 'cat_004', name: 'Technology', description: 'Technical skills and IT knowledge', color: '#7c3aed' } }),
+   481→    db.category.create({ data: { id: 'cat_005', name: 'Communication', description: 'Writing, speaking, and interpersonal skills', color: '#059669' } }),
+   482→    db.category.create({ data: { id: 'cat_006', name: 'Safety & Compliance', description: 'Workplace safety and regulatory compliance', color: '#dc2626' } }),
+   483→  ])
+   484→  console.log(`Created ${categories.length} categories`)
+   485→
+   486→  // ============================================
+   487→  // Create courses with lessons and slides
+   488→  // ============================================
+   489→  for (const seed of courseSeeds) {
+   490→    await db.course.create({
+   491→      data: {
+   492→        id: seed.id,
+   493→        title: seed.title,
+   494→        description: seed.description,
+   495→        coverImage: seed.coverImage,
+   496→        rating: seed.rating,
+   497→        studentCount: seed.studentCount,
+   498→        status: 'published',
+   499→        language: seed.language,
+   500→        categoryId: seed.categoryId,
+   501→        creatorId: 'user_instructor_001',
+   502→        lessons: {
+   503→          create: seed.lessons.map((lesson, index) => ({
+   504→            id: lesson.id,
+   505→            title: lesson.title,
+   506→            order: index + 1,
+   507→            outlineJson: JSON.stringify({
+   508→              topic: lesson.topic,
+   509→              style: 'professional',
+   510→              slides: [
+   511→                {
+   512→                  title: lesson.title,
+   513→                  outline: lesson.outline,
+   514→                },
+   515→              ],
+   516→            }),
+   517→            slides: {
+   518→              create: [
+   519→                {
+   520→                  title: lesson.title,
+   521→                  htmlBody: makeSlideHtml(lesson.title, lesson.paragraphs),
+   522→                  status: 'READY',
+   523→                  order: 0,
+   524→                },
+   525→              ],
+   526→            },
+   527→          })),
+   528→        },
+   529→      },
+   530→    })
+   531→    console.log(`Created course: ${seed.title} (${seed.lessons.length} lessons)`)
+   532→  }
+   533→
+   534→  // ============================================
+   535→  // Create enrollments with progress
+   536→  // ============================================
+   537→  await db.enrollment.create({
+   538→    data: {
+   539→      userId: student1.id,
+   540→      courseId: 'course_001',
+   541→      status: 'in_progress',
+   542→      progresses: {
+   543→        create: [
+   544→          { lessonId: 'lesson_001', completed: true, currentPage: 1 },
+   545→          { lessonId: 'lesson_002', completed: false, currentPage: 1 },
+   546→        ],
+   547→      },
+   548→    },
+   549→  })
+   550→
+   551→  await db.enrollment.create({
+   552→    data: {
+   553→      userId: student1.id,
+   554→      courseId: 'course_003',
+   555→      status: 'completed',
+   556→      completedAt: new Date('2026-07-20'),
+   557→      progresses: {
+   558→        create: [
+   559→          { lessonId: 'lesson_011', completed: true, currentPage: 1 },
+   560→          { lessonId: 'lesson_012', completed: true, currentPage: 1 },
+   561→        ],
+   562→      },
+   563→    },
+   564→  })
+   565→
+   566→  // Create some favorites
+   567→  await db.favorite.create({ data: { userId: student1.id, courseId: 'course_002' } })
+   568→  await db.favorite.create({ data: { userId: student1.id, courseId: 'course_005' } })
+   569→
+   570→  // ============================================
+   571→  // Create additional demo users for comments
+   572→  // ============================================
+   573→  const demoUser2 = await db.user.create({
+   574→    data: { id: 'user_demo_002', email: 'sarah.trainer@company.com', password: 'demo123', name: 'Sarah Chen', avatar: null, role: 'instructor', department: 'Product' },
+   575→  })
+   576→  const demoUser3 = await db.user.create({
+   577→    data: { id: 'user_demo_003', email: 'mike.jones@company.com', password: 'demo123', name: 'Mike Jones', avatar: null, role: 'student', department: 'Engineering' },
+   578→  })
+   579→  console.log(`Created users: ${demoUser2.name}, ${demoUser3.name}`)
+   580→
+   581→  // ============================================
+   582→  // Create comments for discussion
+   583→  // ============================================
+   584→  await db.comment.create({
+   585→    data: {
+   586→      id: 'comment_001',
+   587→      content: 'This section on logical fallacies was incredibly helpful! I never realized how often I encounter ad hominem arguments in meetings. Can anyone recommend additional resources on identifying cognitive biases?',
+   588→      courseId: 'course_001',
+   589→      lessonId: 'lesson_004',
+   590→      userId: student1.id,
+   591→      createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
+   592→    },
+   593→  })
+   594→  await db.comment.create({
+   595→    data: {
+   596→      id: 'comment_002',
+   597→      content: "Great question, Alex! I'd recommend Daniel Kahneman's 'Thinking, Fast and Slow' \u2014 it covers cognitive biases in depth and is very accessible.",
+   598→      courseId: 'course_001',
+   599→      lessonId: 'lesson_004',
+   600→      userId: 'user_demo_002',
+   601→      parentId: 'comment_001',
+   602→      createdAt: new Date(Date.now() - 1 * 60 * 60 * 1000),
+   603→    },
+   604→  })
+   605→  await db.comment.create({
+   606→    data: {
+   607→      id: 'comment_003',
+   608→      content: 'The email templates in this course saved me so much time. I\'ve already started using the meeting request template and my colleagues noticed the improvement!',
+   609→      courseId: 'course_005',
+   610→      lessonId: 'lesson_021',
+   611→      userId: 'user_demo_003',
+   612→      createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+   613→    },
+   614→  })
+   615→  await db.comment.create({
+   616→    data: {
+   617→      id: 'comment_004',
+   618→      content: 'Is there a follow-up course that covers more advanced communication topics like cross-cultural communication?',
+   619→      courseId: 'course_005',
+   620→      userId: student1.id,
+   621→      createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
+   622→    },
+   623→  })
+   624→  await db.comment.create({
+   625→    data: {
+   626→      id: 'comment_005',
+   627→      content: 'The Polya method section was eye-opening. I\'ve been using it at work to break down complex engineering problems. Highly recommended for anyone in a technical role.',
+   628→      courseId: 'course_001',
+   629→      lessonId: 'lesson_005',
+   630→      userId: 'user_demo_003',
+   631→      createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
+   632→    },
+   633→  })
+   634→  await db.comment.create({
+   635→    data: {
+   636→      id: 'comment_006',
+   637→      content: "I agree! The 'Look Back' step is something most people skip but it really helps solidify understanding.",
+   638→      courseId: 'course_001',
+   639→      lessonId: 'lesson_005',
+   640→      userId: 'user_demo_002',
+   641→      parentId: 'comment_005',
+   642→      createdAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000),
+   643→    },
+   644→  })
+   645→  await db.comment.create({
+   646→    data: {
+   647→      id: 'comment_007',
+   648→      content: 'The Python Programming course was very practical. I wish we had this training when I first joined the company. The data structures section alone is worth the time.',
+   649→      courseId: 'course_003',
+   650→      userId: 'user_demo_002',
+   651→      createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+   652→    },
+   653→  })
+   654→  await db.comment.create({
+   655→    data: {
+   656→      id: 'comment_008',
+   657→      content: 'The quiz at the end of each section really helps reinforce the concepts. I found myself going back to review content I thought I already understood.',
+   658→      courseId: 'course_001',
+   659→      userId: student1.id,
+   660→      createdAt: new Date(Date.now() - 6 * 60 * 60 * 1000),
+   661→    },
+   662→  })
+   663→  console.log('Created 8 comments (including 2 replies)')
+   664→
+   665→  // ============================================
+   666→  // Create notifications for demo user
+   667→  // ============================================
+   668→  const now = new Date()
+   669→  await db.notification.createMany({
+   670→    data: [
+   671→      {
+   672→        id: 'notif_001',
+   673→        userId: student1.id,
+   674→        title: 'New Course Available',
+   675→        message: 'Python Programming has been published. Check it out!',
+   676→        type: 'course',
+   677→        read: false,
+   678→        link: 'course-detail:course_003',
+   679→        createdAt: new Date(now.getTime() - 15 * 60 * 1000),
+   680→      },
+   681→      {
+   682→        id: 'notif_002',
+   683→        userId: student1.id,
+   684→        title: 'Achievement Unlocked!',
+   685→        message: 'You completed your first course. Keep up the great work!',
+   686→        type: 'achievement',
+   687→        read: false,
+   688→        link: null,
+   689→        createdAt: new Date(now.getTime() - 2 * 60 * 60 * 1000),
+   690→      },
+   691→      {
+   692→        id: 'notif_003',
+   693→        userId: student1.id,
+   694→        title: 'Enrollment Confirmed',
+   695→        message: 'You are now enrolled in Mathematical Thinking.',
+   696→        type: 'success',
+   697→        read: false,
+   698→        link: 'course-detail:course_001',
+   699→        createdAt: new Date(now.getTime() - 5 * 60 * 60 * 1000),
+   700→      },
+   701→      {
+   702→        id: 'notif_004',
+   703→        userId: student1.id,
+   704→        title: 'Weekly Learning Reminder',
+   705→        message: "You haven't started a course this week. Keep your learning streak going!",
+   706→        type: 'warning',
+   707→        read: false,
+   708→        link: null,
+   709→        createdAt: new Date(now.getTime() - 24 * 60 * 60 * 1000),
+   710→      },
+   711→      {
+   712→        id: 'notif_005',
+   713→        userId: instructor.id,
+   714→        title: 'New Student Enrolled',
+   715→        message: 'Alex Johnson enrolled in your course Mathematical Thinking.',
+   716→        type: 'course',
+   717→        read: true,
+   718→        link: 'course-detail:course_001',
+   719→        createdAt: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000),
+   720→      },
+   721→      {
+   722→        id: 'notif_006',
+   723→        userId: instructor.id,
+   724→        title: 'System Update',
+   725→        message: 'Platform v1.0 is now live with new features and improvements.',
+   726→        type: 'system',
+   727→        read: true,
+   728→        link: null,
+   729→        createdAt: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000),
+   730→      },
+   731→      {
+   732→        id: 'notif_007',
+   733→        userId: student2.id,
+   734→        title: 'Streak Milestone',
+   735→        message: "Congratulations! You've maintained a 7-day learning streak.",
+   736→        type: 'achievement',
+   737→        read: false,
+   738→        link: 'profile',
+   739→        createdAt: new Date(now.getTime() - 8 * 60 * 60 * 1000),
+   740→      },
+   741→      {
+   742→        id: 'notif_008',
+   743→        userId: instructor.id,
+   744→        title: 'New Reply to Student Question',
+   745→        message: 'Sarah Chen replied to Alex\'s question in Mathematical Thinking.',
+   746→        type: 'info',
+   747→        read: true,
+   748→        link: 'course-detail:course_001',
+   749→        createdAt: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000),
+   750→      },
+   751→    ],
+   752→  })
+   753→  console.log('Created 8 sample notifications')
+   754→
+   755→  // ============================================
+   756→  // Summary
+   757→  // ============================================
+   758→  const totalLessons = courseSeeds.reduce((sum, c) => sum + c.lessons.length, 0)
+   759→  console.log('\nSeed completed successfully!')
+   760→  console.log(`   - 5 users, ${categories.length} categories, ${courseSeeds.length} courses, ${totalLessons} lessons, ${totalLessons} slides`)
+   761→  console.log('   - 2 enrollments, 2 favorites, 8 comments, 8 notifications created\n')
+   762→}
+   763→
+   764→main()
+   765→  .catch(console.error)
+   766→  .finally(() => db.$disconnect())
+   767→

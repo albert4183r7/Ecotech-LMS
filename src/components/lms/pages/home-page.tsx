@@ -26,7 +26,7 @@ interface EnrollmentCourse {
   rating: number;
   language: string;
   category: { id: string; name: string; color?: string | null } | null;
-  sectionsCount: number;
+  lessonsCount: number;
 }
 
 interface Enrollment {
@@ -93,7 +93,7 @@ interface CourseApiResponse {
   createdAt: string;
   updatedAt: string;
   category: { id: string; name: string; description?: string | null; color?: string | null } | null;
-  sectionsCount?: number;
+  lessonsCount?: number;
   enrollmentsCount?: number;
 }
 
@@ -105,7 +105,7 @@ function mapCourseResponse(c: CourseApiResponse): CourseItem {
       ? { id: c.category.id, name: c.category.name, color: c.category.color ?? null }
       : null,
     creator: null,
-    sections: [],
+    lessons: [],
     _count: {
       enrollments: c.enrollmentsCount ?? 0,
       favorites: 0,

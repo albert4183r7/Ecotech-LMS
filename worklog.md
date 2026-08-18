@@ -510,3 +510,38 @@ Stage Summary:
 - All Prisma references to `section`/`sections` eliminated from src/
 - Dev server starts cleanly on port 3000
 - No SlideVersion model added (per plan: not needed yet)
+
+---
+Task ID: section-to-lesson-rename-cleanup
+Agent: main
+Task: Complete Section→Lesson rename in all remaining source code (variable names, display text, API params)
+
+Work Log:
+- Verified schema and DB already migrated (Lesson + Slide tables, no Section table)
+- Verified seed.ts already rewritten with LessonSeed + makeSlideHtml + Slide creates
+- Ran subagent to rename remaining references across 12 files:
+  - `src/app/api/courses/route.ts`: POST body `sections` → `lessons`, `sec` → `lesson`
+  - `src/app/api/generate-pptx/route.ts`: `SectionHtmlBody` → `SlideHtmlBody`, `sections` → `slides`, `sectionTitle` → `lessonTitle`, `resolvedSections` → `resolvedSlides`
+  - `src/app/api/generate-slide-html/route.ts`: `sectionTitle` → `slideTitle` (6 occurrences)
+  - `src/app/api/generate-outline/route.ts`: output key `sections` → `lessons` (kept `parsed.sections` for AI compat)
+  - `src/app/api/challenges/route.ts`: "1/1 sections" → "1/1 lessons"
+  - `src/components/lms/pages/create-course-page.tsx`: `sectionTitle` → `slideTitle`, "Add N Sections" → "Add N Lessons"
+  - `src/components/lms/pages/my-learning-page.tsx`: `sectionsCount` → `lessonsCount`, "X sections" → "X lessons"
+  - `src/components/lms/pages/courses-page.tsx`: `sections: []` → `lessons: []`
+  - `src/components/lms/pages/home-page.tsx`: `sectionsCount` → `lessonsCount`, `sections: []` → `lessons: []`
+  - `src/components/lms/pages/course-detail-page.tsx`: PPTX API body `{ sections: ... }` → `{ slides: ... }`
+  - `src/components/lms/pages/settings-page.tsx`: "Auto-play Next Section" → "Auto-play Next Lesson"
+  - `src/components/lms/pages/profile-page.tsx`: `sectionsCount` → `lessonsCount`, `completedSections` → `completedLessons`
+- Left intact: `src/lib/ai.ts` (AI prompt uses "sections" key internally, parsed in generate-outline)
+- Left intact: Comments using "section" as generic English (e.g. "User Info Section")
+- Added `allowedDevOrigins` to next.config.ts for cross-origin preview support
+- Lint: zero errors
+- Seed: 5 users, 6 categories, 5 courses, 25 lessons, 25 slides — runs successfully
+- API verified: `/api/courses?tab=hot` returns courses with `lessonsCount` correctly
+
+Stage Summary:
+- Complete Section→Lesson rename across all source code
+- All data model references to `section`/`Section`/`sections` renamed to `lesson`/`Lesson`/`lessons`
+- API parameter `sectionTitle` → `slideTitle` (generate-slide-html) or `lessonTitle` (generate-pptx)
+- Display text updated: "sections" → "lessons" in UI
+- Step 1 (Schema Migration) of the 15-step implementation plan is COMPLETE
