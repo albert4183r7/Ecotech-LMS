@@ -89,7 +89,7 @@ export async function streamSlideHtml(
   const zai = await ZAI.create();
   const body: CreateChatCompletionBody = {
     messages: [
-      { role: 'assistant', content: systemPrompt || SLIDE_HTML_SYSTEM_PROMPT },
+      { role: 'system', content: systemPrompt || SLIDE_HTML_SYSTEM_PROMPT },
       { role: 'user', content: userPrompt },
     ],
     stream: true,
@@ -113,7 +113,7 @@ export async function generateText(
   const zai = await ZAI.create();
   const completion = await zai.chat.completions.create({
     messages: [
-      { role: 'assistant', content: systemPrompt },
+      { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt },
     ],
     thinking: { type: 'disabled' },

@@ -8,6 +8,8 @@ import {
   MIN_SLIDES,
   MAX_SLIDES,
 } from "@/lib/slide-styles";
+import { extractTextFromFiles, truncateTextForContext } from "@/lib/extract-doc";
+import path from "path";
 
 // ============================================
 // Zod schema for LLM response
@@ -36,13 +38,25 @@ interface GenerateOutlineRequest {
   slideCount: number;
   style: string;
   language?: string;
-  existingLessonId?: string; // If re-generating outline for existing lesson
+  existingLessonId?: string;
+  referenceFileUrls?: string[];
 }
+
+/** Max chars of reference text to include in prompt (~3000 tokens) */
+const MAX_REFERENCE_CHARS = 12000;
 
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as GenerateOutlineRequest;
-    const { courseId, topic, slideCount, style, language = "english", existingLessonId } = body;
+    const {
+      courseId,
+      topic,
+      slideCount,
+      style,
+      language = "english",
+      existingLessonId,
+      referenceFileUrls,
+    } = body;
 
     // ---- Validate inputs ----
     if (!courseId || !topic || !slideCount || !style) {
@@ -74,31 +88,105 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // ---- Extract reference document content ----
+    let referenceContext = "";
+    let extractedSources: { file: string; charCount: number }[] = [];
+
+    if (referenceFileUrls && referenceFileUrls.length > 0) {
+      try {
+        // Convert URLs to file paths (they are relative to public/)
+        const filePaths = referenceFileUrls
+          .map((url) => {
+            // URL is like /uploads/docs/uuid.pdf
+            const cleanUrl = url.replace(/^\//, "");
+            return path.join(process.cwd(), "public", cleanUrl);
+          })
+          .filter((fp) => {
+            // Basic path traversal prevention
+            const normalized = path.normalize(fp);
+            return normalized.startsWith(path.join(process.cwd(), "public"));
+          });
+
+        if (filePaths.length > 0) {
+          const result = await extractTextFromFiles(filePaths);
+          extractedSources = result.sources;
+          if (result.text) {
+            referenceContext = truncateTextForContext(result.text, MAX_REFERENCE_CHARS);
+          }
+        }
+      } catch (error) {
+        console.error("Error extracting reference documents:", error);
+        // Don't fail the whole request — continue without reference context
+      }
+    }
+
     // ---- Build the LLM prompt ----
     const styleInfo = SLIDE_STYLES.find((s) => s.value === style);
     const styleDescription = styleInfo
       ? `${styleInfo.label} (${styleInfo.description})`
       : style;
 
+    // Build reference material section
+    const referenceSection = referenceContext
+      ? `
+${isChinese ? "参考材料（必须基于此内容生成大纲，保留关键术语和概念）:" : "REFERENCE MATERIAL (you MUST base the outline on this content — preserve key terminology, concepts, and facts):"}
+
+<reference_documents>
+${referenceContext}
+</reference_documents>
+`
+      : "";
+
     const prompt = `${isChinese ? "课程主题" : "Topic"}: ${topic}
 ${isChinese ? "幻灯片数量" : "Number of slides"}: ${clampedCount}
 ${isChinese ? "设计风格" : "Design style"}: ${styleDescription}
-
+${referenceSection}
 ${isChinese
-  ? "请为以上主题生成一个课程幻灯片大纲。每个幻灯片应包含一个标题和简要的内容大纲描述。用中文生成。"
-  : `Generate a slide outline for the given topic. Each slide should have a clear title and a brief outline describing its content. Generate in English.`
-}
-
-${isChinese
-  ? "请确保幻灯片逻辑流畅，从介绍到总结。"
-  : "Ensure the slides flow logically from introduction to conclusion."
-}`;
+      ? `请为以上主题生成一个教育性课程大纲。要求：
+1. ${referenceContext ? "大纲必须基于参考材料中的实际内容，保留重要术语和概念。不要编造参考材料中没有的内容。" : ""}
+2. 幻灯片应该有教育性的递进结构，例如：
+   - 引入/背景
+   - 核心概念定义
+   - 详细解释或示例
+   - 比较/对比或过程说明
+   - 应用/实践
+   - 总结/要点回顾
+3. 每张幻灯片有不同的教学目的——避免重复结构。
+4. 每个幻灯片应包含一个标题和详细的内容大纲描述（2-4句话，说明应该展示什么内容、如何展示）。
+5. 不要使用通用的填充内容。每个幻灯片都应该有独特的教育价值。
+6. 用中文生成所有内容。`
+      : `Generate an educational lesson slide outline for the given topic. Requirements:
+1. ${referenceContext ? "The outline MUST be grounded in the reference material above. Preserve key terminology, definitions, concepts, and facts from the source. Do NOT fabricate information not present in the reference material." : ""}
+2. The slides should follow an educational progression, such as:
+   - Introduction / context
+   - Core concept definitions
+   - Detailed explanation with examples
+   - Comparison, process, or visual explanation
+   - Application or practice
+   - Summary / key takeaways
+3. Each slide must serve a DIFFERENT instructional purpose — avoid repetitive structures.
+4. Each slide should have a title AND a detailed outline description (2-4 sentences explaining what content should appear and how it should be presented).
+5. Do NOT use generic filler content. Every slide must have unique educational value.
+6. Generate all content in English.`
+    }`;
 
     // ---- Call LLM ----
     const result: OutlineResponse = await generateStructuredJSON(prompt, OutlineResponseSchema);
 
     // ---- Determine lesson count for ordering ----
     const existingLessonCount = await db.lesson.count({ where: { courseId } });
+
+    // Build outlineJson with reference source info for slide generation
+    const outlineData = {
+      topic,
+      style,
+      slideCount: clampedCount,
+      language,
+      slides: result.slides,
+      // Store reference info so slide generation can use it
+      referenceContext: referenceContext || undefined,
+      referenceSources: extractedSources.length > 0 ? extractedSources : undefined,
+    };
 
     // ---- Create Lesson + Slide records ----
     let lesson;
@@ -110,13 +198,7 @@ ${isChinese
         where: { id: existingLessonId },
         data: {
           title: result.lessonTitle,
-          outlineJson: JSON.stringify({
-            topic,
-            style,
-            slideCount: clampedCount,
-            language,
-            slides: result.slides,
-          }),
+          outlineJson: JSON.stringify(outlineData),
         },
       });
     } else {
@@ -126,22 +208,16 @@ ${isChinese
           courseId,
           title: result.lessonTitle,
           order: existingLessonCount,
-          outlineJson: JSON.stringify({
-            topic,
-            style,
-            slideCount: clampedCount,
-            language,
-            slides: result.slides,
-          }),
+          outlineJson: JSON.stringify(outlineData),
         },
       });
     }
 
     // Create slides from the outline
-    const slides = await db.slide.createMany({
+    await db.slide.createMany({
       data: result.slides.map((s, i) => ({
         title: s.title,
-        htmlBody: "", // Empty until actual HTML generation
+        htmlBody: "",
         status: "DRAFT_OUTLINE",
         order: i,
         lessonId: lesson.id,

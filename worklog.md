@@ -802,3 +802,29 @@ Stage Summary:
 - Modified: /src/components/lms/pages/create-course-page.tsx (cover upload, modal language+docs)
 - Modified: /src/components/lms/pages/profile-page.tsx (instructor layout fix)
 - All 4 issues resolved and verified
+
+---
+Task ID: audit-fix
+Agent: Main (full re-audit)
+Task: Complete re-audit, test, and fix of AI-powered lesson/slide generation feature
+
+Work Log:
+- Performed full codebase investigation reading all AI-related files, Prisma schema, and searching for legacy code
+- Produced detailed audit report with sections A-J covering: correctly implemented, partially implemented, broken, missing, document reference audit, AI output quality, YouTube behavior differences, security risks, and runtime errors
+- Fixed CRITICAL C1: ai.ts sent system prompts as role:'assistant' instead of role:'system' — affected ALL slide generation, element edits, and inline edits
+- Fixed CRITICAL C2-C3: referenceFileUrls were silently dropped by server (not in TypeScript interface). Created full document extraction pipeline (extract-doc.ts) supporting PDF (pdf-parse), DOCX (mammoth), PPTX (jszip XML parsing), XLSX (jszip), TXT, CSV, MD, RTF. Wired into outline generation API to extract text and inject into AI prompt with truncation for large documents
+- Fixed HIGH C4-C5: Completely rewrote outline and slide generation prompts. Outline prompt now includes: educational progression requirements (intro→concepts→examples→practice→summary), anti-repetition instructions, detailed outline requirements, and reference material grounding instructions. Slide generation prompt now includes: full lesson outline (all slide titles for context), position-aware hints (first slide = intro, last = summary), anti-repetition instructions, reference material grounding, and ImageKit usage guidance
+- Fixed HIGH slide-to-slide coherence: Each slide now receives the full lesson outline (all titles) in its prompt so the AI understands context
+- Fixed MEDIUM sanitizer server-side URL validation: Replaced DOM-based second pass (which only ran on client) with regex-based validation that works on both server and client, plus client-side DOM supplement
+- Verified no legacy Gemini/Genkit/Firebase code in src/
+- Verified no SlideContent or Section.content references remain
+- Installed dependencies: pdf-parse, mammoth, jszip
+- Lint passes clean, dev server compiles without errors
+
+Stage Summary:
+- Created: /src/lib/extract-doc.ts (document text extraction utility)
+- Modified: /src/lib/ai.ts (fixed role: assistant → system in 2 places)
+- Modified: /src/lib/sanitize.ts (server-side URL validation, regex-based post-processing)
+- Modified: /src/app/api/lessons/generate-outline/route.ts (reference doc extraction + improved prompts)
+- Modified: /src/app/api/lessons/generate-slides/route.ts (lesson context + reference context + improved prompts)
+- Installed: pdf-parse, mammoth, jszip

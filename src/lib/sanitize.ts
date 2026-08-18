@@ -34,9 +34,96 @@ function getImageKitDomain(): string | null {
   }
 }
 
-/** Custom hook to strip all on* event handler attributes */
-function stripEventHandlers(node: Element | DocumentFragment) {
-  const walker = document.createTreeWalker(node, NodeFilter.SHOW_ELEMENT);
+/** Regex-based href validation — works on both server and client */
+function isValidHref(href: string): boolean {
+  const trimmed = href.trim().toLowerCase();
+  if (trimmed.startsWith('https://')) return true;
+  if (trimmed.startsWith('#')) return true;
+  return false;
+}
+
+/** Regex-based img src validation — works on both server and client */
+function isValidImgSrc(src: string): boolean {
+  const ikDomain = getImageKitDomain();
+  const trimmed = src.trim();
+
+  // Allow data: URIs (e.g., inline SVGs)
+  if (trimmed.startsWith('data:')) return true;
+
+  if (!ikDomain) {
+    // If ImageKit not configured, allow any https image
+    return trimmed.toLowerCase().startsWith('https://');
+  }
+
+  try {
+    const url = new URL(trimmed);
+    return url.hostname === ikDomain && url.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+/** Regex-based second pass: enforce URL policies & strip on* / style attrs.
+   This replaces the DOM-based second pass so it works on the server too. */
+function serverSidePostProcess(html: string): string {
+  // 1. Validate and remove invalid href on <a> tags
+  html = html.replace(
+    /<a\s+([^>]*?)\bhref=("[^"]*"|'[^']*')([^>]*?)>/gi,
+    (_match, before, href, after) => {
+      const hrefVal = href.replace(/^['"]|['"]$/g, '');
+      if (!isValidHref(hrefVal)) {
+        // Remove the href attribute but keep the <a> tag
+        return `<a ${before}${after}>`;
+      }
+      return _match;
+    },
+  );
+
+  // 2. Validate and remove invalid src on <img> tags
+  html = html.replace(
+    /<img\s+([^>]*?)\bsrc=("[^"]*"|'[^']*')([^>]*?)(\/?)>/gi,
+    (_match, before, src, after, selfClose) => {
+      const srcVal = src.replace(/^['"]|['"]$/g, '');
+      if (!isValidImgSrc(srcVal)) {
+        // Remove the src attribute but keep the <img> tag
+        return `<img ${before}${after}${selfClose}>`;
+      }
+      return _match;
+    },
+  );
+
+  // 3. Strip on* event handler attributes
+  html = html.replace(/\s+on\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '');
+
+  // 4. Strip inline style attributes
+  html = html.replace(/\s+style\s*=\s*("[^"]*"|'[^']*')/gi, '');
+
+  return html;
+}
+
+/** Browser-side post-processing using DOM (more precise, used as supplement on client) */
+function browserSidePostProcess(html: string): string {
+  if (typeof document === 'undefined') return html;
+
+  const temp = document.createElement('div');
+  temp.innerHTML = html;
+
+  temp.querySelectorAll('a').forEach((a) => {
+    const href = a.getAttribute('href');
+    if (href && !isValidHref(href)) {
+      a.removeAttribute('href');
+    }
+  });
+
+  temp.querySelectorAll('img').forEach((img) => {
+    const src = img.getAttribute('src');
+    if (src && !isValidImgSrc(src)) {
+      img.removeAttribute('src');
+    }
+  });
+
+  // Strip on* event handlers and inline styles
+  const walker = document.createTreeWalker(temp, NodeFilter.SHOW_ELEMENT);
   let el: Node | null;
   while ((el = walker.nextNode())) {
     if (el instanceof Element) {
@@ -45,83 +132,34 @@ function stripEventHandlers(node: Element | DocumentFragment) {
         if (attr.name.startsWith('on')) {
           el.removeAttribute(attr.name);
         }
-        // Strip inline style attributes — Tailwind classes only
         if (attr.name === 'style') {
           el.removeAttribute(attr.name);
         }
       }
     }
   }
-}
 
-/** Custom URI policy for href */
-function isValidHref(href: string): boolean {
-  const trimmed = href.trim().toLowerCase();
-  if (trimmed.startsWith('https://')) return true;
-  // Allow same-page anchors
-  if (trimmed.startsWith('#')) return true;
-  return false;
-}
-
-/** Custom URI policy for img src — must be ImageKit domain */
-function isValidImgSrc(src: string): boolean {
-  const ikDomain = getImageKitDomain();
-  if (!ikDomain) {
-    // If ImageKit not configured, allow https images
-    return src.trim().toLowerCase().startsWith('https://');
-  }
-  try {
-    const url = new URL(src.trim());
-    return url.hostname === ikDomain && url.protocol === 'https:';
-  } catch {
-    return false;
-  }
+  return temp.innerHTML;
 }
 
 /** Sanitize AI-generated HTML for safe iframe rendering */
 export function sanitizeHtml(rawHtml: string): string {
-  const ikDomain = getImageKitDomain();
-
   const config: DOMPurify.Config = {
     ALLOWED_TAGS,
     ALLOWED_ATTR: ['class', 'id', 'href', 'src', 'alt', 'width', 'height'],
     FORBIDDEN_TAGS,
-    // Disallow all HTML comments
     ALLOW_COMMENTS: false,
-    // Keep HTML entities intact
     KEEP_CONTENT: true,
   };
 
-  // First pass: DOMPurify with base config
+  // First pass: DOMPurify with base config (removes forbidden tags)
   let clean = DOMPurify.sanitize(rawHtml, config);
 
-  // Second pass: post-processing in DOM to enforce stricter URL policies
-  // DOMPurify's hooks are limited, so we do URL validation in a second pass
-  if (typeof document !== 'undefined') {
-    const temp = document.createElement('div');
-    temp.innerHTML = clean;
-
-    // Validate href attributes on <a> tags
-    temp.querySelectorAll('a').forEach((a) => {
-      const href = a.getAttribute('href');
-      if (href && !isValidHref(href)) {
-        a.removeAttribute('href');
-      }
-    });
-
-    // Validate src attributes on <img> tags
-    temp.querySelectorAll('img').forEach((img) => {
-      const src = img.getAttribute('src');
-      if (src && !isValidImgSrc(src)) {
-        img.removeAttribute('src');
-      }
-    });
-
-    // Strip any on* event handlers and inline styles
-    stripEventHandlers(temp);
-
-    clean = temp.innerHTML;
-  }
+  // Second pass: URL validation and attribute stripping
+  // Server-safe regex pass runs always
+  clean = serverSidePostProcess(clean);
+  // Client-side DOM pass supplements on browser (more precise)
+  clean = browserSidePostProcess(clean);
 
   return clean;
 }

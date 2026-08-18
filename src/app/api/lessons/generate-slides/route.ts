@@ -41,6 +41,8 @@ interface OutlineJson {
   slideCount?: number;
   language?: string;
   slides: OutlineSlide[];
+  referenceContext?: string;
+  referenceSources?: { file: string; charCount: number }[];
 }
 
 // ============================================
@@ -55,7 +57,7 @@ ${styleInstruction ? `STYLE DIRECTION: ${styleInstruction}` : ''}`;
 }
 
 // ============================================
-// Helper: build per-slide user prompt
+// Helper: build per-slide user prompt with full lesson context
 // ============================================
 
 function buildUserPrompt(
@@ -65,18 +67,52 @@ function buildUserPrompt(
   slideIndex: number,
   totalSlides: number,
   isChinese: boolean,
+  allSlides: OutlineSlide[],
+  referenceContext?: string,
 ): string {
   const langInstruction = isChinese
     ? '请使用中文生成所有幻灯片内容。'
     : 'Generate all slide content in English.';
 
+  // Build lesson-level context: show all slide titles so the AI understands the full lesson
+  const lessonOverview = allSlides
+    .map((s, i) => `  ${i + 1}. ${s.title}`)
+    .join('\n');
+
+  // Determine position-based guidance
+  const isFirst = slideIndex === 0;
+  const isLast = slideIndex === totalSlides - 1;
+  let positionHint = '';
+  if (isFirst) {
+    positionHint = isChinese
+      ? '这是第一张幻灯片——应该介绍主题并设定背景。不要深入细节。'
+      : 'This is the FIRST slide — introduce the topic and set context. Do NOT go into details yet.';
+  } else if (isLast) {
+    positionHint = isChinese
+      ? '这是最后一张幻灯片——应该总结关键要点并提供结束感。'
+      : 'This is the LAST slide — summarize key takeaways and provide closure.';
+  }
+
+  // Build reference context section
+  const referenceSection = referenceContext
+    ? `\n\n${isChinese ? '参考资料（生成内容必须基于此材料）:' : 'REFERENCE MATERIAL (generated content MUST be grounded in this source):'}\n<reference>${referenceContext}</reference>`
+    : '';
+
   return `${isChinese ? '课程主题' : 'Lesson topic'}: ${topic}
+
+${isChinese ? '完整课程大纲（所有幻灯片）:' : 'Full lesson outline (all slides):'}
+${lessonOverview}
 
 ${isChinese ? '当前幻灯片' : 'Current slide'}: ${slideTitle} (${isChinese ? '第' : 'slide '}${slideIndex + 1} ${isChinese ? '张，共' : 'of '}${totalSlides})
 
 ${slideOutline ? `${isChinese ? '内容大纲' : 'Content outline'}: ${slideOutline}` : ''}
 
-${langInstruction}`;
+${positionHint}\n
+${isChinese
+    ? '重要要求：\n- 每张幻灯片的布局和结构应该根据内容类型而变化——不要每张都使用相同的布局。\n- 避免与其他幻灯片重复相同的内容或结构。\n- 使用相关的ImageKit AI生成图片来增强视觉传达。\n- 内容应该简洁但信息丰富——这是教学幻灯片，不是文档。'
+    : `IMPORTANT REQUIREMENTS:\n- Vary the layout and structure for each slide based on its content type — do NOT use the same layout for every slide.\n- Do NOT repeat the same content or structure as other slides in this lesson.\n- Use relevant ImageKit AI-generated images to enhance visual communication.\n- Content should be concise but information-rich — these are teaching slides, not documents.`
+  }\n
+${langInstruction}${referenceSection}`;
 }
 
 // ============================================
@@ -178,6 +214,8 @@ export async function POST(request: NextRequest) {
 
       const style = outlineJson.style || 'professional';
       const topic = outlineJson.topic || lesson.title;
+      const allSlides = outlineJson.slides || [];
+      const referenceContext = outlineJson.referenceContext;
       const systemPrompt = buildSystemPrompt(style);
 
       // ---- Process each slide ----
@@ -214,7 +252,7 @@ export async function POST(request: NextRequest) {
           ),
         );
 
-        // Build user prompt for this slide
+        // Build user prompt for this slide — with full lesson context
         const userPrompt = buildUserPrompt(
           topic,
           slide.title,
@@ -222,6 +260,8 @@ export async function POST(request: NextRequest) {
           i,
           totalSlides,
           isChinese,
+          allSlides,
+          referenceContext,
         );
 
         // Stream HTML from AI
