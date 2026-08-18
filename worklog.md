@@ -595,3 +595,123 @@ Stage Summary:
 - Files modified: `src/app/api/lessons/[id]/route.ts`, `src/components/lms/pages/create-course-page.tsx`
 - Design styles: professional (clean, corporate), minimal (whitespace, sans-serif), creative (bold colors, dynamic), academic (text-heavy, formal), tech (dark theme, code-friendly)
 - Next step: Step 3 — Generate slide HTML for each slide in the outline (streaming SSE)
+
+---
+Task ID: 3-api
+Agent: api-slides-generator
+Task: Create POST /api/lessons/generate-slides streaming SSE endpoint
+
+Work Log:
+- Read project worklog and all context files: existing `generate-slide-html/route.ts` (single-slide SSE), `src/lib/ai.ts` (streamSlideHtml, parseSSEStream, SLIDE_HTML_SYSTEM_PROMPT), `src/lib/sanitize.ts` (sanitizeHtml, wrapSlideHtml), `src/lib/slide-styles.ts` (SLIDE_STYLES), Prisma schema (Lesson, Slide, Course models), `src/lib/db.ts`
+- Created `src/app/api/lessons/generate-slides/route.ts` with the following implementation:
+  - **Request validation**: Accepts `{ lessonId: string, language?: string }`, validates lessonId presence
+  - **DB fetch**: Fetches lesson with `include: { course, slides: { where: { status: 'DRAFT_OUTLINE' }, orderBy: { order: 'asc' } } }`
+  - **Language resolution**: Uses provided language, falls back to `course.language`, then defaults to `'english'`
+  - **OutlineJson parsing**: Parses `lesson.outlineJson` to extract topic, style, and per-slide outline text; gracefully handles missing/malformed JSON
+  - **Style-specific system prompt**: Defines `STYLE_INSTRUCTIONS` map with 5 style additions (professional, minimal, creative, academic, tech); appends style instruction to `SLIDE_HTML_SYSTEM_PROMPT` via `buildSystemPrompt()`
+  - **Per-slide user prompt**: `buildUserPrompt()` includes lesson topic, current slide title, slide outline from outlineJson, slide position (N of total), and Chinese/English language instruction
+  - **Continuous SSE stream**: Single `ReadableStream` with manual `controller.enqueue()` — stream does NOT close between slides
+  - **Per-slide flow**:
+    1. Updates slide status to `GENERATING` in DB
+    2. Emits `slide_start` event with `{ slideId, slideTitle, slideIndex, totalSlides }`
+    3. Calls `streamSlideHtml(userPrompt, systemPrompt)` → `parseSSEStream()` → reads all chunks
+    4. Emits `chunk` event with `{ slideId, html: chunkText }` for each text delta
+    5. On completion: `sanitizeHtml()` → `wrapSlideHtml()` → saves `htmlBody` + status `READY` to DB
+    6. Emits `slide_complete` with `{ slideId, slideTitle, htmlBody }`
+  - **Error handling per slide**: On failure, updates slide status to `ERROR`, emits `slide_error` with `{ slideId, error }`, continues to next slide
+  - **Final event**: Emits `all_complete` with `{ lessonId, slidesGenerated: N }`
+  - **Outline matching**: Matches slide to outline entry by title; falls back to empty outline if no match found
+- Lint: zero errors
+- Dev server compiles cleanly
+
+Stage Summary:
+- Created `/api/lessons/generate-slides` — batch SSE streaming endpoint that generates HTML for all DRAFT_OUTLINE slides in a lesson
+- One continuous SSE stream for all slides with 5 event types: `slide_start`, `chunk`, `slide_complete`, `slide_error`, `all_complete`
+- Style-aware system prompt built from SLIDE_HTML_SYSTEM_PROMPT + style-specific instructions
+- Per-slide error isolation: individual slide failures don't abort the batch
+- Step 3 (Batch Slide HTML Generation) of the AI Lesson Generation plan is COMPLETE
+
+---
+Task ID: 3-frontend-unify
+Agent: main
+Task: Unify create-course-page into single AI flow + implement slide HTML generation frontend
+
+Work Log:
+- Removed Quick Generate tab and LessonDraft/LessonCard components
+- Single unified outline-based AI generation flow
+- One button: "Generate Lesson with AI" (Wand2 icon)
+- Modal: Topic + Slide Count + Style → Generate Outline → Edit → Generate Slides
+- Implemented handleGenerateSlides with SSE streaming
+- Per-slide progress indicators (pending/generating/complete/error)
+- Live streaming iframe preview during generation
+- Progress bar with cancel button
+- Fixed JSX parser error in srcDoc attribute
+- Lint: zero errors
+
+Stage Summary:
+- Step 2 (Generate Outline) and Step 3 (Generate Slide HTML) of AI Lesson Generation plan are COMPLETE
+- Files modified: src/components/lms/pages/create-course-page.tsx
+- Files created: src/app/api/lessons/generate-slides/route.ts
+- UI is now unified: single "Generate Lesson with AI" button, no more two-tab modal
+
+---
+Task ID: 3-verify
+Agent: main
+Task: Verify unified UI with agent-browser
+
+Work Log:
+- Ran bun run lint: PASSED (no errors or warnings)
+- Checked dev server: RUNNING (port 3000, serving requests, recent 200 responses confirmed)
+- Agent-browser verification:
+  1. Navigated to / route → Home page loaded successfully with login UI
+  2. Logged in as instructor via quick login button
+  3. Navigated to Create Course page via nav button
+  4. Verified Create Course page loads with form fields (Title, Description, Category, Language)
+  5. Verified exactly ONE button for lesson creation: "Generate Lesson with AI" (ref=e17)
+  6. Verified button has lucide-wand-sparkles (Wand2) icon via innerHTML inspection
+  7. Clicked "Generate Lesson with AI" button → modal opened
+  8. Verified modal contains:
+     - Topic field (textbox, placeholder: "e.g., Introduction to Data Science")
+     - Slide Count field (spinbutton, default value: 8, with +/- buttons)
+     - Design Style field (combobox, default: "Professional Clean, corporate")
+     - Cancel and Generate Outline buttons
+  9. Verified NO "+ Add" button exists on page (DOM query returned 0 results)
+  10. Verified NO tab switcher in modal (DOM query for role="tab" returned 0 results)
+  11. Screenshots saved: screenshot-home.png, screenshot-create-course.png, screenshot-modal.png
+
+Stage Summary:
+- All 4 verification checks PASSED:
+  ✅ Only ONE button for AI generation ("Generate Lesson with AI" with Wand2/wand-sparkles icon)
+  ✅ NO "+ Add" button present anywhere on the page
+  ✅ NO tab switcher in the modal
+  ✅ Modal shows Topic, Slide Count, and Design Style fields
+- No issues found. The unified UI is working correctly.
+
+---
+Task ID: 3-unified-implementation
+Agent: main
+Task: Unify AI generation flow + implement Step 3 (Generate Slide HTML)
+
+Work Log:
+- Removed Quick Generate tab and LessonDraft/LessonCard/buildLivePreviewDoc components entirely
+- Unified to single AI generation flow: one "Generate Lesson with AI" button (Wand2 icon)
+- Modal now has no tabs: always shows Topic → Slide Count → Style → Generate Outline → Edit → Generate Slides
+- Removed "+ Add" button from lessons panel header
+- Created POST /api/lessons/generate-slides endpoint (streaming SSE for batch slide HTML generation)
+- Implemented handleGenerateSlides in frontend with full SSE streaming
+- Per-slide progress indicators: pending → generating (spinner) → complete (checkmark) → error (alert)
+- Live streaming iframe preview during generation with cursor animation
+- Progress bar with cancel button during generation
+- OutlineLessonCard shows: green checkmark when all complete, pulse animation during generation, Draft badge for ungenerated
+- First completed slide preview iframe shown when lesson has generated slides
+- Fixed JSX parser error: complex srcDoc expression extracted to IIFE variable
+- Fixed malformed JSX comment (missing closing brace)
+- Lint: zero errors, zero warnings
+- Agent-browser verified: single AI button, no +Add button, no tabs in modal, correct form fields
+
+Stage Summary:
+- Step 2 (Generate Outline) COMPLETE
+- Step 3 (Generate Slide HTML) COMPLETE  
+- Files created: src/app/api/lessons/generate-slides/route.ts
+- Files modified: src/components/lms/pages/create-course-page.tsx (full rewrite, ~530 lines → clean unified flow)
+- Next step: Step 4 — remaining steps in the 15-step plan
