@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
   ArrowLeft,
-  Upload,
   Plus,
   Trash2,
   FileText,
@@ -14,6 +13,8 @@ import {
   ImageIcon,
   X,
   FileUp,
+  Sparkles,
+  Eye,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -54,6 +55,11 @@ interface SectionDraft {
   language: string;
 }
 
+interface OutlineSection {
+  title: string;
+  summary: string;
+}
+
 // ============================================
 // Create Course Page Component
 // ============================================
@@ -92,6 +98,20 @@ export function CreateCoursePage() {
   const [sectionLanguage, setSectionLanguage] = useState("english");
   const [sectionPdfName, setSectionPdfName] = useState("");
 
+  // ---- Live streaming state ----
+  const [streamingHtml, setStreamingHtml] = useState("");
+  const [showStreamPreview, setShowStreamPreview] = useState(false);
+   const streamPreviewRef = useRef<HTMLDivElement>(null);
+
+  // ---- Outline generation state ----
+  const [outlineGenerating, setOutlineGenerating] = useState(false);
+  const [outlineModalOpen, setOutlineModalOpen] = useState(false);
+  const [outlineTopic, setOutlineTopic] = useState("");
+  const [outlineSections, setOutlineSections] = useState<OutlineSection[]>([]);
+
+  // ---- Expanded section preview ----
+  const [expandedSectionId, setExpandedSectionId] = useState<string | null>(null);
+
   // ---- Pre-fill title from hero prompt ----
   useEffect(() => {
     if (createPrompt) {
@@ -103,6 +123,7 @@ export function CreateCoursePage() {
   // ---- Refs ----
   const fileInputRef = useRef<HTMLInputElement>(null);
   const sectionFileInputRef = useRef<HTMLInputElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // ---- Fetch categories ----
   useEffect(() => {
@@ -125,7 +146,6 @@ export function CreateCoursePage() {
 
   // ---- Cover image handlers ----
   const handleCoverUpload = () => {
-    // In sandbox, simulate file selection
     setUrlInputOpen(true);
   };
 
@@ -149,6 +169,8 @@ export function CreateCoursePage() {
     setSectionPrompt("");
     setSectionLanguage(language);
     setSectionPdfName("");
+    setStreamingHtml("");
+    setShowStreamPreview(false);
     setModalOpen(true);
   };
 
@@ -167,6 +189,11 @@ export function CreateCoursePage() {
     }
 
     setGenerating(true);
+    setStreamingHtml("");
+    setShowStreamPreview(true);
+
+    const abort = new AbortController();
+    abortControllerRef.current = abort;
 
     try {
       const res = await fetch("/api/generate-slide-html", {
@@ -177,20 +204,23 @@ export function CreateCoursePage() {
           prompt: sectionPrompt.trim(),
           language: sectionLanguage,
         }),
+        signal: abort.signal,
       });
 
       if (!res.ok || !res.body) {
         toast.error("Failed to start generation");
         setGenerating(false);
+        setShowStreamPreview(false);
         return;
       }
 
-      // Read SSE stream
+      // Read SSE stream with live preview
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
       let htmlBody = "";
       let sectionTitle = sectionName.trim();
+      let rawHtml = ""; // accumulating raw HTML fragments for live preview
 
       while (true) {
         const { done, value } = await reader.read();
@@ -210,6 +240,14 @@ export function CreateCoursePage() {
             if (data.sectionTitle) {
               sectionTitle = data.sectionTitle;
             }
+            if (data.html) {
+              rawHtml += data.html;
+              // Build live preview from accumulated raw HTML
+              const previewDoc = buildLivePreviewDoc(rawHtml, sectionTitle);
+              setStreamingHtml(previewDoc);
+              // Auto-scroll preview into view
+              streamPreviewRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+            }
           } catch {
             // skip malformed JSON
           }
@@ -219,6 +257,7 @@ export function CreateCoursePage() {
       if (!htmlBody) {
         toast.error("Generation returned empty content");
         setGenerating(false);
+        setShowStreamPreview(false);
         return;
       }
 
@@ -232,16 +271,28 @@ export function CreateCoursePage() {
 
       setSections((prev) => [...prev, newSection]);
       setModalOpen(false);
-      toast.success(`Section "${sectionTitle}" generated successfully`);
-    } catch {
+      setShowStreamPreview(false);
+      setStreamingHtml("");
+      toast.success(`Section \"${sectionTitle}\" generated successfully`);
+    } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") return;
       toast.error("Failed to generate section. Please try again.");
     } finally {
       setGenerating(false);
+      abortControllerRef.current = null;
     }
   }, [sectionName, sectionPrompt, sectionLanguage, sections.length]);
 
+  const handleCancelGeneration = () => {
+    abortControllerRef.current?.abort();
+    setGenerating(false);
+    setShowStreamPreview(false);
+    setStreamingHtml("");
+  };
+
   const handleDeleteSection = (id: string) => {
     setSections((prev) => prev.filter((s) => s.id !== id));
+    if (expandedSectionId === id) setExpandedSectionId(null);
   };
 
   const handleMoveSection = (index: number, direction: "up" | "down") => {
@@ -255,10 +306,80 @@ export function CreateCoursePage() {
     setSections(newSections);
   };
 
+  // ---- Outline generation ----
+  const handleOpenOutlineModal = () => {
+    setOutlineTopic(title || "");
+    setOutlineSections([]);
+    setOutlineModalOpen(true);
+  };
+
+  const handleGenerateOutline = useCallback(async () => {
+    if (!outlineTopic.trim()) {
+      toast.error("Please enter a course topic");
+      return;
+    }
+
+    setOutlineGenerating(true);
+    try {
+      const res = await fetch("/api/generate-outline", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          topic: outlineTopic.trim(),
+          prompt: `Create a comprehensive course outline for: ${outlineTopic.trim()}. Include 4-6 sections that progressively build understanding.`,
+          language,
+        }),
+      });
+
+      const json = await res.json();
+      if (json.success && json.data) {
+        setOutlineSections(json.data.sections || []);
+        if (json.data.title && !title) {
+          setTitle(json.data.title);
+        }
+        toast.success("Outline generated! Select sections to generate.");
+      } else {
+        toast.error(json.error || "Failed to generate outline");
+      }
+    } catch {
+      toast.error("Failed to generate outline. Please try again.");
+    } finally {
+      setOutlineGenerating(false);
+    }
+  }, [outlineTopic, language, title]);
+
+  const handleAddOutlineSections = () => {
+    // Add outline sections as drafts (without htmlBody yet)
+    const newDrafts: SectionDraft[] = outlineSections.map((sec, i) => ({
+      id: `sec_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 8)}`,
+      title: sec.title,
+      totalPages: 1,
+      htmlBody: "",
+      language,
+    }));
+
+    const total = sections.length + newDrafts.length;
+    if (total > MAX_SECTIONS) {
+      toast.error(`Can only add ${MAX_SECTIONS - sections.length} more sections`);
+      return;
+    }
+
+    setSections((prev) => [...prev, ...newDrafts]);
+    setOutlineModalOpen(false);
+    toast.success(`${newDrafts.length} sections added. Click the generate button on each to create content.`);
+  };
+
   // ---- Form submission ----
   const handleSave = async () => {
     if (!title.trim()) {
       toast.error("Course title is required");
+      return;
+    }
+
+    // Check if any section is missing htmlBody
+    const missingContent = sections.filter((s) => !s.htmlBody);
+    if (missingContent.length > 0) {
+      toast.error(`${missingContent.length} section(s) have no content yet. Generate content for all sections first.`);
       return;
     }
 
@@ -309,7 +430,6 @@ export function CreateCoursePage() {
     const file = e.target.files?.[0];
     if (file) {
       setSectionPdfName(file.name);
-      // If no prompt yet, use the filename
       if (!sectionPrompt.trim()) {
         const nameWithoutExt = file.name.replace(/\.pdf$/i, "");
         setSectionPrompt(
@@ -379,7 +499,7 @@ export function CreateCoursePage() {
                         Upload cover image
                       </p>
                       <p className="mt-0.5 text-xs text-muted-foreground">
-                        Recommended 1920x1080
+                        Recommended 1920×1080
                       </p>
                     </div>
                   </button>
@@ -427,7 +547,7 @@ export function CreateCoursePage() {
                     Course Title <span className="text-destructive">*</span>
                   </Label>
                   <span className="text-xs text-muted-foreground">
-                    {title.length}/100
+                    {title.length}/{MAX_TITLE_LENGTH}
                   </span>
                 </div>
                 <Input
@@ -556,16 +676,29 @@ export function CreateCoursePage() {
                     {sections.length}/{MAX_SECTIONS}
                   </Badge>
                 </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={handleOpenModal}
-                  disabled={sections.length >= MAX_SECTIONS}
-                  className="gap-1.5"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  Add Section
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleOpenOutlineModal}
+                    disabled={sections.length >= MAX_SECTIONS}
+                    className="gap-1.5"
+                    title="AI Generate Outline"
+                  >
+                    <Sparkles className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">Outline</span>
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleOpenModal}
+                    disabled={sections.length >= MAX_SECTIONS}
+                    className="gap-1.5"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Add
+                  </Button>
+                </div>
               </div>
 
               {/* Section List */}
@@ -578,66 +711,27 @@ export function CreateCoursePage() {
                     No sections yet
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground/70">
-                    Click "+ Add Section" to get started
+                    Click <span className="font-medium text-foreground">Outline</span> to AI-generate a structure, or <span className="font-medium text-foreground">+ Add</span> manually
                   </p>
                 </div>
               ) : (
-                <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
+                <div className="space-y-2 max-h-[600px] overflow-y-auto pr-1">
                   {sections.map((section, index) => (
-                    <div
+                    <SectionCard
                       key={section.id}
-                      className="group flex items-center gap-3 rounded-lg border border-border/60 bg-card p-3 transition-colors hover:bg-accent/30"
-                    >
-                      {/* Grip / Drag Handle */}
-                      <div className="flex flex-col items-center gap-0.5 text-muted-foreground/50">
-                        <button
-                          onClick={() =>
-                            handleMoveSection(index, "up")
-                          }
-                          disabled={index === 0}
-                          className="rounded p-0.5 hover:text-muted-foreground disabled:opacity-30 disabled:hover:text-muted-foreground/50"
-                        >
-                          <ChevronUp className="h-3.5 w-3.5" />
-                        </button>
-                        <GripVertical className="h-3.5 w-3.5" />
-                        <button
-                          onClick={() =>
-                            handleMoveSection(index, "down")
-                          }
-                          disabled={index === sections.length - 1}
-                          className="rounded p-0.5 hover:text-muted-foreground disabled:opacity-30 disabled:hover:text-muted-foreground/50"
-                        >
-                          <ChevronDown className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-
-                      {/* Number Badge */}
-                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
-                        {index + 1}
-                      </div>
-
-                      {/* Content */}
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-foreground">
-                          {section.title}
-                        </p>
-                        <p className="mt-0.5 text-xs text-muted-foreground">
-                          {section.totalPages} pages
-                          <span className="mx-1.5">·</span>
-                          {section.language === "chinese"
-                            ? "中文"
-                            : "English"}
-                        </p>
-                      </div>
-
-                      {/* Delete Button */}
-                      <button
-                        onClick={() => handleDeleteSection(section.id)}
-                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground/50 opacity-0 transition-all hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
+                      section={section}
+                      index={index}
+                      totalCount={sections.length}
+                      expanded={expandedSectionId === section.id}
+                      onToggleExpand={() =>
+                        setExpandedSectionId((prev) =>
+                          prev === section.id ? null : section.id
+                        )
+                      }
+                      onMoveUp={() => handleMoveSection(index, "up")}
+                      onMoveDown={() => handleMoveSection(index, "down")}
+                      onDelete={() => handleDeleteSection(section.id)}
+                    />
                   ))}
                 </div>
               )}
@@ -647,13 +741,15 @@ export function CreateCoursePage() {
       </div>
 
       {/* ======== Add Section Modal ======== */}
-      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent className="sm:max-w-lg">
+      <Dialog open={modalOpen} onOpenChange={(open) => { if (!open && generating) return; setModalOpen(open); }}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Add Section</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              Generate Section with AI
+            </DialogTitle>
             <DialogDescription>
-              Generate course content with AI. Provide a section name and prompt to
-              create slides.
+              Provide a section name and prompt. The AI will generate slide content in real time.
             </DialogDescription>
           </DialogHeader>
 
@@ -677,6 +773,7 @@ export function CreateCoursePage() {
                   }
                 }}
                 className="h-10"
+                disabled={generating}
               />
             </div>
 
@@ -684,22 +781,23 @@ export function CreateCoursePage() {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label className="text-sm font-medium">
-                  Course Prompt <span className="text-destructive">*</span>
+                  Content Prompt <span className="text-destructive">*</span>
                 </Label>
                 <span className="text-xs text-muted-foreground">
                   {sectionPrompt.length}/{MAX_DESC_LENGTH}
                 </span>
               </div>
               <Textarea
-                placeholder="Prompt anything you want to generate..."
+                placeholder="Describe the content you want to generate..."
                 value={sectionPrompt}
                 onChange={(e) => {
                   if (e.target.value.length <= MAX_DESC_LENGTH) {
                     setSectionPrompt(e.target.value);
                   }
                 }}
-                rows={5}
+                rows={4}
                 className="resize-none"
+                disabled={generating}
               />
             </div>
 
@@ -709,7 +807,8 @@ export function CreateCoursePage() {
               <button
                 type="button"
                 onClick={handleSectionPdfUpload}
-                className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-border/70 bg-muted/20 px-4 py-6 text-sm text-muted-foreground transition-colors hover:border-primary/50 hover:bg-muted/30"
+                disabled={generating}
+                className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-border/70 bg-muted/20 px-4 py-5 text-sm text-muted-foreground transition-colors hover:border-primary/50 hover:bg-muted/30 disabled:opacity-50"
               >
                 <FileUp className="h-4 w-4" />
                 {sectionPdfName ? (
@@ -738,6 +837,7 @@ export function CreateCoursePage() {
                 value={sectionLanguage}
                 onValueChange={setSectionLanguage}
                 className="flex gap-6"
+                disabled={generating}
               >
                 <div className="flex items-center gap-2">
                   <RadioGroupItem
@@ -765,33 +865,348 @@ export function CreateCoursePage() {
                 </div>
               </RadioGroup>
             </div>
+
+            {/* ---- Live Streaming Preview ---- */}
+            {showStreamPreview && (
+              <div ref={streamPreviewRef} className="space-y-2">
+                <div className="flex items-center gap-2">
+                  {generating && (
+                    <div className="flex items-center gap-1.5 text-xs text-primary">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      <span>Generating live preview...</span>
+                    </div>
+                  )}
+                  {!generating && streamingHtml && (
+                    <div className="flex items-center gap-1.5 text-xs text-emerald-600">
+                      <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
+                      <span>Generation complete</span>
+                    </div>
+                  )}
+                </div>
+                <div className="rounded-lg border border-border/60 overflow-hidden bg-muted/10">
+                  <iframe
+                    srcDoc={streamingHtml || "<div style=\"display:flex;align-items:center;justify-content:center;height:100%;color:#999;font-size:14px;\">Waiting for content...</div>"}
+                    sandbox="allow-same-origin"
+                    className="w-full border-0"
+                    style={{ aspectRatio: "16/9" }}
+                    title="Live generation preview"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="mt-2">
+            {generating ? (
+              <Button
+                variant="destructive"
+                onClick={handleCancelGeneration}
+                className="gap-2"
+              >
+                <X className="h-4 w-4" />
+                Cancel Generation
+              </Button>
+            ) : (
+              <>
+                <Button
+                  variant="ghost"
+                  onClick={() => setModalOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleGenerateSection}
+                  disabled={!sectionName.trim() || !sectionPrompt.trim()}
+                  className="gap-2"
+                >
+                  <Sparkles className="h-4 w-4" />
+                  Generate
+                </Button>
+              </>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ======== AI Outline Generation Modal ======== */}
+      <Dialog open={outlineModalOpen} onOpenChange={setOutlineModalOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              AI Course Outline
+            </DialogTitle>
+            <DialogDescription>
+              Enter a topic and the AI will generate a structured course outline with suggested sections.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">
+                Course Topic <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                placeholder="e.g., Introduction to Data Science"
+                value={outlineTopic}
+                onChange={(e) => setOutlineTopic(e.target.value)}
+                disabled={outlineGenerating}
+                className="h-10"
+              />
+            </div>
+
+            {outlineSections.length > 0 && (
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">
+                  Generated Outline
+                  <Badge variant="secondary" className="ml-2 text-xs">
+                    {outlineSections.length} sections
+                  </Badge>
+                </Label>
+                <div className="rounded-lg border border-border/60 bg-muted/20 p-3 space-y-2 max-h-64 overflow-y-auto">
+                  {outlineSections.map((sec, i) => (
+                    <div
+                      key={i}
+                      className="flex items-start gap-3 rounded-md bg-background p-2.5 border border-border/40"
+                    >
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+                        {i + 1}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-foreground">{sec.title}</p>
+                        <p className="mt-0.5 text-xs text-muted-foreground leading-relaxed">
+                          {sec.summary}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <DialogFooter className="mt-2">
             <Button
               variant="ghost"
-              onClick={() => setModalOpen(false)}
-              disabled={generating}
+              onClick={() => setOutlineModalOpen(false)}
+              disabled={outlineGenerating}
             >
               Cancel
             </Button>
-            <Button
-              onClick={handleGenerateSection}
-              disabled={generating || !sectionName.trim() || !sectionPrompt.trim()}
-              className="gap-2"
-            >
-              {generating ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Generating...
-                </>
-              ) : (
-                "Generate"
-              )}
-            </Button>
+            {outlineSections.length === 0 ? (
+              <Button
+                onClick={handleGenerateOutline}
+                disabled={!outlineTopic.trim() || outlineGenerating}
+                className="gap-2"
+              >
+                {outlineGenerating ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-4 w-4" />
+                    Generate Outline
+                  </>
+                )}
+              </Button>
+            ) : (
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={handleGenerateOutline}
+                  disabled={outlineGenerating}
+                  className="gap-2"
+                >
+                  <Sparkles className="h-4 w-4" />
+                  Regenerate
+                </Button>
+                <Button
+                  onClick={handleAddOutlineSections}
+                  disabled={sections.length + outlineSections.length > MAX_SECTIONS}
+                  className="gap-2"
+                >
+                  Add {outlineSections.length} Sections
+                </Button>
+              </div>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
   );
+}
+
+// ============================================
+// Section Card with mini preview
+// ============================================
+
+interface SectionCardProps {
+  section: SectionDraft;
+  index: number;
+  totalCount: number;
+  expanded: boolean;
+  onToggleExpand: () => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  onDelete: () => void;
+}
+
+function SectionCard({
+  section,
+  index,
+  totalCount,
+  expanded,
+  onToggleExpand,
+  onMoveUp,
+  onMoveDown,
+  onDelete,
+}: SectionCardProps) {
+  const hasContent = !!section.htmlBody;
+
+  return (
+    <div
+      className={`group rounded-lg border transition-colors ${
+        hasContent
+          ? "border-border/60 bg-card hover:bg-accent/30"
+          : "border-dashed border-amber-400/50 bg-amber-50/50 dark:bg-amber-950/10"
+      }`}
+    >
+      <div className="flex items-center gap-3 p-3">
+        {/* Grip / Reorder */}
+        <div className="flex flex-col items-center gap-0.5 text-muted-foreground/50">
+          <button
+            onClick={onMoveUp}
+            disabled={index === 0}
+            className="rounded p-0.5 hover:text-muted-foreground disabled:opacity-30 disabled:hover:text-muted-foreground/50"
+            aria-label="Move section up"
+          >
+            <ChevronUp className="h-3.5 w-3.5" />
+          </button>
+          <GripVertical className="h-3.5 w-3.5" />
+          <button
+            onClick={onMoveDown}
+            disabled={index === totalCount - 1}
+            className="rounded p-0.5 hover:text-muted-foreground disabled:opacity-30 disabled:hover:text-muted-foreground/50"
+            aria-label="Move section down"
+          >
+            <ChevronDown className="h-3.5 w-3.5" />
+          </button>
+        </div>
+
+        {/* Number Badge */}
+        <div
+          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
+            hasContent
+              ? "bg-primary/10 text-primary"
+              : "bg-amber-400/20 text-amber-600"
+          }`}
+        >
+          {index + 1}
+        </div>
+
+        {/* Content */}
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium text-foreground">
+            {section.title}
+          </p>
+          <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+            {hasContent ? (
+              <>
+                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 dark:bg-emerald-900/30 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-400">
+                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                  Ready
+                </span>
+                <span>·</span>
+                <span>{section.language === "chinese" ? "中文" : "English"}</span>
+              </>
+            ) : (
+              <span className="rounded-full bg-amber-100 dark:bg-amber-900/30 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-400">
+                No content
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Preview Toggle */}
+        {hasContent && (
+          <button
+            onClick={onToggleExpand}
+            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors ${
+              expanded
+                ? "bg-primary/10 text-primary"
+                : "text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted"
+            }`}
+            title={expanded ? "Hide preview" : "Show preview"}
+          >
+            <Eye className="h-3.5 w-3.5" />
+          </button>
+        )}
+
+        {/* Delete Button */}
+        <button
+          onClick={onDelete}
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground/50 opacity-0 transition-all hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
+          aria-label="Delete section"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+      </div>
+
+      {/* ---- Expanded iframe preview ---- */}
+      {expanded && hasContent && (
+        <div className="border-t border-border/40 px-3 pb-3 pt-2">
+          <div className="rounded-md overflow-hidden border border-border/40">
+            <iframe
+              srcDoc={section.htmlBody}
+              sandbox="allow-same-origin"
+              className="w-full border-0"
+              style={{ aspectRatio: "16/9" }}
+              title={`Preview of ${section.title}`}
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================
+// Helpers
+// ============================================
+
+/** Build a live preview document from raw streaming HTML fragments */
+function buildLivePreviewDoc(rawHtml: string, title: string): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>${escapeAttr(title)}</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
+  * { box-sizing: border-box; }
+  .streaming-cursor::after {
+    content: '▊';
+    animation: blink 0.7s infinite;
+    color: currentColor;
+    opacity: 0.7;
+  }
+  @keyframes blink { 0%, 50% { opacity: 0.7; } 51%, 100% { opacity: 0; } }
+</style>
+</head>
+<body class="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">
+  <div class="streaming-cursor">${rawHtml}</div>
+</body>
+</html>`;
+}
+
+function escapeAttr(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }

@@ -17,7 +17,7 @@
 ✅ **Phase 9 (WebDevReview #8)** — Analytics dashboard, course recommendations engine, notification center with persistent DB storage, 3-way dark mode toggle (light/dark/system), home page hero overhaul (floating orbs, typing animation, CSS parallax, animated counters, category pills), empty states polish, button ripple/glow effects, card hover micro-interactions
 ✅ **Phase 10 (WebDevReview #9)** — Enhanced home page (animated stats bar, featured courses carousel, challenge cards with streak data, study tips, social feed), enhanced course detail (tabbed content, section reordering, enrollment flow), classroom enhancements (slide transition animations, study timer redesign, keyboard hints, progress dots)
 ✅ **Phase 11 (WebDevReview #10)** — Deep visual polish (button glow/ripple, card hover lifts, gradient text, animated underlines, frosted glass, mobile touch targets 44px), bottom nav, daily challenge gamification, certificate redesign, empty state illustrations, profile page redesign, course cards hover effects, expanded accessibility (ARIA, focus rings, semantic HTML, sr-only labels)
-✅ **Phase 12 (Bug Fix Session)** — Fixed 502 Bad Gateway (dev server down), logout→home bug, floating actions click bug, student seeing create course, instructor seeing learning components, navbar wrong label
+✅ **Phase 13 (AI Lesson Generation)** — Complete implementation of AI-powered slide generation feature: HTML sanitizer, z-ai-web-dev-sdk streaming wrapper, ImageKit URL builder, 3 new API routes (streaming HTML, outline, inline edit), classroom iframe renderer, create-course live streaming preview, AI outline generation, section mini-preview, inline AI edit toolbar, PUT sections endpoint, PPTX courseId support, seed data rewrite, deprecated SlideContent cleanup
 
 ---
 
@@ -349,3 +349,37 @@ Replace all 14+ sections in `seed.ts` with proper `htmlBody` fields containing T
 2. **Quiz interactivity**: The old quiz slide had client-side interactivity (click answer, get feedback). In the iframe model, quizzes become static HTML. If interactive quizzes are needed, they'd need to be implemented as React components outside the iframe (hybrid approach) — but user said single rendering path. Confirm: are quizzes okay as static HTML in iframe?
 3. **ImageKit env values**: User said they'll paste real values later. Implementation should work with placeholder values and fail gracefully if ImageKit is not configured.
 4. **PPTX download**: Current `generate-pptx` endpoint reads `SlideContent[]` format. Will need to be updated or removed since the data model changes.
+
+---
+Task ID: pptx-fix-and-ai-edit
+Agent: Main
+
+Work Log:
+- Fixed `src/app/api/generate-pptx/route.ts` to support `courseId` in addition to `sections[]`
+  - Added `import { db } from '@/lib/db'`
+  - Added `courseId?: string` to `GeneratePptxRequest` interface
+  - When `sections` is not provided but `courseId` is, fetches all sections for that course from the database using Prisma (`db.section.findMany`), ordered by `order` field, selecting only `title` and `htmlBody`
+  - Filters out sections without `htmlBody`, maps to `{ title, htmlBody }[]`
+  - Falls through to existing PPTX generation logic with `resolvedSections`
+  - Updated error message to be more descriptive
+- Added inline AI edit feature to classroom page (`src/components/lms/pages/classroom-page.tsx`)
+  - Added `Wand2` icon import from lucide-react
+  - Added `Textarea` import from `@/components/ui/textarea`
+  - Added 3 new state variables: `showAiEdit`, `aiEditInstruction`, `aiEditLoading`
+  - Added `handleAiEdit` callback that:
+    - Calls `POST /api/generate-slide-inline-edit` with `{ htmlBody, instruction, slideTitle }`
+    - On success, updates `localState.htmlBody` with the new HTML
+    - Shows toast on success/error
+    - Persists updated `htmlBody` to DB via `PUT /api/sections/${sectionId}`
+    - Closes the edit panel and resets instruction
+  - Added floating toggle button (`fixed bottom-4 right-4 z-50`, round, Wand2 icon)
+  - Added floating AI edit panel (`fixed bottom-20 right-4 z-50`, card with border, shadow, bg-card)
+    - Contains title "AI Edit" with Wand2 icon, Textarea for instruction, Apply/Cancel buttons
+    - Apply button shows Loader2 spinner when loading
+    - Cancel button clears instruction and closes panel
+
+Stage Summary:
+- PPTX endpoint now accepts `{ courseId, courseName }` or `{ sections, courseName }` — resolves sections from DB when only courseId is provided
+- Classroom page now has a floating AI edit wand button (bottom-right) that opens a panel for natural language slide editing via the existing `/api/generate-slide-inline-edit` endpoint
+- All changes pass ESLint with zero errors
+- Dev server compiles successfully

@@ -16,6 +16,7 @@ import {
   Trash2,
   Send,
   FileDown,
+  Wand2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,7 @@ import {
   SheetDescription,
 } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Textarea } from "@/components/ui/textarea";
 import { useNavigationStore, useUserStore } from "@/stores/lms-store";
 import type { ClassroomState } from "@/types/lms";
 import { StudyTimer } from "@/components/lms/study-timer";
@@ -64,6 +66,11 @@ export function ClassroomPage() {
   const [showKeyboardHint, setShowKeyboardHint] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
   const [downloadingPptx, setDownloadingPptx] = useState(false);
+
+  // ─── AI Edit State ─────────────────────────────
+  const [showAiEdit, setShowAiEdit] = useState(false);
+  const [aiEditInstruction, setAiEditInstruction] = useState("");
+  const [aiEditLoading, setAiEditLoading] = useState(false);
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 1023px)");
@@ -359,6 +366,53 @@ export function ClassroomPage() {
       setDownloadingPptx(false);
     }
   }, [localState, downloadingPptx]);
+
+  // ─── AI Inline Edit ──────────────────────────────
+  const handleAiEdit = useCallback(async () => {
+    if (!localState || aiEditLoading || !aiEditInstruction.trim()) return;
+    setAiEditLoading(true);
+    try {
+      const res = await fetch("/api/generate-slide-inline-edit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          htmlBody: localState.htmlBody,
+          instruction: aiEditInstruction.trim(),
+          slideTitle: localState.sectionTitle,
+        }),
+      });
+      if (!res.ok) {
+        toast.error("AI edit failed");
+        return;
+      }
+      const json = await res.json();
+      if (json.success && json.data?.htmlBody) {
+        const newHtmlBody = json.data.htmlBody;
+        setLocalState((prev) =>
+          prev ? { ...prev, htmlBody: newHtmlBody } : prev
+        );
+        toast.success("AI edit applied");
+        // Persist to database
+        try {
+          await fetch(`/api/sections/${localState.sectionId}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ htmlBody: newHtmlBody }),
+          });
+        } catch {
+          /* best-effort save */
+        }
+      } else {
+        toast.error("AI edit returned no content");
+      }
+    } catch {
+      toast.error("AI edit request failed");
+    } finally {
+      setAiEditLoading(false);
+      setShowAiEdit(false);
+      setAiEditInstruction("");
+    }
+  }, [localState, aiEditLoading, aiEditInstruction]);
 
   // ─── No state guard ─────────────────────────────
   if (!localState) {
@@ -689,6 +743,54 @@ export function ClassroomPage() {
           </div>
         </div>
       </footer>
+
+      {/* ─── AI Edit Floating Panel ────────── */}
+      {showAiEdit && (
+        <div className="fixed bottom-20 right-4 z-50 w-72 rounded-lg border bg-card shadow-lg p-4 flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold flex items-center gap-1.5">
+              <Wand2 className="h-4 w-4 text-primary" />
+              AI Edit
+            </h3>
+          </div>
+          <Textarea
+            value={aiEditInstruction}
+            onChange={(e) => setAiEditInstruction(e.target.value)}
+            placeholder="Describe the edit you want…"
+            rows={3}
+            className="resize-none text-sm"
+          />
+          <div className="flex items-center justify-end gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setShowAiEdit(false);
+                setAiEditInstruction("");
+              }}
+              disabled={aiEditLoading}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleAiEdit}
+              disabled={aiEditLoading || !aiEditInstruction.trim()}
+            >
+              {aiEditLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+              Apply
+            </Button>
+          </div>
+        </div>
+      )}
+      <Button
+        className="fixed bottom-4 right-4 z-50 h-10 w-10 rounded-full shadow-lg"
+        size="icon"
+        onClick={() => setShowAiEdit((v) => !v)}
+        aria-label="Toggle AI Edit"
+      >
+        <Wand2 className="h-4 w-4" />
+      </Button>
 
       {/* ─── Study Timer (floating panel) ────────── */}
       <StudyTimer />

@@ -1,0 +1,739 @@
+    60→
+    61→const MAX_SECTIONS = 10;
+    62→const MAX_TITLE_LENGTH = 100;
+    63→const MAX_DESC_LENGTH = 3000;
+    64→const MAX_COURSE_DESC_LENGTH = 500;
+    65→
+    66→export function CreateCoursePage() {
+    67→  const { goBack } = useNavigationStore();
+    68→  const { currentUserId } = useUserStore();
+    69→  const { createPrompt, setCreatePrompt } = useCourseStore();
+    70→
+    71→  // ---- Form state ----
+    72→  const [title, setTitle] = useState("");
+    73→  const [description, setDescription] = useState("");
+    74→  const [categoryId, setCategoryId] = useState("");
+    75→  const [language, setLanguage] = useState("english");
+    76→  const [coverImage, setCoverImage] = useState("");
+    77→  const [coverPreview, setCoverPreview] = useState<string | null>(null);
+    78→  const [sections, setSections] = useState<SectionDraft[]>([]);
+    79→
+    80→  // ---- UI state ----
+    81→  const [categories, setCategories] = useState<CategoryItem[]>([]);
+    82→  const [loading, setLoading] = useState(false);
+    83→  const [saving, setSaving] = useState(false);
+    84→  const [generating, setGenerating] = useState(false);
+    85→  const [modalOpen, setModalOpen] = useState(false);
+    86→  const [urlInputOpen, setUrlInputOpen] = useState(false);
+    87→  const [imageUrl, setImageUrl] = useState("");
+    88→
+    89→  // ---- Modal state ----
+    90→  const [sectionName, setSectionName] = useState("");
+    91→  const [sectionPrompt, setSectionPrompt] = useState("");
+    92→  const [sectionLanguage, setSectionLanguage] = useState("english");
+    93→  const [sectionPdfName, setSectionPdfName] = useState("");
+    94→
+    95→  // ---- Pre-fill title from hero prompt ----
+    96→  useEffect(() => {
+    97→    if (createPrompt) {
+    98→      setTitle(createPrompt);
+    99→      setCreatePrompt("");
+   100→    }
+   101→  }, [createPrompt, setCreatePrompt]);
+   102→
+   103→  // ---- Refs ----
+   104→  const fileInputRef = useRef<HTMLInputElement>(null);
+   105→  const sectionFileInputRef = useRef<HTMLInputElement>(null);
+   106→
+   107→  // ---- Fetch categories ----
+   108→  useEffect(() => {
+   109→    async function fetchCategories() {
+   110→      setLoading(true);
+   111→      try {
+   112→        const res = await fetch("/api/categories");
+   113→        const json = await res.json();
+   114→        if (json.success) {
+   115→          setCategories(json.data);
+   116→        }
+   117→      } catch {
+   118→        toast.error("Failed to load categories");
+   119→      } finally {
+   120→        setLoading(false);
+   121→      }
+   122→    }
+   123→    fetchCategories();
+   124→  }, []);
+   125→
+   126→  // ---- Cover image handlers ----
+   127→  const handleCoverUpload = () => {
+   128→    // In sandbox, simulate file selection
+   129→    setUrlInputOpen(true);
+   130→  };
+   131→
+   132→  const handleUrlConfirm = () => {
+   133→    if (imageUrl.trim()) {
+   134→      setCoverImage(imageUrl.trim());
+   135→      setCoverPreview(imageUrl.trim());
+   136→      setUrlInputOpen(false);
+   137→      setImageUrl("");
+   138→    }
+   139→  };
+   140→
+   141→  const handleRemoveCover = () => {
+   142→    setCoverImage("");
+   143→    setCoverPreview(null);
+   144→  };
+   145→
+   146→  // ---- Section management ----
+   147→  const handleOpenModal = () => {
+   148→    setSectionName("");
+   149→    setSectionPrompt("");
+   150→    setSectionLanguage(language);
+   151→    setSectionPdfName("");
+   152→    setModalOpen(true);
+   153→  };
+   154→
+   155→  const handleGenerateSection = useCallback(async () => {
+   156→    if (!sectionName.trim()) {
+   157→      toast.error("Section name is required");
+   158→      return;
+   159→    }
+   160→    if (!sectionPrompt.trim()) {
+   161→      toast.error("Course prompt is required");
+   162→      return;
+   163→    }
+   164→    if (sections.length >= MAX_SECTIONS) {
+   165→      toast.error(`Maximum ${MAX_SECTIONS} sections allowed`);
+   166→      return;
+   167→    }
+   168→
+   169→    setGenerating(true);
+   170→
+   171→    try {
+   172→      const res = await fetch("/api/generate-slide-html", {
+   173→        method: "POST",
+   174→        headers: { "Content-Type": "application/json" },
+   175→        body: JSON.stringify({
+   176→          sectionTitle: sectionName.trim(),
+   177→          prompt: sectionPrompt.trim(),
+   178→          language: sectionLanguage,
+   179→        }),
+   180→      });
+   181→
+   182→      if (!res.ok || !res.body) {
+   183→        toast.error("Failed to start generation");
+   184→        setGenerating(false);
+   185→        return;
+   186→      }
+   187→
+   188→      // Read SSE stream
+   189→      const reader = res.body.getReader();
+   190→      const decoder = new TextDecoder();
+   191→      let buffer = "";
+   192→      let htmlBody = "";
+   193→      let sectionTitle = sectionName.trim();
+   194→
+   195→      while (true) {
+   196→        const { done, value } = await reader.read();
+   197→        if (done) break;
+   198→        buffer += decoder.decode(value, { stream: true });
+   199→
+   200→        const lines = buffer.split("\n");
+   201→        buffer = lines.pop() || "";
+   202→
+   203→        for (const line of lines) {
+   204→          if (!line.startsWith("data: ")) continue;
+   205→          try {
+   206→            const data = JSON.parse(line.slice(6));
+   207→            if (data.htmlBody) {
+   208→              htmlBody = data.htmlBody;
+   209→            }
+   210→            if (data.sectionTitle) {
+   211→              sectionTitle = data.sectionTitle;
+   212→            }
+   213→          } catch {
+   214→            // skip malformed JSON
+   215→          }
+   216→        }
+   217→      }
+   218→
+   219→      if (!htmlBody) {
+   220→        toast.error("Generation returned empty content");
+   221→        setGenerating(false);
+   222→        return;
+   223→      }
+   224→
+   225→      const newSection: SectionDraft = {
+   226→        id: `sec_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+   227→        title: sectionTitle,
+   228→        totalPages: 1,
+   229→        htmlBody,
+   230→        language: sectionLanguage,
+   231→      };
+   232→
+   233→      setSections((prev) => [...prev, newSection]);
+   234→      setModalOpen(false);
+   235→      toast.success(`Section "${sectionTitle}" generated successfully`);
+   236→    } catch {
+   237→      toast.error("Failed to generate section. Please try again.");
+   238→    } finally {
+   239→      setGenerating(false);
+   240→    }
+   241→  }, [sectionName, sectionPrompt, sectionLanguage, sections.length]);
+   242→
+   243→  const handleDeleteSection = (id: string) => {
+   244→    setSections((prev) => prev.filter((s) => s.id !== id));
+   245→  };
+   246→
+   247→  const handleMoveSection = (index: number, direction: "up" | "down") => {
+   248→    const newSections = [...sections];
+   249→    const targetIndex = direction === "up" ? index - 1 : index + 1;
+   250→    if (targetIndex < 0 || targetIndex >= newSections.length) return;
+   251→    [newSections[index], newSections[targetIndex]] = [
+   252→      newSections[targetIndex],
+   253→      newSections[index],
+   254→    ];
+   255→    setSections(newSections);
+   256→  };
+   257→
+   258→  // ---- Form submission ----
+   259→  const handleSave = async () => {
+   260→    if (!title.trim()) {
+   261→      toast.error("Course title is required");
+   262→      return;
+   263→    }
+   264→
+   265→    setSaving(true);
+   266→    try {
+   267→      const payload = {
+   268→        title: title.trim(),
+   269→        description: description.trim() || null,
+   270→        categoryId: categoryId || null,
+   271→        language,
+   272→        creatorId: currentUserId,
+   273→        coverImage: coverImage || null,
+   274→        sections: sections.map((sec, index) => ({
+   275→          title: sec.title,
+   276→          htmlBody: sec.htmlBody,
+   277→          totalPages: sec.totalPages,
+   278→          order: index,
+   279→        })),
+   280→      };
+   281→
+   282→      const res = await fetch("/api/courses", {
+   283→        method: "POST",
+   284→        headers: { "Content-Type": "application/json" },
+   285→        body: JSON.stringify(payload),
+   286→      });
+   287→
+   288→      const json = await res.json();
+   289→
+   290→      if (json.success) {
+   291→        toast.success("Course created successfully!");
+   292→        goBack();
+   293→      } else {
+   294→        toast.error(json.error || "Failed to create course");
+   295→      }
+   296→    } catch {
+   297→      toast.error("Failed to create course. Please try again.");
+   298→    } finally {
+   299→      setSaving(false);
+   300→    }
+   301→  };
+   302→
+   303→  // ---- Section PDF upload simulation ----
+   304→  const handleSectionPdfUpload = () => {
+   305→    sectionFileInputRef.current?.click();
+   306→  };
+   307→
+   308→  const handleSectionFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+   309→    const file = e.target.files?.[0];
+   310→    if (file) {
+   311→      setSectionPdfName(file.name);
+   312→      // If no prompt yet, use the filename
+   313→      if (!sectionPrompt.trim()) {
+   314→        const nameWithoutExt = file.name.replace(/\.pdf$/i, "");
+   315→        setSectionPrompt(
+   316→          `Generate course content based on the uploaded PDF: ${nameWithoutExt}`
+   317→        );
+   318→        if (!sectionName.trim()) {
+   319→          setSectionName(nameWithoutExt);
+   320→        }
+   321→      }
+   322→    }
+   323→  };
+   324→
+   325→  // ============================================
+   326→  // Render
+   327→  // ============================================
+   328→
+   329→  return (
+   330→    <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+   331→      {/* ---- Breadcrumbs ---- */}
+   332→      <div className="mb-6 flex items-center gap-3">
+   333→        <button
+   334→          onClick={goBack}
+   335→          className="flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+   336→        >
+   337→          <ArrowLeft className="h-4 w-4" />
+   338→          Back
+   339→        </button>
+   340→        <Separator orientation="vertical" className="h-4" />
+   341→        <h1 className="text-lg font-semibold text-foreground">Create Course</h1>
+   342→      </div>
+   343→
+   344→      {/* ---- Two-Column Layout ---- */}
+   345→      <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
+   346→        {/* ======== Left Panel: Course Metadata (3 cols) ======== */}
+   347→        <div className="lg:col-span-3">
+   348→          <Card className="border-border/50">
+   349→            <CardContent className="space-y-6 p-6">
+   350→              {/* Cover Image Upload */}
+   351→              <div className="space-y-2">
+   352→                <Label className="text-sm font-medium">Cover Image</Label>
+   353→                {coverPreview ? (
+   354→                  <div className="relative overflow-hidden rounded-lg border border-border">
+   355→                    <img
+   356→                      src={coverPreview}
+   357→                      alt="Course cover"
+   358→                      className="h-48 w-full object-cover"
+   359→                      onError={() => setCoverPreview(null)}
+   360→                    />
+   361→                    <button
+   362→                      onClick={handleRemoveCover}
+   363→                      className="absolute top-2 right-2 flex h-7 w-7 items-center justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-black/80"
+   364→                    >
+   365→                      <X className="h-3.5 w-3.5" />
+   366→                    </button>
+   367→                  </div>
+   368→                ) : (
+   369→                  <button
+   370→                    type="button"
+   371→                    onClick={handleCoverUpload}
+   372→                    className="flex h-48 w-full flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-border/70 bg-muted/30 transition-colors hover:border-primary/50 hover:bg-muted/50"
+   373→                  >
+   374→                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+   375→                      <ImageIcon className="h-5 w-5 text-muted-foreground" />
+   376→                    </div>
+   377→                    <div className="text-center">
+   378→                      <p className="text-sm font-medium text-foreground">
+   379→                        Upload cover image
+   380→                      </p>
+   381→                      <p className="mt-0.5 text-xs text-muted-foreground">
+   382→                        Recommended 1920x1080
+   383→                      </p>
+   384→                    </div>
+   385→                  </button>
+   386→                )}
+   387→
+   388→                {/* URL Input */}
+   389→                {urlInputOpen && (
+   390→                  <div className="flex items-center gap-2">
+   391→                    <Input
+   392→                      placeholder="Paste image URL here..."
+   393→                      value={imageUrl}
+   394→                      onChange={(e) => setImageUrl(e.target.value)}
+   395→                      onKeyDown={(e) => e.key === "Enter" && handleUrlConfirm()}
+   396→                      className="flex-1"
+   397→                    />
+   398→                    <Button size="sm" onClick={handleUrlConfirm}>
+   399→                      Apply
+   400→                    </Button>
+   401→                    <Button
+   402→                      size="sm"
+   403→                      variant="ghost"
+   404→                      onClick={() => {
+   405→                        setUrlInputOpen(false);
+   406→                        setImageUrl("");
+   407→                      }}
+   408→                    >
+   409→                      Cancel
+   410→                    </Button>
+   411→                  </div>
+   412→                )}
+   413→                <input
+   414→                  ref={fileInputRef}
+   415→                  type="file"
+   416→                  accept="image/*"
+   417→                  className="hidden"
+   418→                />
+   419→              </div>
+   420→
+   421→              <Separator />
+   422→
+   423→              {/* Course Title */}
+   424→              <div className="space-y-2">
+   425→                <div className="flex items-center justify-between">
+   426→                  <Label htmlFor="course-title" className="text-sm font-medium">
+   427→                    Course Title <span className="text-destructive">*</span>
+   428→                  </Label>
+   429→                  <span className="text-xs text-muted-foreground">
+   430→                    {title.length}/100
+   431→                  </span>
+   432→                </div>
+   433→                <Input
+   434→                  id="course-title"
+   435→                  placeholder="Enter course title"
+   436→                  value={title}
+   437→                  onChange={(e) => {
+   438→                    if (e.target.value.length <= MAX_TITLE_LENGTH) {
+   439→                      setTitle(e.target.value);
+   440→                    }
+   441→                  }}
+   442→                  className="h-10"
+   443→                />
+   444→              </div>
+   445→
+   446→              {/* Course Description */}
+   447→              <div className="space-y-2">
+   448→                <div className="flex items-center justify-between">
+   449→                  <Label
+   450→                    htmlFor="course-description"
+   451→                    className="text-sm font-medium"
+   452→                  >
+   453→                    Description
+   454→                  </Label>
+   455→                  <span className="text-xs text-muted-foreground">
+   456→                    {description.length}/{MAX_COURSE_DESC_LENGTH}
+   457→                  </span>
+   458→                </div>
+   459→                <Textarea
+   460→                  id="course-description"
+   461→                  placeholder="Describe what this course is about..."
+   462→                  value={description}
+   463→                  onChange={(e) => {
+   464→                    if (e.target.value.length <= MAX_COURSE_DESC_LENGTH) {
+   465→                      setDescription(e.target.value);
+   466→                    }
+   467→                  }}
+   468→                  rows={4}
+   469→                  className="resize-none"
+   470→                />
+   471→              </div>
+   472→
+   473→              <Separator />
+   474→
+   475→              {/* Category */}
+   476→              <div className="space-y-2">
+   477→                <Label className="text-sm font-medium">Category</Label>
+   478→                <Select value={categoryId} onValueChange={setCategoryId}>
+   479→                  <SelectTrigger className="w-full h-10">
+   480→                    <SelectValue placeholder="Select a category" />
+   481→                  </SelectTrigger>
+   482→                  <SelectContent>
+   483→                    {categories.map((cat) => (
+   484→                      <SelectItem key={cat.id} value={cat.id}>
+   485→                        {cat.name}
+   486→                      </SelectItem>
+   487→                    ))}
+   488→                  </SelectContent>
+   489→                </Select>
+   490→              </div>
+   491→
+   492→              {/* Language */}
+   493→              <div className="space-y-3">
+   494→                <Label className="text-sm font-medium">Language</Label>
+   495→                <RadioGroup
+   496→                  value={language}
+   497→                  onValueChange={setLanguage}
+   498→                  className="flex gap-6"
+   499→                >
+   500→                  <div className="flex items-center gap-2">
+   501→                    <RadioGroupItem value="chinese" id="lang-zh" />
+   502→                    <Label
+   503→                      htmlFor="lang-zh"
+   504→                      className="cursor-pointer text-sm font-normal"
+   505→                    >
+   506→                      Chinese
+   507→                    </Label>
+   508→                  </div>
+   509→                  <div className="flex items-center gap-2">
+   510→                    <RadioGroupItem value="english" id="lang-en" />
+   511→                    <Label
+   512→                      htmlFor="lang-en"
+   513→                      className="cursor-pointer text-sm font-normal"
+   514→                    >
+   515→                      English
+   516→                    </Label>
+   517→                  </div>
+   518→                </RadioGroup>
+   519→              </div>
+   520→
+   521→              <Separator />
+   522→
+   523→              {/* Save Button */}
+   524→              <Button
+   525→                onClick={handleSave}
+   526→                disabled={saving || !title.trim()}
+   527→                className="w-full h-10"
+   528→              >
+   529→                {saving ? (
+   530→                  <>
+   531→                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+   532→                    Saving...
+   533→                  </>
+   534→                ) : (
+   535→                  "Save Course"
+   536→                )}
+   537→              </Button>
+   538→            </CardContent>
+   539→          </Card>
+   540→        </div>
+   541→
+   542→        {/* ======== Right Panel: Sections (2 cols) ======== */}
+   543→        <div className="lg:col-span-2">
+   544→          <Card className="border-border/50">
+   545→            <CardContent className="p-6">
+   546→              {/* Header */}
+   547→              <div className="mb-4 flex items-center justify-between">
+   548→                <div className="flex items-center gap-2">
+   549→                  <h2 className="text-base font-semibold text-foreground">
+   550→                    Sections
+   551→                  </h2>
+   552→                  <Badge
+   553→                    variant="secondary"
+   554→                    className="text-xs font-normal"
+   555→                  >
+   556→                    {sections.length}/{MAX_SECTIONS}
+   557→                  </Badge>
+   558→                </div>
+   559→                <Button
+   560→                  size="sm"
+   561→                  variant="outline"
+   562→                  onClick={handleOpenModal}
+   563→                  disabled={sections.length >= MAX_SECTIONS}
+   564→                  className="gap-1.5"
+   565→                >
+   566→                  <Plus className="h-3.5 w-3.5" />
+   567→                  Add Section
+   568→                </Button>
+   569→              </div>
+   570→
+   571→              {/* Section List */}
+   572→              {sections.length === 0 ? (
+   573→                <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border/70 bg-muted/20 py-16">
+   574→                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+   575→                    <FileText className="h-5 w-5 text-muted-foreground" />
+   576→                  </div>
+   577→                  <p className="mt-3 text-sm text-muted-foreground">
+   578→                    No sections yet
+   579→                  </p>
+   580→                  <p className="mt-1 text-xs text-muted-foreground/70">
+   581→                    Click "+ Add Section" to get started
+   582→                  </p>
+   583→                </div>
+   584→              ) : (
+   585→                <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
+   586→                  {sections.map((section, index) => (
+   587→                    <div
+   588→                      key={section.id}
+   589→                      className="group flex items-center gap-3 rounded-lg border border-border/60 bg-card p-3 transition-colors hover:bg-accent/30"
+   590→                    >
+   591→                      {/* Grip / Drag Handle */}
+   592→                      <div className="flex flex-col items-center gap-0.5 text-muted-foreground/50">
+   593→                        <button
+   594→                          onClick={() =>
+   595→                            handleMoveSection(index, "up")
+   596→                          }
+   597→                          disabled={index === 0}
+   598→                          className="rounded p-0.5 hover:text-muted-foreground disabled:opacity-30 disabled:hover:text-muted-foreground/50"
+   599→                        >
+   600→                          <ChevronUp className="h-3.5 w-3.5" />
+   601→                        </button>
+   602→                        <GripVertical className="h-3.5 w-3.5" />
+   603→                        <button
+   604→                          onClick={() =>
+   605→                            handleMoveSection(index, "down")
+   606→                          }
+   607→                          disabled={index === sections.length - 1}
+   608→                          className="rounded p-0.5 hover:text-muted-foreground disabled:opacity-30 disabled:hover:text-muted-foreground/50"
+   609→                        >
+   610→                          <ChevronDown className="h-3.5 w-3.5" />
+   611→                        </button>
+   612→                      </div>
+   613→
+   614→                      {/* Number Badge */}
+   615→                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+   616→                        {index + 1}
+   617→                      </div>
+   618→
+   619→                      {/* Content */}
+   620→                      <div className="min-w-0 flex-1">
+   621→                        <p className="truncate text-sm font-medium text-foreground">
+   622→                          {section.title}
+   623→                        </p>
+   624→                        <p className="mt-0.5 text-xs text-muted-foreground">
+   625→                          {section.totalPages} pages
+   626→                          <span className="mx-1.5">·</span>
+   627→                          {section.language === "chinese"
+   628→                            ? "中文"
+   629→                            : "English"}
+   630→                        </p>
+   631→                      </div>
+   632→
+   633→                      {/* Delete Button */}
+   634→                      <button
+   635→                        onClick={() => handleDeleteSection(section.id)}
+   636→                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground/50 opacity-0 transition-all hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
+   637→                      >
+   638→                        <Trash2 className="h-3.5 w-3.5" />
+   639→                      </button>
+   640→                    </div>
+   641→                  ))}
+   642→                </div>
+   643→              )}
+   644→            </CardContent>
+   645→          </Card>
+   646→        </div>
+   647→      </div>
+   648→
+   649→      {/* ======== Add Section Modal ======== */}
+   650→      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+   651→        <DialogContent className="sm:max-w-lg">
+   652→          <DialogHeader>
+   653→            <DialogTitle>Add Section</DialogTitle>
+   654→            <DialogDescription>
+   655→              Generate course content with AI. Provide a section name and prompt to
+   656→              create slides.
+   657→            </DialogDescription>
+   658→          </DialogHeader>
+   659→
+   660→          <div className="space-y-5">
+   661→            {/* Section Name */}
+   662→            <div className="space-y-2">
+   663→              <div className="flex items-center justify-between">
+   664→                <Label className="text-sm font-medium">
+   665→                  Section Name <span className="text-destructive">*</span>
+   666→                </Label>
+   667→                <span className="text-xs text-muted-foreground">
+   668→                  {sectionName.length}/{MAX_TITLE_LENGTH}
+   669→                </span>
+   670→              </div>
+   671→              <Input
+   672→                placeholder="e.g., Introduction to Machine Learning"
+   673→                value={sectionName}
+   674→                onChange={(e) => {
+   675→                  if (e.target.value.length <= MAX_TITLE_LENGTH) {
+   676→                    setSectionName(e.target.value);
+   677→                  }
+   678→                }}
+   679→                className="h-10"
+   680→              />
+   681→            </div>
+   682→
+   683→            {/* Course Prompt */}
+   684→            <div className="space-y-2">
+   685→              <div className="flex items-center justify-between">
+   686→                <Label className="text-sm font-medium">
+   687→                  Course Prompt <span className="text-destructive">*</span>
+   688→                </Label>
+   689→                <span className="text-xs text-muted-foreground">
+   690→                  {sectionPrompt.length}/{MAX_DESC_LENGTH}
+   691→                </span>
+   692→              </div>
+   693→              <Textarea
+   694→                placeholder="Prompt anything you want to generate..."
+   695→                value={sectionPrompt}
+   696→                onChange={(e) => {
+   697→                  if (e.target.value.length <= MAX_DESC_LENGTH) {
+   698→                    setSectionPrompt(e.target.value);
+   699→                  }
+   700→                }}
+   701→                rows={5}
+   702→                className="resize-none"
+   703→              />
+   704→            </div>
+   705→
+   706→            {/* PDF Courseware Upload */}
+   707→            <div className="space-y-2">
+   708→              <Label className="text-sm font-medium">PDF Courseware</Label>
+   709→              <button
+   710→                type="button"
+   711→                onClick={handleSectionPdfUpload}
+   712→                className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-border/70 bg-muted/20 px-4 py-6 text-sm text-muted-foreground transition-colors hover:border-primary/50 hover:bg-muted/30"
+   713→              >
+   714→                <FileUp className="h-4 w-4" />
+   715→                {sectionPdfName ? (
+   716→                  <span className="text-foreground font-medium">
+   717→                    {sectionPdfName}
+   718→                  </span>
+   719→                ) : (
+   720→                  "Click to upload PDF courseware (optional)"
+   721→                )}
+   722→              </button>
+   723→              <input
+   724→                ref={sectionFileInputRef}
+   725→                type="file"
+   726→                accept=".pdf"
+   727→                className="hidden"
+   728→                onChange={handleSectionFileChange}
+   729→              />
+   730→            </div>
+   731→
+   732→            {/* Language */}
+   733→            <div className="space-y-3">
+   734→              <Label className="text-sm font-medium">
+   735→                Generated Content Language
+   736→              </Label>
+   737→              <RadioGroup
+   738→                value={sectionLanguage}
+   739→                onValueChange={setSectionLanguage}
+   740→                className="flex gap-6"
+   741→              >
+   742→                <div className="flex items-center gap-2">
+   743→                  <RadioGroupItem
+   744→                    value="chinese"
+   745→                    id="sec-lang-zh"
+   746→                  />
+   747→                  <Label
+   748→                    htmlFor="sec-lang-zh"
+   749→                    className="cursor-pointer text-sm font-normal"
+   750→                  >
+   751→                    Chinese
+   752→                  </Label>
+   753→                </div>
+   754→                <div className="flex items-center gap-2">
+   755→                  <RadioGroupItem
+   756→                    value="english"
+   757→                    id="sec-lang-en"
+   758→                  />
+   759→                  <Label
+   760→                    htmlFor="sec-lang-en"
+   761→                    className="cursor-pointer text-sm font-normal"
+   762→                  >
+   763→                    English
+   764→                  </Label>
+   765→                </div>
+   766→              </RadioGroup>
+   767→            </div>
+   768→          </div>
+   769→
+   770→          <DialogFooter className="mt-2">
+   771→            <Button
+   772→              variant="ghost"
+   773→              onClick={() => setModalOpen(false)}
+   774→              disabled={generating}
+   775→            >
+   776→              Cancel
+   777→            </Button>
+   778→            <Button
+   779→              onClick={handleGenerateSection}
+   780→              disabled={generating || !sectionName.trim() || !sectionPrompt.trim()}
+   781→              className="gap-2"
+   782→            >
+   783→              {generating ? (
+   784→                <>
+   785→                  <Loader2 className="h-4 w-4 animate-spin" />
+   786→                  Generating...
+   787→                </>
+   788→              ) : (
+   789→                "Generate"
+   790→              )}
+   791→            </Button>
+   792→          </DialogFooter>
+   793→        </DialogContent>
+   794→      </Dialog>
+   795→    </div>
+   796→  );
+   797→}
+   798→

@@ -49,7 +49,7 @@ export async function GET(
       totalPages: section.totalPages,
       createdAt: section.createdAt,
       updatedAt: section.updatedAt,
-      course: section.course,
+      courseId: section.courseId,
     };
 
     return NextResponse.json({ success: true, data: formattedSection });
@@ -57,6 +57,42 @@ export async function GET(
     console.error('Error fetching section:', error);
     return NextResponse.json(
       { success: false, error: 'Failed to fetch section' },
+      { status: 500 },
+    );
+  }
+}
+
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const body = await request.json();
+    const { htmlBody, title, order } = body;
+
+    const section = await db.section.findUnique({ where: { id } });
+    if (!section) {
+      return NextResponse.json(
+        { success: false, error: 'Section not found' },
+        { status: 404 },
+      );
+    }
+
+    const updated = await db.section.update({
+      where: { id },
+      data: {
+        ...(htmlBody !== undefined && { htmlBody }),
+        ...(title !== undefined && { title }),
+        ...(order !== undefined && { order }),
+      },
+    });
+
+    return NextResponse.json({ success: true, data: updated });
+  } catch (error) {
+    console.error('Error updating section:', error);
+    return NextResponse.json(
+      { success: false, error: 'Failed to update section' },
       { status: 500 },
     );
   }
