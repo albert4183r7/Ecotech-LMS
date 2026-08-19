@@ -39,6 +39,17 @@ import { useParams, useRouter } from "next/navigation";
 import { classroomPath } from "@/lib/routes";
 import type { ClassroomState } from "@/types/lms";
 import { StudyTimer } from "@/components/lms/study-timer";
+import {
+  NotesSidebarContent,
+  NotesSidebarContentProps,
+} from "@/components/lms/classroom/notes-sidebar";
+import {
+  ConfettiCelebration,
+  CONFETTI_COLORS,
+  ConfettiParticle,
+  ParticleShape,
+} from "@/components/lms/classroom/confetti-celebration";
+import { useLessonNotes } from "@/hooks/use-lesson-notes";
 
 const MIN_ZOOM = 50;
 const MAX_ZOOM = 200;
@@ -61,18 +72,24 @@ export function ClassroomPage() {
   const [showConfetti, setShowConfetti] = useState(false);
 
   // ─── Notes Sidebar State ──────────────────────
-  interface Note {
-    id: string;
-    content: string;
-    slideNumber: number;
-    bookmarked: boolean;
-    createdAt?: string;
-  }
-  const [notes, setNotes] = useState<Note[]>([]);
   const [notesSidebarOpen, setNotesSidebarOpen] = useState(false);
-  const [newNoteContent, setNewNoteContent] = useState("");
-  const [savingNote, setSavingNote] = useState(false);
-  const notesEndRef = useRef<HTMLDivElement>(null);
+
+  const {
+    notes,
+    newNoteContent,
+    setNewNoteContent,
+    savingNote,
+    notesEndRef,
+    createNote,
+    deleteNote,
+    toggleBookmark,
+  } = useLessonNotes({
+    userId,
+    courseId: classroomState?.courseId,
+    lessonId: classroomState?.lessonId,
+    slideNumber: (classroomState?.currentLessonIndex ?? 0) + 1,
+    enabled: notesSidebarOpen,
+  });
 
   // ─── Keyboard Hint Fade ────────────────────────
   const [showKeyboardHint, setShowKeyboardHint] = useState(true);
@@ -424,78 +441,6 @@ export function ClassroomPage() {
     const timer = setTimeout(() => setShowKeyboardHint(false), 5000);
     return () => clearTimeout(timer);
   }, [localState?.lessonId]);
-
-  // ─── Notes CRUD ─────────────────────────────────
-  const fetchNotes = useCallback(async () => {
-    if (!localState || !userId) return;
-    try {
-      const res = await fetch(
-        `/api/notes?userId=${userId}&courseId=${localState.courseId}&lessonId=${localState.lessonId}`,
-      );
-      if (!res.ok) return;
-      const json = await res.json();
-      if (json.success && Array.isArray(json.data)) {
-        setNotes(json.data);
-      }
-    } catch {
-      // Silently fail
-    }
-  }, [localState, userId]);
-
-  // Fetch notes when section changes or sidebar opens
-  useEffect(() => {
-    if (notesSidebarOpen) fetchNotes();
-  }, [notesSidebarOpen, fetchNotes, localState?.lessonId]);
-
-  const createNote = useCallback(async () => {
-    if (!localState || !userId || !newNoteContent.trim()) return;
-    setSavingNote(true);
-    try {
-      const res = await fetch("/api/notes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId,
-          courseId: localState.courseId,
-          lessonId: localState.lessonId,
-          content: newNoteContent.trim(),
-          slideNumber: localState.currentLessonIndex + 1,
-        }),
-      });
-      if (!res.ok) return;
-      const json = await res.json();
-      if (json.success && json.data) {
-        setNotes((prev) => [...prev, json.data]);
-        setNewNoteContent("");
-        setTimeout(() => notesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
-      }
-    } catch {
-      toast.error("Failed to save note");
-    } finally {
-      setSavingNote(false);
-    }
-  }, [localState, userId, newNoteContent]);
-
-  const deleteNote = useCallback(async (noteId: string) => {
-    try {
-      const res = await fetch(`/api/notes?id=${noteId}`, {
-        method: "DELETE",
-      });
-      if (!res.ok) return;
-      const json = await res.json();
-      if (json.success) {
-        setNotes((prev) => prev.filter((n) => n.id !== noteId));
-      }
-    } catch {
-      // Silently fail
-    }
-  }, []);
-
-  const toggleBookmark = useCallback((noteId: string) => {
-    setNotes((prev) =>
-      prev.map((n) => (n.id === noteId ? { ...n, bookmarked: !n.bookmarked } : n)),
-    );
-  }, []);
 
   // ─── Download as PPTX ─────────────────────────────
   const handleDownloadPptx = useCallback(async () => {
@@ -1015,240 +960,3 @@ export function ClassroomPage() {
 // ============================================
 // Notes Sidebar Content (shared between desktop & mobile)
 // ============================================
-
-interface NotesSidebarContentProps {
-  notes: {
-    id: string;
-    content: string;
-    slideNumber: number;
-    bookmarked: boolean;
-    createdAt?: string;
-  }[];
-  currentLessonIndex: number;
-  newNoteContent: string;
-  savingNote: boolean;
-  onContentChange: (v: string) => void;
-  onCreate: () => void;
-  onDelete: (id: string) => void;
-  onToggleBookmark: (id: string) => void;
-  endRef: React.RefObject<HTMLDivElement | null>;
-}
-
-function NotesSidebarContent({
-  notes,
-  currentLessonIndex,
-  newNoteContent,
-  savingNote,
-  onContentChange,
-  onCreate,
-  onDelete,
-  onToggleBookmark,
-  endRef,
-}: NotesSidebarContentProps) {
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      onCreate();
-    }
-  };
-
-  return (
-    <>
-      {/* Notes List */}
-      <ScrollArea className="flex-1">
-        <div className="flex flex-col gap-2 p-3">
-          {notes.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <StickyNote className="text-muted-foreground/30 mb-2 h-8 w-8" />
-              <p className="text-muted-foreground text-xs">No notes yet.</p>
-              <p className="text-muted-foreground/60 text-xs">
-                Add a note for lesson {currentLessonIndex + 1}.
-              </p>
-            </div>
-          )}
-          {notes.map((note) => (
-            <div
-              key={note.id}
-              className="group bg-background hover:bg-muted/40 relative rounded-lg border p-3 text-sm transition-colors"
-            >
-              {/* Slide badge */}
-              <div className="mb-1 flex items-center justify-between">
-                <span className="bg-primary/10 text-primary inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-semibold">
-                  Slide {note.slideNumber}
-                </span>
-                <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-                  <button
-                    type="button"
-                    className="hover:bg-muted rounded p-1 transition-colors"
-                    onClick={() => onToggleBookmark(note.id)}
-                    aria-label={note.bookmarked ? "Remove bookmark" : "Bookmark note"}
-                  >
-                    {note.bookmarked ? (
-                      <BookmarkCheck className="h-3.5 w-3.5 text-amber-500" />
-                    ) : (
-                      <Bookmark className="text-muted-foreground h-3.5 w-3.5" />
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    className="hover:bg-destructive/10 rounded p-1 transition-colors"
-                    onClick={() => onDelete(note.id)}
-                    aria-label="Delete note"
-                  >
-                    <Trash2 className="text-muted-foreground hover:text-destructive h-3.5 w-3.5" />
-                  </button>
-                </div>
-              </div>
-              <p className="text-foreground/80 text-xs leading-relaxed whitespace-pre-line">
-                {note.content}
-              </p>
-            </div>
-          ))}
-          <div ref={endRef} />
-        </div>
-      </ScrollArea>
-
-      {/* New Note Input */}
-      <div className="shrink-0 border-t p-3">
-        <div className="flex gap-2">
-          <textarea
-            value={newNoteContent}
-            onChange={(e) => onContentChange(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={`Add a note for lesson ${currentLessonIndex + 1}…`}
-            rows={2}
-            className="bg-background placeholder:text-muted-foreground/50 focus:ring-primary/20 flex-1 resize-none rounded-lg border px-3 py-2 text-xs focus:ring-2 focus:outline-none"
-          />
-          <Button
-            size="icon"
-            className="h-auto w-9 shrink-0 self-end"
-            onClick={onCreate}
-            disabled={savingNote || !newNoteContent.trim()}
-          >
-            {savingNote ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Send className="h-4 w-4" />
-            )}
-          </Button>
-        </div>
-      </div>
-    </>
-  );
-}
-
-// ============================================
-// Confetti Celebration Component
-// ============================================
-
-/** LMS color palette for confetti particles */
-const CONFETTI_COLORS = [
-  "#3882f6", // blue
-  "#14b8a6", // teal
-  "#22d3ee", // cyan
-  "#10b981", // emerald
-  "#f59e0b", // amber
-  "#6366f1", // indigo accent
-  "#8b5cf6", // violet accent
-  "#ec4899", // pink accent
-];
-
-type ParticleShape = "circle" | "rectangle" | "triangle";
-
-interface ConfettiParticle {
-  id: number;
-  left: number;
-  color: string;
-  shape: ParticleShape;
-  size: number;
-  fallDuration: string;
-  fallDelay: string;
-  drift: string;
-  spin: string;
-}
-
-function ConfettiCelebration() {
-  const particles = useMemo<ConfettiParticle[]>(() => {
-    const result: ConfettiParticle[] = [];
-    const shapes: ParticleShape[] = ["circle", "rectangle", "triangle"];
-    const count = 80;
-
-    for (let i = 0; i < count; i++) {
-      const shape = shapes[i % 3 === 0 ? 0 : i % 3 === 1 ? 1 : 2];
-      result.push({
-        id: i,
-        left: Math.random() * 100,
-        color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
-        shape,
-        size: Math.floor(Math.random() * 8) + 6, // 6-14px
-        fallDuration: `${(Math.random() * 1.5 + 2).toFixed(2)}s`, // 2-3.5s
-        fallDelay: `${(Math.random() * 0.8).toFixed(2)}s`, // 0-0.8s
-        drift: `${(Math.random() * 120 - 60).toFixed(0)}px`, // -60 to +60px
-        spin: `${Math.floor(Math.random() * 720 + 360)}deg`, // 360-1080deg
-      });
-    }
-    return result;
-  }, []);
-
-  return (
-    <>
-      {/* Confetti particles layer */}
-      <div className="confetti-container" aria-hidden="true">
-        {particles.map((p) => {
-          if (p.shape === "triangle") {
-            return (
-              <div
-                key={p.id}
-                className="confetti-particle confetti-triangle"
-                style={
-                  {
-                    left: `${p.left}%`,
-                    "--confetti-color": p.color,
-                    "--tri-size": `${p.size}px`,
-                    "--fall-duration": p.fallDuration,
-                    "--fall-delay": p.fallDelay,
-                    "--drift": p.drift,
-                    "--spin": p.spin,
-                  } as React.CSSProperties
-                }
-              />
-            );
-          }
-          return (
-            <div
-              key={p.id}
-              className={`confetti-particle ${
-                p.shape === "circle" ? "confetti-circle" : "confetti-rectangle"
-              }`}
-              style={
-                {
-                  left: `${p.left}%`,
-                  width: p.shape === "rectangle" ? `${p.size * 1.4}px` : `${p.size}px`,
-                  height: `${p.size}px`,
-                  backgroundColor: p.color,
-                  "--fall-duration": p.fallDuration,
-                  "--fall-delay": p.fallDelay,
-                  "--drift": p.drift,
-                  "--spin": p.spin,
-                } as React.CSSProperties
-              }
-            />
-          );
-        })}
-      </div>
-
-      {/* Congratulations message */}
-      <div className="confetti-message" role="status" aria-label="Congratulations!">
-        <div className="confetti-message-text flex flex-col items-center gap-3">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/90 shadow-lg dark:bg-zinc-800/90">
-            <span className="text-4xl">🎉</span>
-          </div>
-          <div className="rounded-2xl bg-white/90 px-8 py-5 text-center shadow-xl dark:bg-zinc-800/90">
-            <h2 className="text-foreground text-2xl font-bold sm:text-3xl">🎉 Congratulations!</h2>
-            <p className="text-muted-foreground mt-2 text-sm">You&apos;ve completed this lesson!</p>
-          </div>
-        </div>
-      </div>
-    </>
-  );
-}

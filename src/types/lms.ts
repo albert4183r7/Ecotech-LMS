@@ -127,3 +127,51 @@ export interface ClassroomState {
   allLessonIds: string[]; // ordered list of all lesson IDs in the course
   currentLessonIndex: number; // index into allLessonIds
 }
+
+// ============================================
+// Profile / activity
+//
+// These were referenced by the profile screens but never declared, so the
+// files did not typecheck. Shapes taken from /api/activity and
+// /api/enrollments.
+// ============================================
+
+/** One cell in the streak calendar grid. */
+export interface ActivityDayEntry {
+  date: string;
+  day: string;
+  isToday: boolean;
+}
+
+/** A single day's tracked study time. */
+export interface ActivityDayData {
+  date: string;
+  minutes: number;
+}
+
+/** Response payload of GET /api/activity. */
+export interface Activity30Data {
+  weeklyData: ActivityDayData[];
+  dailyData: ActivityDayData[];
+  streak: { current: number; longest: number };
+  totalMinutes: number;
+}
+
+/** An enrollment as returned by GET /api/enrollments. */
+export interface EnrollmentData {
+  id: string;
+  status: string;
+  enrolledAt: string;
+  completedAt: string | null;
+  progress: number;
+  course: {
+    id: string;
+    title: string;
+    description: string | null;
+    coverImage: string | null;
+    rating: number;
+    language: string;
+    category: Pick<CategoryItem, "id" | "name" | "color"> | null;
+    lessonsCount: number;
+  };
+}

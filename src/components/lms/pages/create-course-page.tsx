@@ -51,43 +51,20 @@ import { useNavigation } from "@/hooks/use-navigation";
 import type { CategoryItem } from "@/types/lms";
 import { toast } from "sonner";
 import { SLIDE_STYLES, MIN_SLIDES, MAX_SLIDES, DEFAULT_SLIDE_COUNT } from "@/lib/slide-styles";
+import {
+  OutlineLessonCard,
+  OutlineLessonCardProps,
+  OutlineLessonDraft,
+  OutlineSlideDraft,
+  SlideGenState,
+} from "@/components/lms/create-course/outline-lesson-card";
+import { useCourseUploads } from "@/hooks/use-course-uploads";
 
 // ============================================
 // Types
 // ============================================
 
 /** Slide in an editable outline */
-interface OutlineSlideDraft {
-  id: string;
-  slideId: string | null;
-  title: string;
-  outline: string;
-  order: number;
-}
-
-/** Per-slide generation state */
-interface SlideGenState {
-  status: "pending" | "generating" | "complete" | "error";
-  htmlBody?: string;
-  error?: string;
-}
-
-/** A lesson created via the outline flow (persisted in DB) */
-interface OutlineLessonDraft {
-  id: string;
-  title: string;
-  slides: OutlineSlideDraft[];
-  language: string;
-  style: string;
-  topic: string;
-  // Generation state
-  allReady?: boolean;
-}
-
-// ============================================
-// Constants
-// ============================================
-
 const MAX_LESSONS = 10;
 const MAX_TITLE_LENGTH = 100;
 const MAX_DESC_LENGTH = 3000;
@@ -98,6 +75,25 @@ const MAX_COURSE_DESC_LENGTH = 500;
 // ============================================
 
 export function CreateCoursePage() {
+  const {
+    coverImage,
+    setCoverImage,
+    coverPreview,
+    setCoverPreview,
+    coverUploading,
+    docUploading,
+    referenceFiles,
+    setReferenceFiles,
+    fileInputRef,
+    docInputRef,
+    handleCoverUpload,
+    handleCoverFileChange,
+    handleDocUploadClick,
+    handleDocFileChange,
+    handleRemoveDoc,
+    handleRemoveCover,
+  } = useCourseUploads();
+
   const { goBack } = useNavigation();
   const { currentUserId } = useUserStore();
   const { createPrompt, setCreatePrompt } = useCourseStore();
@@ -107,8 +103,6 @@ export function CreateCoursePage() {
   const [description, setDescription] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [language, setLanguage] = useState("english");
-  const [coverImage, setCoverImage] = useState("");
-  const [coverPreview, setCoverPreview] = useState<string | null>(null);
   const [courseId, setCourseId] = useState<string | null>(null);
 
   // ---- UI state ----
@@ -116,13 +110,8 @@ export function CreateCoursePage() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
-  const [coverUploading, setCoverUploading] = useState(false);
-  const [docUploading, setDocUploading] = useState(false);
 
   // ---- Reference documents state ----
-  const [referenceFiles, setReferenceFiles] = useState<
-    { name: string; url: string; size: number; type: string }[]
-  >([]);
 
   // ---- Outline modal state ----
   const [outlineTopic, setOutlineTopic] = useState("");
@@ -160,8 +149,6 @@ export function CreateCoursePage() {
   }, [editingCourseId, courseId, setEditingCourseId]);
 
   // ---- Refs ----
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const docInputRef = useRef<HTMLInputElement>(null);
 
   // ---- Pre-fill title from hero prompt ----
   useEffect(() => {
@@ -256,93 +243,6 @@ export function CreateCoursePage() {
   }, [courseId, currentUserId]);
 
   // ---- Cover image handlers (local file upload) ----
-  const handleCoverUpload = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleCoverFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    // Client-side validation
-    const validTypes = ["image/jpeg", "image/png", "image/webp", "image/gif", "image/svg+xml"];
-    if (!validTypes.includes(file.type)) {
-      toast.error("Please select a valid image (JPEG, PNG, WebP, GIF, SVG)");
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("Image must be under 5MB");
-      return;
-    }
-
-    setCoverUploading(true);
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      const res = await fetch("/api/upload?type=cover", {
-        method: "POST",
-        body: formData,
-      });
-      const json = await res.json();
-      if (json.success) {
-        setCoverImage(json.data.url);
-        setCoverPreview(json.data.url);
-        toast.success("Cover image uploaded");
-      } else {
-        toast.error(json.error || "Failed to upload image");
-      }
-    } catch {
-      toast.error("Failed to upload image");
-    } finally {
-      setCoverUploading(false);
-      // Reset input so same file can be re-selected
-      if (fileInputRef.current) fileInputRef.current.value = "";
-    }
-  };
-
-  // ---- Reference document handlers ----
-  const handleDocUploadClick = () => {
-    docInputRef.current?.click();
-  };
-
-  const handleDocFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
-    setDocUploading(true);
-    try {
-      for (const file of Array.from(files)) {
-        const formData = new FormData();
-        formData.append("file", file);
-        const res = await fetch("/api/upload?type=doc", {
-          method: "POST",
-          body: formData,
-        });
-        const json = await res.json();
-        if (json.success) {
-          setReferenceFiles((prev) => [...prev, json.data]);
-          toast.success(`Uploaded: ${file.name}`);
-        } else {
-          toast.error(`Failed to upload: ${file.name}`);
-        }
-      }
-    } catch {
-      toast.error("Failed to upload document");
-    } finally {
-      setDocUploading(false);
-      if (docInputRef.current) docInputRef.current.value = "";
-    }
-  };
-
-  const handleRemoveDoc = (url: string) => {
-    setReferenceFiles((prev) => prev.filter((f) => f.url !== url));
-  };
-
-  const handleRemoveCover = () => {
-    setCoverImage("");
-    setCoverPreview(null);
-  };
-
   // ---- Auto-save course as draft (needed before outline generation) ----
   const ensureCourseSaved = useCallback(async (): Promise<string | null> => {
     if (courseId) return courseId;
@@ -1441,257 +1341,4 @@ export function CreateCoursePage() {
 
 // ============================================
 // Outline Lesson Card
-// ============================================
-
-interface OutlineLessonCardProps {
-  lesson: OutlineLessonDraft;
-  index: number;
-  expanded: boolean;
-  isGenerating: boolean;
-  slideGenStates: Record<string, SlideGenState>;
-  currentGenSlideId: string | null;
-  genProgress: { current: number; total: number };
-  onToggleExpand: () => void;
-  onEditOutline: () => void;
-  onUpdateSlideTitle: (slideId: string, newTitle: string) => void;
-  onDeleteSlide: (slideId: string, localId: string) => void;
-  onGenerateSlides: () => void;
-  onCancelGeneration: () => void;
-  onDelete: () => void;
-}
-
-function OutlineLessonCard({
-  lesson,
-  index,
-  expanded,
-  isGenerating,
-  slideGenStates,
-  currentGenSlideId,
-  genProgress,
-  onToggleExpand,
-  onEditOutline,
-  onUpdateSlideTitle,
-  onDeleteSlide,
-  onGenerateSlides,
-  onCancelGeneration,
-  onDelete,
-}: OutlineLessonCardProps) {
-  const styleLabel = SLIDE_STYLES.find((s) => s.value === lesson.style)?.label || lesson.style;
-  const hasReadySlides = lesson.slides.some(
-    (s) => s.slideId && slideGenStates[s.slideId]?.status === "complete",
-  );
-  const allComplete =
-    lesson.allReady ||
-    lesson.slides.every((s) => !s.slideId || slideGenStates[s.slideId]?.status === "complete");
-  const completedCount = lesson.slides.filter(
-    (s) => s.slideId && slideGenStates[s.slideId]?.status === "complete",
-  ).length;
-
-  const firstCompletedHtml = (() => {
-    const found = lesson.slides.find((s) => s.slideId && slideGenStates[s.slideId]?.htmlBody);
-    return found?.slideId ? slideGenStates[found.slideId]?.htmlBody || "" : "";
-  })();
-
-  return (
-    <div
-      className={`group rounded-lg border transition-colors ${
-        isGenerating
-          ? "border-primary/50 bg-primary/[0.03]"
-          : allComplete
-            ? "border-emerald-300/60 bg-emerald-50/30 dark:bg-emerald-950/10"
-            : hasReadySlides
-              ? "border-border/60 bg-card hover:bg-accent/30"
-              : "border-primary/30 bg-primary/[0.02] hover:bg-primary/[0.04]"
-      }`}
-    >
-      <div className="flex items-center gap-3 p-3">
-        {/* Number Badge */}
-        <div
-          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
-            allComplete
-              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400"
-              : isGenerating
-                ? "bg-primary/10 text-primary animate-pulse"
-                : "bg-primary/10 text-primary"
-          }`}
-        >
-          {allComplete ? <Check className="h-3.5 w-3.5" /> : index + 1}
-        </div>
-
-        {/* Content */}
-        <div className="min-w-0 flex-1">
-          <p className="text-foreground truncate text-sm font-medium">{lesson.title}</p>
-          <div className="text-muted-foreground mt-0.5 flex items-center gap-1.5 text-xs">
-            {allComplete ? (
-              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
-                <Check className="h-2.5 w-2.5" />
-                Ready
-              </span>
-            ) : isGenerating ? (
-              <span className="bg-primary/10 text-primary inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium">
-                <Loader2 className="h-2.5 w-2.5 animate-spin" />
-                Generating {genProgress.current}/{genProgress.total}
-              </span>
-            ) : hasReadySlides ? (
-              <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-                {completedCount}/{lesson.slides.length} slides
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
-                <LayoutList className="h-2.5 w-2.5" />
-                {lesson.slides.length} slides
-              </span>
-            )}
-            <span>·</span>
-            <span>{styleLabel}</span>
-          </div>
-        </div>
-
-        {/* Edit outline button (only when not generating and not all complete) */}
-        {!isGenerating && !allComplete && (
-          <button
-            onClick={onEditOutline}
-            className="text-muted-foreground/50 hover:bg-primary/10 hover:text-primary flex h-7 w-7 shrink-0 items-center justify-center rounded-md opacity-0 transition-all group-hover:opacity-100"
-            title="Edit outline"
-          >
-            <Pencil className="h-3.5 w-3.5" />
-          </button>
-        )}
-
-        {/* Expand toggle */}
-        <button
-          onClick={onToggleExpand}
-          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors ${
-            expanded
-              ? "bg-primary/10 text-primary"
-              : "text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted opacity-0 group-hover:opacity-100"
-          }`}
-          title={expanded ? "Hide slides" : "Show slides"}
-        >
-          <Eye className="h-3.5 w-3.5" />
-        </button>
-
-        {/* Delete button (only when not generating) */}
-        {!isGenerating && (
-          <button
-            onClick={onDelete}
-            className="text-muted-foreground/50 hover:bg-destructive/10 hover:text-destructive flex h-7 w-7 shrink-0 items-center justify-center rounded-md opacity-0 transition-all group-hover:opacity-100"
-            aria-label="Delete lesson"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
-        )}
-      </div>
-
-      {/* ---- Expanded content ---- */}
-      {expanded && (
-        <div className="border-border/40 space-y-3 border-t px-3 pt-2 pb-3">
-          {/* Generation progress bar */}
-          {isGenerating && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-muted-foreground">
-                  Generating slide {genProgress.current} of {genProgress.total}...
-                </span>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={onCancelGeneration}
-                  className="text-destructive hover:text-destructive h-6 gap-1 text-xs"
-                >
-                  <X className="h-3 w-3" />
-                  Cancel
-                </Button>
-              </div>
-              <div className="bg-muted h-1.5 w-full overflow-hidden rounded-full">
-                <div
-                  className="bg-primary h-full rounded-full transition-all duration-500"
-                  style={{
-                    width: `${genProgress.total > 0 ? (genProgress.current / genProgress.total) * 100 : 0}%`,
-                  }}
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Completed slides preview */}
-          <div className="space-y-1.5">
-            {lesson.slides.map((slide, i) => {
-              const genState = slide.slideId ? slideGenStates[slide.slideId] : null;
-              const isCurrentGen = slide.slideId === currentGenSlideId;
-
-              return (
-                <div
-                  key={slide.id}
-                  className={`flex items-center gap-2 rounded-md px-2.5 py-1.5 transition-colors ${
-                    isCurrentGen
-                      ? "bg-primary/10 border-primary/30 border"
-                      : genState?.status === "complete"
-                        ? "bg-emerald-50/50 dark:bg-emerald-950/20"
-                        : genState?.status === "error"
-                          ? "bg-destructive/5"
-                          : "bg-muted/30"
-                  }`}
-                >
-                  <span className="text-muted-foreground flex h-5 w-5 shrink-0 items-center justify-center rounded text-[10px] font-bold">
-                    {i + 1}
-                  </span>
-                  <span className="text-foreground flex-1 truncate text-xs">{slide.title}</span>
-
-                  {/* Status icon */}
-                  {genState?.status === "generating" && (
-                    <Loader2 className="text-primary h-3 w-3 animate-spin" />
-                  )}
-                  {genState?.status === "complete" && (
-                    <Check className="h-3 w-3 text-emerald-500" />
-                  )}
-                  {genState?.status === "error" && (
-                    <AlertCircle className="text-destructive h-3 w-3" title={genState.error} />
-                  )}
-                  {!genState && (
-                    <span className="inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-                      Draft
-                    </span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Generate Slides button (only when not generating and not all complete) */}
-          {!isGenerating && !allComplete && (
-            <Button size="sm" onClick={onGenerateSlides} className="h-8 w-full gap-1.5 text-xs">
-              <Play className="h-3 w-3" />
-              Generate Slides
-            </Button>
-          )}
-
-          {/* View completed slides (show first slide preview) */}
-          {!isGenerating && hasReadySlides && (
-            <div className="space-y-2">
-              <p className="text-muted-foreground text-xs font-medium">
-                {completedCount} slide{completedCount !== 1 ? "s" : ""} generated
-              </p>
-              {/* Show first completed slide as preview */}
-              {lesson.slides.some((s) => s.slideId && slideGenStates[s.slideId]?.htmlBody) && (
-                <div className="border-border/40 overflow-hidden rounded-md border">
-                  <iframe
-                    srcDoc={firstCompletedHtml}
-                    sandbox="allow-same-origin allow-scripts"
-                    className="w-full border-0"
-                    style={{ aspectRatio: "16/9" }}
-                    title={`Preview of ${lesson.title}`}
-                  />
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ============================================
-// Helpers
 // ============================================
