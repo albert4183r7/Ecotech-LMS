@@ -68,74 +68,107 @@ function throwFriendlyError(err: unknown, context: string): never {
  *   3. Parse the response and validate with Zod.
  *   4. Throw a descriptive error on schema mismatch.
  */
+const MAX_RETRIES = 2;
+
 export async function generateStructuredJSON<T>(
   prompt: string,
   schema: z.ZodType<T>,
 ): Promise<T> {
-  const client = await getClient();
+  const exampleHint = buildExampleHint(schema);
+  const fieldDescription = buildFieldDescription(schema);
 
-  const jsonShapeHint = buildShapeHint(schema);
+  const systemPrompt = `You are a helpful assistant. You MUST return a single JSON object as your response. Do NOT return a JSON schema, do NOT return an array of schemas, and do NOT include markdown fences.
 
-  const messages: ChatMessage[] = [
-    {
-      role: "system",
-      content: `You are a helpful assistant that returns ONLY valid JSON.
+REQUIRED JSON structure:
+${fieldDescription}
 
-The JSON you return MUST match this shape:
-${jsonShapeHint}
+EXAMPLE of the exact format to follow:
+${exampleHint}
 
-Rules:
-- Return ONLY a single JSON object — no markdown fences, no explanation, no extra text.
-- Every field listed above must be present with the correct type.
-- Do NOT add extra fields beyond what is described above.`,
-    },
-    { role: "user", content: prompt },
-  ];
+IMPORTANT RULES:
+1. Return ONLY the actual data JSON object — never the schema definition itself.
+2. Do NOT include fields like "type", "properties", "items" — those are schema metadata, not data.
+3. Every field described above must be present with the correct type.
+4. No markdown fences (no \`\`\`json), no explanation text, no extra commentary.`;
 
-  const body: CreateChatCompletionBody = {
-    model: LLM_MODEL,
-    messages,
-    response_format: { type: "json_object" } as never,
-    thinking: { type: "disabled" },
-  };
+  let lastError: Error | null = null;
 
-  let rawContent: string;
-  try {
-    const result = await client.chat.completions.create(body);
-    rawContent = result?.choices?.[0]?.message?.content ?? "";
-  } catch (err) {
-    throwFriendlyError(err, "generateStructuredJSON");
-  }
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    const client = await getClient();
+    const messages: ChatMessage[] = [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: prompt },
+    ];
 
-  if (!rawContent.trim()) {
-    throw new Error(
-      "[LLM Error] generateStructuredJSON — the model returned an empty response.",
-    );
-  }
+    const body: CreateChatCompletionBody = {
+      model: LLM_MODEL,
+      messages,
+      response_format: { type: "json_object" } as never,
+      thinking: { type: "disabled" },
+    };
 
-  // Parse raw JSON
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(rawContent);
-  } catch {
-    throw new Error(
-      `[LLM Error] generateStructuredJSON — the model returned invalid JSON. Raw response:\n${rawContent.slice(0, 500)}`,
-    );
-  }
+    let rawContent: string;
+    try {
+      const result = await client.chat.completions.create(body);
+      rawContent = result?.choices?.[0]?.message?.content ?? "";
+    } catch (err) {
+      throwFriendlyError(err, "generateStructuredJSON");
+    }
 
-  // Validate against the Zod schema
-  const result = schema.safeParse(parsed);
-  if (!result.success) {
+    if (!rawContent.trim()) {
+      lastError = new Error(
+        "[LLM Error] generateStructuredJSON — the model returned an empty response.",
+      );
+      console.error(`[generateStructuredJSON] Attempt ${attempt + 1}/${MAX_RETRIES + 1}: empty response, retrying...`);
+      continue;
+    }
+
+    // Strip markdown fences if the model wraps the response
+    const cleaned = rawContent
+      .replace(/^```(?:json)?\s*/i, "")
+      .replace(/\s*```\s*$/, "")
+      .trim();
+
+    // Parse raw JSON
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(cleaned);
+    } catch {
+      lastError = new Error(
+        `[LLM Error] generateStructuredJSON — the model returned invalid JSON. Raw response:\n${rawContent.slice(0, 500)}`,
+      );
+      console.error(`[generateStructuredJSON] Attempt ${attempt + 1}/${MAX_RETRIES + 1}: invalid JSON, retrying...`);
+      continue;
+    }
+
+    // Detect if the model returned a schema instead of data
+    if (isLikelySchema(parsed)) {
+      lastError = new Error(
+        "[LLM Schema Error] generateStructuredJSON — the model returned a JSON schema definition instead of actual data.",
+      );
+      console.error(`[generateStructuredJSON] Attempt ${attempt + 1}/${MAX_RETRIES + 1}: model returned schema instead of data, retrying...`);
+      continue;
+    }
+
+    // Validate against the Zod schema
+    const result = schema.safeParse(parsed);
+    if (result.success) {
+      return result.data as T;
+    }
+
+    // Validation failed — retry if attempts remain
     const issues = result.error.issues
       .slice(0, 5)
       .map((i) => `  - ${i.path.join(".") || "(root)"}: ${i.message}`)
       .join("\n");
-    throw new Error(
+    lastError = new Error(
       `[LLM Schema Error] generateStructuredJSON — the model response does not match the expected schema.\n\nValidation issues:\n${issues}\n\nReceived data (first 500 chars):\n${JSON.stringify(parsed, null, 2).slice(0, 500)}`,
     );
+    console.error(`[generateStructuredJSON] Attempt ${attempt + 1}/${MAX_RETRIES + 1}: schema validation failed, retrying...\n${issues}`);
   }
 
-  return result.data as T;
+  // All retries exhausted
+  throw lastError ?? new Error("generateStructuredJSON failed after all retries.");
 }
 
 /**
@@ -226,69 +259,77 @@ export async function* streamText(
 }
 
 // ────────────────────────────────────────────────
-// Shape-hint builder (describes a Zod schema as
-// human-readable text for the system prompt)
+// Schema → example & description builders
 // ────────────────────────────────────────────────
 
-function buildShapeHint(schema: z.ZodType): string {
-  // Try zod-to-json-schema first; fall back to a manual description.
-  try {
-    const jsonSchema = zodToJsonSchema(schema);
-    return "```json\n" + JSON.stringify(jsonSchema, null, 2) + "\n```";
-  } catch {
-    // Fallback: use the schema's description if available
-    return JSON.stringify(
-      describeZodType(schema),
-      null,
-      2,
-    );
-  }
-}
-
-/** Minimal Zod → JSON Schema converter for the types we care about. */
-function zodToJsonSchema(zodType: z.ZodType): Record<string, unknown> {
+/** Build a human-readable field description from a Zod schema */
+function buildFieldDescription(zodType: z.ZodType, indent: string = ""): string {
   if (zodType instanceof z.ZodObject) {
-    const shape = zodType.shape;
-    const properties: Record<string, unknown> = {};
-
-    for (const [key, val] of Object.entries(shape)) {
-      properties[key] = zodToJsonSchema(val);
-    }
-
-    return { type: "object", properties };
-  }
-
-  if (zodType instanceof z.ZodArray) {
-    return { type: "array", items: zodToJsonSchema(zodType.element) };
-  }
-
-  if (zodType instanceof z.ZodString) return { type: "string" };
-  if (zodType instanceof z.ZodNumber) return { type: "number" };
-  if (zodType instanceof z.ZodBoolean) return { type: "boolean" };
-  if (zodType instanceof z.ZodEnum) return { type: "string", enum: zodType.options };
-
-  // Fallback
-  return { type: "any" };
-}
-
-/** Fallback: describe a Zod type as a plain object (when JSON Schema fails). */
-function describeZodType(zodType: z.ZodType): unknown {
-  if (zodType instanceof z.ZodObject) {
-    const obj: Record<string, string> = {};
+    const lines: string[] = ["An object with these fields:"];
     for (const [key, val] of Object.entries(zodType.shape)) {
-      obj[key] = zodTypeName(val);
+      const typeDesc = describeType(val);
+      lines.push(`${indent}  - "${key}": ${typeDesc}`);
+    }
+    return lines.join("\n");
+  }
+  return describeType(zodType);
+}
+
+/** Build a concrete example JSON from a Zod schema */
+function buildExampleHint(zodType: z.ZodType): string {
+  const example = generateExample(zodType);
+  return "```json\n" + JSON.stringify(example, null, 2) + "\n```";
+}
+
+/** Recursively generate example data from a Zod schema */
+function generateExample(zodType: z.ZodType): unknown {
+  if (zodType instanceof z.ZodObject) {
+    const obj: Record<string, unknown> = {};
+    for (const [key, val] of Object.entries(zodType.shape)) {
+      obj[key] = generateExample(val);
     }
     return obj;
   }
-  return zodTypeName(zodType);
+  if (zodType instanceof z.ZodArray) {
+    return [generateExample(zodType.element)];
+  }
+  if (zodType instanceof z.ZodString) return "example value";
+  if (zodType instanceof z.ZodNumber) return 1;
+  if (zodType instanceof z.ZodBoolean) return true;
+  if (zodType instanceof z.ZodEnum) return zodType.options[0];
+  return null;
 }
 
-function zodTypeName(t: z.ZodType): string {
-  if (t instanceof z.ZodString) return "string";
-  if (t instanceof z.ZodNumber) return "number";
-  if (t instanceof z.ZodBoolean) return "boolean";
-  if (t instanceof z.ZodArray) return `${zodTypeName(t.element)}[]`;
-  if (t instanceof z.ZodObject) return "object";
-  if (t instanceof z.ZodEnum) return `one of: ${t.options.join(" | ")}`;
+/** Describe a Zod type in human-readable terms */
+function describeType(t: z.ZodType): string {
+  if (t instanceof z.ZodString) return "string (text)";
+  if (t instanceof z.ZodNumber) return "number (integer or float)";
+  if (t instanceof z.ZodBoolean) return "boolean (true or false)";
+  if (t instanceof z.ZodEnum) return `string, must be one of: ${t.options.join(", ")}`;
+  if (t instanceof z.ZodArray) {
+    return `array of objects, each with: ${describeType(t.element)}`;
+  }
+  if (t instanceof z.ZodObject) {
+    const fields = Object.entries(t.shape)
+      .map(([k, v]) => `  - "${k}": ${describeType(v)}`)
+      .join("\n");
+    return `object with fields:\n${fields}`;
+  }
   return "any";
+}
+
+/** Detect if the parsed response is a JSON Schema definition rather than actual data */
+function isLikelySchema(data: unknown): boolean {
+  if (typeof data !== "object" || data === null) return false;
+  const obj = data as Record<string, unknown>;
+  // If it has "type" and "properties" at the top level, it's likely a schema
+  if (obj.type === "object" && typeof obj.properties === "object") return true;
+  if (obj.type === "array" && typeof obj.items === "object") return true;
+  // If it's an array where the first element has "type" and "properties"
+  if (Array.isArray(data) && data.length > 0) {
+    const first = data[0] as Record<string, unknown>;
+    if (first.type === "object" && typeof first.properties === "object") return true;
+    if (typeof first.type === "string" && typeof first.properties === "object") return true;
+  }
+  return false;
 }

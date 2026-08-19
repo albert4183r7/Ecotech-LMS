@@ -1,0 +1,845 @@
+     1→"use client";
+     2→
+     3→import { useState, useEffect, useMemo, useCallback } from "react";
+     4→import {
+     5→  BookOpen,
+     6→  Star,
+     7→  Users,
+     8→  GraduationCap,
+     9→  BarChart3,
+    10→  ArrowUpRight,
+    11→  Pencil,
+    12→  Plus,
+    13→  Compass,
+    14→  UserPlus,
+    15→  Eye,
+    16→  Clock,
+    17→} from "lucide-react";
+    18→import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+    19→import { Badge } from "@/components/ui/badge";
+    20→import { Skeleton } from "@/components/ui/skeleton";
+    21→import { Button } from "@/components/ui/button";
+    22→import {
+    23→  Tooltip,
+    24→  TooltipContent,
+    25→  TooltipProvider,
+    26→  TooltipTrigger,
+    27→} from "@/components/ui/tooltip";
+    28→import { useUserStore, useNavigationStore, useCourseStore } from "@/stores/lms-store";
+    29→import { cn } from "@/lib/utils";
+    30→
+    31→/* ------------------------------------------------------------------ */
+    32→/*  Types                                                              */
+    33→/* ------------------------------------------------------------------ */
+    34→
+    35→interface InstructorCourse {
+    36→  id: string;
+    37→  title: string;
+    38→  description: string | null;
+    39→  coverImage: string | null;
+    40→  rating: number;
+    41→  studentCount: number;
+    42→  status: string;
+    43→  language: string;
+    44→  category: { id: string; name: string; color: string | null } | null;
+    45→  lessonsCount: number;
+    46→  enrollmentsCount: number;
+    47→  createdAt: string;
+    48→  updatedAt: string;
+    49→}
+    50→
+    51→interface StudentActivity {
+    52→  id: string;
+    53→  studentName: string;
+    54→  studentAvatar: string | null;
+    55→  courseTitle: string;
+    56→  enrolledAt: string;
+    57→}
+    58→
+    59→/* ------------------------------------------------------------------ */
+    60→/*  Helpers                                                            */
+    61→/* ------------------------------------------------------------------ */
+    62→
+    63→function timeAgo(dateStr: string): string {
+    64→  const now = new Date();
+    65→  const date = new Date(dateStr);
+    66→  const diffMs = now.getTime() - date.getTime();
+    67→  const diffSec = Math.floor(diffMs / 1000);
+    68→  const diffMin = Math.floor(diffSec / 60);
+    69→  const diffHr = Math.floor(diffMin / 60);
+    70→  const diffDay = Math.floor(diffHr / 24);
+    71→  const diffWeek = Math.floor(diffDay / 7);
+    72→  const diffMonth = Math.floor(diffDay / 30);
+    73→
+    74→  if (diffSec < 60) return "just now";
+    75→  if (diffMin < 60) return `${diffMin}m ago`;
+    76→  if (diffHr < 24) return `${diffHr}h ago`;
+    77→  if (diffDay < 7) return `${diffDay}d ago`;
+    78→  if (diffWeek < 5) return `${diffWeek}w ago`;
+    79→  return `${diffMonth}mo ago`;
+    80→}
+    81→
+    82→/* ------------------------------------------------------------------ */
+    83→/*  Seeded random for consistent sparkline data                        */
+    84→/* ------------------------------------------------------------------ */
+    85→
+    86→function seededRandom(seed: number) {
+    87→  let s = seed;
+    88→  return () => {
+    89→    s = (s * 16807 + 0) % 2147483647;
+    90→    return (s - 1) / 2147483646;
+    91→  };
+    92→}
+    93→
+    94→/* ------------------------------------------------------------------ */
+    95→/*  Sparkline Mini Chart                                               */
+    96→/* ------------------------------------------------------------------ */
+    97→
+    98→function SparklineChart({
+    99→  data,
+   100→  gradientFrom,
+   101→  gradientTo,
+   102→}: {
+   103→  data: number[];
+   104→  gradientFrom: string;
+   105→  gradientTo: string;
+   106→}) {
+   107→  const max = Math.max(...data, 1);
+   108→  return (
+   109→    <div className="flex items-end gap-[3px] h-8">
+   110→      {data.map((val, i) => {
+   111→        const height = Math.max(4, (val / max) * 100);
+   112→        return (
+   113→          <div
+   114→            key={i}
+   115→            className={cn(
+   116→              "w-[6px] rounded-full transition-all duration-500",
+   117→              `bg-gradient-to-t ${gradientFrom} ${gradientTo}`
+   118→            )}
+   119→            style={{
+   120→              height: `${height}%`,
+   121→              opacity: 0.5 + (i / data.length) * 0.5,
+   122→              animationDelay: `${i * 60}ms`,
+   123→            }}
+   124→          />
+   125→        );
+   126→      })}
+   127→    </div>
+   128→  );
+   129→}
+   130→
+   131→/* ------------------------------------------------------------------ */
+   132→/*  Stat Card Component (with Sparkline)                               */
+   133→/* ------------------------------------------------------------------ */
+   134→
+   135→interface StatCardProps {
+   136→  icon: React.ReactNode;
+   137→  label: string;
+   138→  value: string | number;
+   139→  gradient: string;
+   140→  gradientFrom: string;
+   141→  gradientTo: string;
+   142→  delay: number;
+   143→  seed: number;
+   144→}
+   145→
+   146→function StatCard({
+   147→  icon,
+   148→  label,
+   149→  value,
+   150→  gradient,
+   151→  gradientFrom,
+   152→  gradientTo,
+   153→  delay,
+   154→  seed,
+   155→}: StatCardProps) {
+   156→  const sparkData = useMemo(() => {
+   157→    const rand = seededRandom(seed);
+   158→    return Array.from({ length: 7 }, () => 20 + rand() * 80);
+   159→  }, [seed]);
+   160→
+   161→  return (
+   162→    <Card
+   163→      className="glass-card stat-pop hover-lift overflow-hidden border-border/50 transition-shadow hover:shadow-lg"
+   164→      style={{ animationDelay: `${delay}ms` }}
+   165→    >
+   166→      <CardContent className="p-4 sm:p-5">
+   167→        <div className="flex items-center gap-3.5">
+   168→          <div
+   169→            className={cn(
+   170→              "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br shadow-md transition-transform duration-200 hover:scale-110",
+   171→              gradient
+   172→            )}
+   173→          >
+   174→            {icon}
+   175→          </div>
+   176→          <div className="min-w-0 flex-1">
+   177→            <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+   178→              {label}
+   179→            </p>
+   180→            <p className="text-2xl font-bold tracking-tight text-foreground leading-tight">
+   181→              {value}
+   182→            </p>
+   183→          </div>
+   184→          <div className="shrink-0 opacity-60">
+   185→            <SparklineChart
+   186→              data={sparkData}
+   187→              gradientFrom={gradientFrom}
+   188→              gradientTo={gradientTo}
+   189→            />
+   190→          </div>
+   191→        </div>
+   192→      </CardContent>
+   193→    </Card>
+   194→  );
+   195→}
+   196→
+   197→/* ------------------------------------------------------------------ */
+   198→/*  Star Rating Component                                              */
+   199→/* ------------------------------------------------------------------ */
+   200→
+   201→function StarRating({ rating }: { rating: number }) {
+   202→  return (
+   203→    <div className="flex items-center gap-0.5">
+   204→      {Array.from({ length: 5 }).map((_, i) => (
+   205→        <Star
+   206→          key={i}
+   207→          className={cn(
+   208→            "h-3.5 w-3.5",
+   209→            i < Math.round(rating)
+   210→            ? "fill-amber-400 text-amber-400"
+   211→            : "fill-muted text-muted"
+   212→          )}
+   213→        />
+   214→      ))}
+   215→      <span className="ml-1 text-xs font-medium text-muted-foreground">
+   216→        {rating.toFixed(1)}
+   217→      </span>
+   218→    </div>
+   219→  );
+   220→}
+   221→
+   222→/* ------------------------------------------------------------------ */
+   223→/*  Status Badge                                                       */
+   224→/* ------------------------------------------------------------------ */
+   225→
+   226→function StatusBadge({ status }: { status: string }) {
+   227→  const isPublished = status === "published";
+   228→  return (
+   229→    <Badge
+   230→      variant="secondary"
+   231→      className={cn(
+   232→        "text-[10px] font-semibold uppercase tracking-wider",
+   233→        isPublished
+   234→          ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400"
+   235→          : "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400"
+   236→      )}
+   237→    >
+   238→      {isPublished ? "Published" : "Draft"}
+   239→    </Badge>
+   240→  );
+   241→}
+   242→
+   243→/* ------------------------------------------------------------------ */
+   244→/*  Dashboard Page                                                     */
+   245→/* ------------------------------------------------------------------ */
+   246→
+   247→export function DashboardPage() {
+   248→  const { currentUserId } = useUserStore();
+   249→  const { openCourseDetail, navigateTo } = useNavigationStore();
+   250→  const { setEditingCourseId } = useCourseStore();
+   251→  const [courses, setCourses] = useState<InstructorCourse[] | null>(null);
+   252→  const [activities, setActivities] = useState<StudentActivity[] | null>(null);
+   253→  const [loading, setLoading] = useState(true);
+   254→  const [error, setError] = useState<string | null>(null);
+   255→
+   256→  const fetchDashboardData = useCallback(async () => {
+   257→    try {
+   258→      setLoading(true);
+   259→      setError(null);
+   260→
+   261→      const [coursesRes, activitiesRes] = await Promise.all([
+   262→        fetch(`/api/courses?creatorId=${currentUserId}`),
+   263→        fetch(`/api/enrollments?creatorId=${currentUserId}`),
+   264→      ]);
+   265→
+   266→      const coursesJson = await coursesRes.json();
+   267→      const activitiesJson = await activitiesRes.json();
+   268→
+   269→      if (coursesJson.success) {
+   270→        setCourses(coursesJson.data);
+   271→      } else {
+   272→        setError(coursesJson.error || "Failed to load courses");
+   273→        return;
+   274→      }
+   275→
+   276→      if (activitiesJson.success) {
+   277→        setActivities(activitiesJson.data);
+   278→      } else {
+   279→        setActivities([]);
+   280→      }
+   281→    } catch {
+   282→      setError("Network error. Please try again.");
+   283→    } finally {
+   284→      setLoading(false);
+   285→    }
+   286→  }, [currentUserId]);
+   287→
+   288→  useEffect(() => {
+   289→    fetchDashboardData();
+   290→  }, [fetchDashboardData]);
+   291→
+   292→  /* ---- Computed stats ---- */
+   293→  const stats = useMemo(() => {
+   294→    if (!courses) return { totalCourses: 0, totalStudents: 0, avgRating: "0.0", totalLessons: 0 };
+   295→    const totalCourses = courses.length;
+   296→    const totalStudents = courses.reduce((sum, c) => sum + (c.studentCount || 0), 0);
+   297→    const ratedCourses = courses.filter((c) => c.rating > 0);
+   298→    const avgRating =
+   299→      ratedCourses.length > 0
+   300→        ? (ratedCourses.reduce((sum, c) => sum + c.rating, 0) / ratedCourses.length).toFixed(1)
+   301→        : "0.0";
+   302→    const totalLessons = courses.reduce((sum, c) => sum + (c.lessonsCount || 0), 0);
+   303→    return { totalCourses, totalStudents, avgRating, totalLessons };
+   304→  }, [courses]);
+   305→
+   306→  if (error) {
+   307→    return (
+   308→      <div className="flex min-h-[50vh] flex-col items-center justify-center px-4">
+   309→        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-destructive/10">
+   310→          <BarChart3 className="h-7 w-7 text-destructive" />
+   311→        </div>
+   312→        <h2 className="mt-4 text-lg font-semibold text-foreground">
+   313→          Something went wrong
+   314→        </h2>
+   315→        <p className="mt-1 text-sm text-muted-foreground">{error}</p>
+   316→        <Button
+   317→          variant="outline"
+   318→          className="mt-4"
+   319→          onClick={() => window.location.reload()}
+   320→        >
+   321→          Try Again
+   322→        </Button>
+   323→      </div>
+   324→    );
+   325→  }
+   326→
+   327→  return (
+   328→    <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
+   329→      {/* Page Header */}
+   330→      <div className="content-reveal mb-6">
+   331→        <div className="flex items-center gap-3">
+   332→          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-emerald-600 shadow-md">
+   333→            <BarChart3 className="h-5 w-5 text-white" />
+   334→          </div>
+   335→          <div>
+   336→            <h1 className="text-2xl font-bold tracking-tight gradient-text">
+   337→              Instructor Dashboard
+   338→            </h1>
+   339→            <p className="text-sm text-muted-foreground">
+   340→              Manage your courses and track student engagement
+   341→            </p>
+   342→          </div>
+   343→        </div>
+   344→      </div>
+   345→
+   346→      {loading ? (
+   347→        <DashboardSkeleton />
+   348→      ) : courses ? (
+   349→        <div className="space-y-6">
+   350→          {/* ---- Top Stats Row ---- */}
+   351→          <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+   352→            <StatCard
+   353→              icon={<BookOpen className="h-5 w-5 text-white" />}
+   354→              label="Total Courses"
+   355→              value={stats.totalCourses}
+   356→              gradient="from-teal-500 to-cyan-600"
+   357→              gradientFrom="from-teal-400"
+   358→              gradientTo="to-cyan-300"
+   359→              delay={0}
+   360→              seed={101}
+   361→            />
+   362→            <StatCard
+   363→              icon={<Users className="h-5 w-5 text-white" />}
+   364→              label="Total Students"
+   365→              value={stats.totalStudents}
+   366→              gradient="from-amber-500 to-orange-500"
+   367→              gradientFrom="from-amber-400"
+   368→              gradientTo="to-orange-300"
+   369→              delay={50}
+   370→              seed={202}
+   371→            />
+   372→            <StatCard
+   373→              icon={<Star className="h-5 w-5 text-white" />}
+   374→              label="Average Rating"
+   375→              value={stats.avgRating}
+   376→              gradient="from-emerald-500 to-green-600"
+   377→              gradientFrom="from-emerald-400"
+   378→              gradientTo="to-green-300"
+   379→              delay={100}
+   380→              seed={303}
+   381→            />
+   382→            <StatCard
+   383→              icon={<GraduationCap className="h-5 w-5 text-white" />}
+   384→              label="Total Lessons"
+   385→              value={stats.totalLessons}
+   386→              gradient="from-rose-500 to-pink-600"
+   387→              gradientFrom="from-rose-400"
+   388→              gradientTo="to-pink-300"
+   389→              delay={150}
+   390→              seed={404}
+   391→            />
+   392→          </div>
+   393→
+   394→          {/* ---- Quick Actions ---- */}
+   395→          <div className="content-reveal-delay-1 content-reveal flex flex-wrap gap-3">
+   396→            <Button
+   397→              onClick={() => navigateTo("create-course")}
+   398→              className="gap-2 bg-gradient-to-r from-teal-500 to-emerald-600 text-white hover:from-teal-600 hover:to-emerald-700 shadow-md transition-all hover:shadow-lg"
+   399→            >
+   400→              <Plus className="h-4 w-4" />
+   401→              Create New Course
+   402→            </Button>
+   403→            <Button
+   404→              variant="outline"
+   405→              onClick={() => navigateTo("courses")}
+   406→              className="gap-2 hover:bg-muted/80 transition-colors"
+   407→            >
+   408→              <Compass className="h-4 w-4" />
+   409→              Browse All Courses
+   410→            </Button>
+   411→          </div>
+   412→
+   413→          {/* ---- My Courses Table ---- */}
+   414→          <Card className="glass-card content-reveal-delay-2 content-reveal hover-lift border-border/50">
+   415→            <CardHeader className="pb-3">
+   416→              <CardTitle className="flex items-center gap-2 text-base gradient-text">
+   417→                <BookOpen className="h-4 w-4 text-teal-500" />
+   418→                My Courses
+   419→              </CardTitle>
+   420→            </CardHeader>
+   421→            <CardContent>
+   422→              {courses.length === 0 ? (
+   423→                <div className="flex flex-col items-center justify-center py-8 text-center">
+   424→                  <BookOpen className="h-8 w-8 text-muted-foreground/30" />
+   425→                  <p className="mt-2 text-sm text-muted-foreground">
+   426→                    You haven&apos;t created any courses yet
+   427→                  </p>
+   428→                  <Button
+   429→                    variant="outline"
+   430→                    size="sm"
+   431→                    className="mt-3 gap-2"
+   432→                    onClick={() => navigateTo("create-course")}
+   433→                  >
+   434→                    <Plus className="h-3.5 w-3.5" />
+   435→                    Create Your First Course
+   436→                  </Button>
+   437→                </div>
+   438→              ) : (
+   439→                <div className="max-h-96 overflow-y-auto custom-scrollbar">
+   440→                  {/* Desktop table header */}
+   441→                  <div className="hidden sm:grid sm:grid-cols-[1fr_auto_auto_auto_auto] sm:gap-4 sm:items-center sm:px-3 sm:py-2 sm:text-[11px] sm:font-semibold sm:uppercase sm:tracking-wider sm:text-muted-foreground border-b border-border/50 mb-2">
+   442→                    <span>Course</span>
+   443→                    <span className="text-center">Students</span>
+   444→                    <span className="text-center">Rating</span>
+   445→                    <span className="text-center">Status</span>
+   446→                    <span className="text-center w-16">Action</span>
+   447→                  </div>
+   448→                  <div className="space-y-1">
+   449→                    {courses.map((course) => (
+   450→                      <div
+   451→                        key={course.id}
+   452→                        className="group flex flex-col sm:grid sm:grid-cols-[1fr_auto_auto_auto_auto] sm:gap-4 sm:items-center rounded-xl p-3 transition-colors hover:bg-muted/50"
+   453→                      >
+   454→                        {/* Course title + category */}
+   455→                        <div className="min-w-0 flex-1">
+   456→                          <p className="truncate text-sm font-semibold text-foreground group-hover:text-primary transition-colors">
+   457→                            {course.title}
+   458→                          </p>
+   459→                          <div className="mt-1 flex items-center gap-2">
+   460→                            {course.category && (
+   461→                              <Badge
+   462→                                variant="secondary"
+   463→                                className="text-[10px] font-semibold"
+   464→                                style={
+   465→                                  course.category.color
+   466→                                    ? {
+   467→                                        backgroundColor: `${course.category.color}20`,
+   468→                                        color: course.category.color,
+   469→                                        borderColor: `${course.category.color}40`,
+   470→                                      }
+   471→                                    : undefined
+   472→                                }
+   473→                              >
+   474→                                {course.category.name}
+   475→                              </Badge>
+   476→                            )}
+   477→                            <span className="text-xs text-muted-foreground">
+   478→                              {course.lessonsCount} lesson{course.lessonsCount !== 1 ? "s" : ""}
+   479→                            </span>
+   480→                          </div>
+   481→                        </div>
+   482→
+   483→                        {/* Students enrolled */}
+   484→                        <div className="flex items-center gap-1.5 mt-2 sm:mt-0 sm:justify-center sm:min-w-[70px]">
+   485→                          <Users className="h-3.5 w-3.5 text-muted-foreground" />
+   486→                          <span className="text-sm font-medium text-foreground">
+   487→                            {course.studentCount}
+   488→                          </span>
+   489→                        </div>
+   490→
+   491→                        {/* Rating */}
+   492→                        <div className="mt-2 sm:mt-0 sm:justify-center sm:min-w-[90px]">
+   493→                          <StarRating rating={course.rating} />
+   494→                        </div>
+   495→
+   496→                        {/* Status */}
+   497→                        <div className="mt-2 sm:mt-0 sm:justify-center">
+   498→                          <StatusBadge status={course.status} />
+   499→                        </div>
+   500→
+   501→                        {/* Action buttons */}
+   502→                        <div className="mt-2 sm:mt-0 sm:justify-center flex items-center gap-1">
+   503→                          {course.status === "draft" ? (
+   504→                            <>
+   505→                              <TooltipProvider delayDuration={200}>
+   506→                                <Tooltip>
+   507→                                  <TooltipTrigger asChild>
+   508→                                    <Button
+   509→                                      variant="outline"
+   510→                                      size="sm"
+   511→                                      className="h-8 w-8 p-0 opacity-0 transition-opacity group-hover:opacity-100"
+   512→                                      onClick={() => {
+   513→                                        setEditingCourseId(course.id);
+   514→                                        navigateTo("create-course");
+   515→                                      }}
+   516→                                    >
+   517→                                      <Compass className="h-4 w-4" />
+   518→                                    </Button>
+   519→                                  </TooltipTrigger>
+   520→                                  <TooltipContent>Edit Draft</TooltipContent>
+   521→                                </Tooltip>
+   522→                              </TooltipProvider>
+   523→                              <TooltipProvider delayDuration={200}>
+   524→                                <Tooltip>
+   525→                                  <TooltipTrigger asChild>
+   526→                                    <Button
+   527→                                      variant="default"
+   528→                                      size="sm"
+   529→                                      className="h-8 gap-1 px-2 opacity-0 transition-opacity group-hover:opacity-100 text-xs"
+   530→                                      onClick={async () => {
+   531→                                        try {
+   532→                                          await fetch(`/api/courses/${course.id}`, {
+   533→                                            method: "PUT",
+   534→                                            headers: { "Content-Type": "application/json" },
+   535→                                            body: JSON.stringify({ status: "published" }),
+   536→                                          });
+   537→                                          window.location.reload();
+   538→                                        } catch { /* silent */ }
+   539→                                      }}
+   540→                                    >
+   541→                                      <ArrowUpRight className="h-3.5 w-3.5" />
+   542→                                      Publish
+   543→                                    </Button>
+   544→                                  </TooltipTrigger>
+   545→                                  <TooltipContent>Publish Course</TooltipContent>
+   546→                                </Tooltip>
+   547→                              </TooltipProvider>
+   548→                            </>
+   549→                          ) : (
+   550→                            <TooltipProvider delayDuration={200}>
+   551→                              <Tooltip>
+   552→                                <TooltipTrigger asChild>
+   553→                                  <Button
+   554→                                    variant="ghost"
+   555→                                    size="sm"
+   556→                                    className="h-8 w-8 p-0 opacity-0 transition-opacity group-hover:opacity-100"
+   557→                                    onClick={() => openCourseDetail(course.id)}
+   558→                                  >
+   559→                                    <Eye className="h-4 w-4" />
+   560→                                  </Button>
+   561→                                </TooltipTrigger>
+   562→                                <TooltipContent>View Course</TooltipContent>
+   563→                              </Tooltip>
+   564→                            </TooltipProvider>
+   565→                          )}
+   566→                        </div>
+   567→                      </div>
+   568→                    ))}
+   569→                  </div>
+   570→                </div>
+   571→              )}
+   572→            </CardContent>
+   573→          </Card>
+   574→
+   575→          {/* ---- Bottom Row ---- */}
+   576→          <div className="grid gap-4 lg:grid-cols-2">
+   577→            {/* Recent Student Activity */}
+   578→            <Card className="glass-card content-reveal-delay-3 content-reveal hover-lift border-border/50">
+   579→              <CardHeader className="pb-3">
+   580→                <CardTitle className="flex items-center gap-2 text-base gradient-text">
+   581→                  <UserPlus className="h-4 w-4 text-emerald-500" />
+   582→                  Recent Student Activity
+   583→                </CardTitle>
+   584→              </CardHeader>
+   585→              <CardContent>
+   586→                {!activities || activities.length === 0 ? (
+   587→                  <div className="flex flex-col items-center justify-center py-8 text-center">
+   588→                    <Users className="h-8 w-8 text-muted-foreground/30" />
+   589→                    <p className="mt-2 text-sm text-muted-foreground">
+   590→                      No student enrollments yet
+   591→                    </p>
+   592→                    <p className="mt-1 text-xs text-muted-foreground/70">
+   593→                      Enrollments will appear here once students join your courses
+   594→                    </p>
+   595→                  </div>
+   596→                ) : (
+   597→                  <div className="space-y-1 max-h-96 overflow-y-auto pr-1 custom-scrollbar">
+   598→                    {activities.map((activity) => (
+   599→                      <div
+   600→                        key={activity.id}
+   601→                        className="flex items-start gap-3 rounded-lg p-2.5 transition-colors hover:bg-muted/50"
+   602→                      >
+   603→                        <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-teal-100 to-emerald-100 dark:from-teal-950 dark:to-emerald-950">
+   604→                          <UserPlus className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+   605→                        </div>
+   606→                        <div className="min-w-0 flex-1">
+   607→                          <p className="text-sm text-foreground">
+   608→                            <span className="font-medium">
+   609→                              {activity.studentName}
+   610→                            </span>{" "}
+   611→                            enrolled in{" "}
+   612→                            <span className="font-medium text-teal-600 dark:text-teal-400">
+   613→                              {activity.courseTitle}
+   614→                            </span>
+   615→                          </p>
+   616→                          <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+   617→                            <Clock className="h-3 w-3" />
+   618→                            {timeAgo(activity.enrolledAt)}
+   619→                          </p>
+   620→                        </div>
+   621→                      </div>
+   622→                    ))}
+   623→                  </div>
+   624→                )}
+   625→              </CardContent>
+   626→            </Card>
+   627→
+   628→            {/* Quick Stats Summary */}
+   629→            <Card className="glass-card content-reveal-delay-4 content-reveal hover-lift border-border/50">
+   630→              <CardHeader className="pb-3">
+   631→                <CardTitle className="flex items-center gap-2 text-base gradient-text">
+   632→                  <GraduationCap className="h-4 w-4 text-amber-500" />
+   633→                  Course Overview
+   634→                </CardTitle>
+   635→              </CardHeader>
+   636→              <CardContent>
+   637→                {courses.length === 0 ? (
+   638→                  <div className="flex flex-col items-center justify-center py-8 text-center">
+   639→                    <GraduationCap className="h-8 w-8 text-muted-foreground/30" />
+   640→                    <p className="mt-2 text-sm text-muted-foreground">
+   641→                      No course data yet
+   642→                    </p>
+   643→                  </div>
+   644→                ) : (
+   645→                  <div className="space-y-3 max-h-96 overflow-y-auto pr-1 custom-scrollbar">
+   646→                    {/* Published vs Draft breakdown */}
+   647→                    <div className="grid grid-cols-2 gap-3 mb-4">
+   648→                      <div className="rounded-xl border border-border/50 p-3 text-center">
+   649→                        <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+   650→                          {courses.filter((c) => c.status === "published").length}
+   651→                        </p>
+   652→                        <p className="text-xs text-muted-foreground mt-0.5">Published</p>
+   653→                      </div>
+   654→                      <div className="rounded-xl border border-border/50 p-3 text-center">
+   655→                        <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">
+   656→                          {courses.filter((c) => c.status === "draft").length}
+   657→                        </p>
+   658→                        <p className="text-xs text-muted-foreground mt-0.5">Drafts</p>
+   659→                      </div>
+   660→                    </div>
+   661→
+   662→                    {/* Top courses by students */}
+   663→                    <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+   664→                      Most Popular
+   665→                    </p>
+   666→                    {courses
+   667→                      .sort((a, b) => (b.studentCount || 0) - (a.studentCount || 0))
+   668→                      .slice(0, 5)
+   669→                      .map((course, index) => (
+   670→                        <button
+   671→                          key={course.id}
+   672→                          onClick={() => openCourseDetail(course.id)}
+   673→                          className="group flex w-full items-center gap-3 rounded-xl border border-border/50 p-3 text-left transition-all hover:border-primary/30 hover:shadow-sm"
+   674→                        >
+   675→                          <div
+   676→                            className={cn(
+   677→                              "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-sm font-bold text-white",
+   678→                              index === 0
+   679→                                ? "bg-gradient-to-br from-amber-400 to-yellow-500"
+   680→                                : index === 1
+   681→                                  ? "bg-gradient-to-br from-slate-300 to-slate-400"
+   682→                                  : index === 2
+   683→                                    ? "bg-gradient-to-br from-amber-600 to-orange-600"
+   684→                                    : "bg-gradient-to-br from-muted-foreground/30 to-muted-foreground/20"
+   685→                            )}
+   686→                          >
+   687→                            {index + 1}
+   688→                          </div>
+   689→                          <div className="min-w-0 flex-1">
+   690→                            <p className="truncate text-sm font-semibold text-foreground group-hover:text-primary transition-colors">
+   691→                              {course.title}
+   692→                            </p>
+   693→                            <div className="mt-1 flex items-center gap-3">
+   694→                              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+   695→                                <Users className="h-3 w-3" />
+   696→                                {course.studentCount} students
+   697→                              </span>
+   698→                              <StarRating rating={course.rating} />
+   699→                            </div>
+   700→                          </div>
+   701→                          {course.category && (
+   702→                            <Badge
+   703→                              variant="secondary"
+   704→                              className="shrink-0 text-[10px]"
+   705→                              style={
+   706→                                course.category.color
+   707→                                  ? {
+   708→                                      backgroundColor: `${course.category.color}20`,
+   709→                                      color: course.category.color,
+   710→                                      borderColor: `${course.category.color}40`,
+   711→                                    }
+   712→                                  : undefined
+   713→                              }
+   714→                            >
+   715→                              {course.category.name}
+   716→                            </Badge>
+   717→                          )}
+   718→                          <ArrowUpRight className="h-4 w-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+   719→                        </button>
+   720→                      ))}
+   721→                  </div>
+   722→                )}
+   723→              </CardContent>
+   724→            </Card>
+   725→          </div>
+   726→        </div>
+   727→      ) : null}
+   728→    </div>
+   729→  );
+   730→}
+   731→
+   732→/* ------------------------------------------------------------------ */
+   733→/*  Loading Skeleton                                                   */
+   734→/* ------------------------------------------------------------------ */
+   735→
+   736→function DashboardSkeleton() {
+   737→  return (
+   738→    <div className="space-y-6">
+   739→      {/* Stats row skeleton */}
+   740→      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+   741→        {Array.from({ length: 4 }).map((_, i) => (
+   742→          <Card key={i} className="border-border/50">
+   743→            <CardContent className="p-4 sm:p-6">
+   744→              <div className="flex items-center gap-4">
+   745→                <Skeleton className="h-11 w-11 rounded-xl" />
+   746→                <div className="flex-1 space-y-2">
+   747→                  <Skeleton className="h-3 w-24" />
+   748→                  <Skeleton className="h-7 w-16" />
+   749→                </div>
+   750→                <Skeleton className="h-8 w-16" />
+   751→              </div>
+   752→            </CardContent>
+   753→          </Card>
+   754→        ))}
+   755→      </div>
+   756→
+   757→      {/* Quick actions skeleton */}
+   758→      <div className="flex gap-3">
+   759→        <Skeleton className="h-10 w-44 rounded-md" />
+   760→        <Skeleton className="h-10 w-40 rounded-md" />
+   761→      </div>
+   762→
+   763→      {/* My Courses table skeleton */}
+   764→      <Card className="border-border/50">
+   765→        <CardHeader className="pb-3">
+   766→          <Skeleton className="h-5 w-28" />
+   767→        </CardHeader>
+   768→        <CardContent className="space-y-3">
+   769→          {/* Table header skeleton */}
+   770→          <div className="hidden sm:grid sm:grid-cols-[1fr_auto_auto_auto_auto] sm:gap-4 sm:items-center sm:px-3 sm:py-2 border-b border-border/50">
+   771→            <Skeleton className="h-3 w-16" />
+   772→            <Skeleton className="h-3 w-16" />
+   773→            <Skeleton className="h-3 w-12" />
+   774→            <Skeleton className="h-3 w-12" />
+   775→            <Skeleton className="h-3 w-12" />
+   776→          </div>
+   777→          {Array.from({ length: 4 }).map((_, i) => (
+   778→            <div
+   779→              key={i}
+   780→              className="flex flex-col sm:grid sm:grid-cols-[1fr_auto_auto_auto_auto] sm:gap-4 sm:items-center sm:px-3 sm:py-3"
+   781→            >
+   782→              <div className="space-y-1.5">
+   783→                <Skeleton className="h-4 w-56" />
+   784→                <Skeleton className="h-4 w-16 rounded" />
+   785→              </div>
+   786→              <Skeleton className="h-4 w-12" />
+   787→              <Skeleton className="h-4 w-20" />
+   788→              <Skeleton className="h-5 w-16 rounded" />
+   789→              <Skeleton className="h-8 w-8 rounded" />
+   790→            </div>
+   791→          ))}
+   792→        </CardContent>
+   793→      </Card>
+   794→
+   795→      {/* Bottom row skeleton */}
+   796→      <div className="grid gap-4 lg:grid-cols-2">
+   797→        {/* Recent activity skeleton */}
+   798→        <Card className="border-border/50">
+   799→          <CardHeader className="pb-3">
+   800→            <Skeleton className="h-5 w-44" />
+   801→          </CardHeader>
+   802→          <CardContent className="space-y-3">
+   803→            {Array.from({ length: 5 }).map((_, i) => (
+   804→              <div key={i} className="flex items-start gap-3">
+   805→                <Skeleton className="h-8 w-8 rounded-full" />
+   806→                <div className="flex-1 space-y-1.5">
+   807→                  <Skeleton className="h-3 w-full" />
+   808→                  <Skeleton className="h-2.5 w-16" />
+   809→                </div>
+   810→              </div>
+   811→            ))}
+   812→          </CardContent>
+   813→        </Card>
+   814→
+   815→        {/* Course overview skeleton */}
+   816→        <Card className="border-border/50">
+   817→          <CardHeader className="pb-3">
+   818→            <Skeleton className="h-5 w-36" />
+   819→          </CardHeader>
+   820→          <CardContent className="space-y-4">
+   821→            <div className="grid grid-cols-2 gap-3">
+   822→              <Skeleton className="h-16 w-full rounded-xl" />
+   823→              <Skeleton className="h-16 w-full rounded-xl" />
+   824→            </div>
+   825→            <Skeleton className="h-3 w-28" />
+   826→            {Array.from({ length: 3 }).map((_, i) => (
+   827→              <div
+   828→                key={i}
+   829→                className="flex items-center gap-3 rounded-xl border border-border/50 p-3"
+   830→              >
+   831→                <Skeleton className="h-8 w-8 rounded-lg" />
+   832→                <div className="flex-1 space-y-1.5">
+   833→                  <Skeleton className="h-3 w-40" />
+   834→                  <Skeleton className="h-3 w-24" />
+   835→                </div>
+   836→                <Skeleton className="h-5 w-16 rounded" />
+   837→              </div>
+   838→            ))}
+   839→          </CardContent>
+   840→        </Card>
+   841→      </div>
+   842→    </div>
+   843→  );
+   844→}
+   845→

@@ -1021,3 +1021,28 @@ Stage Summary:
 - generate-outline returns better error messages (502 for LLM failure)
 - Draft courses: Dashboard shows Edit (navigates to editor) and Publish (immediate) buttons
 - Iframe slides now load Tailwind CSS correctly
+
+---
+Task ID: 1
+Agent: Main Agent (Session Continuation)
+Task: Read reference diagram, fix generate-outline 502, verify iframe sandbox, verify draft course edit/publish, browser QA
+
+Work Log:
+- Read and analyzed the uploaded reference document (Penjelasan_Diagram_AI_PPT_Generator.docx) — an AI PPT Generator architecture diagram
+- Investigated generate-outline 500/502 error from dev.log: root cause was LLM returning JSON Schema definition instead of actual data
+- Rewrote `generateStructuredJSON` in `src/lib/llm.ts`:
+  - Replaced JSON Schema hint with concrete example + human-readable field description
+  - Added `isLikelySchema()` detection to catch when model returns schema instead of data
+  - Added retry logic (MAX_RETRIES=2) with detailed console logging per attempt
+  - Added markdown fence stripping for model responses
+  - New helper functions: `buildFieldDescription()`, `buildExampleHint()`, `generateExample()`, `describeType()`, `isLikelySchema()`
+- Verified iframe sandbox already has `allow-scripts` in both create-course-page.tsx and classroom-page.tsx
+- Verified dashboard already has Edit Draft (Compass icon) and Publish (ArrowUpRight icon) buttons for draft courses
+- Ran agent-browser QA: homepage loads correctly, instructor login works, dashboard renders with draft/published courses, no console errors
+- Lint passes clean
+
+Stage Summary:
+- Fixed: LLM schema confusion causing 502 on generate-outline (replaced schema hint with example-based prompt + retry)
+- Confirmed: iframe sandbox allow-scripts already present
+- Confirmed: Draft course edit + publish buttons already working in dashboard
+- All 3 reported bugs from previous session are now resolved
