@@ -1,5 +1,6 @@
 import ZAI from 'z-ai-web-dev-sdk';
 import type { CreateChatCompletionBody } from 'z-ai-web-dev-sdk';
+import { LLM_MODEL } from './llm';
 
 // ============================================
 // AI Client — z-ai-web-dev-sdk streaming wrapper
@@ -15,34 +16,33 @@ const IMAGEKIT_CONFIGURED = !!IMAGEKIT_ENDPOINT;
 /** Build image instruction based on whether ImageKit is configured */
 function buildImageRule(): string {
   if (IMAGEKIT_CONFIGURED) {
-    return `5. For images, use ImageKit AI generation URLs in this exact format:
-   <img src="${IMAGEKIT_ENDPOINT}/ik-genimg-prompt-{URL_ENCODED_DESCRIPTION}/slide-image.jpg" alt="description" class="..." />
-   Replace {URL_ENCODED_DESCRIPTION} with a URL-encoded short English description of the desired image (e.g. \"colorful+data+visualization+chart\").
-   The filename after the description can be any descriptive name ending in .jpg.
-   Example: <img src="${IMAGEKIT_ENDPOINT}/ik-genimg-prompt-colorful+data+chart/data-viz.jpg" alt="Data visualization chart" class="w-full rounded-lg shadow-md" />
-11. Do NOT use any external image URLs other than ImageKit URLs.`;
+    return `IMAGE RULES:
+- For images, use ImageKit AI generation URLs in this exact format:
+  <img src="${IMAGEKIT_ENDPOINT}/ik-genimg-prompt-{URL_ENCODED_DESCRIPTION}/slide-image.jpg" alt="description" class="..." />
+  Replace {URL_ENCODED_DESCRIPTION} with a URL-encoded short English description of the desired image (e.g. "colorful+data+visualization+chart").
+  The filename after the description can be any descriptive name ending in .jpg.
+  Example: <img src="${IMAGEKIT_ENDPOINT}/ik-genimg-prompt-colorful+data+chart/data-viz.jpg" alt="Data visualization chart" class="w-full rounded-lg shadow-md" />
+- Do NOT use any external image URLs other than ImageKit URLs.`;
   }
-  return `5. Do NOT include <img> tags with external URLs — image generation is not available. Instead, create visuals using:
-   - Colored div backgrounds with Tailwind gradients, borders, and patterns
-   - Icon-like Unicode characters or emoji for visual indicators (e.g. 📊 🎯 ✅ ⚡)
-   - CSS grid/flexbox layouts for visual structure
-   - Colored boxes, badges, and decorative div elements
-   This is critical: every visual must be pure CSS/HTML.
-11. Do NOT use any external image URLs or <img> tags with external sources.`;
+  return `IMAGE RULES:
+- Do NOT include <img> tags with external URLs — image generation is not available.
+- Instead, create visuals using: colored div backgrounds with Tailwind gradients, borders, and patterns; icon-like Unicode characters or emoji for visual indicators (e.g. 📊 🎯 ✅ ⚡); CSS grid/flexbox layouts for visual structure; colored boxes, badges, and decorative div elements.
+- Every visual must be pure CSS/HTML.
+- Do NOT use any external image URLs or <img> tags with external sources.`;
 }
 
 /** Build edit prompt image instruction */
 function buildEditImageRule(): string {
   if (IMAGEKIT_CONFIGURED) {
     return `For NEW images, use ImageKit AI generation URLs:
-   <img src="${IMAGEKIT_ENDPOINT}/ik-genimg-prompt-{URL_ENCODED_DESCRIPTION}/slide-image.jpg" alt="description" class="..." />
-   Replace {URL_ENCODED_DESCRIPTION} with a URL-encoded short English description.
+  <img src="${IMAGEKIT_ENDPOINT}/ik-genimg-prompt-{URL_ENCODED_DESCRIPTION}/slide-image.jpg" alt="description" class="..." />
+  Replace {URL_ENCODED_DESCRIPTION} with a URL-encoded short English description.
 For EXISTING images that need AI transformation, append transformation params as ?tr= query params on the existing ImageKit URL:
-   - Remove background: append ?tr=e-removedotbg
-   - Replace background: append ?tr=e-changebg-prompt-{URL_ENCODED_NEW_BG_DESCRIPTION}
-   - Upscale: append ?tr=e-upscale
-   - Add drop shadow: append ?tr=e-dropshadow
-   Example: if original src is ".../image.jpg", changing background becomes ".../image.jpg?tr=e-changebg-prompt-sunset+beach"
+  - Remove background: append ?tr=e-removedotbg
+  - Replace background: append ?tr=e-changebg-prompt-{URL_ENCODED_NEW_BG_DESCRIPTION}
+  - Upscale: append ?tr=e-upscale
+  - Add drop shadow: append ?tr=e-dropshadow
+  Example: if original src is ".../image.jpg", changing background becomes ".../image.jpg?tr=e-changebg-prompt-sunset+beach"
 Do NOT use any external image URLs other than ImageKit URLs.`;
   }
   return `Do NOT add <img> tags with external URLs — image generation is not available.
@@ -50,20 +50,48 @@ For visual elements, use CSS-based approaches (gradients, colored divs, Unicode/
 Do NOT use any external image URLs.`;
 }
 
-/** System prompt for HTML slide generation */
-export const SLIDE_HTML_SYSTEM_PROMPT = `You are an expert instructional designer who creates beautiful, professional slide content as HTML with Tailwind CSS utility classes.
+/** System prompt for HTML slide generation — PPT-style presentation slides */
+export const SLIDE_HTML_SYSTEM_PROMPT = `You are an expert presentation slide designer. You create beautiful, visually impactful slides like those in a professional PowerPoint or Keynote presentation.
 
-CRITICAL RULES:
-1. Output ONLY raw HTML — no markdown, no code fences, no \`\`\`html markers.
+WHAT THIS IS: These are PRESENTATION SLIDES — like what a student makes for a class presentation, or a professional makes for a business pitch. Think Google Slides, PowerPoint, Keynote.
+
+WHAT THIS IS NOT: These are NOT lesson pages, NOT educational course content, NOT "What You'll Learn" pages, NOT syllabus documents. Do NOT create educational/lesson-style content.
+
+CRITICAL DESIGN RULES:
+1. Output ONLY raw HTML — no markdown, no code fences, no backtick-html markers.
 2. Use ONLY Tailwind CSS utility classes for styling. Never use inline style="" attributes.
-3. Design for a 16:9 aspect ratio slide layout.
-4. Use a clean, modern design with good spacing, typography hierarchy, and visual structure.
-${buildImageRule()}
-6. Structure each slide as a self-contained HTML fragment wrapped in a root <div>.
-7. Use semantic HTML: h1 for titles, h2 for section headers, p for body text, ul/ol for lists, etc.
-8. Use appropriate Tailwind classes for colors, spacing, typography, and layout.
-9. Keep text concise — slides are visual aids, not documents.
-10. For quiz slides, create a clean question + 4 options layout using a grid or flexbox.`;
+3. Design for a 16:9 aspect ratio slide layout (widescreen).
+4. Each slide must look like a REAL PRESENTATION SLIDE:
+   - Big, bold title at the top
+   - Key points as short, punchy bullet items (3-5 max per slide)
+   - Strong visual hierarchy — title >> subtitles >> body text
+   - Use visual elements: colored accent bars, icon indicators, number badges, colored cards
+   - Leave breathing room — do NOT fill every pixel with text
+5. ${buildImageRule()}
+6. Structure each slide as a self-contained HTML fragment wrapped in a single root <div>.
+7. SLIDE TYPES AND HOW TO DESIGN THEM:
+   - TITLE SLIDE: Large centered title, subtitle below, maybe a decorative accent. NO bullet points.
+   - CONTENT SLIDE: Title at top, 3-5 key points as short bullets or visual cards. NOT paragraphs.
+   - COMPARISON SLIDE: Two or more columns side by side. Each column has a heading and short bullets.
+   - LIST/PROCESS SLIDE: Numbered steps or a flow. Each step is short (1 line max).
+   - STATISTICS SLIDE: Big numbers with labels, or a simple visual chart layout.
+   - CLOSING SLIDE: "Thank You" or "Questions?" with a clean, minimal design.
+8. TEXT RULES:
+   - Keep text SHORT. Each bullet point = 1 line, max 10-15 words.
+   - NO long paragraphs. NO walls of text.
+   - NO "What You'll Learn" sections.
+   - NO "Learning Objectives" sections.
+   - NO definitions blocks.
+   - NO syllabus-style content.
+   - Use action words and concrete statements.
+   - If you must explain something, use 2-3 short bullets, not a paragraph.
+9. VARY YOUR LAYOUTS — do not use the same layout for every slide. Mix:
+   - Left-aligned title with right-aligned visual area
+   - Centered title with cards grid below
+   - Full-width colored header bar with content below
+   - Two-column split layouts
+   - Numbered step layouts
+10. Use appropriate Tailwind classes for colors, spacing, typography, and layout.`;
 
 /** System prompt for course outline generation */
 export const OUTLINE_SYSTEM_PROMPT = `You are an expert instructional designer. Generate a structured course outline.
@@ -83,7 +111,7 @@ Rules:
 - Section titles should be descriptive and specific.`;
 
 /** System prompt for inline HTML editing (whole-slide edit) */
-export const INLINE_EDIT_SYSTEM_PROMPT = `You are an expert HTML editor specializing in Tailwind CSS slide content. You receive existing HTML slide content and a natural-language edit instruction.
+export const INLINE_EDIT_SYSTEM_PROMPT = `You are an expert presentation slide editor specializing in Tailwind CSS. You receive existing HTML slide content and a natural-language edit instruction.
 
 CRITICAL RULES:
 1. Output ONLY the modified HTML — no markdown, no code fences, no explanations.
@@ -91,10 +119,11 @@ CRITICAL RULES:
 3. Apply the requested changes precisely.
 4. Use ONLY Tailwind CSS utility classes — never inline style="".
 5. ${buildEditImageRule()}
-6. Preserve ALL existing Tailwind CSS classes unless the instruction explicitly asks to change them.`;
+6. Preserve ALL existing Tailwind CSS classes unless the instruction explicitly asks to change them.
+7. Keep the slide looking like a real PPT/Keynote presentation slide — visual, not text-heavy.`;
 
 /** System prompt for single-element HTML editing (click-to-edit) */
-export const ELEMENT_EDIT_SYSTEM_PROMPT = `You are an expert HTML editor. You receive a SINGLE HTML element extracted from a slide and a natural-language edit instruction. Your job is to return ONLY the replacement HTML for that one element.
+export const ELEMENT_EDIT_SYSTEM_PROMPT = `You are an expert HTML editor. You receive a SINGLE HTML element extracted from a presentation slide and a natural-language edit instruction. Your job is to return ONLY the replacement HTML for that one element.
 
 CRITICAL RULES:
 1. Output ONLY the replacement HTML fragment for this one element — no markdown, no code fences, no explanations, no wrapper tags beyond the element itself.
@@ -113,6 +142,7 @@ export async function streamSlideHtml(
 ): Promise<ReadableStream<Uint8Array>> {
   const zai = await ZAI.create();
   const body: CreateChatCompletionBody = {
+    model: LLM_MODEL,
     messages: [
       { role: 'system', content: systemPrompt || SLIDE_HTML_SYSTEM_PROMPT },
       { role: 'user', content: userPrompt },
@@ -137,6 +167,7 @@ export async function generateText(
 ): Promise<string> {
   const zai = await ZAI.create();
   const completion = await zai.chat.completions.create({
+    model: LLM_MODEL,
     messages: [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt },
@@ -150,7 +181,6 @@ export async function generateText(
 /** Parse SSE chunks from the z-ai-web-dev-sdk ReadableStream */
 export function parseSSEStream(stream: ReadableStream<Uint8Array>): ReadableStream<string> {
   const decoder = new TextDecoder();
-  const encoder = new TextEncoder();
 
   return new ReadableStream<string>({
     async start(controller) {

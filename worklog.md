@@ -1046,3 +1046,42 @@ Stage Summary:
 - Confirmed: iframe sandbox allow-scripts already present
 - Confirmed: Draft course edit + publish buttons already working in dashboard
 - All 3 reported bugs from previous session are now resolved
+
+---
+Task ID: 2
+Agent: Main Agent
+Task: Completely rework AI slide generation from lesson-style to PPT/presentation-style
+
+Work Log:
+- Analyzed user screenshots showing lesson-style content ("What You'll Learn", definitions, walls of text)
+- Identified root cause: all AI prompts were designed for "instructional designer" making educational content
+- Rewrote `src/lib/ai.ts` SLIDE_HTML_SYSTEM_PROMPT:
+  - Changed persona from "expert instructional designer" to "expert presentation slide designer"
+  - Added explicit "WHAT THIS IS" / "WHAT THIS IS NOT" section
+  - Added slide type guidance (Title, Content, Comparison, List/Process, Statistics, Closing)
+  - Added text rules: max 1 line per bullet, NO "What You'll Learn", NO "Learning Objectives", NO definitions
+  - Added model specification (LLM_MODEL = glm-4-plus) to streamSlideHtml
+- Rewrote `src/app/api/lessons/generate-outline/route.ts` outline prompt:
+  - Changed from "educational lesson slide outline" to "presentation (PPT) outline"
+  - Added explicit structure: first=Title slide, last=Closing slide, middle=Content slides
+  - Added visual layout hints in outline descriptions
+  - Added prohibition of "Learning Objectives" and "What You'll Learn"
+- Rewrote `src/app/api/lessons/generate-slides/route.ts` per-slide prompt:
+  - Title slide: centered title, subtitle, decorative elements, NO bullet points
+  - Second slide: overview with key points in cards/blocks
+  - Closing slide: "Thank You" / "Questions?" / clean minimal design
+  - Content slides: 3-5 key points, short one-line bullets, visual layouts
+  - Removed all educational terminology and lesson-style instructions
+- Tested with agent-browser: generated 4 slides for "AI Agents for Technical Team Training"
+  - Slide 1: Title slide with dark gradient, decorative elements, centered title
+  - Slide 2: Key Benefits with card layout
+  - Slide 3: Implementation & Future Outlook with timeline
+  - Slide 4: Thank You closing slide
+  - ALL 4 slides generated successfully (no more stuck-at-slide-2 issue)
+  - Verified via dev.log: Slide 1 COMPLETE, Slide 2 COMPLETE, Slide 3 COMPLETE, Slide 4 COMPLETE
+
+Stage Summary:
+- Completely transformed AI slide generation from lesson-style to PPT/presentation-style
+- All three core files rewritten: ai.ts, generate-outline/route.ts, generate-slides/route.ts
+- Verified: outline is PPT-style, all slides generate, title slide has proper visual design
+- Lint passes clean, dev server running without errors

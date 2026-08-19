@@ -94,15 +94,12 @@ export async function POST(request: NextRequest) {
 
     if (referenceFileUrls && referenceFileUrls.length > 0) {
       try {
-        // Convert URLs to file paths (they are relative to public/)
         const filePaths = referenceFileUrls
           .map((url) => {
-            // URL is like /uploads/docs/uuid.pdf
             const cleanUrl = url.replace(/^\//, "");
             return path.join(process.cwd(), "public", cleanUrl);
           })
           .filter((fp) => {
-            // Basic path traversal prevention
             const normalized = path.normalize(fp);
             return normalized.startsWith(path.join(process.cwd(), "public"));
           });
@@ -116,7 +113,6 @@ export async function POST(request: NextRequest) {
         }
       } catch (error) {
         console.error("Error extracting reference documents:", error);
-        // Don't fail the whole request — continue without reference context
       }
     }
 
@@ -126,10 +122,9 @@ export async function POST(request: NextRequest) {
       ? `${styleInfo.label} (${styleInfo.description})`
       : style;
 
-    // Build reference material section
     const referenceSection = referenceContext
       ? `
-${isChinese ? "参考材料（必须基于此内容生成大纲，保留关键术语和概念）:" : "REFERENCE MATERIAL (you MUST base the outline on this content — preserve key terminology, concepts, and facts):"}
+${isChinese ? "参考材料（大纲内容必须基于此材料，保留关键术语和事实）:" : "REFERENCE MATERIAL (outline MUST be based on this content — preserve key terms, facts, and data):"}
 
 <reference_documents>
 ${referenceContext}
@@ -137,37 +132,33 @@ ${referenceContext}
 `
       : "";
 
-    const prompt = `${isChinese ? "课程主题" : "Topic"}: ${topic}
+    const prompt = `${isChinese ? "演示主题" : "Presentation topic"}: ${topic}
 ${isChinese ? "幻灯片数量" : "Number of slides"}: ${clampedCount}
 ${isChinese ? "设计风格" : "Design style"}: ${styleDescription}
 ${referenceSection}
 ${isChinese
-      ? `请为以上主题生成一个教育性课程大纲。要求：
-1. ${referenceContext ? "大纲必须基于参考材料中的实际内容，保留重要术语和概念。不要编造参考材料中没有的内容。" : ""}
-2. 幻灯片应该有教育性的递进结构，例如：
-   - 引入/背景
-   - 核心概念定义
-   - 详细解释或示例
-   - 比较/对比或过程说明
-   - 应用/实践
-   - 总结/要点回顾
-3. 每张幻灯片有不同的教学目的——避免重复结构。
-4. 每个幻灯片应包含一个标题和详细的内容大纲描述（2-4句话，说明应该展示什么内容、如何展示）。
-5. 不要使用通用的填充内容。每个幻灯片都应该有独特的教育价值。
-6. 用中文生成所有内容。`
-      : `Generate an educational lesson slide outline for the given topic. Requirements:
-1. ${referenceContext ? "The outline MUST be grounded in the reference material above. Preserve key terminology, definitions, concepts, and facts from the source. Do NOT fabricate information not present in the reference material." : ""}
-2. The slides should follow an educational progression, such as:
-   - Introduction / context
-   - Core concept definitions
-   - Detailed explanation with examples
-   - Comparison, process, or visual explanation
-   - Application or practice
-   - Summary / key takeaways
-3. Each slide must serve a DIFFERENT instructional purpose — avoid repetitive structures.
-4. Each slide should have a title AND a detailed outline description (2-4 sentences explaining what content should appear and how it should be presented).
-5. Do NOT use generic filler content. Every slide must have unique educational value.
-6. Generate all content in English.`
+      ? `请为以上主题生成一个演示文稿（PPT）大纲。这就像你是一个需要做课堂展示的学生，或者需要做产品推介的职场人士，正在准备你的幻灯片大纲。
+
+要求：
+1. ${referenceContext ? "大纲必须基于参考材料中的实际内容，保留重要术语和数据。" : ""}
+2. 第一张幻灯片 = 标题页（主标题 + 副标题/标语）
+3. 最后一张幻灯片 = 结束页（如"谢谢"、"Q&A"、联系方式等）
+4. 中间的幻灯片 = 内容页，每张包含一个清晰的标题和3-5个要点
+5. 每张幻灯片的outline描述应该说明：这张幻灯片展示什么关键信息，用什么方式展示（比如"左侧标题，右侧三个卡片"或"顶部标题，下方四宫格"）
+6. 不要写"学习目标"、"你将学到什么"、"课程概述"这类教育性内容
+7. 每张幻灯片应该像真正的PPT一样——简洁、有冲击力、视觉化
+8. 用中文生成所有内容。`
+      : `Generate a presentation (PPT) outline for the given topic. Think of it like you're a student preparing slides for a class presentation, or a professional creating a pitch deck.
+
+Requirements:
+1. ${referenceContext ? "The outline MUST be grounded in the reference material above. Preserve key terms, facts, data, and specifics from the source. Do NOT fabricate information." : ""}
+2. First slide = Title slide (main title + subtitle/tagline)
+3. Last slide = Closing slide (e.g. "Thank You", "Questions?", contact info)
+4. Middle slides = Content slides, each with a clear title and 3-5 key talking points
+5. Each slide's outline should describe: what key info this slide shows, and HOW to present it visually (e.g. "left-aligned title with 3 cards on the right" or "top banner with a 2-column comparison below")
+6. Do NOT create "Learning Objectives", "What You'll Learn", "Course Overview", or any educational/lesson-style content
+7. Each slide should feel like a REAL presentation slide — concise, impactful, visual
+8. Generate all content in English.`
     }`;
 
     // ---- Call LLM ----
@@ -192,7 +183,6 @@ ${isChinese
       slideCount: clampedCount,
       language,
       slides: result.slides,
-      // Store reference info so slide generation can use it
       referenceContext: referenceContext || undefined,
       referenceSources: extractedSources.length > 0 ? extractedSources : undefined,
     };
@@ -201,7 +191,6 @@ ${isChinese
     let lesson;
 
     if (existingLessonId) {
-      // Re-generating: delete old slides, update lesson
       await db.slide.deleteMany({ where: { lessonId: existingLessonId } });
       lesson = await db.lesson.update({
         where: { id: existingLessonId },
@@ -211,7 +200,6 @@ ${isChinese
         },
       });
     } else {
-      // Create new lesson
       lesson = await db.lesson.create({
         data: {
           courseId,
@@ -222,7 +210,6 @@ ${isChinese
       });
     }
 
-    // Create slides from the outline
     await db.slide.createMany({
       data: result.slides.map((s, i) => ({
         title: s.title,
@@ -233,7 +220,6 @@ ${isChinese
       })),
     });
 
-    // Fetch the created slides with their IDs
     const createdSlides = await db.slide.findMany({
       where: { lessonId: lesson.id },
       orderBy: { order: "asc" },
