@@ -4,8 +4,8 @@ A learning-management app where instructors describe a topic and the system gene
 presentation-style lesson from it — an outline first, then a full HTML slide per outline
 entry. Learners enrol in courses, work through the slides, take notes, and earn XP.
 
-Built with Next.js 16 (App Router), Prisma + SQLite, and an OpenAI-compatible LLM
-(Zhipu GLM) for content generation.
+Built with Next.js 16 (App Router), Prisma + SQLite, and Google Gemini for content
+generation.
 
 ---
 
@@ -17,8 +17,8 @@ Built with Next.js 16 (App Router), Prisma + SQLite, and an OpenAI-compatible LL
 | Styling | Tailwind CSS v4, shadcn/ui (Radix primitives) |
 | Data | Prisma 6 + SQLite |
 | State | Zustand (`src/stores/lms-store.ts`), TanStack Query |
-| LLM | `z-ai-web-dev-sdk` → GLM-4-Plus |
-| Runtime | Bun (Node 20+ also works) |
+| LLM | `@google/genai` → Gemini |
+| Runtime | Node.js 20+ / npm |
 
 ## Features
 
@@ -70,58 +70,57 @@ Generation runs in the background; slides move through
 
 ### Prerequisites
 
-- [Bun](https://bun.sh) (or Node 20+)
-- An API key for the LLM provider
+- Node.js 20 or newer
+- A [Google Gemini API key](https://aistudio.google.com/apikey)
 
 ### 1. Install
 
 ```bash
-bun install
+npm install
 ```
 
-### 2. Configure the database
+### 2. Configure environment
 
-Create `.env` in the project root:
+Copy the example file and fill it in:
+
+```bash
+cp .env.example .env
+```
 
 ```
 DATABASE_URL=file:./db/custom.db
+GEMINI_API_KEY=your-key-here
 ```
 
-> Use a **relative** path. An absolute path from another machine will not resolve.
+> Keep `DATABASE_URL` **relative**. An absolute path from another machine will not resolve.
 
-### 3. Configure the LLM
+Optional overrides:
 
-The SDK does not read env vars. Create `.z-ai-config` in the project root:
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `GEMINI_MODEL` | `gemini-flash-latest` | Model id. `gemini-pro-latest` gives better outlines at higher cost. |
+| `IMAGEKIT_URL_ENDPOINT` | unset | Enables AI-generated images in slides |
 
-```json
-{
-  "baseUrl": "<your provider's API base URL>",
-  "apiKey": "<your api key>"
-}
-```
+`gemini-flash-latest` is a rolling alias, so it tracks the current Flash model rather than
+pinning a version that goes stale.
 
-Both fields are required. The SDK appends `/chat/completions` to `baseUrl`, so give it the
-base path only. It looks for the file in the project root, your home directory, or `/etc`.
-
-The file is gitignored. Without it every generation route fails with `[LLM Auth Error]`.
-
-### 4. Set up the schema
+### 3. Set up the schema
 
 ```bash
-bun run db:generate
-bun run db:push
+npm run db:generate
+npm run db:push
 ```
 
 Optionally seed demo courses:
 
 ```bash
-bun prisma/seed.ts
+npm run db:seed
 ```
 
-### 5. Run
+### 4. Run
 
 ```bash
-bun run dev
+npm run dev
 ```
 
 App runs at [http://localhost:3000](http://localhost:3000).
@@ -139,29 +138,21 @@ IMAGEKIT_PRIVATE_KEY=...
 Without these, the generator is instructed to build visuals from CSS and Unicode only, and
 the sanitiser blocks all external image URLs.
 
-### Windows note
-
-The `dev`, `build` and `start` scripts use POSIX shell syntax and will not run as-is in
-PowerShell or CMD. Either use WSL / Git Bash, or run the underlying command directly:
-
-```powershell
-npx next dev -p 3000
-```
-
 ---
 
 ## Scripts
 
 | Script | Purpose |
 | --- | --- |
-| `bun run dev` | Dev server on port 3000 |
-| `bun run build` | Production build (standalone output) |
-| `bun run start` | Serve the production build |
-| `bun run lint` | ESLint |
-| `bun run db:generate` | Regenerate the Prisma client |
-| `bun run db:push` | Push schema to the database |
-| `bun run db:migrate` | Create and apply a migration |
-| `bun run db:reset` | Drop and recreate the database |
+| `npm run dev` | Dev server on port 3000 |
+| `npm run build` | Production build (standalone output) |
+| `npm run start` | Serve the production build |
+| `npm run lint` | ESLint |
+| `npm run db:generate` | Regenerate the Prisma client |
+| `npm run db:push` | Push schema to the database |
+| `npm run db:migrate` | Create and apply a migration |
+| `npm run db:reset` | Drop and recreate the database |
+| `npm run db:seed` | Load demo courses |
 
 ## Project structure
 

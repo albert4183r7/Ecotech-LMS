@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { streamSlideHtml, parseSSEStream } from '@/lib/ai';
+import { streamSlideHtml } from '@/lib/ai';
 import { sanitizeHtml, wrapSlideHtml } from '@/lib/sanitize';
 
 interface GenerateSlideHtmlRequest {
@@ -50,20 +50,13 @@ ${isChinese ? '要求' : 'Instructions'}: ${prompt}
 ${languageInstruction}`;
 
         // Stream from AI
-        const rawSSEStream = await streamSlideHtml(userPrompt);
-        const textStream = parseSSEStream(rawSSEStream);
-
-        const reader = textStream.getReader();
         let fullHtml = '';
 
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          fullHtml += value;
+        for await (const chunk of streamSlideHtml(userPrompt)) {
+          fullHtml += chunk;
 
           // Emit chunk
-          const chunkEvent = `event: chunk\ndata: ${JSON.stringify({ html: value })}\n\n`;
+          const chunkEvent = `event: chunk\ndata: ${JSON.stringify({ html: chunk })}\n\n`;
           controller.enqueue(encoder.encode(chunkEvent));
         }
 

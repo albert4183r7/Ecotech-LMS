@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { streamSlideHtml, parseSSEStream, SLIDE_HTML_SYSTEM_PROMPT } from '@/lib/ai';
+import { streamSlideHtml, collectStream, SLIDE_HTML_SYSTEM_PROMPT } from '@/lib/ai';
 import { sanitizeHtml, wrapSlideHtml } from '@/lib/sanitize';
 import {
   slideBrief,
@@ -283,25 +283,11 @@ async function generateAllSlides(lessonId: string, language?: string): Promise<v
 
     try {
       console.log(`[generate-slides] Calling streamSlideHtml for slide ${label}...`);
-      const rawSSEStream = await withTimeout(
-        streamSlideHtml(userPrompt, systemPrompt),
+      const fullHtml = await withTimeout(
+        collectStream(streamSlideHtml(userPrompt, systemPrompt)),
         SLIDE_TIMEOUT_MS,
-        `streamSlideHtml slide ${label}`,
+        `generate slide ${label}`,
       );
-
-      const textStream = parseSSEStream(rawSSEStream);
-      const reader = textStream.getReader();
-      let fullHtml = '';
-
-      while (true) {
-        const { done, value } = await withTimeout(
-          reader.read(),
-          SLIDE_TIMEOUT_MS,
-          `read chunk for slide ${label}`,
-        );
-        if (done) break;
-        fullHtml += value;
-      }
 
       console.log(`[generate-slides] Slide ${label} stream done: ${fullHtml.length} chars`);
 

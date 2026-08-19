@@ -1,10 +1,8 @@
-import ZAI from 'z-ai-web-dev-sdk';
-import type { CreateChatCompletionBody } from 'z-ai-web-dev-sdk';
-import { LLM_MODEL } from './llm';
+import { getClient, LLM_MODEL } from './llm';
 
 // ============================================
-// AI Client — z-ai-web-dev-sdk streaming wrapper
-// Used for slide HTML generation via SSE
+// AI Client — Gemini streaming wrapper
+// Used for slide HTML generation
 // ============================================
 
 /** ImageKit URL endpoint (server-side only, never expose to client) */
@@ -137,108 +135,52 @@ CRITICAL RULES:
 7. ${buildEditImageRule()}
 8. Do NOT add any wrapper divs or container elements that weren't in the original — replace only the element itself.`;
 
-/** Stream slide HTML from z-ai-web-dev-sdk */
-export async function streamSlideHtml(
+/** Ceiling for a single slide's HTML. Also covers thinking tokens on 2.5+. */
+const SLIDE_MAX_OUTPUT_TOKENS = 16384;
+
+/** Stream slide HTML, yielding text chunks as they arrive. */
+export async function* streamSlideHtml(
   userPrompt: string,
   systemPrompt?: string,
-): Promise<ReadableStream<Uint8Array>> {
-  const zai = await ZAI.create();
-  const body: CreateChatCompletionBody = {
+): AsyncGenerator<string, void, undefined> {
+  const stream = await getClient().models.generateContentStream({
     model: LLM_MODEL,
-    messages: [
-      { role: 'system', content: systemPrompt || SLIDE_HTML_SYSTEM_PROMPT },
-      { role: 'user', content: userPrompt },
-    ],
-    stream: true,
-    thinking: { type: 'disabled' },
-  };
+    contents: userPrompt,
+    config: {
+      systemInstruction: systemPrompt || SLIDE_HTML_SYSTEM_PROMPT,
+      temperature: 0.8,
+      maxOutputTokens: SLIDE_MAX_OUTPUT_TOKENS,
+    },
+  });
 
-  const result = await zai.chat.completions.create(body);
-
-  if (!(result instanceof ReadableStream)) {
-    throw new Error('Expected ReadableStream from streaming API call');
+  for await (const chunk of stream) {
+    if (chunk.text) yield chunk.text;
   }
-
-  return result;
 }
 
-/** Non-streaming text generation */
+/** Collect a slide stream into a single string. */
+export async function collectStream(
+  stream: AsyncGenerator<string, void, undefined>,
+): Promise<string> {
+  let out = '';
+  for await (const chunk of stream) out += chunk;
+  return out;
+}
+
+/** Non-streaming text generation. */
 export async function generateText(
   userPrompt: string,
   systemPrompt: string,
 ): Promise<string> {
-  const zai = await ZAI.create();
-  const completion = await zai.chat.completions.create({
+  const response = await getClient().models.generateContent({
     model: LLM_MODEL,
-    messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt },
-    ],
-    thinking: { type: 'disabled' },
-  });
-
-  return completion.choices?.[0]?.message?.content ?? '';
-}
-
-/** Parse SSE chunks from the z-ai-web-dev-sdk ReadableStream */
-export function parseSSEStream(stream: ReadableStream<Uint8Array>): ReadableStream<string> {
-  const decoder = new TextDecoder();
-
-  return new ReadableStream<string>({
-    async start(controller) {
-      const reader = stream.getReader();
-      let buffer = '';
-
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) {
-            // Flush remaining buffer
-            if (buffer.trim()) {
-              const text = extractTextFromSSE(buffer);
-              if (text) controller.enqueue(text);
-            }
-            controller.close();
-            break;
-          }
-
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || ''; // Keep incomplete line in buffer
-
-          for (const line of lines) {
-            const text = extractTextFromSSE(line);
-            if (text) {
-              controller.enqueue(text);
-            }
-          }
-        }
-      } catch (error) {
-        controller.error(error);
-      }
+    contents: userPrompt,
+    config: {
+      systemInstruction: systemPrompt,
+      temperature: 0.7,
+      maxOutputTokens: SLIDE_MAX_OUTPUT_TOKENS,
     },
   });
-}
 
-/** Extract text content from a single SSE line */
-function extractTextFromSSE(line: string): string {
-  const trimmed = line.trim();
-  if (!trimmed || trimmed.startsWith(':')) return ''; // Skip empty lines and comments
-
-  if (trimmed.startsWith('data: ')) {
-    const data = trimmed.slice(6);
-    if (data === '[DONE]') return '';
-
-    try {
-      const parsed = JSON.parse(data);
-      // OpenAI-compatible SSE: choices[0].delta.content
-      const content = parsed.choices?.[0]?.delta?.content;
-      if (content) return content;
-    } catch {
-      // Not valid JSON — might be plain text
-      return data;
-    }
-  }
-
-  return '';
+  return response.text ?? '';
 }

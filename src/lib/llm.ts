@@ -1,23 +1,42 @@
-import ZAI from "z-ai-web-dev-sdk";
-import type { CreateChatCompletionBody, ChatMessage } from "z-ai-web-dev-sdk";
+import { GoogleGenAI } from "@google/genai";
 import { z } from "zod/v4";
 
 // ============================================
 // General-purpose LLM client wrapper
-// Uses z-ai-web-dev-sdk → Zhipu GLM models
+// Google Gemini via @google/genai
 // Server-only — never import on the client.
 // ============================================
 
-/** Model name constant — change here to swap the underlying model. */
-export const LLM_MODEL = "glm-4-plus";
+/** Model id. Override with GEMINI_MODEL.
+ *  `gemini-flash-latest` is a rolling alias, so it does not go stale.
+ *  Use `gemini-pro-latest` for higher-quality outlines at greater cost. */
+export const LLM_MODEL = process.env.GEMINI_MODEL ?? "gemini-flash-latest";
+
+/** Generous ceiling — on Gemini 2.5+ this budget also covers thinking tokens,
+ *  so a tight limit truncates the answer rather than the reasoning. */
+const MAX_OUTPUT_TOKENS = 16384;
+
+const MAX_RETRIES = 2;
 
 // ────────────────────────────────────────────────
-// Internal helpers
+// Client
 // ────────────────────────────────────────────────
 
-/** Build a ZAI client (reads .z-ai-config automatically). */
-async function getClient() {
-  return ZAI.create();
+let client: GoogleGenAI | null = null;
+
+/** Lazily build the Gemini client from GEMINI_API_KEY. */
+export function getClient(): GoogleGenAI {
+  if (client) return client;
+
+  const apiKey = process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY;
+  if (!apiKey) {
+    throw new Error(
+      "[LLM Config Error] GEMINI_API_KEY is not set. Add it to .env — see the README.",
+    );
+  }
+
+  client = new GoogleGenAI({ apiKey });
+  return client;
 }
 
 /** Extract a human-readable message from an unknown error. */
@@ -31,45 +50,52 @@ function extractErrorMessage(err: unknown): string {
 function throwFriendlyError(err: unknown, context: string): never {
   const msg = extractErrorMessage(err);
 
-  // Rate-limit detection
-  if (/429|rate.?limit|too many/i.test(msg)) {
+  if (/429|RESOURCE_EXHAUSTED|rate.?limit|quota/i.test(msg)) {
     throw new Error(
-      `[LLM Rate Limited] ${context} — the API returned a rate-limit error. Please retry after a brief wait.`,
+      `[LLM Rate Limited] ${context} — Gemini returned a quota or rate-limit error. Retry after a brief wait.`,
     );
   }
 
-  // Auth / config detection
-  if (/401|403|unauthorized|forbidden|api.?key/i.test(msg)) {
+  if (/401|403|PERMISSION_DENIED|UNAUTHENTICATED|API.?key/i.test(msg)) {
     throw new Error(
-      `[LLM Auth Error] ${context} — check that .z-ai-config contains a valid apiKey.`,
+      `[LLM Auth Error] ${context} — check that GEMINI_API_KEY is set and valid.`,
     );
   }
 
-  // Generic API error (non-2xx)
-  if (/status \d{3}/i.test(msg)) {
-    throw new Error(`[LLM API Error] ${context} — ${msg}`);
+  if (/404|NOT_FOUND/i.test(msg)) {
+    throw new Error(
+      `[LLM Model Error] ${context} — model "${LLM_MODEL}" was not found for this API key. Set GEMINI_MODEL to one your account can access.`,
+    );
+  }
+
+  if (/socket|ECONNREFUSED|ENOTFOUND|ETIMEDOUT|fetch failed|network/i.test(msg)) {
+    throw new Error(
+      `[LLM Network Error] ${context} — could not reach the Gemini API. Check connectivity and any proxy or firewall between this host and generativelanguage.googleapis.com. (${msg})`,
+    );
   }
 
   throw new Error(`[LLM Error] ${context} — ${msg}`);
 }
 
 // ────────────────────────────────────────────────
-// Public API
+// Structured JSON
 // ────────────────────────────────────────────────
 
-/**
- * Call the LLM with `response_format: { type: "json_object" }` and validate
- * the returned JSON against a Zod schema.
- *
- * **Strategy:** The Zhipu GLM API supports `json_object` mode but NOT the
- * `json_schema` structured-output variant (it is silently ignored). So we:
- *   1. Include the desired JSON shape in the system-prompt text.
- *   2. Send `response_format: { type: "json_object" }` to force JSON output.
- *   3. Parse the response and validate with Zod.
- *   4. Throw a descriptive error on schema mismatch.
- */
-const MAX_RETRIES = 2;
+/** Convert a Zod schema to the JSON Schema Gemini accepts.
+ *  The `$schema` dialect key is not part of the response-schema contract. */
+function toGeminiJsonSchema(schema: z.ZodType): Record<string, unknown> {
+  const jsonSchema = z.toJSONSchema(schema) as Record<string, unknown>;
+  delete jsonSchema.$schema;
+  return jsonSchema;
+}
 
+/**
+ * Generate JSON conforming to a Zod schema.
+ *
+ * Gemini enforces the shape natively via `responseJsonSchema`, so the response
+ * is already constrained; the Zod parse is a second gate that also gives us the
+ * typed value. Retries cover transient API failures and refinement misses.
+ */
 export async function generateStructuredJSON<T>(
   prompt: string,
   schema: z.ZodType<T>,
@@ -78,45 +104,30 @@ export async function generateStructuredJSON<T>(
      *  predictable model mistake (swapped fields, a legacy shape) instead of
      *  spending a retry on it. */
     repair?: (parsed: unknown) => unknown;
+    /** Extra instruction prepended as the system instruction. */
+    systemInstruction?: string;
+    temperature?: number;
   },
 ): Promise<T> {
-  const exampleHint = buildExampleHint(schema);
-  const fieldDescription = buildFieldDescription(schema);
-
-  const systemPrompt = `You are a helpful assistant. You MUST return a single JSON object as your response. Do NOT return a JSON schema, do NOT return an array of schemas, and do NOT include markdown fences.
-
-REQUIRED JSON structure:
-${fieldDescription}
-
-EXAMPLE of the exact format to follow:
-${exampleHint}
-
-IMPORTANT RULES:
-1. Return ONLY the actual data JSON object — never the schema definition itself.
-2. Do NOT include fields like "type", "properties", "items" — those are schema metadata, not data.
-3. Every field described above must be present with the correct type.
-4. No markdown fences (no \`\`\`json), no explanation text, no extra commentary.`;
-
+  const responseJsonSchema = toGeminiJsonSchema(schema);
   let lastError: Error | null = null;
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-    const client = await getClient();
-    const messages: ChatMessage[] = [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: prompt },
-    ];
-
-    const body: CreateChatCompletionBody = {
-      model: LLM_MODEL,
-      messages,
-      response_format: { type: "json_object" } as never,
-      thinking: { type: "disabled" },
-    };
-
     let rawContent: string;
+
     try {
-      const result = await client.chat.completions.create(body);
-      rawContent = result?.choices?.[0]?.message?.content ?? "";
+      const response = await getClient().models.generateContent({
+        model: LLM_MODEL,
+        contents: prompt,
+        config: {
+          systemInstruction: options?.systemInstruction,
+          responseMimeType: "application/json",
+          responseJsonSchema,
+          temperature: options?.temperature ?? 0.4,
+          maxOutputTokens: MAX_OUTPUT_TOKENS,
+        },
+      });
+      rawContent = response.text ?? "";
     } catch (err) {
       throwFriendlyError(err, "generateStructuredJSON");
     }
@@ -125,38 +136,31 @@ IMPORTANT RULES:
       lastError = new Error(
         "[LLM Error] generateStructuredJSON — the model returned an empty response.",
       );
-      console.error(`[generateStructuredJSON] Attempt ${attempt + 1}/${MAX_RETRIES + 1}: empty response, retrying...`);
+      console.error(
+        `[generateStructuredJSON] Attempt ${attempt + 1}/${MAX_RETRIES + 1}: empty response, retrying...`,
+      );
       continue;
     }
 
-    // Strip markdown fences if the model wraps the response
+    // Defensive: strip fences in case a model ignores the JSON mime type.
     const cleaned = rawContent
       .replace(/^```(?:json)?\s*/i, "")
       .replace(/\s*```\s*$/, "")
       .trim();
 
-    // Parse raw JSON
     let parsed: unknown;
     try {
       parsed = JSON.parse(cleaned);
     } catch {
       lastError = new Error(
-        `[LLM Error] generateStructuredJSON — the model returned invalid JSON. Raw response:\n${rawContent.slice(0, 500)}`,
+        `[LLM Error] generateStructuredJSON — invalid JSON. Raw response:\n${rawContent.slice(0, 500)}`,
       );
-      console.error(`[generateStructuredJSON] Attempt ${attempt + 1}/${MAX_RETRIES + 1}: invalid JSON, retrying...`);
+      console.error(
+        `[generateStructuredJSON] Attempt ${attempt + 1}/${MAX_RETRIES + 1}: invalid JSON, retrying...`,
+      );
       continue;
     }
 
-    // Detect if the model returned a schema instead of data
-    if (isLikelySchema(parsed)) {
-      lastError = new Error(
-        "[LLM Schema Error] generateStructuredJSON — the model returned a JSON schema definition instead of actual data.",
-      );
-      console.error(`[generateStructuredJSON] Attempt ${attempt + 1}/${MAX_RETRIES + 1}: model returned schema instead of data, retrying...`);
-      continue;
-    }
-
-    // Caller-supplied repair pass (field swaps, legacy shapes)
     if (options?.repair) {
       try {
         parsed = options.repair(parsed);
@@ -165,190 +169,54 @@ IMPORTANT RULES:
       }
     }
 
-    // Validate against the Zod schema
     const result = schema.safeParse(parsed);
-    if (result.success) {
-      return result.data as T;
-    }
+    if (result.success) return result.data as T;
 
-    // Validation failed — retry if attempts remain
     const issues = result.error.issues
       .slice(0, 5)
       .map((i) => `  - ${i.path.join(".") || "(root)"}: ${i.message}`)
       .join("\n");
     lastError = new Error(
-      `[LLM Schema Error] generateStructuredJSON — the model response does not match the expected schema.\n\nValidation issues:\n${issues}\n\nReceived data (first 500 chars):\n${JSON.stringify(parsed, null, 2).slice(0, 500)}`,
+      `[LLM Schema Error] generateStructuredJSON — response does not match the expected schema.\n\nValidation issues:\n${issues}\n\nReceived (first 500 chars):\n${JSON.stringify(parsed, null, 2).slice(0, 500)}`,
     );
-    console.error(`[generateStructuredJSON] Attempt ${attempt + 1}/${MAX_RETRIES + 1}: schema validation failed, retrying...\n${issues}`);
+    console.error(
+      `[generateStructuredJSON] Attempt ${attempt + 1}/${MAX_RETRIES + 1}: schema validation failed, retrying...\n${issues}`,
+    );
   }
 
-  // All retries exhausted
   throw lastError ?? new Error("generateStructuredJSON failed after all retries.");
 }
 
-/**
- * Stream text from the LLM. Yields string chunks as they arrive.
- *
- * Uses `stream: true` which returns a `ReadableStream<Uint8Array>` of
- * OpenAI-compatible SSE lines. Each chunk's text is at
- * `choices[0].delta.content`.
- */
+// ────────────────────────────────────────────────
+// Streaming text
+// ────────────────────────────────────────────────
+
+/** Stream text from the model, yielding chunks as they arrive. */
 export async function* streamText(
   prompt: string,
   options?: {
     systemPrompt?: string;
     model?: string;
+    temperature?: number;
   },
 ): AsyncGenerator<string, void, undefined> {
-  const client = await getClient();
+  let stream: AsyncGenerator<{ text?: string }, unknown, unknown>;
 
-  const messages: ChatMessage[] = [];
-  if (options?.systemPrompt) {
-    messages.push({ role: "system", content: options.systemPrompt });
-  }
-  messages.push({ role: "user", content: prompt });
-
-  const body: CreateChatCompletionBody = {
-    model: options?.model ?? LLM_MODEL,
-    messages,
-    stream: true,
-    thinking: { type: "disabled" },
-  };
-
-  let stream: ReadableStream<Uint8Array>;
   try {
-    const result = await client.chat.completions.create(body);
-    if (!(result instanceof ReadableStream)) {
-      throw new Error("Expected a ReadableStream from the streaming API call.");
-    }
-    stream = result;
+    stream = (await getClient().models.generateContentStream({
+      model: options?.model ?? LLM_MODEL,
+      contents: prompt,
+      config: {
+        systemInstruction: options?.systemPrompt,
+        temperature: options?.temperature ?? 0.7,
+        maxOutputTokens: MAX_OUTPUT_TOKENS,
+      },
+    })) as AsyncGenerator<{ text?: string }, unknown, unknown>;
   } catch (err) {
     throwFriendlyError(err, "streamText");
   }
 
-  const reader = stream.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() ?? "";
-
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed || trimmed.startsWith(":")) continue;
-
-        if (trimmed.startsWith("data: ")) {
-          const data = trimmed.slice(6);
-          if (data === "[DONE]") return;
-
-          try {
-            const parsed = JSON.parse(data);
-            const content: string | undefined = parsed?.choices?.[0]?.delta?.content;
-            if (content) yield content;
-          } catch {
-            // Non-JSON line — skip silently (e.g. keep-alive comment)
-          }
-        }
-      }
-    }
-
-    // Flush any remaining buffer content
-    if (buffer.trim() && buffer.trim() !== "[DONE]") {
-      try {
-        const parsed = JSON.parse(buffer.trim().replace(/^data: /, ""));
-        const content: string | undefined = parsed?.choices?.[0]?.delta?.content;
-        if (content) yield content;
-      } catch {
-        // Ignore incomplete final chunk
-      }
-    }
-  } finally {
-    reader.releaseLock();
+  for await (const chunk of stream) {
+    if (chunk.text) yield chunk.text;
   }
-}
-
-// ────────────────────────────────────────────────
-// Schema → example & description builders
-// ────────────────────────────────────────────────
-
-/** Build a human-readable field description from a Zod schema */
-function buildFieldDescription(zodType: z.ZodType, indent: string = ""): string {
-  if (zodType instanceof z.ZodObject) {
-    const lines: string[] = ["An object with these fields:"];
-    for (const [key, val] of Object.entries(zodType.shape)) {
-      const typeDesc = describeType(val);
-      lines.push(`${indent}  - "${key}": ${typeDesc}`);
-    }
-    return lines.join("\n");
-  }
-  return describeType(zodType);
-}
-
-/** Build a concrete example JSON from a Zod schema */
-function buildExampleHint(zodType: z.ZodType): string {
-  const example = generateExample(zodType);
-  return "```json\n" + JSON.stringify(example, null, 2) + "\n```";
-}
-
-/** Recursively generate example data from a Zod schema */
-function generateExample(zodType: z.ZodType): unknown {
-  if (zodType instanceof z.ZodObject) {
-    const obj: Record<string, unknown> = {};
-    for (const [key, val] of Object.entries(zodType.shape)) {
-      obj[key] = generateExample(val);
-    }
-    return obj;
-  }
-  if (zodType instanceof z.ZodArray) {
-    return [generateExample(zodType.element)];
-  }
-  if (zodType instanceof z.ZodString) return "example value";
-  if (zodType instanceof z.ZodNumber) return 1;
-  if (zodType instanceof z.ZodBoolean) return true;
-  if (zodType instanceof z.ZodEnum) return zodType.options[0];
-  return null;
-}
-
-/** Describe a Zod type in human-readable terms */
-function describeType(t: z.ZodType): string {
-  if (t instanceof z.ZodString) return "string (text)";
-  if (t instanceof z.ZodNumber) return "number (integer or float)";
-  if (t instanceof z.ZodBoolean) return "boolean (true or false)";
-  if (t instanceof z.ZodEnum) return `string, must be one of: ${t.options.join(", ")}`;
-  if (t instanceof z.ZodArray) {
-    const element = t.element;
-    if (element instanceof z.ZodObject) {
-      return `array of objects, each with: ${describeType(element)}`;
-    }
-    return `array of ${describeType(element)}`;
-  }
-  if (t instanceof z.ZodObject) {
-    const fields = Object.entries(t.shape)
-      .map(([k, v]) => `  - "${k}": ${describeType(v)}`)
-      .join("\n");
-    return `object with fields:\n${fields}`;
-  }
-  return "any";
-}
-
-/** Detect if the parsed response is a JSON Schema definition rather than actual data */
-function isLikelySchema(data: unknown): boolean {
-  if (typeof data !== "object" || data === null) return false;
-  const obj = data as Record<string, unknown>;
-  // If it has "type" and "properties" at the top level, it's likely a schema
-  if (obj.type === "object" && typeof obj.properties === "object") return true;
-  if (obj.type === "array" && typeof obj.items === "object") return true;
-  // If it's an array where the first element has "type" and "properties"
-  if (Array.isArray(data) && data.length > 0) {
-    const first = data[0] as Record<string, unknown>;
-    if (first.type === "object" && typeof first.properties === "object") return true;
-    if (typeof first.type === "string" && typeof first.properties === "object") return true;
-  }
-  return false;
 }
