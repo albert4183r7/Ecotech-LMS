@@ -1,7 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { generateStructuredJSON } from "@/lib/llm";
-import { z } from "zod/v4";
+import {
+  OutlineResponseSchema,
+  repairOutlineResponse,
+  enforceSlideCount,
+  MAX_SLIDE_TITLE_CHARS,
+  MIN_KEY_POINTS,
+  MAX_KEY_POINTS,
+  MAX_TERMS,
+  type OutlineResponse,
+} from "@/lib/lesson-outline";
 import {
   SLIDE_STYLES,
   VALID_STYLES,
@@ -10,23 +19,6 @@ import {
 } from "@/lib/slide-styles";
 import { extractTextFromFiles, truncateTextForContext } from "@/lib/extract-doc";
 import path from "path";
-
-// ============================================
-// Zod schema for LLM response
-// ============================================
-
-const SlideOutlineSchema = z.object({
-  slideNumber: z.number(),
-  title: z.string(),
-  outline: z.string(),
-});
-
-const OutlineResponseSchema = z.object({
-  lessonTitle: z.string(),
-  slides: z.array(SlideOutlineSchema),
-});
-
-type OutlineResponse = z.infer<typeof OutlineResponseSchema>;
 
 // ============================================
 // POST /api/lessons/generate-outline
@@ -132,46 +124,101 @@ ${referenceContext}
 `
       : "";
 
-    const prompt = `${isChinese ? "演示主题" : "Presentation topic"}: ${topic}
-${isChinese ? "幻灯片数量" : "Number of slides"}: ${clampedCount}
-${isChinese ? "设计风格" : "Design style"}: ${styleDescription}
+    const renderingConstraints = isChinese
+      ? `渲染限制（幻灯片是静态 HTML）：
+- 没有视频、音频、动画、表单、测验或任何交互元素。
+- 不要引用外部演示、下载或链接按钮。
+- 内容必须以文字和简单的视觉区块呈现。`
+      : `RENDERING CONSTRAINTS (slides render as static HTML):
+- No video, audio, animation, forms, quizzes, or interactive elements.
+- No links or buttons pointing at external demos or downloads.
+- Content must work as text and simple visual blocks.`;
+
+    const groundingRules = isChinese
+      ? `内容准确性：
+- ${referenceContext ? "每一条陈述都必须来自上面的参考材料，保留其中的术语、数据和事实。" : "只写该主题中确立的、广为记录的知识。"}
+- 不要编造统计数字、百分比、金额、日期、研究结论或公司指标。${referenceContext ? "只使用参考材料中出现的数字。" : "如果没有可靠来源，请用定性表述代替数字。"}
+- 优先写该主题当前的主流实践，并指名当今实际使用的工具与标准。`
+      : `FACTUAL GROUNDING:
+- ${referenceContext ? "Every statement must come from the reference material above. Preserve its terms, figures, and facts." : "Write only well-established, widely documented knowledge about the subject."}
+- Do not invent statistics, percentages, currency amounts, dates, study results, or company metrics. ${referenceContext ? "Use only numbers that appear in the reference material." : "Where a number would strengthen a point but no source supports it, make the point qualitatively instead."}
+- Favour current mainstream practice, and name the tools, standards, and examples actually in use today for this subject.`;
+
+    const prompt = `${isChinese ? "主题" : "SUBJECT"}: ${topic}
+${isChinese ? "（如果上面写成“做一个关于 X 的课程”这样的指令，那么主题就是 X。）" : "(If the subject is phrased as an instruction such as \"create a lesson about X\", the subject matter is X.)"}
+${isChinese ? "幻灯片数量" : "NUMBER OF SLIDES"}: ${clampedCount}
+${isChinese ? "视觉风格" : "VISUAL STYLE"}: ${styleDescription}
 ${referenceSection}
 ${isChinese
-      ? `请为以上主题生成一个演示文稿（PPT）大纲。这就像你是一个需要做课堂展示的学生，或者需要做产品推介的职场人士，正在准备你的幻灯片大纲。
+      ? `你要为这个主题写出幻灯片的**实际内容**。你写下的每一句话都会原样出现在幻灯片上。
 
-要求：
-1. ${referenceContext ? "大纲必须基于参考材料中的实际内容，保留重要术语和数据。" : ""}
-2. 第一张幻灯片 = 标题页（主标题 + 副标题/标语）
-3. 最后一张幻灯片 = 结束页（如"谢谢"、"Q&A"、联系方式等）
-4. 中间的幻灯片 = 内容页，每张包含一个清晰的标题和3-5个要点
-5. 每张幻灯片的outline描述应该说明：这张幻灯片展示什么关键信息，用什么方式展示（比如"左侧标题，右侧三个卡片"或"顶部标题，下方四宫格"）
-6. 不要写"学习目标"、"你将学到什么"、"课程概述"这类教育性内容
-7. 每张幻灯片应该像真正的PPT一样——简洁、有冲击力、视觉化
-8. 用中文生成所有内容。`
-      : `Generate a presentation (PPT) outline for the given topic. Think of it like you're a student preparing slides for a class presentation, or a professional creating a pitch deck.
+每张幻灯片提供：
+- title：幻灯片标题，少于 ${MAX_SLIDE_TITLE_CHARS} 个字符
+- keyPoints：${MIN_KEY_POINTS}-${MAX_KEY_POINTS} 条会出现在幻灯片上的具体陈述。每一条都是关于主题本身的完整、具体的说明——不是"介绍……"或"解释……"这类写作指示
+- terms：最多 ${MAX_TERMS} 个必须提到的具体名称（技术、标准、真实案例）
+- layout：这张幻灯片的视觉排布方式
 
-Requirements:
-1. ${referenceContext ? "The outline MUST be grounded in the reference material above. Preserve key terms, facts, data, and specifics from the source. Do NOT fabricate information." : ""}
-2. First slide = Title slide (main title + subtitle/tagline)
-3. Last slide = Closing slide (e.g. "Thank You", "Questions?", contact info)
-4. Middle slides = Content slides, each with a clear title and 3-5 key talking points
-5. Each slide's outline should describe: what key info this slide shows, and HOW to present it visually (e.g. "left-aligned title with 3 cards on the right" or "top banner with a 2-column comparison below")
-6. Do NOT create "Learning Objectives", "What You'll Learn", "Course Overview", or any educational/lesson-style content
-7. Each slide should feel like a REAL presentation slide — concise, impactful, visual
-8. Generate all content in English.`
+幻灯片角色：
+- 第 1 张是封面：标题加一句副标题。
+- 第 ${clampedCount} 张是结束页。
+- 中间每一张都要推进主题；任意两张不得重复同一个定义或同一个例子。
+
+写作要求：
+- 写主题本身，而不是写这门课。陈述描述的是事物，不是学习安排。
+- 开场用一个关于主题的具体事实或例子。
+- 每条 keyPoint 都要有实质内容，能独立成立。
+
+${groundingRules}
+
+${renderingConstraints}
+
+- 用中文生成所有内容。`
+      : `Write the **actual content** of the slides for this subject. Every sentence you write will appear on a slide verbatim.
+
+For each slide provide:
+- title: the slide heading, under ${MAX_SLIDE_TITLE_CHARS} characters
+- keyPoints: ${MIN_KEY_POINTS}-${MAX_KEY_POINTS} specific statements that will appear on the slide. Each one is a complete, concrete statement about the subject itself — not a writing instruction like "introduce..." or "explain..."
+- terms: up to ${MAX_TERMS} specific named things that must be mentioned (technologies, standards, real examples)
+- layout: how this slide should be arranged visually
+
+Slide roles:
+- Slide 1 is the cover: the title plus a one-line subtitle.
+- Slide ${clampedCount} is the closing slide.
+- Every middle slide advances the subject; no two slides may repeat the same definition or the same example.
+
+How to write:
+- Write about the subject, not about the lesson. Statements describe the thing itself, not what a learner will do.
+- Open with a concrete fact or example about the subject.
+- Every key point must carry substance and stand on its own.
+
+${groundingRules}
+
+${renderingConstraints}
+
+- Generate all content in English.`
     }`;
 
     // ---- Call LLM ----
     console.log(`[generate-outline] Calling LLM for topic: "${topic}", ${clampedCount} slides, ${style}`);
     let result: OutlineResponse;
     try {
-      result = await generateStructuredJSON(prompt, OutlineResponseSchema);
+      result = await generateStructuredJSON(prompt, OutlineResponseSchema, {
+        repair: repairOutlineResponse,
+      });
       console.log(`[generate-outline] LLM returned ${result.slides.length} slides, title: "${result.lessonTitle}"`);
     } catch (llmError) {
       console.error("[generate-outline] LLM call failed:", llmError);
       const msg = llmError instanceof Error ? llmError.message : "AI service unavailable. Please try again.";
       return NextResponse.json({ success: false, error: msg }, { status: 502 });
     }
+
+    // ---- Enforce the requested slide count ----
+    // The model does not reliably honour it (a 3-slide request returned 4).
+    const counted = enforceSlideCount(result.slides, clampedCount);
+    if (counted.warning) {
+      console.warn(`[generate-outline] ${counted.warning}`);
+    }
+    const outlineSlides = counted.slides.map((slide, i) => ({ ...slide, slideNumber: i + 1 }));
 
     // ---- Determine lesson count for ordering ----
     const existingLessonCount = await db.lesson.count({ where: { courseId } });
@@ -182,7 +229,7 @@ Requirements:
       style,
       slideCount: clampedCount,
       language,
-      slides: result.slides,
+      slides: outlineSlides,
       referenceContext: referenceContext || undefined,
       referenceSources: extractedSources.length > 0 ? extractedSources : undefined,
     };
@@ -211,7 +258,7 @@ Requirements:
     }
 
     await db.slide.createMany({
-      data: result.slides.map((s, i) => ({
+      data: outlineSlides.map((s, i) => ({
         title: s.title,
         htmlBody: "",
         status: "DRAFT_OUTLINE",

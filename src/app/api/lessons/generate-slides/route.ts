@@ -2,6 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { streamSlideHtml, parseSSEStream, SLIDE_HTML_SYSTEM_PROMPT } from '@/lib/ai';
 import { sanitizeHtml, wrapSlideHtml } from '@/lib/sanitize';
+import {
+  slideBrief,
+  extractSlideText,
+  buildCoveredContext,
+  type StoredOutline,
+  type SlideBrief,
+} from '@/lib/lesson-outline';
 
 // ============================================
 // Style-specific system prompt additions
@@ -32,22 +39,6 @@ interface GenerateSlidesRequest {
   language?: string;
 }
 
-interface OutlineSlide {
-  slideNumber?: number;
-  title: string;
-  outline: string;
-}
-
-interface OutlineJson {
-  topic: string;
-  style: string;
-  slideCount?: number;
-  language?: string;
-  slides: OutlineSlide[];
-  referenceContext?: string;
-  referenceSources?: { file: string; charCount: number }[];
-}
-
 // ============================================
 // Helper: build per-slide system prompt
 // ============================================
@@ -61,116 +52,126 @@ ${styleInstruction ? `STYLE DIRECTION: ${styleInstruction}` : ''}`;
 
 // ============================================
 // Helper: build per-slide user prompt
-// PPT-style: focuses on visual presentation, NOT education
+//
+// Carries the outline's actual content (key points, named terms, layout) plus
+// a digest of what earlier slides already said, so the model neither invents
+// substance nor repeats itself.
 // ============================================
 
-function buildUserPrompt(
-  topic: string,
-  slideTitle: string,
-  slideOutline: string,
-  slideIndex: number,
-  totalSlides: number,
-  isChinese: boolean,
-  allSlides: OutlineSlide[],
-  referenceContext?: string,
-): string {
-  const isFirst = slideIndex === 0;
-  const isLast = slideIndex === totalSlides - 1;
-  const isSecond = slideIndex === 1;
+interface SlidePromptParams {
+  topic: string;
+  slideTitle: string;
+  brief: SlideBrief;
+  position: number;
+  totalSlides: number;
+  isChinese: boolean;
+  prevTitle: string;
+  nextTitle: string;
+  coveredContext: string;
+  referenceContext?: string;
+}
 
-  let layoutGuidance = '';
+function buildRoleGuidance(position: number, totalSlides: number, isChinese: boolean): string {
+  const isFirst = position === 0;
+  const isLast = position === totalSlides - 1;
+  const isSecond = position === 1;
 
   if (isFirst) {
-    layoutGuidance = isChinese
-      ? `
-📌 这是第一张幻灯片 = 标题页。
-设计要求：
-- 大标题居中显示，醒目有力
-- 副标题/标语在标题下方，字体较小
-- 可以加装饰性色块或线条
-- 不要放任何要点列表
-- 保持简洁大气`
-      : `
-📌 This is the FIRST slide = TITLE SLIDE.
-Design requirements:
-- Large, bold title centered on the slide
-- Subtitle/tagline below in smaller text
-- Add a decorative accent bar, gradient block, or visual element
-- Do NOT include any bullet points, lists, or content items
-- Keep it clean and impactful like a real presentation cover`;
-  } else if (isLast) {
-    layoutGuidance = isChinese
-      ? `
-📌 这是最后一张幻灯片 = 结束页。
-设计要求：
-- 大字显示"谢谢"或"Q&A"或"有任何问题吗？"
-- 可以加上主题相关的结束语
-- 保持简洁优雅`
-      : `
-📌 This is the LAST slide = CLOSING SLIDE.
-Design requirements:
-- Large text: "Thank You" or "Questions?" or "Any Questions?"
-- Optional: add a brief closing statement related to the topic
-- Keep it clean and elegant`;
-  } else if (isSecond && totalSlides > 3) {
-    layoutGuidance = isChinese
-      ? `
-📌 这是第二张幻灯片 = 概述/背景页。
-设计要求：
-- 标题在顶部
-- 3-5个关键点，每点一行简短文字
-- 可以用带图标的卡片或色块来展示每个要点
-- 不要写"学习目标"，直接展示关键信息`
-      : `
-📌 This is the SECOND slide = OVERVIEW/CONTEXT slide.
-Design requirements:
-- Title at the top
-- 3-5 key points, each as a short one-line bullet
-- Use icon cards or colored blocks for each point
-- Do NOT write "Learning Objectives" — just present the key information directly`;
+    return isChinese
+      ? `这是第 1 张 = 封面页。
+- 大标题居中，副标题在下方
+- 加一个装饰性色块或线条
+- 只放标题和副标题，内容留给后面的幻灯片`
+      : `This is slide 1 = COVER SLIDE.
+- Large centred title with the subtitle beneath it
+- Add one decorative accent bar or colour block
+- Title and subtitle only — the content belongs on later slides`;
   }
 
-  const prevTitle = slideIndex > 0 ? allSlides[slideIndex - 1]?.title : '';
-  const nextTitle = slideIndex < allSlides.length - 1 ? allSlides[slideIndex + 1]?.title : '';
-  const antiRepeat = (prevTitle || nextTitle)
-    ? isChinese
-      ? `
-⚠️ 避免重复：前一张是"${prevTitle}"，后一张是"${nextTitle}" — 这张的布局和内容必须与它们明显不同。`
-      : `
-⚠️ Anti-repeat: Previous slide is "${prevTitle}", next is "${nextTitle}" — this slide's layout and content MUST differ markedly from both.`
+  if (isLast) {
+    return isChinese
+      ? `这是最后一张 = 结束页。
+- 大字显示"谢谢"或"Q&A"
+- 可以加一句与主题相关的收尾语
+- 保持简洁`
+      : `This is the LAST slide = CLOSING SLIDE.
+- Large text: "Thank You" or "Questions?"
+- Optionally one closing line tied to the subject
+- Keep it clean`;
+  }
+
+  if (isSecond && totalSlides > 3) {
+    return isChinese
+      ? `这是第 2 张 = 主题切入页。
+- 标题在顶部，下面用卡片或色块呈现要点
+- 直接给出关于主题的具体信息`
+      : `This is slide 2 = the slide that opens up the subject.
+- Title at the top, key points below as cards or colour blocks
+- Lead with concrete information about the subject itself`;
+  }
+
+  return '';
+}
+
+function buildUserPrompt(params: SlidePromptParams): string {
+  const {
+    topic, slideTitle, brief, position, totalSlides,
+    isChinese, prevTitle, nextTitle, coveredContext, referenceContext,
+  } = params;
+
+  const roleGuidance = buildRoleGuidance(position, totalSlides, isChinese);
+
+  const contentBlock = brief.keyPoints.length > 0
+    ? `${isChinese ? '这张幻灯片的内容（必须全部呈现，可以改写措辞使其更简短有力）:' : 'CONTENT FOR THIS SLIDE (present all of it; you may tighten the wording):'}
+${brief.keyPoints.map((point) => `- ${point}`).join('\n')}`
+    : `${isChinese ? '内容要点' : 'Key points'}: ${slideTitle}`;
+
+  const termsBlock = brief.terms.length > 0
+    ? `\n${isChinese ? '必须提到的具体名称:' : 'Specific names that must appear:'} ${brief.terms.join(', ')}`
+    : '';
+
+  const layoutBlock = brief.layout
+    ? `\n${isChinese ? '版式建议:' : 'Layout direction:'} ${brief.layout}`
+    : '';
+
+  const coveredBlock = coveredContext
+    ? `\n\n${isChinese ? '前面的幻灯片已经讲过以下内容 — 不要重复这些定义或例子:' : 'EARLIER SLIDES ALREADY COVERED THIS — do not repeat these definitions or examples:'}
+${coveredContext}`
+    : '';
+
+  const neighbours = (prevTitle || nextTitle)
+    ? `\n${isChinese
+        ? `相邻幻灯片：上一张"${prevTitle}"，下一张"${nextTitle}"。这张的版式要与它们不同。`
+        : `Neighbouring slides: previous "${prevTitle}", next "${nextTitle}". Use a different layout from both.`}`
     : '';
 
   const referenceSection = referenceContext
-    ? `
-
-${isChinese ? '参考资料（内容必须基于此材料）:' : 'REFERENCE MATERIAL (content MUST be based on this source):'}
+    ? `\n\n${isChinese ? '参考资料（内容必须基于此材料）:' : 'REFERENCE MATERIAL (content must be based on this source):'}
 <reference>${referenceContext}</reference>`
     : '';
 
-  return `${isChinese ? '演示主题' : 'Presentation topic'}: ${topic}
+  const writingRules = isChinese
+    ? `写作要求：
+- 写主题本身，而不是写这门课的安排。
+- 每个要点一行，最多 10-15 个字，不要写整段文字。
+- 不要编造统计数字、百分比、金额、日期或研究结论。${referenceContext ? '数字只能来自参考资料。' : '没有来源时用定性表述代替数字。'}
+- 使用视觉化排布：卡片、色块、编号、强调条。
+- 不要放视频、表单或"查看演示"之类的按钮和链接 — 幻灯片是静态的。`
+    : `WRITING RULES:
+- Write about the subject itself, not about the lesson or what a learner will do.
+- One line per point, 10-15 words maximum. No paragraphs.
+- Do not invent statistics, percentages, currency amounts, dates, or study results. ${referenceContext ? 'Numbers may come only from the reference material.' : 'Where no source supports a number, make the point qualitatively.'}
+- Use visual arrangement: cards, colour blocks, numbered badges, accent bars.
+- No video, forms, or "View Demo" style buttons and links — the slide is static.`;
 
-${isChinese ? '当前幻灯片' : 'Current slide'}: "${slideTitle}" (${isChinese ? '第' : 'slide '}${slideIndex + 1} ${isChinese ? '张，共' : 'of '}${totalSlides})
+  return `${isChinese ? '演示主题' : 'Presentation subject'}: ${topic}
 
-${slideOutline ? `${isChinese ? '内容要点' : 'Key points to cover'}: ${slideOutline}` : ''}
-${layoutGuidance}
-${antiRepeat}
+${isChinese ? '当前幻灯片' : 'Current slide'}: "${slideTitle}" (${isChinese ? '第' : 'slide '}${position + 1} ${isChinese ? '张，共' : 'of '}${totalSlides})
 
-${isChinese
-    ? `设计提醒：
-- 这是PPT演示文稿的幻灯片，不是课程页面
-- 文字要简短有力，每个要点最多一行
-- 不要写长段落
-- 不要写“你将学到什么”或“学习目标”
-- 使用视觉化布局：卡片、色块、图标、数字标记等
-- 让它看起来像真正的PowerPoint幻灯片`
-    : `DESIGN REMINDERS:
-- This is a PRESENTATION SLIDE, not a lesson page
-- Keep text SHORT and punchy — each point should be one line max
-- Do NOT write long paragraphs
-- Do NOT write "What You'll Learn" or "Learning Objectives"
-- Use visual layouts: cards, color blocks, icons, number badges, accent bars
-- Make it look like a REAL PowerPoint/Keynote slide`}
-${referenceSection}`;
+${contentBlock}${termsBlock}${layoutBlock}
+${roleGuidance}${neighbours}${coveredBlock}
+
+${writingRules}${referenceSection}`;
 }
 
 // ============================================
@@ -198,11 +199,15 @@ function withTimeout<T>(
 // ============================================
 
 async function generateAllSlides(lessonId: string, language?: string): Promise<void> {
+  // Load EVERY slide in the lesson, not just the pending ones. A slide's
+  // position in the finished deck decides whether it is the cover or the
+  // closing slide; deriving that from the pending subset meant a retry turned
+  // a middle slide into a "Thank You" slide.
   const lesson = await db.lesson.findUnique({
     where: { id: lessonId },
     include: {
       course: { select: { id: true, language: true } },
-      slides: { where: { status: 'DRAFT_OUTLINE' }, orderBy: { order: 'asc' } },
+      slides: { orderBy: { order: 'asc' } },
     },
   });
 
@@ -211,17 +216,24 @@ async function generateAllSlides(lessonId: string, language?: string): Promise<v
     return;
   }
 
-  const slides = lesson.slides;
-  const totalSlides = slides.length;
-  console.log(`[generate-slides] Starting async generation for lesson ${lessonId}: ${totalSlides} slides`);
+  const deck = lesson.slides;
+  const totalSlides = deck.length;
+  const pending = deck.filter((s) => s.status === 'DRAFT_OUTLINE');
+
+  if (pending.length === 0) {
+    console.log(`[generate-slides] Lesson ${lessonId}: nothing pending`);
+    return;
+  }
+
+  console.log(`[generate-slides] Lesson ${lessonId}: ${pending.length} pending of ${totalSlides} slides`);
 
   const effectiveLanguage = language || lesson.course?.language || 'english';
   const isChinese = effectiveLanguage === 'chinese';
 
-  let outlineJson: OutlineJson;
+  let outlineJson: StoredOutline;
   try {
     outlineJson = lesson.outlineJson
-      ? (JSON.parse(lesson.outlineJson) as OutlineJson)
+      ? (JSON.parse(lesson.outlineJson) as StoredOutline)
       : { topic: lesson.title, style: 'professional', slides: [] };
   } catch {
     outlineJson = { topic: lesson.title, style: 'professional', slides: [] };
@@ -229,17 +241,26 @@ async function generateAllSlides(lessonId: string, language?: string): Promise<v
 
   const style = outlineJson.style || 'professional';
   const topic = outlineJson.topic || lesson.title;
-  const allSlides = outlineJson.slides || [];
+  const outlineSlides = outlineJson.slides || [];
   const referenceContext = outlineJson.referenceContext;
   const systemPrompt = buildSystemPrompt(style);
 
-  // ---- Process each slide ----
-  for (let i = 0; i < totalSlides; i++) {
-    const slide = slides[i];
-    console.log(`[generate-slides] Slide ${i + 1}/${totalSlides}: "${slide.title}" (id: ${slide.id})`);
+  // Seed the "already covered" digest with slides that are already finished so
+  // a retry does not re-derive definitions the deck already contains.
+  const covered: { title: string; text: string }[] = deck
+    .filter((s) => s.status === 'READY' && s.htmlBody)
+    .map((s) => ({ title: s.title, text: extractSlideText(s.htmlBody) }));
 
-    const outlineEntry = outlineJson.slides?.find((s) => s.title === slide.title);
-    const slideOutline = outlineEntry?.outline || '';
+  // ---- Process each pending slide ----
+  for (const slide of pending) {
+    // True position in the deck, independent of which slides are pending.
+    const position = deck.findIndex((s) => s.id === slide.id);
+    const label = `${position + 1}/${totalSlides}`;
+    console.log(`[generate-slides] Slide ${label}: "${slide.title}" (id: ${slide.id})`);
+
+    // Match by position — titles are not unique and are not a stable key.
+    const outlineEntry = outlineSlides[position] ?? outlineSlides.find((s) => s.title === slide.title);
+    const brief = slideBrief(outlineEntry);
 
     try {
       await db.slide.update({ where: { id: slide.id }, data: { status: 'GENERATING' } });
@@ -247,14 +268,25 @@ async function generateAllSlides(lessonId: string, language?: string): Promise<v
       console.error(`[generate-slides] DB status update error for slide ${slide.id}:`, dbErr);
     }
 
-    const userPrompt = buildUserPrompt(topic, slide.title, slideOutline, i, totalSlides, isChinese, allSlides, referenceContext);
+    const userPrompt = buildUserPrompt({
+      topic,
+      slideTitle: slide.title,
+      brief,
+      position,
+      totalSlides,
+      isChinese,
+      prevTitle: position > 0 ? deck[position - 1]?.title ?? '' : '',
+      nextTitle: position < totalSlides - 1 ? deck[position + 1]?.title ?? '' : '',
+      coveredContext: buildCoveredContext(covered),
+      referenceContext,
+    });
 
     try {
-      console.log(`[generate-slides] Calling streamSlideHtml for slide ${i + 1}...`);
+      console.log(`[generate-slides] Calling streamSlideHtml for slide ${label}...`);
       const rawSSEStream = await withTimeout(
         streamSlideHtml(userPrompt, systemPrompt),
         SLIDE_TIMEOUT_MS,
-        `streamSlideHtml slide ${i + 1}`,
+        `streamSlideHtml slide ${label}`,
       );
 
       const textStream = parseSSEStream(rawSSEStream);
@@ -265,13 +297,13 @@ async function generateAllSlides(lessonId: string, language?: string): Promise<v
         const { done, value } = await withTimeout(
           reader.read(),
           SLIDE_TIMEOUT_MS,
-          `read chunk for slide ${i + 1}`,
+          `read chunk for slide ${label}`,
         );
         if (done) break;
         fullHtml += value;
       }
 
-      console.log(`[generate-slides] Slide ${i + 1} stream done: ${fullHtml.length} chars`);
+      console.log(`[generate-slides] Slide ${label} stream done: ${fullHtml.length} chars`);
 
       const sanitized = sanitizeHtml(fullHtml);
       const wrapped = wrapSlideHtml(sanitized, { title: slide.title });
@@ -281,10 +313,12 @@ async function generateAllSlides(lessonId: string, language?: string): Promise<v
         data: { htmlBody: wrapped, status: 'READY' },
       });
 
-      console.log(`[generate-slides] Slide ${i + 1} COMPLETE`);
+      covered.push({ title: slide.title, text: extractSlideText(sanitized) });
+
+      console.log(`[generate-slides] Slide ${label} COMPLETE`);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to generate slide HTML';
-      console.error(`[generate-slides] Slide ${i + 1} ERROR: ${message}`);
+      console.error(`[generate-slides] Slide ${label} ERROR: ${message}`);
       try {
         await db.slide.update({ where: { id: slide.id }, data: { status: 'ERROR' } });
       } catch {

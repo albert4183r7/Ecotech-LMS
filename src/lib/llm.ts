@@ -73,6 +73,12 @@ const MAX_RETRIES = 2;
 export async function generateStructuredJSON<T>(
   prompt: string,
   schema: z.ZodType<T>,
+  options?: {
+    /** Coerce the parsed JSON before schema validation. Lets a caller fix a
+     *  predictable model mistake (swapped fields, a legacy shape) instead of
+     *  spending a retry on it. */
+    repair?: (parsed: unknown) => unknown;
+  },
 ): Promise<T> {
   const exampleHint = buildExampleHint(schema);
   const fieldDescription = buildFieldDescription(schema);
@@ -148,6 +154,15 @@ IMPORTANT RULES:
       );
       console.error(`[generateStructuredJSON] Attempt ${attempt + 1}/${MAX_RETRIES + 1}: model returned schema instead of data, retrying...`);
       continue;
+    }
+
+    // Caller-supplied repair pass (field swaps, legacy shapes)
+    if (options?.repair) {
+      try {
+        parsed = options.repair(parsed);
+      } catch (repairErr) {
+        console.error("[generateStructuredJSON] repair() threw, using raw response:", repairErr);
+      }
     }
 
     // Validate against the Zod schema
@@ -307,7 +322,11 @@ function describeType(t: z.ZodType): string {
   if (t instanceof z.ZodBoolean) return "boolean (true or false)";
   if (t instanceof z.ZodEnum) return `string, must be one of: ${t.options.join(", ")}`;
   if (t instanceof z.ZodArray) {
-    return `array of objects, each with: ${describeType(t.element)}`;
+    const element = t.element;
+    if (element instanceof z.ZodObject) {
+      return `array of objects, each with: ${describeType(element)}`;
+    }
+    return `array of ${describeType(element)}`;
   }
   if (t instanceof z.ZodObject) {
     const fields = Object.entries(t.shape)
