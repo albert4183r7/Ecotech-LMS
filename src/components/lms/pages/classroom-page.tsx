@@ -253,7 +253,7 @@ export function ClassroomPage() {
 
   // ─── Iframe Click-to-Edit Listener ─────────────
   // Attaches a click listener to the iframe's document body.
-  // With sandbox="allow-same-origin", the parent can access iframe.contentDocument directly.
+  // With sandbox="allow-same-origin allow-scripts", the parent can access iframe.contentDocument directly.
   // No sandbox change needed — direct DOM access is safe under allow-same-origin.
   const handleIframeClick = useCallback(
     (e: MouseEvent) => {
@@ -730,7 +730,7 @@ export function ClassroomPage() {
               <iframe
                 ref={iframeRef}
                 srcDoc={localState.htmlBody || ""}
-                sandbox="allow-same-origin"
+                sandbox="allow-same-origin allow-scripts"
                 className="w-full rounded-lg border-0"
                 style={{ aspectRatio: "16/9" }}
                 title={`${localState.lessonTitle || "Slide"} content`}

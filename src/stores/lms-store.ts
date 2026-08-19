@@ -68,6 +68,7 @@ interface CourseState {
   homeTab: HomeTab;
   courseFilters: CourseFilters;
   createPrompt: string;
+  editingCourseId: string | null;
 
   setCourses: (courses: CourseItem[]) => void;
   setCategories: (categories: CategoryItem[]) => void;
@@ -75,6 +76,7 @@ interface CourseState {
   setCourseFilters: (filters: Partial<CourseFilters>) => void;
   resetCourseFilters: () => void;
   setCreatePrompt: (prompt: string) => void;
+  setEditingCourseId: (id: string | null) => void;
 }
 
 const defaultFilters: CourseFilters = {
@@ -90,6 +92,7 @@ export const useCourseStore = create<CourseState>((set) => ({
   homeTab: "hot",
   courseFilters: defaultFilters,
   createPrompt: "",
+  editingCourseId: null,
 
   setCourses: (courses) => set({ courses }),
   setCategories: (categories) => set({ categories }),
@@ -100,6 +103,7 @@ export const useCourseStore = create<CourseState>((set) => ({
     })),
   resetCourseFilters: () => set({ courseFilters: defaultFilters }),
   setCreatePrompt: (prompt) => set({ createPrompt: prompt }),
+  setEditingCourseId: (id) => set({ editingCourseId: id }),
 }));
 
 // ============================================

@@ -8,6 +8,7 @@ import {
   GraduationCap,
   BarChart3,
   ArrowUpRight,
+  Pencil,
   Plus,
   Compass,
   UserPlus,
@@ -24,7 +25,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { useUserStore, useNavigationStore } from "@/stores/lms-store";
+import { useUserStore, useNavigationStore, useCourseStore } from "@/stores/lms-store";
 import { cn } from "@/lib/utils";
 
 /* ------------------------------------------------------------------ */
@@ -246,6 +247,7 @@ function StatusBadge({ status }: { status: string }) {
 export function DashboardPage() {
   const { currentUserId } = useUserStore();
   const { openCourseDetail, navigateTo } = useNavigationStore();
+  const { setEditingCourseId } = useCourseStore();
   const [courses, setCourses] = useState<InstructorCourse[] | null>(null);
   const [activities, setActivities] = useState<StudentActivity[] | null>(null);
   const [loading, setLoading] = useState(true);
@@ -496,23 +498,71 @@ export function DashboardPage() {
                           <StatusBadge status={course.status} />
                         </div>
 
-                        {/* View button */}
-                        <div className="mt-2 sm:mt-0 sm:justify-center">
-                          <TooltipProvider delayDuration={200}>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-8 w-8 p-0 opacity-0 transition-opacity group-hover:opacity-100"
-                                  onClick={() => openCourseDetail(course.id)}
-                                >
-                                  <Eye className="h-4 w-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>View Course</TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
+                        {/* Action buttons */}
+                        <div className="mt-2 sm:mt-0 sm:justify-center flex items-center gap-1">
+                          {course.status === "draft" ? (
+                            <>
+                              <TooltipProvider delayDuration={200}>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-8 w-8 p-0 opacity-0 transition-opacity group-hover:opacity-100"
+                                      onClick={() => {
+                                        setEditingCourseId(course.id);
+                                        navigateTo("create-course");
+                                      }}
+                                    >
+                                      <Compass className="h-4 w-4" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>Edit Draft</TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                              <TooltipProvider delayDuration={200}>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="default"
+                                      size="sm"
+                                      className="h-8 gap-1 px-2 opacity-0 transition-opacity group-hover:opacity-100 text-xs"
+                                      onClick={async () => {
+                                        try {
+                                          await fetch(`/api/courses/${course.id}`, {
+                                            method: "PUT",
+                                            headers: { "Content-Type": "application/json" },
+                                            body: JSON.stringify({ status: "published" }),
+                                          });
+                                          window.location.reload();
+                                        } catch { /* silent */ }
+                                      }}
+                                    >
+                                      <ArrowUpRight className="h-3.5 w-3.5" />
+                                      Publish
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>Publish Course</TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            </>
+                          ) : (
+                            <TooltipProvider delayDuration={200}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 w-8 p-0 opacity-0 transition-opacity group-hover:opacity-100"
+                                    onClick={() => openCourseDetail(course.id)}
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>View Course</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
                         </div>
                       </div>
                     ))}

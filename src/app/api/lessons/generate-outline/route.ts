@@ -171,7 +171,16 @@ ${isChinese
     }`;
 
     // ---- Call LLM ----
-    const result: OutlineResponse = await generateStructuredJSON(prompt, OutlineResponseSchema);
+    console.log(`[generate-outline] Calling LLM for topic: "${topic}", ${clampedCount} slides, ${style}`);
+    let result: OutlineResponse;
+    try {
+      result = await generateStructuredJSON(prompt, OutlineResponseSchema);
+      console.log(`[generate-outline] LLM returned ${result.slides.length} slides, title: "${result.lessonTitle}"`);
+    } catch (llmError) {
+      console.error("[generate-outline] LLM call failed:", llmError);
+      const msg = llmError instanceof Error ? llmError.message : "AI service unavailable. Please try again.";
+      return NextResponse.json({ success: false, error: msg }, { status: 502 });
+    }
 
     // ---- Determine lesson count for ordering ----
     const existingLessonCount = await db.lesson.count({ where: { courseId } });
@@ -251,7 +260,7 @@ ${isChinese
       },
     });
   } catch (error) {
-    console.error("Error generating outline:", error);
+    console.error("[generate-outline] Unexpected error:", error);
     const message =
       error instanceof Error ? error.message : "Failed to generate outline. Please try again.";
     return NextResponse.json({ success: false, error: message }, { status: 500 });

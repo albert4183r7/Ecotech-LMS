@@ -999,3 +999,25 @@ Stage Summary:
 - courses/[id]/route.ts: Added missing PUT handler (was causing publish to fail)
 - User can find drafts at: Instructor Dashboard → My Courses table (shows Published/Draft badges)
 - STILL NEEDS VERIFICATION: The actual AI error on slide 3+ — with logging added, next generation attempt will show the exact error in dev.log
+---
+Task ID: 3
+Agent: Main Agent
+Task: Fix multiple issues - SSE proxy, generate-outline 500, iframe sandbox, dashboard edit/publish
+
+Work Log:
+- Investigated generate-slides stuck: dev logs showed 'Controller is already closed' errors - the Caddy proxy was killing SSE connections after ~30s
+- Root cause: SSE streaming approach incompatible with proxy timeout. Backend DID generate all slides (4/4) but frontend connection was dead
+- Fix: Converted generate-slides from SSE to polling. POST returns immediately, frontend polls every 3s via GET /api/lessons/[id]
+- Added generate-outline granular error logging (separate try/catch for LLM call, 502 status code)
+- Fixed iframe sandbox: added 'allow-scripts' for Tailwind CDN in create-course-page and classroom-page
+- Fixed missing closing brace in JSX comment ({/* ... */} was missing })
+- Fixed PUT /api/courses/[id] handler (was missing, causing 405 on publish)
+- Added Edit and Publish buttons for draft courses in Dashboard
+- Added editingCourseId to course store for cross-page state passing
+- Added course data loading in create-course page when editingCourseId is set
+
+Stage Summary:
+- generate-slides now uses fire-and-forget + polling (proxy-safe)
+- generate-outline returns better error messages (502 for LLM failure)
+- Draft courses: Dashboard shows Edit (navigates to editor) and Publish (immediate) buttons
+- Iframe slides now load Tailwind CSS correctly

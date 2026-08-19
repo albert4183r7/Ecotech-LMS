@@ -138,9 +138,23 @@ export function CreateCoursePage() {
   const [generatingLessonId, setGeneratingLessonId] = useState<string | null>(null);
   const [slideGenStates, setSlideGenStates] = useState<Record<string, SlideGenState>>({});
   const [currentGenSlideId, setCurrentGenSlideId] = useState<string | null>(null);
-  const [streamingHtml, setStreamingHtml] = useState("");
   const [genProgress, setGenProgress] = useState({ current: 0, total: 0 });
   const abortGenRef = useRef<AbortController | null>(null);
+  const slideGenStatesRef = useRef<Record<string, SlideGenState>>({});
+
+  // Keep ref in sync with state for polling callbacks
+  useEffect(() => {
+    slideGenStatesRef.current = slideGenStates;
+  }, [slideGenStates]);
+
+  // ---- Load existing course when editing from dashboard ----
+  const { editingCourseId, setEditingCourseId } = useCourseStore();
+  useEffect(() => {
+    if (editingCourseId && !courseId) {
+      setCourseId(editingCourseId);
+      setEditingCourseId(null);
+    }
+  }, [editingCourseId, courseId, setEditingCourseId]);
 
   // ---- Refs ----
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -172,6 +186,54 @@ export function CreateCoursePage() {
     }
     fetchCategories();
   }, []);
+
+  // ---- Load existing course data when editing ----
+  useEffect(() => {
+    if (!courseId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/courses/${courseId}?userId=${currentUserId}`);
+        const json = await res.json();
+        if (!json.success || cancelled) return;
+        const c = json.data;
+        if (c.title) setTitle(c.title);
+        if (c.description) setDescription(c.description);
+        if (c.categoryId) setCategoryId(c.categoryId);
+        if (c.language) setLanguage(c.language);
+        if (c.coverImage) setCoverImage(c.coverImage);
+
+        // Load lessons and their slides
+        if (c.lessons && c.lessons.length > 0) {
+          const lessonDrafts: OutlineLessonDraft[] = c.lessons.map((lesson: { id: string; title: string; outlineJson: string | null; slides: { id: string; title: string; htmlBody: string; status: string; order: number }[] }) => {
+            const parsedOutline = lesson.outlineJson ? JSON.parse(lesson.outlineJson) : null;
+            const slides: OutlineSlideDraft[] = (lesson.slides || []).map((s: { id: string; title: string; order: number }, i: number) => ({
+              id: `local_${Date.now()}_${i}`,
+              slideId: s.id,
+              title: s.title,
+              outline: parsedOutline?.slides?.[i]?.outline || "",
+              order: s.order,
+            }));
+            return {
+              id: lesson.id,
+              title: lesson.title,
+              slides,
+              language: c.language || "english",
+              style: parsedOutline?.style || "professional",
+              topic: parsedOutline?.topic || lesson.title,
+              allReady: (lesson.slides || []).some((s) => s.status === "READY"),
+            };
+          });
+          setOutlineLessons(lessonDrafts);
+          // Auto-expand the first lesson
+          if (lessonDrafts.length > 0) setExpandedOutlineLessonId(lessonDrafts[0].id);
+        }
+      } catch {
+        toast.error("Failed to load course data");
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [courseId, currentUserId]);
 
   // ---- Cover image handlers (local file upload) ----
   const handleCoverUpload = () => {
@@ -511,7 +573,7 @@ export function CreateCoursePage() {
   };
 
   // ============================================
-  // GENERATE SLIDES — Streaming HTML for all slides
+  // GENERATE SLIDES — Polling approach (proxy-safe)
   // ============================================
 
   const handleGenerateSlides = useCallback(
@@ -533,17 +595,14 @@ export function CreateCoursePage() {
       setSlideGenStates(initialStates);
       setGeneratingLessonId(lessonId);
       setCurrentGenSlideId(null);
-      setStreamingHtml("");
       setGenProgress({ current: 0, total: lesson.slides.length });
       setExpandedOutlineLessonId(lessonId);
 
       // Close modal if open
       setModalOpen(false);
 
-      const abort = new AbortController();
-      abortGenRef.current = abort;
-
       try {
+        // Start generation (returns immediately)
         const res = await fetch("/api/lessons/generate-slides", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -551,107 +610,123 @@ export function CreateCoursePage() {
             lessonId,
             language: lesson.language,
           }),
-          signal: abort.signal,
         });
 
-        if (!res.ok || !res.body) {
-          toast.error("Failed to start slide generation");
+        const json = await res.json();
+        if (!json.success) {
+          toast.error(json.error || "Failed to start slide generation");
           setGeneratingLessonId(null);
           return;
         }
 
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = "";
-        let slidesCompleted = 0;
-        let rawHtmlAccum = "";
+        // Poll for slide status every 3 seconds
+        const totalSlides = json.data.totalSlides;
+        let completedCount = 0;
+        let errorCount = 0;
+        let pollInterval: ReturnType<typeof setInterval> | null = null;
+        let stopped = false;
 
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
+        const poll = async () => {
+          try {
+            const pollRes = await fetch(`/api/lessons/${lessonId}`);
+            const pollJson = await pollRes.json();
+            if (!pollJson.success || !pollJson.data?.slides) return;
 
-          const lines = buffer.split("\n");
-          buffer = lines.pop() || "";
+            const dbSlides = pollJson.data.slides;
+            let currentGenId: string | null = null;
+            let newCompleted = 0;
+            let newErrors = 0;
 
-          for (const line of lines) {
-            if (!line.startsWith("data: ")) continue;
-            try {
-              const data = JSON.parse(line.slice(6));
-
-              // Top-level error event (no slideId) — e.g. "Lesson not found"
-              if (data.error && !data.slideId) {
-                toast.error(data.error);
-                break; // Stop processing
+            const newStates: Record<string, SlideGenState> = {};
+            for (const s of dbSlides) {
+              const prevState = slideGenStatesRef.current[s.id];
+              if (s.status === "GENERATING") {
+                currentGenId = s.id;
+                newStates[s.id] = { status: "generating" };
+              } else if (s.status === "READY") {
+                newCompleted++;
+                // Fetch the htmlBody from DB for completed slides
+                newStates[s.id] = {
+                  status: "complete",
+                  htmlBody: prevState?.htmlBody || s.htmlBody || "",
+                };
+              } else if (s.status === "ERROR") {
+                newErrors++;
+                newStates[s.id] = { status: "error", error: "Generation failed" };
+              } else {
+                newStates[s.id] = prevState || { status: "pending" };
               }
+            }
 
-              if (data.slideId && data.slideTitle && data.totalSlides !== undefined) {
-                // slide_start event
-                setCurrentGenSlideId(data.slideId);
-                setSlideGenStates((prev) => ({
-                  ...prev,
-                  [data.slideId]: { status: "generating" },
-                }));
-                rawHtmlAccum = "";
-                setGenProgress({ current: data.slideIndex + 1, total: data.totalSlides });
+            // Merge with existing states to preserve already-loaded htmlBody
+            setSlideGenStates((prev) => {
+              const merged: Record<string, SlideGenState> = {};
+              for (const [id, state] of Object.entries(prev)) {
+                merged[id] = state;
               }
-
-              if (data.slideId && data.html) {
-                // chunk event
-                rawHtmlAccum += data.html;
-                setStreamingHtml(buildLivePreviewDoc(rawHtmlAccum, data.slideId));
-              }
-
-              if (data.slideId && data.htmlBody) {
-                // slide_complete event
-                slidesCompleted++;
-                setSlideGenStates((prev) => ({
-                  ...prev,
-                  [data.slideId]: { status: "complete", htmlBody: data.htmlBody },
-                }));
-                setOutlineLessons((prev) =>
-                  prev.map((ol) =>
-                    ol.id === lessonId ? { ...ol, allReady: slidesCompleted === ol.slides.length } : ol
-                  )
-                );
-              }
-
-              if (data.slideId && data.error) {
-                // slide_error event
-                slidesCompleted++;
-                setSlideGenStates((prev) => ({
-                  ...prev,
-                  [data.slideId]: { status: "error", error: data.error },
-                }));
-                toast.error(`Slide generation failed: ${data.error}`);
-              }
-
-              if (data.lessonId && data.slidesGenerated !== undefined) {
-                // all_complete event
-                const totalForLesson = outlineLessons.find((ol) => ol.id === data.lessonId)?.slides.length || 0;
-                if (data.slidesGenerated === totalForLesson) {
-                  toast.success(`All ${data.slidesGenerated} slides generated!`);
+              for (const [id, state] of Object.entries(newStates)) {
+                // For READY slides, fetch htmlBody if we don't have it yet
+                if (state.status === "complete" && !state.htmlBody) {
+                  const dbSlide = dbSlides.find((s) => s.id === id);
+                  merged[id] = { ...state, htmlBody: dbSlide?.htmlBody || "" };
                 } else {
-                  toast.warning(`${data.slidesGenerated} of ${totalForLesson} slides generated. Some slides failed.`);
+                  merged[id] = state;
                 }
               }
-            } catch {
-              // skip malformed JSON
+              return merged;
+            });
+
+            if (currentGenId) {
+              setCurrentGenSlideId(currentGenId);
             }
+
+            completedCount = newCompleted;
+            errorCount = newErrors;
+            setGenProgress({ current: newCompleted + newErrors, total: totalSlides });
+
+            // Check if all slides are done
+            const allDone = newCompleted + newErrors >= totalSlides;
+            if (allDone && !stopped) {
+              stopped = true;
+              if (pollInterval) clearInterval(pollInterval);
+              setGeneratingLessonId(null);
+              setCurrentGenSlideId(null);
+              abortGenRef.current = null;
+
+              if (newErrors > 0) {
+                toast.warning(`${newCompleted} of ${totalSlides} slides generated. ${newErrors} failed.`);
+              } else {
+                toast.success(`All ${newCompleted} slides generated!`);
+              }
+
+              setOutlineLessons((prev) =>
+                prev.map((ol) =>
+                  ol.id === lessonId ? { ...ol, allReady: newCompleted === totalSlides } : ol
+                )
+              );
+            }
+          } catch (pollErr) {
+            console.error("[generate-slides] Poll error:", pollErr);
           }
-        }
-      } catch (err) {
-        if (err instanceof Error && err.name === "AbortError") {
-          toast.info("Generation cancelled");
-        } else {
-          console.error("[generate-slides] Stream error:", err);
-          toast.error("Failed to generate slides. Please try again.");
-        }
-      } finally {
-        // If stream ended without all_complete, show partial result
-        if (slidesCompleted > 0 && slidesCompleted < (outlineLessons.find((ol) => ol.id === lessonId)?.slides.length || 0)) {
-          toast.warning(`Generation finished early: ${slidesCompleted} of ${outlineLessons.find((ol) => ol.id === lessonId)?.slides.length} slides generated. Check the dev console for details.`);
-        }
+        };
+
+        // Store ref for polling access
+        slideGenStatesRef.current = initialStates;
+        pollInterval = setInterval(poll, 3000);
+        // Also poll immediately after a short delay
+        setTimeout(poll, 2000);
+
+        // Store interval ref for cleanup on cancel
+        abortGenRef.current = {
+          abort: () => {
+            stopped = true;
+            if (pollInterval) clearInterval(pollInterval);
+            setGeneratingLessonId(null);
+            setCurrentGenSlideId(null);
+          },
+        } as unknown as AbortController;
+      } catch {
+        toast.error("Failed to generate slides. Please try again.");
         setGeneratingLessonId(null);
         setCurrentGenSlideId(null);
         abortGenRef.current = null;
@@ -662,6 +737,9 @@ export function CreateCoursePage() {
 
   const handleCancelGeneration = () => {
     abortGenRef.current?.abort();
+    setGeneratingLessonId(null);
+    setCurrentGenSlideId(null);
+    toast.info("Generation will continue in background. Refresh to see updated slides.");
   };
 
   // ---- Delete lesson ----
@@ -958,7 +1036,6 @@ export function CreateCoursePage() {
                       isGenerating={generatingLessonId === ol.id}
                       slideGenStates={slideGenStates}
                       currentGenSlideId={currentGenSlideId}
-                      streamingHtml={streamingHtml}
                       genProgress={genProgress}
                       onToggleExpand={() =>
                         setExpandedOutlineLessonId((prev) =>
@@ -1326,7 +1403,6 @@ interface OutlineLessonCardProps {
   isGenerating: boolean;
   slideGenStates: Record<string, SlideGenState>;
   currentGenSlideId: string | null;
-  streamingHtml: string;
   genProgress: { current: number; total: number };
   onToggleExpand: () => void;
   onEditOutline: () => void;
@@ -1344,7 +1420,6 @@ function OutlineLessonCard({
   isGenerating,
   slideGenStates,
   currentGenSlideId,
-  streamingHtml,
   genProgress,
   onToggleExpand,
   onEditOutline,
@@ -1490,23 +1565,7 @@ function OutlineLessonCard({
             </div>
           )}
 
-          {/* Streaming preview for current generating slide */}
-          {isGenerating && streamingHtml && (
-            <div className="rounded-lg border border-border/60 overflow-hidden bg-muted/10">
-              <div className="px-2 py-1 bg-muted/30 text-[10px] text-muted-foreground font-medium">
-                Live Preview — Slide {genProgress.current}
-              </div>
-              <iframe
-                srcDoc={streamingHtml}
-                sandbox="allow-same-origin"
-                className="w-full border-0"
-                style={{ aspectRatio: "16/9" }}
-                title="Live generation preview"
-              />
-            </div>
-          )}
-
-          {/* Slide list */}
+          {/* Completed slides preview */}
           <div className="space-y-1.5">
             {lesson.slides.map((slide, i) => {
               const genState = slide.slideId ? slideGenStates[slide.slideId] : null;
@@ -1573,7 +1632,7 @@ function OutlineLessonCard({
                 <div className="rounded-md overflow-hidden border border-border/40">
                   <iframe
                     srcDoc={firstCompletedHtml}
-                    sandbox="allow-same-origin"
+                    sandbox="allow-same-origin allow-scripts"
                     className="w-full border-0"
                     style={{ aspectRatio: "16/9" }}
                     title={`Preview of ${lesson.title}`}
@@ -1591,30 +1650,3 @@ function OutlineLessonCard({
 // ============================================
 // Helpers
 // ============================================
-
-/** Build a live preview document from raw streaming HTML fragments */
-function buildLivePreviewDoc(rawHtml: string, _slideId: string): string {
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Slide Preview</title>
-<script src="https://cdn.tailwindcss.com"></script>
-<style>
-body { margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
-* { box-sizing: border-box; }
-.streaming-cursor::after {
-  content: '\u258a';
-  animation: blink 0.7s infinite;
-  color: currentColor;
-  opacity: 0.7;
-}
-@keyframes blink { 0%, 50% { opacity: 0.7; } 51%, 100% { opacity: 0; } }
-</style>
-</head>
-<body class="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">
-  <div class="streaming-cursor">${rawHtml}</div>
-</body>
-</html>`;
-}

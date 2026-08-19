@@ -1,8 +1,7 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { streamSlideHtml, parseSSEStream, SLIDE_HTML_SYSTEM_PROMPT } from '@/lib/ai';
 import { sanitizeHtml, wrapSlideHtml } from '@/lib/sanitize';
-import { SLIDE_STYLES, type SlideStyle } from '@/lib/slide-styles';
 
 // ============================================
 // Style-specific system prompt additions
@@ -49,28 +48,6 @@ interface OutlineJson {
 }
 
 // ============================================
-// Helper: safely enqueue SSE event
-// ============================================
-
-function safeEnqueue(
-  controller: ReadableStreamDefaultController<Uint8Array>,
-  encoder: TextEncoder,
-  event: string,
-  data: unknown,
-): void {
-  try {
-    controller.enqueue(
-      encoder.encode(
-        `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`,
-      ),
-    );
-  } catch (enqueueErr) {
-    // Stream may have been closed/errored by the client — log but don't crash
-    console.error(`[generate-slides] Failed to enqueue ${event} event:`, enqueueErr);
-  }
-}
-
-// ============================================
 // Helper: build per-slide system prompt
 // ============================================
 
@@ -99,12 +76,10 @@ function buildUserPrompt(
     ? '\u8bf7\u4f7f\u7528\u4e2d\u6587\u751f\u6210\u6240\u6709\u5e7b\u706f\u7247\u5185\u5bb9\u3002'
     : 'Generate all slide content in English.';
 
-  // Build lesson-level context: show all slide titles so the AI understands the full lesson
   const lessonOverview = allSlides
     .map((s, i) => `  ${i + 1}. ${s.title}`)
     .join('\n');
 
-  // Determine position-based guidance with specific educational intent
   const isFirst = slideIndex === 0;
   const isSecond = slideIndex === 1;
   const isLast = slideIndex === totalSlides - 1;
@@ -132,7 +107,6 @@ function buildUserPrompt(
       : '\u2705 This is the LAST slide \u2014 summarize key takeaways and learning outcomes. List the key points covered and provide a sense of closure.';
   }
 
-  // Anti-repetition: tell the AI what the adjacent slides are about
   const prevSlideTitle = slideIndex > 0 ? allSlides[slideIndex - 1]?.title : '';
   const nextSlideTitle = slideIndex < allSlides.length - 1 ? allSlides[slideIndex + 1]?.title : '';
   const antiRepeatHint = (prevSlideTitle || nextSlideTitle)
@@ -141,7 +115,6 @@ function buildUserPrompt(
       : `\nAnti-repetition hint: The previous slide is \u201c${prevSlideTitle}\u201d and the next is \u201c${nextSlideTitle}\u201d \u2014 ensure this slide\u2019s content and layout differ markedly from both.`
     : '';
 
-  // Build reference context section
   const referenceSection = referenceContext
     ? `\n\n${isChinese ? '\u53c2\u8003\u8d44\u6599\uff08\u751f\u6210\u5185\u5bb9\u5fc5\u987b\u57fa\u4e8e\u6b64\u6750\u6599\uff0c\u4fdd\u7559\u672f\u8bed\u548c\u6982\u5ff5\uff09:' : 'REFERENCE MATERIAL (generated content MUST be grounded in this source, preserving terminology and concepts):'}\n<reference>${referenceContext}</reference>`
     : '';
@@ -182,233 +155,159 @@ function withTimeout<T>(
 }
 
 // ============================================
+// Core: generate all slides for a lesson (no SSE)
+// Runs in the background, updates DB as slides complete
+// ============================================
+
+async function generateAllSlides(lessonId: string, language?: string): Promise<void> {
+  // ---- Fetch lesson with slides and course ----
+  const lesson = await db.lesson.findUnique({
+    where: { id: lessonId },
+    include: {
+      course: { select: { id: true, language: true } },
+      slides: { where: { status: 'DRAFT_OUTLINE' }, orderBy: { order: 'asc' } },
+    },
+  });
+
+  if (!lesson || lesson.slides.length === 0) {
+    console.error(`[generate-slides] Lesson ${lessonId} not found or no slides`);
+    return;
+  }
+
+  const slides = lesson.slides;
+  const totalSlides = slides.length;
+  console.log(`[generate-slides] Starting async generation for lesson ${lessonId}: ${totalSlides} slides`);
+
+  const effectiveLanguage = language || lesson.course?.language || 'english';
+  const isChinese = effectiveLanguage === 'chinese';
+
+  let outlineJson: OutlineJson;
+  try {
+    outlineJson = lesson.outlineJson
+      ? (JSON.parse(lesson.outlineJson) as OutlineJson)
+      : { topic: lesson.title, style: 'professional', slides: [] };
+  } catch {
+    outlineJson = { topic: lesson.title, style: 'professional', slides: [] };
+  }
+
+  const style = outlineJson.style || 'professional';
+  const topic = outlineJson.topic || lesson.title;
+  const allSlides = outlineJson.slides || [];
+  const referenceContext = outlineJson.referenceContext;
+  const systemPrompt = buildSystemPrompt(style);
+
+  // ---- Process each slide ----
+  for (let i = 0; i < totalSlides; i++) {
+    const slide = slides[i];
+    console.log(`[generate-slides] Slide ${i + 1}/${totalSlides}: "${slide.title}" (id: ${slide.id})`);
+
+    const outlineEntry = outlineJson.slides?.find((s) => s.title === slide.title);
+    const slideOutline = outlineEntry?.outline || '';
+
+    // Update slide status to GENERATING
+    try {
+      await db.slide.update({ where: { id: slide.id }, data: { status: 'GENERATING' } });
+    } catch (dbErr) {
+      console.error(`[generate-slides] DB status update error for slide ${slide.id}:`, dbErr);
+    }
+
+    const userPrompt = buildUserPrompt(topic, slide.title, slideOutline, i, totalSlides, isChinese, allSlides, referenceContext);
+
+    try {
+      console.log(`[generate-slides] Calling streamSlideHtml for slide ${i + 1}...`);
+      const rawSSEStream = await withTimeout(
+        streamSlideHtml(userPrompt, systemPrompt),
+        SLIDE_TIMEOUT_MS,
+        `streamSlideHtml slide ${i + 1}`,
+      );
+
+      const textStream = parseSSEStream(rawSSEStream);
+      const reader = textStream.getReader();
+      let fullHtml = '';
+
+      while (true) {
+        const { done, value } = await withTimeout(
+          reader.read(),
+          SLIDE_TIMEOUT_MS,
+          `read chunk for slide ${i + 1}`,
+        );
+        if (done) break;
+        fullHtml += value;
+      }
+
+      console.log(`[generate-slides] Slide ${i + 1} stream done: ${fullHtml.length} chars`);
+
+      const sanitized = sanitizeHtml(fullHtml);
+      const wrapped = wrapSlideHtml(sanitized, { title: slide.title });
+
+      await db.slide.update({
+        where: { id: slide.id },
+        data: { htmlBody: wrapped, status: 'READY' },
+      });
+
+      console.log(`[generate-slides] Slide ${i + 1} COMPLETE`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to generate slide HTML';
+      console.error(`[generate-slides] Slide ${i + 1} ERROR: ${message}`);
+      try {
+        await db.slide.update({ where: { id: slide.id }, data: { status: 'ERROR' } });
+      } catch {
+        // Ignore
+      }
+    }
+  }
+
+  console.log(`[generate-slides] All done for lesson ${lessonId}`);
+}
+
+// ============================================
 // POST /api/lessons/generate-slides
+// Starts async generation, returns immediately
 // ============================================
 
 export async function POST(request: NextRequest) {
-  const encoder = new TextEncoder();
+  try {
+    const body = (await request.json()) as GenerateSlidesRequest;
+    const { lessonId, language } = body;
 
-  const stream = new ReadableStream<Uint8Array>({
-    async start(controller) {
-      let body: GenerateSlidesRequest;
+    if (!lessonId) {
+      return NextResponse.json({ success: false, error: 'lessonId is required' }, { status: 400 });
+    }
 
-      // ---- Parse request body ----
-      try {
-        body = (await request.json()) as GenerateSlidesRequest;
-      } catch {
-        safeEnqueue(controller, encoder, 'error', { error: 'Invalid request body' });
-        controller.close();
-        return;
-      }
+    // Verify lesson exists and has DRAFT_OUTLINE slides
+    const lesson = await db.lesson.findUnique({
+      where: { id: lessonId },
+      include: {
+        slides: { where: { status: 'DRAFT_OUTLINE' }, orderBy: { order: 'asc' } },
+      },
+    });
 
-      const { lessonId, language } = body;
+    if (!lesson) {
+      return NextResponse.json({ success: false, error: 'Lesson not found' }, { status: 404 });
+    }
 
-      if (!lessonId) {
-        safeEnqueue(controller, encoder, 'error', { error: 'lessonId is required' });
-        controller.close();
-        return;
-      }
+    if (lesson.slides.length === 0) {
+      return NextResponse.json(
+        { success: false, error: 'No slides with DRAFT_OUTLINE status found' },
+        { status: 400 },
+      );
+    }
 
-      // ---- Fetch lesson with slides and course ----
-      let lesson;
-      try {
-        lesson = await db.lesson.findUnique({
-          where: { id: lessonId },
-          include: {
-            course: { select: { id: true, language: true } },
-            slides: {
-              where: { status: 'DRAFT_OUTLINE' },
-              orderBy: { order: 'asc' },
-            },
-          },
-        });
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Database error fetching lesson';
-        console.error('[generate-slides] DB fetch error:', message);
-        safeEnqueue(controller, encoder, 'error', { error: message });
-        controller.close();
-        return;
-      }
+    const totalSlides = lesson.slides.length;
 
-      if (!lesson) {
-        safeEnqueue(controller, encoder, 'error', { error: 'Lesson not found' });
-        controller.close();
-        return;
-      }
+    // Start generation in background (fire-and-forget)
+    // We don't await — the caller gets an immediate response
+    generateAllSlides(lessonId, language).catch((err) => {
+      console.error(`[generate-slides] Background generation failed:`, err);
+    });
 
-      const slides = lesson.slides;
-      const totalSlides = slides.length;
-      console.log(`[generate-slides] Starting generation for lesson ${lessonId}: ${totalSlides} slides`);
-
-      if (totalSlides === 0) {
-        safeEnqueue(controller, encoder, 'error', { error: 'No slides with DRAFT_OUTLINE status found' });
-        controller.close();
-        return;
-      }
-
-      // ---- Determine language and style ----
-      const effectiveLanguage = language || lesson.course?.language || 'english';
-      const isChinese = effectiveLanguage === 'chinese';
-
-      // ---- Parse outlineJson ----
-      let outlineJson: OutlineJson;
-      try {
-        outlineJson = lesson.outlineJson
-          ? (JSON.parse(lesson.outlineJson) as OutlineJson)
-          : { topic: lesson.title, style: 'professional', slides: [] };
-      } catch {
-        outlineJson = { topic: lesson.title, style: 'professional', slides: [] };
-      }
-
-      const style = outlineJson.style || 'professional';
-      const topic = outlineJson.topic || lesson.title;
-      const allSlides = outlineJson.slides || [];
-      const referenceContext = outlineJson.referenceContext;
-      const systemPrompt = buildSystemPrompt(style);
-
-      // ---- Process each slide ----
-      let slidesGenerated = 0;
-
-      for (let i = 0; i < totalSlides; i++) {
-        const slide = slides[i];
-        console.log(`[generate-slides] Slide ${i + 1}/${totalSlides}: "${slide.title}" (id: ${slide.id})`);
-
-        // Find matching outline entry by title
-        const outlineEntry = outlineJson.slides?.find(
-          (s) => s.title === slide.title,
-        );
-        const slideOutline = outlineEntry?.outline || '';
-
-        // Update slide status to GENERATING
-        try {
-          await db.slide.update({
-            where: { id: slide.id },
-            data: { status: 'GENERATING' },
-          });
-        } catch (dbErr) {
-          console.error(`[generate-slides] DB status update error for slide ${slide.id}:`, dbErr);
-        }
-
-        // Emit slide_start
-        safeEnqueue(controller, encoder, 'slide_start', {
-          slideId: slide.id,
-          slideTitle: slide.title,
-          slideIndex: i,
-          totalSlides,
-        });
-
-        // Build user prompt for this slide with full lesson context
-        const userPrompt = buildUserPrompt(
-          topic,
-          slide.title,
-          slideOutline,
-          i,
-          totalSlides,
-          isChinese,
-          allSlides,
-          referenceContext,
-        );
-
-        // Stream HTML from AI
-        try {
-          console.log(`[generate-slides] Calling streamSlideHtml for slide ${i + 1}...`);
-          const rawSSEStream = await withTimeout(
-            streamSlideHtml(userPrompt, systemPrompt),
-            SLIDE_TIMEOUT_MS,
-            `streamSlideHtml slide ${i + 1}`,
-          );
-          console.log(`[generate-slides] Got stream for slide ${i + 1}, parsing...`);
-
-          const textStream = parseSSEStream(rawSSEStream);
-          const reader = textStream.getReader();
-          let fullHtml = '';
-          let chunkCount = 0;
-
-          while (true) {
-            const { done, value } = await withTimeout(
-              reader.read(),
-              SLIDE_TIMEOUT_MS,
-              `read chunk for slide ${i + 1}`,
-            );
-            if (done) break;
-
-            fullHtml += value;
-            chunkCount++;
-
-            // Emit chunk for this slide (throttle: every 5th chunk to reduce overhead)
-            if (chunkCount % 5 === 0) {
-              safeEnqueue(controller, encoder, 'chunk', {
-                slideId: slide.id,
-                html: value,
-              });
-            }
-          }
-
-          console.log(`[generate-slides] Slide ${i + 1} stream done: ${fullHtml.length} chars, ${chunkCount} chunks`);
-
-          // Sanitize and wrap the complete HTML
-          const sanitized = sanitizeHtml(fullHtml);
-          const wrapped = wrapSlideHtml(sanitized, { title: slide.title });
-
-          // Save to DB and update status
-          await db.slide.update({
-            where: { id: slide.id },
-            data: { htmlBody: wrapped, status: 'READY' },
-          });
-
-          slidesGenerated++;
-          console.log(`[generate-slides] Slide ${i + 1} COMPLETE (${slidesGenerated}/${totalSlides})`);
-
-          // Emit slide_complete
-          safeEnqueue(controller, encoder, 'slide_complete', {
-            slideId: slide.id,
-            slideTitle: slide.title,
-            htmlBody: wrapped,
-          });
-        } catch (error) {
-          const message =
-            error instanceof Error ? error.message : 'Failed to generate slide HTML';
-
-          console.error(`[generate-slides] Slide ${i + 1} ERROR: ${message}`, error);
-
-          // Update slide status to ERROR
-          try {
-            await db.slide.update({
-              where: { id: slide.id },
-              data: { status: 'ERROR' },
-            });
-          } catch (dbErr) {
-            console.error(`[generate-slides] DB error update failed for slide ${slide.id}:`, dbErr);
-          }
-
-          // Emit slide_error
-          safeEnqueue(controller, encoder, 'slide_error', {
-            slideId: slide.id,
-            error: message,
-          });
-        }
-      }
-
-      // ---- All slides done ----
-      console.log(`[generate-slides] All done. Generated ${slidesGenerated}/${totalSlides} slides`);
-      safeEnqueue(controller, encoder, 'all_complete', {
-        lessonId,
-        slidesGenerated,
-      });
-
-      try {
-        controller.close();
-      } catch {
-        // Stream may already be closed
-      }
-    },
-  });
-
-  return new Response(stream, {
-    headers: {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      Connection: 'keep-alive',
-    },
-  });
+    return NextResponse.json({
+      success: true,
+      data: { lessonId, totalSlides, status: 'generating' },
+    });
+  } catch (error) {
+    console.error('[generate-slides] POST error:', error);
+    const message = error instanceof Error ? error.message : 'Failed to start slide generation';
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
+  }
 }
