@@ -855,3 +855,23 @@ Stage Summary:
 - Modified: /src/app/api/lessons/generate-slides/route.ts (position-specific hints, anti-repetition hints, educational quality requirements)
 - Modified: /src/app/api/lessons/generate-outline/route.ts (pass topic to truncateTextForContext for relevance selection)
 - Modified: /src/components/lms/pages/create-course-page.tsx (handle top-level SSE error events)
+---
+Task ID: doc-upload-fix
+Agent: Main Agent
+Task: Fix document upload showing no visual feedback
+
+Work Log:
+- User reported: clicking upload shows no response, cannot tell if doc was uploaded
+- Root cause found: `/api/upload` route did NOT exist at all. Frontend calls `/api/upload?type=doc` but no backend endpoint was there
+- Created `/api/upload/route.ts` with support for both cover and doc uploads
+  - Cover: saves to `public/uploads/covers/`, returns `{ url }`
+  - Doc: saves to `public/uploads/docs/`, returns `{ name, url, size, type }`
+  - File type validation, size limits (5MB cover, 20MB doc), UUID filenames
+- Added success toast notification on doc upload (`toast.success`)
+- Verified via agent-browser: file name, size, and remove button now appear after upload
+- Dev log confirms: `POST /api/upload?type=doc 200 in 202ms`
+
+Stage Summary:
+- Root cause: Missing `/api/upload` backend route
+- Fix: Created the route + added success toast
+- Verified: Upload works end-to-end with visual feedback (file name chip with size + X remove button)

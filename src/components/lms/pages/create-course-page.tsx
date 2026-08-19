@@ -239,6 +239,7 @@ export function CreateCoursePage() {
         const json = await res.json();
         if (json.success) {
           setReferenceFiles((prev) => [...prev, json.data]);
+          toast.success(`Uploaded: ${file.name}`);
         } else {
           toast.error(`Failed to upload: ${file.name}`);
         }
