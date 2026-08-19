@@ -23,6 +23,11 @@ const FORBIDDEN_TAGS = [
   'noscript', 'svg',
 ];
 
+/** Check whether ImageKit is properly configured */
+function isImageKitConfigured(): boolean {
+  return !!(process.env.IMAGEKIT_URL_ENDPOINT);
+}
+
 /** Get the allowed ImageKit URL endpoint from env */
 function getImageKitDomain(): string | null {
   const endpoint = process.env.IMAGEKIT_URL_ENDPOINT;
@@ -34,9 +39,42 @@ function getImageKitDomain(): string | null {
   }
 }
 
+/** Sign an ImageKit URL server-side. Only works when env vars are set. */
+function signImageKitUrl(url: string): string {
+  const endpoint = process.env.IMAGEKIT_URL_ENDPOINT;
+  const privateKey = process.env.IMAGEKIT_PRIVATE_KEY;
+  if (!endpoint || !privateKey) return url;
+
+  try {
+    const parsedUrl = new URL(url);
+    if (parsedUrl.hostname !== getImageKitDomain()) return url;
+
+    const expiry = Math.floor(Date.now() / 1000) + 3600; // 1 hour
+    // Extract the path+query (everything after the hostname)
+    const pathAndQuery = parsedUrl.pathname + parsedUrl.search;
+    const signatureBase = pathAndQuery + expiry;
+
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const crypto = require('crypto');
+    const hmac = crypto.createHmac('sha1', privateKey);
+    hmac.update(signatureBase);
+    const signature = hmac.digest('base64')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+
+    parsedUrl.searchParams.set('ik-s', signature);
+    parsedUrl.searchParams.set('ik-t', String(expiry));
+    return parsedUrl.toString();
+  } catch {
+    return url;
+  }
+}
+
 /** Regex-based href validation — works on both server and client */
 function isValidHref(href: string): boolean {
   const trimmed = href.trim().toLowerCase();
+  // Only allow https links or same-page anchors
   if (trimmed.startsWith('https://')) return true;
   if (trimmed.startsWith('#')) return true;
   return false;
@@ -47,20 +85,26 @@ function isValidImgSrc(src: string): boolean {
   const ikDomain = getImageKitDomain();
   const trimmed = src.trim();
 
-  // Allow data: URIs (e.g., inline SVGs)
-  if (trimmed.startsWith('data:')) return true;
+  // SECURITY: Block data: URIs entirely (can contain SVG with embedded scripts)
+  if (trimmed.startsWith('data:')) return false;
 
-  if (!ikDomain) {
-    // If ImageKit not configured, allow any https image
-    return trimmed.toLowerCase().startsWith('https://');
+  if (ikDomain) {
+    // When ImageKit is configured, ONLY allow ImageKit domain images
+    try {
+      const url = new URL(trimmed);
+      return url.hostname === ikDomain && url.protocol === 'https:';
+    } catch {
+      return false;
+    }
   }
 
-  try {
-    const url = new URL(trimmed);
-    return url.hostname === ikDomain && url.protocol === 'https:';
-  } catch {
-    return false;
-  }
+  // When ImageKit is NOT configured, block ALL external images.
+  // This prevents the AI from generating URLs that point to arbitrary domains
+  // or to the placeholder "ik.imagekit.io/YOUR_ID" that would fail to load.
+  // Relative paths (e.g. /uploads/...) are allowed for user-uploaded images.
+  if (trimmed.startsWith('/') || trimmed.startsWith('./')) return true;
+
+  return false;
 }
 
 /** Regex-based second pass: enforce URL policies & strip on* / style attrs.
@@ -97,6 +141,20 @@ function serverSidePostProcess(html: string): string {
 
   // 4. Strip inline style attributes
   html = html.replace(/\s+style\s*=\s*("[^"]*"|'[^']*')/gi, '');
+
+  // 5. Sign ImageKit URLs server-side (only when configured)
+  if (typeof require === 'function' && isImageKitConfigured()) {
+    html = html.replace(
+      /(<img\s[^>]*?\bsrc=)("([^"]*)"|'([^']*)')([^>]*?)(\/?>)/gi,
+      (_match, before, srcFull, srcDq, srcSq, after, close) => {
+        const srcVal = srcDq ?? srcSq;
+        if (!srcVal) return _match;
+        const signed = signImageKitUrl(srcVal);
+        if (signed === srcVal) return _match; // No change needed
+        return `${before}"${signed}"${after}${close}`;
+      },
+    );
+  }
 
   return html;
 }

@@ -498,5 +498,334 @@
    498→- Updated src/types/lms.ts: removed SlideContent/SlideItem (deprecated), renamed SectionItem→LessonItem, added SlideItem, updated ClassroomState (sectionId→lessonId, allSectionIds→allLessonIds, currentSectionIndex→currentLessonIndex), CourseItem.sections→CourseItem.lessons
    499→- Updated all API routes (15 files): courses, courses/[id], lessons/[id] (new), notes, comments, progress, progress-timeline, enrollments, enrollments/[id], analytics, achievements, leaderboard, favorites, user/[id], generate-pptx, generate-outline, challenges, social-feed
    500→- Updated all UI components (6 files): classroom-page, course-detail-page, create-course-page, progress-timeline, discussion-panel, social-feed
-
-[showing lines 1-500 of 805; use offset=501 with limit to continue reading]
+   501→- Deleted old /api/sections/[id]/route.ts, created /api/lessons/[id]/route.ts
+   502→- Rewrote prisma/seed.ts: 25 lessons with 25 slides (each with real HTML+Tailwind content), outlineJson on each lesson
+   503→- Updated all social-feed action types: completed_section→completed_lesson
+   504→- Final lint: zero errors, zero warnings
+   505→- Seed: 5 courses, 25 lessons, 25 slides, runs successfully
+   506→
+   507→Stage Summary:
+   508→- Complete schema migration from Section to Lesson+Slide model
+   509→- 30+ files updated across API routes, UI components, types, and seed data
+   510→- All Prisma references to `section`/`sections` eliminated from src/
+   511→- Dev server starts cleanly on port 3000
+   512→- No SlideVersion model added (per plan: not needed yet)
+   513→
+   514→---
+   515→Task ID: section-to-lesson-rename-cleanup
+   516→Agent: main
+   517→Task: Complete Section→Lesson rename in all remaining source code (variable names, display text, API params)
+   518→
+   519→Work Log:
+   520→- Verified schema and DB already migrated (Lesson + Slide tables, no Section table)
+   521→- Verified seed.ts already rewritten with LessonSeed + makeSlideHtml + Slide creates
+   522→- Ran subagent to rename remaining references across 12 files:
+   523→  - `src/app/api/courses/route.ts`: POST body `sections` → `lessons`, `sec` → `lesson`
+   524→  - `src/app/api/generate-pptx/route.ts`: `SectionHtmlBody` → `SlideHtmlBody`, `sections` → `slides`, `sectionTitle` → `lessonTitle`, `resolvedSections` → `resolvedSlides`
+   525→  - `src/app/api/generate-slide-html/route.ts`: `sectionTitle` → `slideTitle` (6 occurrences)
+   526→  - `src/app/api/generate-outline/route.ts`: output key `sections` → `lessons` (kept `parsed.sections` for AI compat)
+   527→  - `src/app/api/challenges/route.ts`: "1/1 sections" → "1/1 lessons"
+   528→  - `src/components/lms/pages/create-course-page.tsx`: `sectionTitle` → `slideTitle`, "Add N Sections" → "Add N Lessons"
+   529→  - `src/components/lms/pages/my-learning-page.tsx`: `sectionsCount` → `lessonsCount`, "X sections" → "X lessons"
+   530→  - `src/components/lms/pages/courses-page.tsx`: `sections: []` → `lessons: []`
+   531→  - `src/components/lms/pages/home-page.tsx`: `sectionsCount` → `lessonsCount`, `sections: []` → `lessons: []`
+   532→  - `src/components/lms/pages/course-detail-page.tsx`: PPTX API body `{ sections: ... }` → `{ slides: ... }`
+   533→  - `src/components/lms/pages/settings-page.tsx`: "Auto-play Next Section" → "Auto-play Next Lesson"
+   534→  - `src/components/lms/pages/profile-page.tsx`: `sectionsCount` → `lessonsCount`, `completedSections` → `completedLessons`
+   535→- Left intact: `src/lib/ai.ts` (AI prompt uses "sections" key internally, parsed in generate-outline)
+   536→- Left intact: Comments using "section" as generic English (e.g. "User Info Section")
+   537→- Added `allowedDevOrigins` to next.config.ts for cross-origin preview support
+   538→- Lint: zero errors
+   539→- Seed: 5 users, 6 categories, 5 courses, 25 lessons, 25 slides — runs successfully
+   540→- API verified: `/api/courses?tab=hot` returns courses with `lessonsCount` correctly
+   541→
+   542→Stage Summary:
+   543→- Complete Section→Lesson rename across all source code
+   544→- All data model references to `section`/`Section`/`sections` renamed to `lesson`/`Lesson`/`lessons`
+   545→- API parameter `sectionTitle` → `slideTitle` (generate-slide-html) or `lessonTitle` (generate-pptx)
+   546→- Display text updated: "sections" → "lessons" in UI
+   547→- Step 1 (Schema Migration) of the 15-step implementation plan is COMPLETE
+   548→
+   549→---
+   550→Task ID: fix-three-ux-issues
+   551→Agent: main
+   552→Task: Fix 3 user-reported UX issues: redundant outline button, missing hero section, instructor dashboard showing learning progress
+   553→
+   554→Work Log:
+   555→- **Outline button removed** from create-course-page.tsx: removed OutlineSection interface, 4 state variables, 3 handler functions, the "Outline" toolbar button, hint text, and the entire AI Outline Generation Modal (~190 lines removed). Kept "+ Add" and per-lesson "Generate Lesson with AI" buttons.
+   556→- **Hero section added** to home-page.tsx: gradient background with floating orbs, typing animation ("Learn. Grow. Excel. Achieve. Thrive. Innovate."), subtitle text, AI prompt input for instructors, Browse Courses + My Learning buttons for students.
+   557→- **Instructor dashboard rewritten**: removed all student learning content (learning progress bars, hours studied, courses enrolled, streak, heatmap, donut chart). Replaced with: Total Courses Created, Total Students, Average Rating, Total Lessons stats; My Courses table; Recent Student Activity feed; Quick Actions; Course Overview section. Added `creatorId` query param to `/api/courses` and `/api/enrollments` routes.
+   558→- Lint: zero errors
+   559→- Dev server compiles and runs
+   560→- APIs verified: courses?creatorId= and enrollments?creatorId= return correct data
+   561→
+   562→Stage Summary:
+   563→- Three UX issues resolved in single pass
+   564→- Instructor dashboard now shows only course management data
+   565→- Home page hero section restored with typing animation
+   566→- AI course creation flow simplified (outline removed, per-lesson generation kept)
+   567→
+   568→---
+   569→Task ID: generate-outline-step
+   570→Agent: main
+   571→Task: Implement "generate outline" step — API endpoint + frontend for AI slide outline generation with editable outline list
+   572→
+   573→Work Log:
+   574→- Created `src/lib/slide-styles.ts` with 5 design style constants (professional, minimal, creative, academic, tech) and slide count range (3-20)
+   575→- Created `POST /api/lessons/generate-outline` endpoint: accepts courseId, topic, slideCount, style, language; calls `generateStructuredJSON` from `src/lib/llm.ts` to get slide outline; creates Lesson + Slide records in DB; returns lesson with slides
+   576→- Created `PUT /api/slides/[id]` endpoint for editing individual slide titles
+   577→- Created `DELETE /api/slides/[id]` endpoint for removing slides from outline
+   578→- Added `DELETE` method to `PUT /api/lessons/[id]` for deleting lessons (cascade deletes slides)
+   579→- Modified `create-course-page.tsx`:
+   580→  - Added new types: `OutlineSlideDraft`, `OutlineLessonDraft`
+   581→  - Added state: `courseId`, `generateMode`, outline state variables (`outlineTopic`, `outlineSlideCount`, `outlineStyle`, `outlineGenerating`, `outlineLessons`, `editingOutlineLesson`, `outlineEditingSlides`)
+   582→  - Added `ensureCourseSaved()` — auto-saves course as draft when outline mode requires a courseId
+   583→  - Added outline handlers: `handleOpenOutlineModal`, `handleGenerateOutline`, `handleUpdateSlideTitle`, `handleDeleteOutlineSlide`, `handleAddOutlineSlide`, `handleRegenerateOutline`, `handleGenerateSlides`, `handleDeleteOutlineLesson`
+   584→  - Added "AI Outline" button in lessons panel (primary-colored, with Wand2 icon)
+   585→  - Modified modal to support two tabs: "Quick Generate" (existing flow) and "Outline Mode" (new)
+   586→  - Outline mode: topic input, slide count with +/- buttons, style dropdown (5 styles), loading state, editable slide list with inline title editing, outline text display, delete slide, add slide, regenerate buttons
+   587→  - Added `OutlineLessonCard` component for displaying outline lessons in the lesson list (shows slide count, style badge, expandable slide list, edit/preview/delete actions, "Generate Slides" button)
+   588→  - Modified `handleSave` to support updating existing draft courses (when courseId exists from auto-save)
+   589→  - Added `onInteractOutside` prevention on DialogContent to fix Select dropdown closing issue
+   590→- Verified: lint clean, TypeScript compiles, agent-browser confirmed UI renders correctly (modal tabs, topic input, slide count, style dropdown, generate button enable/disable)
+   591→
+   592→Stage Summary:
+   593→- Step 2 (Generate Outline) of the 15-step AI Lesson Generation plan is COMPLETE
+   594→- Files created: `src/lib/slide-styles.ts`, `src/app/api/lessons/generate-outline/route.ts`, `src/app/api/slides/[id]/route.ts`
+   595→- Files modified: `src/app/api/lessons/[id]/route.ts`, `src/components/lms/pages/create-course-page.tsx`
+   596→- Design styles: professional (clean, corporate), minimal (whitespace, sans-serif), creative (bold colors, dynamic), academic (text-heavy, formal), tech (dark theme, code-friendly)
+   597→- Next step: Step 3 — Generate slide HTML for each slide in the outline (streaming SSE)
+   598→
+   599→---
+   600→Task ID: 3-api
+   601→Agent: api-slides-generator
+   602→Task: Create POST /api/lessons/generate-slides streaming SSE endpoint
+   603→
+   604→Work Log:
+   605→- Read project worklog and all context files: existing `generate-slide-html/route.ts` (single-slide SSE), `src/lib/ai.ts` (streamSlideHtml, parseSSEStream, SLIDE_HTML_SYSTEM_PROMPT), `src/lib/sanitize.ts` (sanitizeHtml, wrapSlideHtml), `src/lib/slide-styles.ts` (SLIDE_STYLES), Prisma schema (Lesson, Slide, Course models), `src/lib/db.ts`
+   606→- Created `src/app/api/lessons/generate-slides/route.ts` with the following implementation:
+   607→  - **Request validation**: Accepts `{ lessonId: string, language?: string }`, validates lessonId presence
+   608→  - **DB fetch**: Fetches lesson with `include: { course, slides: { where: { status: 'DRAFT_OUTLINE' }, orderBy: { order: 'asc' } } }`
+   609→  - **Language resolution**: Uses provided language, falls back to `course.language`, then defaults to `'english'`
+   610→  - **OutlineJson parsing**: Parses `lesson.outlineJson` to extract topic, style, and per-slide outline text; gracefully handles missing/malformed JSON
+   611→  - **Style-specific system prompt**: Defines `STYLE_INSTRUCTIONS` map with 5 style additions (professional, minimal, creative, academic, tech); appends style instruction to `SLIDE_HTML_SYSTEM_PROMPT` via `buildSystemPrompt()`
+   612→  - **Per-slide user prompt**: `buildUserPrompt()` includes lesson topic, current slide title, slide outline from outlineJson, slide position (N of total), and Chinese/English language instruction
+   613→  - **Continuous SSE stream**: Single `ReadableStream` with manual `controller.enqueue()` — stream does NOT close between slides
+   614→  - **Per-slide flow**:
+   615→    1. Updates slide status to `GENERATING` in DB
+   616→    2. Emits `slide_start` event with `{ slideId, slideTitle, slideIndex, totalSlides }`
+   617→    3. Calls `streamSlideHtml(userPrompt, systemPrompt)` → `parseSSEStream()` → reads all chunks
+   618→    4. Emits `chunk` event with `{ slideId, html: chunkText }` for each text delta
+   619→    5. On completion: `sanitizeHtml()` → `wrapSlideHtml()` → saves `htmlBody` + status `READY` to DB
+   620→    6. Emits `slide_complete` with `{ slideId, slideTitle, htmlBody }`
+   621→  - **Error handling per slide**: On failure, updates slide status to `ERROR`, emits `slide_error` with `{ slideId, error }`, continues to next slide
+   622→  - **Final event**: Emits `all_complete` with `{ lessonId, slidesGenerated: N }`
+   623→  - **Outline matching**: Matches slide to outline entry by title; falls back to empty outline if no match found
+   624→- Lint: zero errors
+   625→- Dev server compiles cleanly
+   626→
+   627→Stage Summary:
+   628→- Created `/api/lessons/generate-slides` — batch SSE streaming endpoint that generates HTML for all DRAFT_OUTLINE slides in a lesson
+   629→- One continuous SSE stream for all slides with 5 event types: `slide_start`, `chunk`, `slide_complete`, `slide_error`, `all_complete`
+   630→- Style-aware system prompt built from SLIDE_HTML_SYSTEM_PROMPT + style-specific instructions
+   631→- Per-slide error isolation: individual slide failures don't abort the batch
+   632→- Step 3 (Batch Slide HTML Generation) of the AI Lesson Generation plan is COMPLETE
+   633→
+   634→---
+   635→Task ID: 3-frontend-unify
+   636→Agent: main
+   637→Task: Unify create-course-page into single AI flow + implement slide HTML generation frontend
+   638→
+   639→Work Log:
+   640→- Removed Quick Generate tab and LessonDraft/LessonCard components
+   641→- Single unified outline-based AI generation flow
+   642→- One button: "Generate Lesson with AI" (Wand2 icon)
+   643→- Modal: Topic + Slide Count + Style → Generate Outline → Edit → Generate Slides
+   644→- Implemented handleGenerateSlides with SSE streaming
+   645→- Per-slide progress indicators (pending/generating/complete/error)
+   646→- Live streaming iframe preview during generation
+   647→- Progress bar with cancel button
+   648→- Fixed JSX parser error in srcDoc attribute
+   649→- Lint: zero errors
+   650→
+   651→Stage Summary:
+   652→- Step 2 (Generate Outline) and Step 3 (Generate Slide HTML) of AI Lesson Generation plan are COMPLETE
+   653→- Files modified: src/components/lms/pages/create-course-page.tsx
+   654→- Files created: src/app/api/lessons/generate-slides/route.ts
+   655→- UI is now unified: single "Generate Lesson with AI" button, no more two-tab modal
+   656→
+   657→---
+   658→Task ID: 3-verify
+   659→Agent: main
+   660→Task: Verify unified UI with agent-browser
+   661→
+   662→Work Log:
+   663→- Ran bun run lint: PASSED (no errors or warnings)
+   664→- Checked dev server: RUNNING (port 3000, serving requests, recent 200 responses confirmed)
+   665→- Agent-browser verification:
+   666→  1. Navigated to / route → Home page loaded successfully with login UI
+   667→  2. Logged in as instructor via quick login button
+   668→  3. Navigated to Create Course page via nav button
+   669→  4. Verified Create Course page loads with form fields (Title, Description, Category, Language)
+   670→  5. Verified exactly ONE button for lesson creation: "Generate Lesson with AI" (ref=e17)
+   671→  6. Verified button has lucide-wand-sparkles (Wand2) icon via innerHTML inspection
+   672→  7. Clicked "Generate Lesson with AI" button → modal opened
+   673→  8. Verified modal contains:
+   674→     - Topic field (textbox, placeholder: "e.g., Introduction to Data Science")
+   675→     - Slide Count field (spinbutton, default value: 8, with +/- buttons)
+   676→     - Design Style field (combobox, default: "Professional Clean, corporate")
+   677→     - Cancel and Generate Outline buttons
+   678→  9. Verified NO "+ Add" button exists on page (DOM query returned 0 results)
+   679→  10. Verified NO tab switcher in modal (DOM query for role="tab" returned 0 results)
+   680→  11. Screenshots saved: screenshot-home.png, screenshot-create-course.png, screenshot-modal.png
+   681→
+   682→Stage Summary:
+   683→- All 4 verification checks PASSED:
+   684→  ✅ Only ONE button for AI generation ("Generate Lesson with AI" with Wand2/wand-sparkles icon)
+   685→  ✅ NO "+ Add" button present anywhere on the page
+   686→  ✅ NO tab switcher in the modal
+   687→  ✅ Modal shows Topic, Slide Count, and Design Style fields
+   688→- No issues found. The unified UI is working correctly.
+   689→
+   690→---
+   691→Task ID: 3-unified-implementation
+   692→Agent: main
+   693→Task: Unify AI generation flow + implement Step 3 (Generate Slide HTML)
+   694→
+   695→Work Log:
+   696→- Removed Quick Generate tab and LessonDraft/LessonCard/buildLivePreviewDoc components entirely
+   697→- Unified to single AI generation flow: one "Generate Lesson with AI" button (Wand2 icon)
+   698→- Modal now has no tabs: always shows Topic → Slide Count → Style → Generate Outline → Edit → Generate Slides
+   699→- Removed "+ Add" button from lessons panel header
+   700→- Created POST /api/lessons/generate-slides endpoint (streaming SSE for batch slide HTML generation)
+   701→- Implemented handleGenerateSlides in frontend with full SSE streaming
+   702→- Per-slide progress indicators: pending → generating (spinner) → complete (checkmark) → error (alert)
+   703→- Live streaming iframe preview during generation with cursor animation
+   704→- Progress bar with cancel button during generation
+   705→- OutlineLessonCard shows: green checkmark when all complete, pulse animation during generation, Draft badge for ungenerated
+   706→- First completed slide preview iframe shown when lesson has generated slides
+   707→- Fixed JSX parser error: complex srcDoc expression extracted to IIFE variable
+   708→- Fixed malformed JSX comment (missing closing brace)
+   709→- Lint: zero errors, zero warnings
+   710→- Agent-browser verified: single AI button, no +Add button, no tabs in modal, correct form fields
+   711→
+   712→Stage Summary:
+   713→- Step 2 (Generate Outline) COMPLETE
+   714→- Step 3 (Generate Slide HTML) COMPLETE  
+   715→- Files created: src/app/api/lessons/generate-slides/route.ts
+   716→- Files modified: src/components/lms/pages/create-course-page.tsx (full rewrite, ~530 lines → clean unified flow)
+   717→- Next step: Step 4 — remaining steps in the 15-step plan
+   718→
+   719→---
+   720→Task ID: click-to-edit-and-imagekit
+   721→Agent: main
+   722→
+   723→Work Log:
+   724→- **Implemented click-to-edit on rendered slides** in classroom-page.tsx:
+   725→  - Added `iframeRef` for direct DOM access to the iframe's contentDocument
+   726→  - Added `currentSlideIdRef` to track slide ID for persistence (extracted from lesson API response)
+   727→  - Added `slideContextRef` to store style context parsed from lesson's outlineJson
+   728→  - Added `elementEdit` state: { show, targetElement, outerHTML, position, instruction, loading }
+   729→  - Added `handleIframeClick` callback: captures clicked element, computes toolbar position accounting for zoom transform
+   730→  - Added `attachIframeClickListener` callback: attaches/removes click listener on iframe body
+   731→  - Added `handleElementEdit` callback: calls API, replaces element in iframe DOM via `replaceWith()`, rebuilds full HTML from iframe body, updates localState, persists to DB via PUT /api/slides/[id]
+   732→  - Added Escape key handler to close toolbar
+   733→  - Added useEffect to re-attach click listener when htmlBody changes (lesson navigation)
+   734→  - Added floating toolbar JSX: small card with Pencil icon, instruction input, Apply button, positioned at click coordinates via `style={{ left, top }}`
+   735→  - Added `ref={iframeRef}` to the iframe element
+   736→  - Added `Pencil` icon import from lucide-react
+   737→  - **Sandbox analysis**: `sandbox="allow-same-origin"` allows parent-frame direct DOM access (contentDocument). No sandbox change needed for click-to-edit. Note: `allow-scripts` is not present, so Tailwind CDN `<script>` in srcDoc may not execute (pre-existing concern, not modified).
+   738→
+   739→- **Created `POST /api/slides/element-edit/route.ts`**:
+   740→  - Accepts `{ elementHtml, instruction, slideContext }`
+   741→  - Uses `ELEMENT_EDIT_SYSTEM_PROMPT` from ai.ts (same tag, preserve Tailwind classes, ImageKit URL patterns)
+   742→  - Calls `generateText()` non-streaming
+   743→  - Sanitizes returned HTML with `sanitizeHtml()`
+   744→  - Returns `{ success: true, data: { replacementHtml } }`
+   745→
+   746→- **Created `POST /api/imagekit/sign/route.ts`**:
+   747→  - Accepts `{ urlPath, expirySeconds? }`
+   748→  - Signs ImageKit URLs server-side using HMAC-SHA1 with IMAGEKIT_PRIVATE_KEY
+   749→  - URL-safe Base64 signature encoding
+   750→  - Returns `{ success: true, data: { signedUrl, expiresAt } }`
+   751→  - Graceful error when IMAGEKIT_URL_ENDPOINT or IMAGEKIT_PRIVATE_KEY not configured
+   752→  - Default expiry: 1 hour
+   753→
+   754→- **Updated `src/lib/ai.ts`**:
+   755→  - Added `IMAGEKIT_ENDPOINT` constant from env (server-side only)
+   756→  - Updated `SLIDE_HTML_SYSTEM_PROMPT`: added concrete ImageKit URL example, added rule 11 (no non-ImageKit external images)
+   757→  - Updated `INLINE_EDIT_SYSTEM_PROMPT`: added ImageKit generation URL pattern, added transformation param patterns (e-removedotbg, e-changebg-prompt, e-upscale, e-dropshadow) with `?tr=` query param syntax
+   758→  - Added `ELEMENT_EDIT_SYSTEM_PROMPT`: 9 rules for single-element editing (same tag, preserve classes, no extra wrappers, ImageKit URLs)
+   759→
+   760→- **Updated `.env`** with ImageKit placeholder env vars (commented out)
+   761→
+   762→- **Sanitizer verification**: `src/lib/sanitize.ts` already correctly handles ImageKit domain restriction for img src. When IMAGEKIT_URL_ENDPOINT is set, only that domain is allowed. When not set, falls back to allowing any https images for development.
+   763→
+   764→- Lint: zero errors
+   765→- Dev server: no runtime errors
+   766→- Agent-browser verified: click inside iframe → toolbar appears with "Edit Element" heading, close button, instruction input, and disabled Apply button
+   767→- API tested: element-edit returns correct sanitized replacement HTML; imagekit/sign returns graceful error when not configured
+   768→
+   769→Stage Summary:
+   770→- Click-to-edit feature COMPLETE: floating toolbar appears on iframe element click, captures outerHTML, sends to API, replaces element in DOM, persists to DB
+   771→- ImageKit integration infrastructure COMPLETE: signing endpoint, system prompt updates, sanitizer verified
+   772→- SlideVersion history NOT implemented (no model in schema, per earlier plan decision)
+   773→- Files created: src/app/api/slides/element-edit/route.ts, src/app/api/imagekit/sign/route.ts
+   774→- Files modified: src/components/lms/pages/classroom-page.tsx, src/lib/ai.ts, .env
+   775→- Files NOT modified: hero section, any other pages, sandbox attribute, prisma schema, types
+   776→
+   777→**NOTE for user**: ImageKit credentials needed. Please provide:
+   778→- `IMAGEKIT_URL_ENDPOINT` (e.g., https://ik.imagekit.io/your_id)
+   779→- `IMAGEKIT_PUBLIC_KEY`
+   780→- `IMAGEKIT_PRIVATE_KEY`
+   781→
+   782→**NOTE on sandbox**: The iframe has `sandbox="allow-same-origin"` which allows direct DOM access from the parent frame (used for click-to-edit). However, `allow-scripts` is NOT present, which means the Tailwind CDN `<script>` in srcDoc does not execute. This is a pre-existing issue that affects slide styling rendering. Adding `allow-scripts` would fix Tailwind rendering but would also allow any scripts in the HTML to execute. Recommend deciding on this separately.
+   783→
+   784→---
+   785→Task ID: 1
+   786→Agent: Main
+   787→Task: Fix 3 UI issues reported by user (cover image upload, modal missing docs/language, profile blank space)
+   788→
+   789→Work Log:
+   790→- Analyzed 3 uploaded screenshots with VLM to understand exact issues
+   791→- Created /api/upload route for file uploads (cover images + reference docs)
+   792→- Changed cover image from URL input to local file upload with drag-to-browse UX
+   793→- Added reference document upload section to Generate Lesson modal (supports PDF, DOCX, PPTX, TXT, CSV, XLSX, MD, RTF)
+   794→- Added language selection dropdown to Generate Lesson modal (13 languages)
+   795→- Fixed Profile page blank space by conditionally removing grid for instructor role
+   796→- Updated outline generation to pass outlineLanguage and referenceFileUrls to API
+   797→- Verified all changes with agent-browser - no lint errors, no runtime errors
+   798→
+   799→Stage Summary:
+   800→- Created: /src/app/api/upload/route.ts (file upload endpoint)
+   801→- Created: /public/uploads/covers/ and /public/uploads/docs/ directories
+   802→- Modified: /src/components/lms/pages/create-course-page.tsx (cover upload, modal language+docs)
+   803→- Modified: /src/components/lms/pages/profile-page.tsx (instructor layout fix)
+   804→- All 4 issues resolved and verified
+   805→
+   806→---
+   807→Task ID: audit-fix
+   808→Agent: Main (full re-audit)
+   809→Task: Complete re-audit, test, and fix of AI-powered lesson/slide generation feature
+   810→
+   811→Work Log:
+   812→- Performed full codebase investigation reading all AI-related files, Prisma schema, and searching for legacy code
+   813→- Produced detailed audit report with sections A-J covering: correctly implemented, partially implemented, broken, missing, document reference audit, AI output quality, YouTube behavior differences, security risks, and runtime errors
+   814→- Fixed CRITICAL C1: ai.ts sent system prompts as role:'assistant' instead of role:'system' — affected ALL slide generation, element edits, and inline edits
+   815→- Fixed CRITICAL C2-C3: referenceFileUrls were silently dropped by server (not in TypeScript interface). Created full document extraction pipeline (extract-doc.ts) supporting PDF (pdf-parse), DOCX (mammoth), PPTX (jszip XML parsing), XLSX (jszip), TXT, CSV, MD, RTF. Wired into outline generation API to extract text and inject into AI prompt with truncation for large documents
+   816→- Fixed HIGH C4-C5: Completely rewrote outline and slide generation prompts. Outline prompt now includes: educational progression requirements (intro→concepts→examples→practice→summary), anti-repetition instructions, detailed outline requirements, and reference material grounding instructions. Slide generation prompt now includes: full lesson outline (all slide titles for context), position-aware hints (first slide = intro, last = summary), anti-repetition instructions, reference material grounding, and ImageKit usage guidance
+   817→- Fixed HIGH slide-to-slide coherence: Each slide now receives the full lesson outline (all titles) in its prompt so the AI understands context
+   818→- Fixed MEDIUM sanitizer server-side URL validation: Replaced DOM-based second pass (which only ran on client) with regex-based validation that works on both server and client, plus client-side DOM supplement
+   819→- Verified no legacy Gemini/Genkit/Firebase code in src/
+   820→- Verified no SlideContent or Section.content references remain
+   821→- Installed dependencies: pdf-parse, mammoth, jszip
+   822→- Lint passes clean, dev server compiles without errors
+   823→
+   824→Stage Summary:
+   825→- Created: /src/lib/extract-doc.ts (document text extraction utility)
+   826→- Modified: /src/lib/ai.ts (fixed role: assistant → system in 2 places)
+   827→- Modified: /src/lib/sanitize.ts (server-side URL validation, regex-based post-processing)
+   828→- Modified: /src/app/api/lessons/generate-outline/route.ts (reference doc extraction + improved prompts)
+   829→- Modified: /src/app/api/lessons/generate-slides/route.ts (lesson context + reference context + improved prompts)
+   830→- Installed: pdf-parse, mammoth, jszip
+   831→

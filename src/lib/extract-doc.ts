@@ -216,12 +216,134 @@ export async function extractTextFromFiles(
 }
 
 /**
- * Truncate text to fit within a token budget (rough estimate: 1 token ≈ 4 chars).
- * Preserves the beginning and end of the text for context.
+ * Select the most relevant portions of text for a given topic.
+ * Uses a deterministic keyword-scoring approach — no vector DB needed.
+ *
+ * Strategy:
+ * 1. Split text into paragraphs
+ * 2. Build a set of topic keywords (split on whitespace/punctuation, lowercased)
+ * 3. Score each paragraph by counting keyword matches
+ * 4. Always include the first paragraph (likely an intro/overview)
+ * 5. Select top-scoring paragraphs up to the budget
+ * 6. If budget remains after selecting relevant paragraphs, include
+ *    the next-highest-scoring or next-sequential paragraphs
  */
-export function truncateTextForContext(text: string, maxChars: number): string {
+export function selectRelevantSections(
+  text: string,
+  topic: string,
+  maxChars: number,
+): string {
   if (text.length <= maxChars) return text;
-  // Keep first 70% and last 30%
+
+  // Split into segments: try double newlines first, then single newlines, then sentences
+  let segments = text
+    .split(/\n\n+/)
+    .map((p) => p.trim())
+    .filter((p) => p.length > 0);
+
+  // If no paragraph breaks found, split by single newlines
+  if (segments.length <= 1) {
+    segments = text
+      .split(/\n+/)
+      .map((p) => p.trim())
+      .filter((p) => p.length > 0);
+  }
+
+  // If still one big block, split by sentences (period, question mark, exclamation)
+  if (segments.length <= 1 && text.length > maxChars) {
+    segments = text
+      .split(/(?<=[.!?])\s+/)
+      .map((s) => s.trim())
+      .filter((s) => s.length > 10);
+  }
+
+  if (segments.length === 0) return text.slice(0, maxChars);
+
+  // Use segments as paragraphs
+  const paragraphs = segments;
+
+  // Build topic keywords
+  const topicKeywords = new Set(
+    topic
+      .toLowerCase()
+      .split(/[\s,;.!?/()\[\]{}"':]+/)
+      .filter((w) => w.length > 2),
+  );
+
+  // Score each paragraph
+  const scored = paragraphs.map((para, index) => {
+    const lower = para.toLowerCase();
+    let score = 0;
+    for (const keyword of topicKeywords) {
+      // Count occurrences of each keyword in the paragraph
+      const regex = new RegExp(escapeRegex(keyword), 'gi');
+      const matches = lower.match(regex);
+      if (matches) score += matches.length;
+    }
+    // Small bonus for being near the beginning (first paragraphs often set context)
+    if (index === 0 && score > 0) score += 0.3;
+    return { para, index, score };
+  });
+
+  // Sort by score descending, then by original index ascending (tie-breaker)
+  const ranked = [...scored].sort((a, b) => b.score - a.score || a.index - b.index);
+
+  // Select paragraphs greedily up to budget
+  const selected = new Set<number>();
+  let totalChars = 0;
+
+  for (const item of ranked) {
+    if (totalChars + item.para.length > maxChars) {
+      // Check if a smaller paragraph still fits
+      if (item.para.length <= maxChars - totalChars) {
+        selected.add(item.index);
+        totalChars += item.para.length;
+      }
+      continue;
+    }
+    selected.add(item.index);
+    totalChars += item.para.length;
+  }
+
+  // Always ensure at least the first paragraph is included (if it wasn't already)
+  if (!selected.has(0) && paragraphs[0].length <= maxChars) {
+    selected.add(0);
+  }
+
+  // Return paragraphs in original order
+  const result = paragraphs
+    .filter((_, i) => selected.has(i))
+    .join('\n\n');
+
+  // Final safety: if still over budget, hard-truncate
+  if (result.length > maxChars) {
+    return result.slice(0, maxChars) + '\n\n[... content truncated for length ...]';
+  }
+
+  return result;
+}
+
+/** Escape special regex characters in a string */
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Smart context selection: uses relevance-based selection when topic is provided,
+ * falls back to head+tail truncation when no topic is available.
+ */
+export function truncateTextForContext(
+  text: string,
+  maxChars: number,
+  topic?: string,
+): string {
+  if (text.length <= maxChars) return text;
+
+  if (topic && topic.trim().length > 0) {
+    return selectRelevantSections(text, topic, maxChars);
+  }
+
+  // Fallback: keep first 70% and last 30%
   const headLen = Math.floor(maxChars * 0.7);
   const tailLen = maxChars - headLen;
   return (

@@ -562,6 +562,12 @@ export function CreateCoursePage() {
             try {
               const data = JSON.parse(line.slice(6));
 
+              // Top-level error event (no slideId) — e.g. "Lesson not found"
+              if (data.error && !data.slideId) {
+                toast.error(data.error);
+                break; // Stop processing
+              }
+
               if (data.slideId && data.slideTitle && data.totalSlides !== undefined) {
                 // slide_start event
                 setCurrentGenSlideId(data.slideId);

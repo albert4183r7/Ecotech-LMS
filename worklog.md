@@ -828,3 +828,30 @@ Stage Summary:
 - Modified: /src/app/api/lessons/generate-outline/route.ts (reference doc extraction + improved prompts)
 - Modified: /src/app/api/lessons/generate-slides/route.ts (lesson context + reference context + improved prompts)
 - Installed: pdf-parse, mammoth, jszip
+---
+Task ID: second-stage-verification
+Agent: Main
+Task: Second-stage verification, test, and fix of AI lesson/slide generation
+
+Work Log:
+- Verified system role fix: all 4 AI generation paths (streamSlideHtml, generateText, generateStructuredJSON, streamText) use role:'system'. Grep confirms zero role:'assistant' in src/
+- Traced document reference end-to-end: upload → extractTextFromFiles → truncateTextForContext → LLM prompt → outlineJson.referenceContext → slide generation prompt. BOTH outline and slide generation receive document content.
+- Fixed large document handling: replaced naive head+tail truncation with relevance-based paragraph selection (selectRelevantSections). Splits by paragraphs → sentences, scores by keyword match, greedily selects most relevant. Falls back to head+tail when no topic provided.
+- Fixed ImageKit: when IMAGEKIT_URL_ENDPOINT not set, system prompts now instruct AI to use CSS-only visuals instead of broken placeholder URLs. All 3 system prompts (slide gen, inline edit, element edit) updated.
+- Fixed sanitizer security: blocked data: URIs (XSS vector), blocked all external images when ImageKit not configured (only relative paths allowed), added ImageKit URL signing in server-side post-processing.
+- Fixed streaming: frontend now detects top-level error events (data.error without slideId) and shows toast + breaks processing loop. Previously these were silently dropped.
+- Improved educational quality prompts: added position-specific hints (1st=objectives, 2nd=definitions, 3rd=detail+example, 2nd-to-last=practice, last=summary), anti-repetition hints showing adjacent slide titles, stronger educational quality requirements.
+- Fixed imagekit.ts: corrected signature algorithm from SHA-256 to SHA-1 (ImageKit standard), fixed param names (ik-s/ik-t instead of ik-s-t/ik-s), removed dead code.
+- Ran 11 security tests on sanitizer: all PASS (script, onclick, javascript:, external img, data: URI, iframe, style tag, inline style, event handler, relative img, svg)
+- Ran relevance-based selection tests: correctly prioritizes paragraphs containing topic keywords.
+- Verified no legacy paths remain: SlideContent, Section.content, @google/genai, Genkit, Firebase only exist in worklog/tool-results, never in src/
+- Lint passes clean, dev server compiles without errors.
+
+Stage Summary:
+- Modified: /src/lib/extract-doc.ts (added selectRelevantSections, improved truncateTextForContext with topic param and sentence-level fallback)
+- Modified: /src/lib/ai.ts (conditional ImageKit instructions in all 3 system prompts, removed broken placeholder URLs)
+- Modified: /src/lib/sanitize.ts (blocked data: URIs, strict domain when no ImageKit, server-side ImageKit URL signing, removed fallback to allow-all-https)
+- Modified: /src/lib/imagekit.ts (fixed signature to SHA-1, correct param names, removed dead HMAC-SHA256 code)
+- Modified: /src/app/api/lessons/generate-slides/route.ts (position-specific hints, anti-repetition hints, educational quality requirements)
+- Modified: /src/app/api/lessons/generate-outline/route.ts (pass topic to truncateTextForContext for relevance selection)
+- Modified: /src/components/lms/pages/create-course-page.tsx (handle top-level SSE error events)

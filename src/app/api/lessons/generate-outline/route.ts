@@ -111,7 +111,7 @@ export async function POST(request: NextRequest) {
           const result = await extractTextFromFiles(filePaths);
           extractedSources = result.sources;
           if (result.text) {
-            referenceContext = truncateTextForContext(result.text, MAX_REFERENCE_CHARS);
+            referenceContext = truncateTextForContext(result.text, MAX_REFERENCE_CHARS, topic);
           }
         }
       } catch (error) {
