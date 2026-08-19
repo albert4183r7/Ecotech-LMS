@@ -310,7 +310,7 @@ export function CreateCoursePage() {
   // ---- Generate outline ----
   const handleGenerateOutline = useCallback(async () => {
     if (!outlineTopic.trim()) {
-      toast.error("Topic is required");
+      toast.error("Prompt is required");
       return;
     }
     if (outlineLessons.length >= MAX_LESSONS) {
@@ -977,10 +977,10 @@ export function CreateCoursePage() {
             {/* Topic */}
             <div className="space-y-2">
               <Label className="text-sm font-medium">
-                Topic <span className="text-destructive">*</span>
+                Prompt <span className="text-destructive">*</span>
               </Label>
               <Input
-                placeholder="e.g., Introduction to Data Science"
+                placeholder="e.g., Create a lesson about data science fundamentals for beginners, covering key concepts like supervised vs unsupervised learning, with real-world examples"
                 value={outlineTopic}
                 onChange={(e) => setOutlineTopic(e.target.value)}
                 className="h-10"
@@ -1203,11 +1203,18 @@ export function CreateCoursePage() {
                           className="w-full bg-transparent text-sm font-medium text-foreground outline-none placeholder:text-muted-foreground/50 border-b border-transparent focus:border-primary/30 transition-colors"
                           placeholder="Slide title..."
                         />
-                        {slide.outline && (
-                          <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">
-                            {slide.outline}
-                          </p>
-                        )}
+                        <textarea
+                          value={slide.outline}
+                          onChange={(e) => {
+                            const newOutline = e.target.value;
+                            setOutlineEditingSlides((prev) =>
+                              prev.map((s) => (s.id === slide.id ? { ...s, outline: newOutline } : s))
+                            );
+                          }}
+                          rows={2}
+                          className="w-full bg-transparent text-xs text-muted-foreground leading-relaxed outline-none placeholder:text-muted-foreground/50 border border-transparent focus:border-primary/30 rounded-md px-2 py-1 resize-none transition-colors"
+                          placeholder="Slide description..."
+                        />
                       </div>
                       <button
                         onClick={() => handleDeleteOutlineSlide(slide.slideId || "", slide.id)}
