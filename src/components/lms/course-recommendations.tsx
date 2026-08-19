@@ -7,7 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
-import { useUserStore, useNavigationStore } from "@/stores/lms-store";
+import { useUserStore } from "@/stores/lms-store";
+import { useNavigation } from "@/hooks/use-navigation";
 import { cn } from "@/lib/utils";
 
 /* ------------------------------------------------------------------ */
@@ -43,7 +44,7 @@ const GRADIENTS = [
 
 export function CourseRecommendations() {
   const { currentUserId } = useUserStore();
-  const { openCourseDetail } = useNavigationStore();
+  const { openCourseDetail } = useNavigation();
   const [recommendations, setRecommendations] = useState<RecommendedCourse[]>([]);
   const [loading, setLoading] = useState(true);
 

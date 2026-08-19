@@ -29,7 +29,8 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CourseCard } from "@/components/lms/course-card";
 import { CertificateModal } from "@/components/lms/certificate-modal";
-import { useMyLearningStore, useUserStore, useNavigationStore } from "@/stores/lms-store";
+import { useMyLearningStore, useUserStore } from "@/stores/lms-store";
+import { useNavigation } from "@/hooks/use-navigation";
 import type { LearningStats, MyLearningTab, CourseItem } from "@/types/lms";
 
 /* ------------------------------------------------------------------ */
@@ -389,7 +390,7 @@ function EnhancedEmptyState({
 /* ------------------------------------------------------------------ */
 
 function CourseProgressCard({ enrollment }: { enrollment: EnrollmentItem }) {
-  const { openCourseDetail, navigateTo } = useNavigationStore();
+  const { openCourseDetail, navigateTo } = useNavigation();
 
   const handleResume = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -521,7 +522,7 @@ function CompletedCourseCard({
   userName: string;
   onOpenCertificate: (enrollment: EnrollmentItem) => void;
 }) {
-  const { openCourseDetail } = useNavigationStore();
+  const { openCourseDetail } = useNavigation();
   const [hoverRating, setHoverRating] = useState(0);
   const [selectedRating, setSelectedRating] = useState(0);
 
@@ -670,7 +671,7 @@ function FavoritesCard({
   isEnrolled: boolean;
   onRemove: () => void;
 }) {
-  const { openCourseDetail } = useNavigationStore();
+  const { openCourseDetail } = useNavigation();
 
   return (
     <Card className="lms-card-hover card-shine group border-border/50 overflow-hidden">
@@ -827,7 +828,7 @@ function GridSkeleton() {
 /* ------------------------------------------------------------------ */
 
 function ContinueLearningWidget({ enrollment }: { enrollment: EnrollmentItem | null | undefined }) {
-  const { openCourseDetail, navigateTo } = useNavigationStore();
+  const { openCourseDetail, navigateTo } = useNavigation();
 
   /* Loading state */
   if (enrollment === undefined) {
@@ -945,7 +946,7 @@ function ContinueLearningWidget({ enrollment }: { enrollment: EnrollmentItem | n
 export function MyLearningPage() {
   const { tab, setTab, setEnrollments, setFavorites } = useMyLearningStore();
   const { currentUserId } = useUserStore();
-  const { navigateTo } = useNavigationStore();
+  const { navigateTo } = useNavigation();
 
   const [stats, setStats] = useState<UserStats | null>(null);
   const [enrollments, setEnrollmentsState] = useState<EnrollmentItem[]>([]);

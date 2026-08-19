@@ -6,11 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { useUserStore, useNavigationStore } from "@/stores/lms-store";
+import { useUserStore } from "@/stores/lms-store";
+import { useNavigation } from "@/hooks/use-navigation";
 
 export function AuthPage() {
   const { login } = useUserStore();
-  const { navigateTo } = useNavigationStore();
+  const { navigateTo } = useNavigation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);

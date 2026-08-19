@@ -20,7 +20,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { useNavigationStore } from "@/stores/lms-store";
+import { useNavigation } from "@/hooks/use-navigation";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -74,7 +74,7 @@ function getDefaultCollections(): BookmarkCollection[] {
 /* ------------------------------------------------------------------ */
 
 export function CourseBookmarks() {
-  const { openCourseDetail } = useNavigationStore();
+  const { openCourseDetail } = useNavigation();
   const [collections, setCollections] = useState<BookmarkCollection[]>(() => {
     const loaded = loadCollections();
     return loaded.length > 0 ? loaded : getDefaultCollections();

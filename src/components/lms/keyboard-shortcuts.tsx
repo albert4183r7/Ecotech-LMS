@@ -9,7 +9,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { useNavigationStore } from "@/stores/lms-store";
+import { useNavigation } from "@/hooks/use-navigation";
 import { cn } from "@/lib/utils";
 
 // ─── Types ───────────────────────────────────────────────────────
@@ -119,7 +119,7 @@ function ShortcutGroupSection({ group }: { group: ShortcutGroup }) {
 
 export function KeyboardShortcuts() {
   const [open, setOpen] = useState(false);
-  const { navigateTo, goBack, currentView } = useNavigationStore();
+  const { navigateTo, goBack, currentView } = useNavigation();
 
   const isInClassroom = currentView === "classroom";
 

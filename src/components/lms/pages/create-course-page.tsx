@@ -46,7 +46,8 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { useNavigationStore, useUserStore, useCourseStore } from "@/stores/lms-store";
+import { useUserStore, useCourseStore } from "@/stores/lms-store";
+import { useNavigation } from "@/hooks/use-navigation";
 import type { CategoryItem } from "@/types/lms";
 import { toast } from "sonner";
 import { SLIDE_STYLES, MIN_SLIDES, MAX_SLIDES, DEFAULT_SLIDE_COUNT } from "@/lib/slide-styles";
@@ -97,7 +98,7 @@ const MAX_COURSE_DESC_LENGTH = 500;
 // ============================================
 
 export function CreateCoursePage() {
-  const { goBack } = useNavigationStore();
+  const { goBack } = useNavigation();
   const { currentUserId } = useUserStore();
   const { createPrompt, setCreatePrompt } = useCourseStore();
 

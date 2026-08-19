@@ -33,7 +33,8 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { useNavigationStore, useUserStore } from "@/stores/lms-store";
+import { useUserStore } from "@/stores/lms-store";
+import { useNavigation } from "@/hooks/use-navigation";
 import { AchievementBadges } from "@/components/lms/achievement-badges";
 import { ActivityChart } from "@/components/lms/activity-chart";
 import { CertificateModal } from "@/components/lms/certificate-modal";
@@ -902,7 +903,7 @@ function ProfileSkeleton() {
 
 export function ProfilePage() {
   const { currentUserId, currentRole, logout } = useUserStore();
-  const { navigateTo } = useNavigationStore();
+  const { navigateTo } = useNavigation();
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);

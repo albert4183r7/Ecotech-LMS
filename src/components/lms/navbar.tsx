@@ -31,7 +31,8 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { useNavigationStore, useUserStore } from "@/stores/lms-store";
+import { useUserStore } from "@/stores/lms-store";
+import { useNavigation } from "@/hooks/use-navigation";
 import type { ViewName } from "@/types/lms";
 import { useTheme } from "next-themes";
 
@@ -275,7 +276,7 @@ function parseNotificationLink(link: string | null): { view: ViewName; courseId?
 }
 
 export function Navbar() {
-  const { currentView, navigateTo, openCourseDetail } = useNavigationStore();
+  const { currentView, navigateTo, openCourseDetail } = useNavigation();
   const { currentUserId, currentRole, isAuthenticated, logout } = useUserStore();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { theme, setTheme, resolvedTheme } = useTheme();

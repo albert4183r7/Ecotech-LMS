@@ -20,7 +20,8 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { useUserStore, useNavigationStore, useCourseStore } from "@/stores/lms-store";
+import { useUserStore, useCourseStore } from "@/stores/lms-store";
+import { useNavigation } from "@/hooks/use-navigation";
 import { cn } from "@/lib/utils";
 
 /* ------------------------------------------------------------------ */
@@ -233,7 +234,7 @@ function StatusBadge({ status }: { status: string }) {
 
 export function DashboardPage() {
   const { currentUserId } = useUserStore();
-  const { openCourseDetail, navigateTo } = useNavigationStore();
+  const { openCourseDetail, navigateTo } = useNavigation();
   const { setEditingCourseId } = useCourseStore();
   const [courses, setCourses] = useState<InstructorCourse[] | null>(null);
   const [activities, setActivities] = useState<StudentActivity[] | null>(null);

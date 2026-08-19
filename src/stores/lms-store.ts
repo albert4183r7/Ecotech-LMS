@@ -1,63 +1,6 @@
 import { create } from "zustand";
-import type {
-  ViewName,
-  CourseItem,
-  ClassroomState,
-  HomeTab,
-  MyLearningTab,
-  CourseFilters,
-  CategoryItem,
-} from "@/types/lms";
-
-// ============================================
-// Navigation Store - manages SPA routing
-// ============================================
-interface NavigationState {
-  currentView: ViewName;
-  previousView: ViewName | null;
-  selectedCourseId: string | null;
-  classroomState: ClassroomState | null;
-
-  navigateTo: (view: ViewName) => void;
-  openCourseDetail: (courseId: string) => void;
-  openClassroom: (state: ClassroomState) => void;
-  goBack: () => void;
-}
-
-export const useNavigationStore = create<NavigationState>((set) => ({
-  currentView: "home",
-  previousView: null,
-  selectedCourseId: null,
-  classroomState: null,
-
-  navigateTo: (view) =>
-    set((state) => ({
-      currentView: view,
-      previousView: state.currentView,
-      selectedCourseId: null,
-      classroomState: null,
-    })),
-
-  openCourseDetail: (courseId) =>
-    set((state) => ({
-      currentView: "course-detail",
-      previousView: state.currentView,
-      selectedCourseId: courseId,
-    })),
-
-  openClassroom: (classroomState) =>
-    set((state) => ({
-      currentView: "classroom",
-      previousView: state.currentView,
-      classroomState,
-    })),
-
-  goBack: () =>
-    set((state) => ({
-      currentView: state.previousView || "home",
-      previousView: null,
-    })),
-}));
+import { persist } from "zustand/middleware";
+import type { CourseItem, HomeTab, MyLearningTab, CourseFilters, CategoryItem } from "@/types/lms";
 
 // ============================================
 // Course Store - manages course data and filters
@@ -142,16 +85,20 @@ interface UserState {
   logout: () => void;
 }
 
-export const useUserStore = create<UserState>((set) => ({
-  isAuthenticated: false,
-  currentUserId: "",
-  currentRole: "student" as const,
-  setCurrentUserId: (id) => set({ currentUserId: id }),
-  setCurrentRole: (role) => set({ currentRole: role }),
-  login: (id, role) => set({ isAuthenticated: true, currentUserId: id, currentRole: role }),
-  logout: () => {
-    // Reset user state and navigate back to auth
-    useNavigationStore.getState().navigateTo("auth");
-    set({ isAuthenticated: false, currentUserId: "", currentRole: "student" as const });
-  },
-}));
+export const useUserStore = create<UserState>()(
+  persist(
+    (set) => ({
+      isAuthenticated: false,
+      currentUserId: "",
+      currentRole: "student" as const,
+      setCurrentUserId: (id) => set({ currentUserId: id }),
+      setCurrentRole: (role) => set({ currentRole: role }),
+      login: (id, role) => set({ isAuthenticated: true, currentUserId: id, currentRole: role }),
+      // Clearing the flag is enough — the app shell renders the auth screen
+      // whenever isAuthenticated is false, whatever route you are on.
+      logout: () =>
+        set({ isAuthenticated: false, currentUserId: "", currentRole: "student" as const }),
+    }),
+    { name: "ecotech-user" },
+  ),
+);

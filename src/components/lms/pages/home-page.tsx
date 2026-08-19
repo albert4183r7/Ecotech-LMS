@@ -30,7 +30,8 @@ import { LeaderboardWidget } from "@/components/lms/leaderboard-widget";
 import { CourseRecommendations } from "@/components/lms/course-recommendations";
 import { DailyChallenges } from "@/components/lms/daily-challenges";
 import { SocialFeed } from "@/components/lms/social-feed";
-import { useNavigationStore, useCourseStore, useUserStore } from "@/stores/lms-store";
+import { useCourseStore, useUserStore } from "@/stores/lms-store";
+import { useNavigation } from "@/hooks/use-navigation";
 import type { CourseItem, CategoryItem, HomeTab } from "@/types/lms";
 
 /** Shape returned by /api/enrollments for continue learning */
@@ -173,7 +174,7 @@ const QUICK_STATS = [
 ];
 
 export function HomePage() {
-  const { navigateTo, openCourseDetail } = useNavigationStore();
+  const { navigateTo, openCourseDetail } = useNavigation();
   const {
     homeTab,
     categories,

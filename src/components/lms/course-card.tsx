@@ -5,7 +5,7 @@ import { Heart, Star, Users, Clock, BookOpen } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type { CourseItem } from "@/types/lms";
-import { useNavigationStore } from "@/stores/lms-store";
+import { useNavigation } from "@/hooks/use-navigation";
 
 interface CourseCardProps {
   course: CourseItem;
@@ -55,7 +55,7 @@ export function CourseCard({
   estimatedMinutes,
   difficulty,
 }: CourseCardProps) {
-  const { openCourseDetail } = useNavigationStore();
+  const { openCourseDetail } = useNavigation();
   const [imgError, setImgError] = useState(false);
 
   /** Get gradient style based on course title hash */

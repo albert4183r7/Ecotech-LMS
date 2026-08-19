@@ -5,7 +5,8 @@ import { Plus, Search, LayoutGrid, Home, ChevronUp, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { useNavigationStore, useUserStore } from "@/stores/lms-store";
+import { useUserStore } from "@/stores/lms-store";
+import { useNavigation } from "@/hooks/use-navigation";
 
 /* ------------------------------------------------------------------ */
 /*  Quick Action Item                                                  */
@@ -44,7 +45,7 @@ const QUICK_ACTIONS: QuickAction[] = [
 /* ------------------------------------------------------------------ */
 
 export function FloatingActions() {
-  const { navigateTo } = useNavigationStore();
+  const { navigateTo } = useNavigation();
   const currentRole = useUserStore((s) => s.currentRole);
   const [expanded, setExpanded] = useState(false);
   const [showScrollTop, setShowScrollTop] = useState(false);

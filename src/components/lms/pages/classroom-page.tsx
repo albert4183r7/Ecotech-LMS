@@ -32,7 +32,11 @@ import {
 } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
-import { useNavigationStore, useUserStore } from "@/stores/lms-store";
+import { useUserStore } from "@/stores/lms-store";
+import { useNavigation } from "@/hooks/use-navigation";
+import { useClassroomState } from "@/hooks/use-classroom-state";
+import { useParams, useRouter } from "next/navigation";
+import { classroomPath } from "@/lib/routes";
 import type { ClassroomState } from "@/types/lms";
 import { StudyTimer } from "@/components/lms/study-timer";
 
@@ -41,7 +45,14 @@ const MAX_ZOOM = 200;
 const ZOOM_STEP = 25;
 
 export function ClassroomPage() {
-  const { classroomState, goBack } = useNavigationStore();
+  const { goBack } = useNavigation();
+  const router = useRouter();
+  const { lessonId: routeLessonId } = useParams<{ lessonId: string }>();
+  const {
+    state: classroomState,
+    slideId: loadedSlideId,
+    slideContext: loadedSlideContext,
+  } = useClassroomState(routeLessonId);
   const userId = useUserStore((s) => s.currentUserId);
   const [localState, setLocalState] = useState<ClassroomState | null>(null);
   const [zoom, setZoom] = useState(100);
@@ -101,6 +112,12 @@ export function ClassroomPage() {
     return () => mq.removeEventListener("change", handler);
   }, []);
 
+  // Seed the refs the classroom loader resolved for the initial slide.
+  useEffect(() => {
+    if (loadedSlideId) currentSlideIdRef.current = loadedSlideId;
+    if (loadedSlideContext) slideContextRef.current = loadedSlideContext;
+  }, [loadedSlideId, loadedSlideContext]);
+
   // Keep a working copy of classroomState
   useEffect(() => {
     if (classroomState) {
@@ -112,53 +129,24 @@ export function ClassroomPage() {
   }, [classroomState]);
 
   // ─── Lesson Navigation ─────────────────────────
+  // Moving between lessons changes the URL; useClassroomState reloads from it.
+  // This keeps the address bar correct and makes browser back work inside the
+  // classroom.
   const goToLesson = useCallback(
-    async (index: number) => {
+    (index: number) => {
       if (!localState || index < 0 || index >= localState.allLessonIds.length) return;
-      const lessonId = localState.allLessonIds[index];
-      try {
-        setNavigating(true);
-        const res = await fetch(`/api/lessons/${lessonId}`);
-        if (!res.ok) return;
-        const json = await res.json();
-        const slideData = json.success && json.data.slides?.length > 0 ? json.data.slides[0] : null;
-        const htmlBody =
-          slideData?.htmlBody ||
-          '<div class="flex items-center justify-center h-full"><p class="text-gray-500">No content available.</p></div>';
-        const lessonTitle =
-          json.success && json.data.title ? json.data.title : `Lesson ${index + 1}`;
-        // Track slide ID for element-edit persistence
-        if (slideData?.id) currentSlideIdRef.current = slideData.id;
-        // Extract slide style context from outlineJson
-        if (json.data.outlineJson) {
-          try {
-            const outline = JSON.parse(json.data.outlineJson);
-            const style = outline.style || "";
-            const topic = outline.topic || lessonTitle;
-            slideContextRef.current = `This is a ${style ? style + "-style" : ""} slide about "${topic}". Keep edits visually consistent with this style.`;
-          } catch {
-            /* ignore parse errors */
-          }
-        }
-        setLocalState((prev) =>
-          prev
-            ? {
-                ...prev,
-                lessonId,
-                lessonTitle,
-                htmlBody,
-                currentLessonIndex: index,
-              }
-            : prev,
-        );
-      } catch {
-        /* silently fail */
-      } finally {
-        setNavigating(false);
-      }
+      const nextLessonId = localState.allLessonIds[index];
+      if (nextLessonId === localState.lessonId) return;
+      setNavigating(true);
+      router.push(classroomPath(nextLessonId));
     },
-    [localState],
+    [localState, router],
   );
+
+  // Clear the navigating flag once the new lesson has loaded.
+  useEffect(() => {
+    setNavigating(false);
+  }, [classroomState?.lessonId]);
 
   /** Mark lesson as completed and save progress */
   const markLessonCompleted = useCallback(

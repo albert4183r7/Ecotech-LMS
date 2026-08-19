@@ -37,7 +37,8 @@ import {
 } from "@/components/ui/accordion";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
-import { useNavigationStore, useUserStore } from "@/stores/lms-store";
+import { useUserStore } from "@/stores/lms-store";
+import { useNavigation } from "@/hooks/use-navigation";
 import { DiscussionPanel } from "@/components/lms/discussion-panel";
 import { ProgressTimeline } from "@/components/lms/progress-timeline";
 import { StarRating } from "@/components/lms/star-rating";
@@ -57,7 +58,7 @@ type CourseDetailData = CourseItem & {
 };
 
 export function CourseDetailPage() {
-  const { selectedCourseId, goBack, openClassroom, navigateTo } = useNavigationStore();
+  const { selectedCourseId, goBack, openClassroom, navigateTo } = useNavigation();
   const userId = useUserStore((s) => s.currentUserId);
   const currentRole = useUserStore((s) => s.currentRole);
 
