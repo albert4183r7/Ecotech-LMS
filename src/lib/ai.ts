@@ -93,23 +93,6 @@ CRITICAL DESIGN RULES:
    - Numbered step layouts
 12. Use appropriate Tailwind classes for colors, spacing, typography, and layout.`;
 
-/** System prompt for course outline generation */
-export const OUTLINE_SYSTEM_PROMPT = `You are an expert instructional designer. Generate a structured course outline.
-
-Output a valid JSON object with this exact shape:
-{
-  "title": "Course Title",
-  "sections": [
-    { "title": "Section Title", "summary": "Brief description of what this section covers (1-2 sentences)" }
-  ]
-}
-
-Rules:
-- Generate 3-8 sections appropriate for the topic.
-- Each section should be a logical, progressive unit of learning.
-- Return ONLY the JSON object — no markdown, no code fences, no extra text.
-- Section titles should be descriptive and specific.`;
-
 /** System prompt for inline HTML editing (whole-slide edit) */
 export const INLINE_EDIT_SYSTEM_PROMPT = `You are an expert presentation slide editor specializing in Tailwind CSS. You receive existing HTML slide content and a natural-language edit instruction.
 
