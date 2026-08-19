@@ -875,3 +875,25 @@ Stage Summary:
 - Root cause: Missing `/api/upload` backend route
 - Fix: Created the route + added success toast
 - Verified: Upload works end-to-end with visual feedback (file name chip with size + X remove button)
+
+---
+Task ID: reference-study
+Agent: Main Agent
+Task: Study Eraser architecture diagram for AI PPT Generator reference product
+
+Work Log:
+- Opened Eraser.io diagram URL — canvas was empty (requires login), no diagram content rendered
+- Downloaded OG preview image URL but couldn't access (tool issues)
+- User provided diagram as PNG export (10,852×8,207 px, 7.7MB)
+- Cropped into 12 tiles (2713×2735px each) for detailed VLM analysis
+- Content concentrated in top 40% of image (6 tiles had content, 6 were blank)
+- Performed 4 full-diagram analyses + 6 tile-by-tile analyses
+- Extracted verbatim code: SLIDER_PROMPT, editWithAI, exportAllIframesToPPT, Outline Prompt, Design Styles, DEFAULT_HTML template, element selection handlers
+- Compiled comprehensive LEARNING-NOTES-REFERENCE.md (23 sections)
+
+Stage Summary:
+- Diagram fully analyzed and documented
+- Key findings: Two-phase pipeline (outline→slides), ImageKit URL-based image gen, per-element inline AI editing, client-side PPTX export
+- Critical gaps identified vs current LMS: ImageKit URL pattern, image transformations in edit, design guide natural language, element-level editing scope
+- Learning notes saved to /home/z/my-project/LEARNING-NOTES-REFERENCE.md
+- Demo app and YouTube NOT yet studied (tool outage)
