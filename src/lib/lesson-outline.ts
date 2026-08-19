@@ -112,7 +112,11 @@ export function repairSlideEntry(raw: unknown, index: number): unknown {
   const legacyOutline = asString(entry.outline);
 
   // Swapped fields: a paragraph in `title` and a heading in `outline`.
-  if (title.length > MAX_SLIDE_TITLE_CHARS && legacyOutline && legacyOutline.length <= MAX_SLIDE_TITLE_CHARS) {
+  if (
+    title.length > MAX_SLIDE_TITLE_CHARS &&
+    legacyOutline &&
+    legacyOutline.length <= MAX_SLIDE_TITLE_CHARS
+  ) {
     entry.title = legacyOutline;
     entry.outline = title;
     title = legacyOutline;
@@ -158,7 +162,10 @@ export function repairOutlineResponse(parsed: unknown): unknown {
  * with 4). Extra slides are dropped from the middle so the title slide and the
  * closing slide — which the prompt positions explicitly — always survive.
  */
-export function enforceSlideCount<T>(slides: T[], requested: number): { slides: T[]; warning?: string } {
+export function enforceSlideCount<T>(
+  slides: T[],
+  requested: number,
+): { slides: T[]; warning?: string } {
   if (slides.length === requested) return { slides };
 
   if (slides.length < requested) {

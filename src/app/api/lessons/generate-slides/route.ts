@@ -1,14 +1,14 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
-import { streamSlideHtml, collectStream, SLIDE_HTML_SYSTEM_PROMPT } from '@/lib/ai';
-import { sanitizeHtml, wrapSlideHtml } from '@/lib/sanitize';
+import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { streamSlideHtml, collectStream, SLIDE_HTML_SYSTEM_PROMPT } from "@/lib/ai";
+import { sanitizeHtml, wrapSlideHtml } from "@/lib/sanitize";
 import {
   slideBrief,
   extractSlideText,
   buildCoveredContext,
   type StoredOutline,
   type SlideBrief,
-} from '@/lib/lesson-outline';
+} from "@/lib/lesson-outline";
 
 // ============================================
 // Style-specific system prompt additions
@@ -16,15 +16,14 @@ import {
 
 const STYLE_INSTRUCTIONS: Record<string, string> = {
   professional:
-    'Use a clean corporate palette (navy, white, gray). Strong title hierarchy. Use accent bars and subtle borders for structure.',
+    "Use a clean corporate palette (navy, white, gray). Strong title hierarchy. Use accent bars and subtle borders for structure.",
   minimal:
-    'Use ample whitespace, one accent color, clean sans-serif. Let the content breathe. Very few elements per slide.',
+    "Use ample whitespace, one accent color, clean sans-serif. Let the content breathe. Very few elements per slide.",
   creative:
-    'Use bold vibrant colors, asymmetric layouts, large typography. Be visually daring with gradients and color blocks.',
+    "Use bold vibrant colors, asymmetric layouts, large typography. Be visually daring with gradients and color blocks.",
   academic:
-    'Use a formal, structured layout. Clean headers, organized content blocks. Professional and serious tone.',
-  tech:
-    'Use dark backgrounds (dark slate/gray), neon accents (cyan, green, purple). Monospace fonts for technical terms. Futuristic feel.',
+    "Use a formal, structured layout. Clean headers, organized content blocks. Professional and serious tone.",
+  tech: "Use dark backgrounds (dark slate/gray), neon accents (cyan, green, purple). Monospace fonts for technical terms. Futuristic feel.",
 };
 
 /** Per-slide generation timeout in milliseconds */
@@ -44,10 +43,10 @@ interface GenerateSlidesRequest {
 // ============================================
 
 function buildSystemPrompt(style: string): string {
-  const styleInstruction = STYLE_INSTRUCTIONS[style] || '';
+  const styleInstruction = STYLE_INSTRUCTIONS[style] || "";
   return `${SLIDE_HTML_SYSTEM_PROMPT}
 
-${styleInstruction ? `STYLE DIRECTION: ${styleInstruction}` : ''}`;
+${styleInstruction ? `STYLE DIRECTION: ${styleInstruction}` : ""}`;
 }
 
 // ============================================
@@ -110,63 +109,76 @@ function buildRoleGuidance(position: number, totalSlides: number, isChinese: boo
 - Lead with concrete information about the subject itself`;
   }
 
-  return '';
+  return "";
 }
 
 function buildUserPrompt(params: SlidePromptParams): string {
   const {
-    topic, slideTitle, brief, position, totalSlides,
-    isChinese, prevTitle, nextTitle, coveredContext, referenceContext,
+    topic,
+    slideTitle,
+    brief,
+    position,
+    totalSlides,
+    isChinese,
+    prevTitle,
+    nextTitle,
+    coveredContext,
+    referenceContext,
   } = params;
 
   const roleGuidance = buildRoleGuidance(position, totalSlides, isChinese);
 
-  const contentBlock = brief.keyPoints.length > 0
-    ? `${isChinese ? '这张幻灯片的内容（必须全部呈现，可以改写措辞使其更简短有力）:' : 'CONTENT FOR THIS SLIDE (present all of it; you may tighten the wording):'}
-${brief.keyPoints.map((point) => `- ${point}`).join('\n')}`
-    : `${isChinese ? '内容要点' : 'Key points'}: ${slideTitle}`;
+  const contentBlock =
+    brief.keyPoints.length > 0
+      ? `${isChinese ? "这张幻灯片的内容（必须全部呈现，可以改写措辞使其更简短有力）:" : "CONTENT FOR THIS SLIDE (present all of it; you may tighten the wording):"}
+${brief.keyPoints.map((point) => `- ${point}`).join("\n")}`
+      : `${isChinese ? "内容要点" : "Key points"}: ${slideTitle}`;
 
-  const termsBlock = brief.terms.length > 0
-    ? `\n${isChinese ? '必须提到的具体名称:' : 'Specific names that must appear:'} ${brief.terms.join(', ')}`
-    : '';
+  const termsBlock =
+    brief.terms.length > 0
+      ? `\n${isChinese ? "必须提到的具体名称:" : "Specific names that must appear:"} ${brief.terms.join(", ")}`
+      : "";
 
   const layoutBlock = brief.layout
-    ? `\n${isChinese ? '版式建议:' : 'Layout direction:'} ${brief.layout}`
-    : '';
+    ? `\n${isChinese ? "版式建议:" : "Layout direction:"} ${brief.layout}`
+    : "";
 
   const coveredBlock = coveredContext
-    ? `\n\n${isChinese ? '前面的幻灯片已经讲过以下内容 — 不要重复这些定义或例子:' : 'EARLIER SLIDES ALREADY COVERED THIS — do not repeat these definitions or examples:'}
+    ? `\n\n${isChinese ? "前面的幻灯片已经讲过以下内容 — 不要重复这些定义或例子:" : "EARLIER SLIDES ALREADY COVERED THIS — do not repeat these definitions or examples:"}
 ${coveredContext}`
-    : '';
+    : "";
 
-  const neighbours = (prevTitle || nextTitle)
-    ? `\n${isChinese
-        ? `相邻幻灯片：上一张"${prevTitle}"，下一张"${nextTitle}"。这张的版式要与它们不同。`
-        : `Neighbouring slides: previous "${prevTitle}", next "${nextTitle}". Use a different layout from both.`}`
-    : '';
+  const neighbours =
+    prevTitle || nextTitle
+      ? `\n${
+          isChinese
+            ? `相邻幻灯片：上一张"${prevTitle}"，下一张"${nextTitle}"。这张的版式要与它们不同。`
+            : `Neighbouring slides: previous "${prevTitle}", next "${nextTitle}". Use a different layout from both.`
+        }`
+      : "";
 
   const referenceSection = referenceContext
-    ? `\n\n${isChinese ? '参考资料（内容必须基于此材料）:' : 'REFERENCE MATERIAL (content must be based on this source):'}
+    ? `\n\n${isChinese ? "参考资料（内容必须基于此材料）:" : "REFERENCE MATERIAL (content must be based on this source):"}
 <reference>${referenceContext}</reference>`
-    : '';
+    : "";
 
   const writingRules = isChinese
     ? `写作要求：
 - 写主题本身，而不是写这门课的安排。
 - 每个要点一行，最多 10-15 个字，不要写整段文字。
-- 不要编造统计数字、百分比、金额、日期或研究结论。${referenceContext ? '数字只能来自参考资料。' : '没有来源时用定性表述代替数字。'}
+- 不要编造统计数字、百分比、金额、日期或研究结论。${referenceContext ? "数字只能来自参考资料。" : "没有来源时用定性表述代替数字。"}
 - 使用视觉化排布：卡片、色块、编号、强调条。
 - 不要放视频、表单或"查看演示"之类的按钮和链接 — 幻灯片是静态的。`
     : `WRITING RULES:
 - Write about the subject itself, not about the lesson or what a learner will do.
 - One line per point, 10-15 words maximum. No paragraphs.
-- Do not invent statistics, percentages, currency amounts, dates, or study results. ${referenceContext ? 'Numbers may come only from the reference material.' : 'Where no source supports a number, make the point qualitatively.'}
+- Do not invent statistics, percentages, currency amounts, dates, or study results. ${referenceContext ? "Numbers may come only from the reference material." : "Where no source supports a number, make the point qualitatively."}
 - Use visual arrangement: cards, colour blocks, numbered badges, accent bars.
 - No video, forms, or "View Demo" style buttons and links — the slide is static.`;
 
-  return `${isChinese ? '演示主题' : 'Presentation subject'}: ${topic}
+  return `${isChinese ? "演示主题" : "Presentation subject"}: ${topic}
 
-${isChinese ? '当前幻灯片' : 'Current slide'}: "${slideTitle}" (${isChinese ? '第' : 'slide '}${position + 1} ${isChinese ? '张，共' : 'of '}${totalSlides})
+${isChinese ? "当前幻灯片" : "Current slide"}: "${slideTitle}" (${isChinese ? "第" : "slide "}${position + 1} ${isChinese ? "张，共" : "of "}${totalSlides})
 
 ${contentBlock}${termsBlock}${layoutBlock}
 ${roleGuidance}${neighbours}${coveredBlock}
@@ -178,18 +190,20 @@ ${writingRules}${referenceSection}`;
 // Helper: per-slide timeout wrapper
 // ============================================
 
-function withTimeout<T>(
-  promise: Promise<T>,
-  ms: number,
-  label: string,
-): Promise<T> {
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => {
       reject(new Error(`${label} timed out after ${ms / 1000}s`));
     }, ms);
     promise
-      .then((val) => { clearTimeout(timer); resolve(val); })
-      .catch((err) => { clearTimeout(timer); reject(err); });
+      .then((val) => {
+        clearTimeout(timer);
+        resolve(val);
+      })
+      .catch((err) => {
+        clearTimeout(timer);
+        reject(err);
+      });
   });
 }
 
@@ -207,7 +221,7 @@ async function generateAllSlides(lessonId: string, language?: string): Promise<v
     where: { id: lessonId },
     include: {
       course: { select: { id: true, language: true } },
-      slides: { orderBy: { order: 'asc' } },
+      slides: { orderBy: { order: "asc" } },
     },
   });
 
@@ -218,28 +232,30 @@ async function generateAllSlides(lessonId: string, language?: string): Promise<v
 
   const deck = lesson.slides;
   const totalSlides = deck.length;
-  const pending = deck.filter((s) => s.status === 'DRAFT_OUTLINE');
+  const pending = deck.filter((s) => s.status === "DRAFT_OUTLINE");
 
   if (pending.length === 0) {
     console.log(`[generate-slides] Lesson ${lessonId}: nothing pending`);
     return;
   }
 
-  console.log(`[generate-slides] Lesson ${lessonId}: ${pending.length} pending of ${totalSlides} slides`);
+  console.log(
+    `[generate-slides] Lesson ${lessonId}: ${pending.length} pending of ${totalSlides} slides`,
+  );
 
-  const effectiveLanguage = language || lesson.course?.language || 'english';
-  const isChinese = effectiveLanguage === 'chinese';
+  const effectiveLanguage = language || lesson.course?.language || "english";
+  const isChinese = effectiveLanguage === "chinese";
 
   let outlineJson: StoredOutline;
   try {
     outlineJson = lesson.outlineJson
       ? (JSON.parse(lesson.outlineJson) as StoredOutline)
-      : { topic: lesson.title, style: 'professional', slides: [] };
+      : { topic: lesson.title, style: "professional", slides: [] };
   } catch {
-    outlineJson = { topic: lesson.title, style: 'professional', slides: [] };
+    outlineJson = { topic: lesson.title, style: "professional", slides: [] };
   }
 
-  const style = outlineJson.style || 'professional';
+  const style = outlineJson.style || "professional";
   const topic = outlineJson.topic || lesson.title;
   const outlineSlides = outlineJson.slides || [];
   const referenceContext = outlineJson.referenceContext;
@@ -248,7 +264,7 @@ async function generateAllSlides(lessonId: string, language?: string): Promise<v
   // Seed the "already covered" digest with slides that are already finished so
   // a retry does not re-derive definitions the deck already contains.
   const covered: { title: string; text: string }[] = deck
-    .filter((s) => s.status === 'READY' && s.htmlBody)
+    .filter((s) => s.status === "READY" && s.htmlBody)
     .map((s) => ({ title: s.title, text: extractSlideText(s.htmlBody) }));
 
   // ---- Process each pending slide ----
@@ -259,11 +275,12 @@ async function generateAllSlides(lessonId: string, language?: string): Promise<v
     console.log(`[generate-slides] Slide ${label}: "${slide.title}" (id: ${slide.id})`);
 
     // Match by position — titles are not unique and are not a stable key.
-    const outlineEntry = outlineSlides[position] ?? outlineSlides.find((s) => s.title === slide.title);
+    const outlineEntry =
+      outlineSlides[position] ?? outlineSlides.find((s) => s.title === slide.title);
     const brief = slideBrief(outlineEntry);
 
     try {
-      await db.slide.update({ where: { id: slide.id }, data: { status: 'GENERATING' } });
+      await db.slide.update({ where: { id: slide.id }, data: { status: "GENERATING" } });
     } catch (dbErr) {
       console.error(`[generate-slides] DB status update error for slide ${slide.id}:`, dbErr);
     }
@@ -275,8 +292,8 @@ async function generateAllSlides(lessonId: string, language?: string): Promise<v
       position,
       totalSlides,
       isChinese,
-      prevTitle: position > 0 ? deck[position - 1]?.title ?? '' : '',
-      nextTitle: position < totalSlides - 1 ? deck[position + 1]?.title ?? '' : '',
+      prevTitle: position > 0 ? (deck[position - 1]?.title ?? "") : "",
+      nextTitle: position < totalSlides - 1 ? (deck[position + 1]?.title ?? "") : "",
       coveredContext: buildCoveredContext(covered),
       referenceContext,
     });
@@ -296,17 +313,17 @@ async function generateAllSlides(lessonId: string, language?: string): Promise<v
 
       await db.slide.update({
         where: { id: slide.id },
-        data: { htmlBody: wrapped, status: 'READY' },
+        data: { htmlBody: wrapped, status: "READY" },
       });
 
       covered.push({ title: slide.title, text: extractSlideText(sanitized) });
 
       console.log(`[generate-slides] Slide ${label} COMPLETE`);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to generate slide HTML';
+      const message = error instanceof Error ? error.message : "Failed to generate slide HTML";
       console.error(`[generate-slides] Slide ${label} ERROR: ${message}`);
       try {
-        await db.slide.update({ where: { id: slide.id }, data: { status: 'ERROR' } });
+        await db.slide.update({ where: { id: slide.id }, data: { status: "ERROR" } });
       } catch {
         // Ignore
       }
@@ -327,23 +344,23 @@ export async function POST(request: NextRequest) {
     const { lessonId, language } = body;
 
     if (!lessonId) {
-      return NextResponse.json({ success: false, error: 'lessonId is required' }, { status: 400 });
+      return NextResponse.json({ success: false, error: "lessonId is required" }, { status: 400 });
     }
 
     const lesson = await db.lesson.findUnique({
       where: { id: lessonId },
       include: {
-        slides: { where: { status: 'DRAFT_OUTLINE' }, orderBy: { order: 'asc' } },
+        slides: { where: { status: "DRAFT_OUTLINE" }, orderBy: { order: "asc" } },
       },
     });
 
     if (!lesson) {
-      return NextResponse.json({ success: false, error: 'Lesson not found' }, { status: 404 });
+      return NextResponse.json({ success: false, error: "Lesson not found" }, { status: 404 });
     }
 
     if (lesson.slides.length === 0) {
       return NextResponse.json(
-        { success: false, error: 'No slides with DRAFT_OUTLINE status found' },
+        { success: false, error: "No slides with DRAFT_OUTLINE status found" },
         { status: 400 },
       );
     }
@@ -357,11 +374,11 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: { lessonId, totalSlides, status: 'generating' },
+      data: { lessonId, totalSlides, status: "generating" },
     });
   } catch (error) {
-    console.error('[generate-slides] POST error:', error);
-    const message = error instanceof Error ? error.message : 'Failed to start slide generation';
+    console.error("[generate-slides] POST error:", error);
+    const message = error instanceof Error ? error.message : "Failed to start slide generation";
     return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }

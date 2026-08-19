@@ -1,16 +1,16 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/lib/db";
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
-    const creatorId = searchParams.get('creatorId');
+    const userId = searchParams.get("userId");
+    const creatorId = searchParams.get("creatorId");
 
     if (!userId && !creatorId) {
       return NextResponse.json(
-        { success: false, error: 'userId or creatorId is required' },
-        { status: 400 }
+        { success: false, error: "userId or creatorId is required" },
+        { status: 400 },
       );
     }
 
@@ -31,13 +31,13 @@ export async function GET(request: NextRequest) {
             },
           },
         },
-        orderBy: { enrolledAt: 'desc' },
+        orderBy: { enrolledAt: "desc" },
         take: 20,
       });
 
       const formatted = enrollments.map((e) => ({
         id: e.id,
-        studentName: e.user.name || 'Anonymous Student',
+        studentName: e.user.name || "Anonymous Student",
         studentAvatar: e.user.avatar,
         courseTitle: e.course.title,
         enrolledAt: e.enrolledAt,
@@ -65,18 +65,14 @@ export async function GET(request: NextRequest) {
           },
         },
       },
-      orderBy: { enrolledAt: 'desc' },
+      orderBy: { enrolledAt: "desc" },
     });
 
     const formattedEnrollments = enrollments.map((enrollment) => {
       const totalLessons = enrollment.course._count.lessons;
-      const completedLessons = enrollment.progresses.filter(
-        (p) => p.completed
-      ).length;
+      const completedLessons = enrollment.progresses.filter((p) => p.completed).length;
       const totalProgress =
-        totalLessons > 0
-          ? Math.round((completedLessons / totalLessons) * 100)
-          : 0;
+        totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
 
       return {
         id: enrollment.id,
@@ -105,10 +101,10 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: formattedEnrollments });
   } catch (error) {
-    console.error('Error fetching enrollments:', error);
+    console.error("Error fetching enrollments:", error);
     return NextResponse.json(
-      { success: false, error: 'Failed to fetch enrollments' },
-      { status: 500 }
+      { success: false, error: "Failed to fetch enrollments" },
+      { status: 500 },
     );
   }
 }
@@ -120,18 +116,15 @@ export async function POST(request: NextRequest) {
 
     if (!userId || !courseId) {
       return NextResponse.json(
-        { success: false, error: 'userId and courseId are required' },
-        { status: 400 }
+        { success: false, error: "userId and courseId are required" },
+        { status: 400 },
       );
     }
 
     // Check if course exists
     const course = await db.course.findUnique({ where: { id: courseId } });
     if (!course) {
-      return NextResponse.json(
-        { success: false, error: 'Course not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ success: false, error: "Course not found" }, { status: 404 });
     }
 
     // Check if already enrolled
@@ -143,8 +136,8 @@ export async function POST(request: NextRequest) {
 
     if (existing) {
       return NextResponse.json(
-        { success: false, error: 'Already enrolled in this course' },
-        { status: 409 }
+        { success: false, error: "Already enrolled in this course" },
+        { status: 409 },
       );
     }
 
@@ -153,7 +146,7 @@ export async function POST(request: NextRequest) {
       data: {
         userId,
         courseId,
-        status: 'in_progress',
+        status: "in_progress",
       },
       include: {
         course: {
@@ -175,10 +168,10 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: enrollment }, { status: 201 });
   } catch (error) {
-    console.error('Error creating enrollment:', error);
+    console.error("Error creating enrollment:", error);
     return NextResponse.json(
-      { success: false, error: 'Failed to enroll in course' },
-      { status: 500 }
+      { success: false, error: "Failed to enroll in course" },
+      { status: 500 },
     );
   }
 }

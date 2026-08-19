@@ -29,11 +29,7 @@ import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Tooltip,
-  TooltipTrigger,
-  TooltipContent,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { useNavigationStore, useUserStore } from "@/stores/lms-store";
 import type { ViewName } from "@/types/lms";
@@ -58,17 +54,28 @@ const NAV_ITEMS: NavItem[] = [
 /** Get human-readable label for any view including detail views */
 function getViewLabel(view: ViewName): string {
   switch (view) {
-    case "auth": return "";
-    case "home": return "Home";
-    case "courses": return "Courses";
-    case "my-learning": return "Learning Progress";
-    case "profile": return "Profile";
-    case "course-detail": return "Course Details";
-    case "classroom": return "Classroom";
-    case "create-course": return "Create Course";
-    case "dashboard": return "Dashboard";
-    case "settings": return "Settings";
-    default: return "";
+    case "auth":
+      return "";
+    case "home":
+      return "Home";
+    case "courses":
+      return "Courses";
+    case "my-learning":
+      return "Learning Progress";
+    case "profile":
+      return "Profile";
+    case "course-detail":
+      return "Course Details";
+    case "classroom":
+      return "Classroom";
+    case "create-course":
+      return "Create Course";
+    case "dashboard":
+      return "Dashboard";
+    case "settings":
+      return "Settings";
+    default:
+      return "";
   }
 }
 
@@ -180,7 +187,7 @@ function NotificationGroup({
 
   return (
     <div>
-      <p className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+      <p className="text-muted-foreground/60 px-3 pt-2 pb-1 text-[10px] font-semibold tracking-wider uppercase">
         {label}
       </p>
       {items.map((notif) => (
@@ -189,43 +196,46 @@ function NotificationGroup({
           type="button"
           onClick={() => onNotificationClick(notif)}
           className={cn(
-            "group flex w-full items-start gap-3 rounded-lg px-3 py-3 text-left transition-colors notif-appear",
-            notif.read
-              ? "hover:bg-muted/50"
-              : "bg-primary/5 hover:bg-primary/8"
+            "group notif-appear flex w-full items-start gap-3 rounded-lg px-3 py-3 text-left transition-colors",
+            notif.read ? "hover:bg-muted/50" : "bg-primary/5 hover:bg-primary/8",
           )}
         >
           {/* Left border accent for unread */}
           {!notif.read && (
-            <div className={cn(
-              "absolute left-1 top-3 bottom-3 w-0.5 rounded-full",
-              NotificationBorderAccent({ type: notif.type })
-            )} style={{ position: "absolute" }} />
+            <div
+              className={cn(
+                "absolute top-3 bottom-3 left-1 w-0.5 rounded-full",
+                NotificationBorderAccent({ type: notif.type }),
+              )}
+              style={{ position: "absolute" }}
+            />
           )}
-          <div className={cn(
-            "mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors relative",
-            NotificationIconBg({ type: notif.type, read: notif.read })
-          )}>
+          <div
+            className={cn(
+              "relative mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors",
+              NotificationIconBg({ type: notif.type, read: notif.read }),
+            )}
+          >
             <NotificationIcon type={notif.type} />
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-start justify-between gap-2">
-              <p className={cn(
-                "text-sm leading-snug",
-                notif.read
-                  ? "text-muted-foreground font-medium"
-                  : "text-foreground font-semibold"
-              )}>
+              <p
+                className={cn(
+                  "text-sm leading-snug",
+                  notif.read
+                    ? "text-muted-foreground font-medium"
+                    : "text-foreground font-semibold",
+                )}
+              >
                 {notif.title}
               </p>
-              {!notif.read && (
-                <div className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-primary" />
-              )}
+              {!notif.read && <div className="bg-primary mt-1.5 h-2 w-2 shrink-0 rounded-full" />}
             </div>
-            <p className="mt-0.5 text-xs text-muted-foreground leading-relaxed line-clamp-2">
+            <p className="text-muted-foreground mt-0.5 line-clamp-2 text-xs leading-relaxed">
               {notif.message}
             </p>
-            <p className="mt-1 text-[10px] text-muted-foreground/60">
+            <p className="text-muted-foreground/60 mt-1 text-[10px]">
               {formatRelativeTime(notif.createdAt)}
             </p>
           </div>
@@ -241,7 +251,7 @@ function NotificationSkeleton() {
     <div className="space-y-1 p-1">
       {Array.from({ length: 4 }).map((_, i) => (
         <div key={i} className="flex items-start gap-3 rounded-lg px-3 py-3">
-          <Skeleton className="h-8 w-8 rounded-lg shrink-0" />
+          <Skeleton className="h-8 w-8 shrink-0 rounded-lg" />
           <div className="flex-1 space-y-2">
             <Skeleton className="h-3.5 w-3/4" />
             <Skeleton className="h-3 w-full" />
@@ -311,7 +321,9 @@ export function Navbar() {
       }
     }
     fetchNotifications();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [currentUserId]);
 
   // Close mobile menu and search on view change
@@ -327,7 +339,10 @@ export function Navbar() {
   useEffect(() => {
     if (!searchExpanded) return;
     function handleClickOutside(e: MouseEvent) {
-      if (searchInputRef.current && !searchInputRef.current.parentElement?.contains(e.target as Node)) {
+      if (
+        searchInputRef.current &&
+        !searchInputRef.current.parentElement?.contains(e.target as Node)
+      ) {
         setSearchExpanded(false);
       }
     }
@@ -358,34 +373,37 @@ export function Navbar() {
   }, [showNotifications]);
 
   /** Mark a single notification as read via API */
-  const handleMarkAsRead = useCallback(async (notif: NotificationItem) => {
-    // Navigate if link is present
-    const parsed = parseNotificationLink(notif.link);
-    if (parsed) {
-      if (parsed.courseId) {
-        openCourseDetail(parsed.courseId);
-      } else {
-        navigateTo(parsed.view);
+  const handleMarkAsRead = useCallback(
+    async (notif: NotificationItem) => {
+      // Navigate if link is present
+      const parsed = parseNotificationLink(notif.link);
+      if (parsed) {
+        if (parsed.courseId) {
+          openCourseDetail(parsed.courseId);
+        } else {
+          navigateTo(parsed.view);
+        }
+        setShowNotifications(false);
       }
-      setShowNotifications(false);
-    }
 
-    // Mark as read in API
-    if (!notif.read) {
-      try {
-        await fetch("/api/notifications", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ notificationId: notif.id, read: true }),
-        });
-        setNotifications((prev) =>
-          prev.map((n) => (n.id === notif.id ? { ...n, read: true } : n))
-        );
-      } catch {
-        // Silently fail
+      // Mark as read in API
+      if (!notif.read) {
+        try {
+          await fetch("/api/notifications", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ notificationId: notif.id, read: true }),
+          });
+          setNotifications((prev) =>
+            prev.map((n) => (n.id === notif.id ? { ...n, read: true } : n)),
+          );
+        } catch {
+          // Silently fail
+        }
       }
-    }
-  }, [navigateTo, openCourseDetail]);
+    },
+    [navigateTo, openCourseDetail],
+  );
 
   /** Mark all notifications as read via API */
   const markAllAsRead = useCallback(async () => {
@@ -408,7 +426,9 @@ export function Navbar() {
   }, [navigateTo]);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
-  const groupedNotifications = notificationsLoading ? null : groupNotificationsByDate(notifications);
+  const groupedNotifications = notificationsLoading
+    ? null
+    : groupNotificationsByDate(notifications);
 
   // Bounce badge when unread count changes
   const prevUnreadRef = useRef(unreadCount);
@@ -449,28 +469,39 @@ export function Navbar() {
     user_student_001: "Alex Johnson",
     user_student_002: "Maria Garcia",
   };
-  const displayName = displayNameMap[currentUserId] || (
-    currentUserId.includes("_")
-      ? currentUserId.split("_").filter((p) => !/^\d+$/.test(p) && p.length > 0).map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join(" ")
-      : currentUserId.charAt(0).toUpperCase() + currentUserId.slice(1)
-  );
+  const displayName =
+    displayNameMap[currentUserId] ||
+    (currentUserId.includes("_")
+      ? currentUserId
+          .split("_")
+          .filter((p) => !/^\d+$/.test(p) && p.length > 0)
+          .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
+          .join(" ")
+      : currentUserId.charAt(0).toUpperCase() + currentUserId.slice(1));
 
   /** Role-aware visible nav items */
-  const dashboardItem: NavItem = { label: "Dashboard", icon: <LayoutDashboard className="h-4 w-4" />, view: "dashboard" };
+  const dashboardItem: NavItem = {
+    label: "Dashboard",
+    icon: <LayoutDashboard className="h-4 w-4" />,
+    view: "dashboard",
+  };
   const visibleNavItems = NAV_ITEMS.filter((item) => {
     // Instructors cannot access Learning Progress (my-learning)
     if (item.view === "my-learning" && currentRole === "instructor") return false;
     return true;
   }).concat(currentRole === "instructor" ? [dashboardItem] : []);
 
-  const handleSearchKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") {
-      navigateTo("home");
-    }
-    if (e.key === "Escape") {
-      setSearchExpanded(false);
-    }
-  }, [navigateTo]);
+  const handleSearchKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === "Enter") {
+        navigateTo("home");
+      }
+      if (e.key === "Escape") {
+        setSearchExpanded(false);
+      }
+    },
+    [navigateTo],
+  );
 
   /** Cycle theme: light → dark → system → light */
   const cycleTheme = useCallback(() => {
@@ -497,7 +528,7 @@ export function Navbar() {
   const ThemeIcon = () => {
     const iconClass = cn(
       "h-4 w-4 transition-all duration-300",
-      themeIconRotating && "rotate-180 scale-75"
+      themeIconRotating && "rotate-180 scale-75",
     );
     if (theme === "system") return <Monitor className={iconClass} />;
     if (theme === "dark") return <Moon className={iconClass} />;
@@ -505,40 +536,52 @@ export function Navbar() {
   };
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-border/60 frosted-glass glass-card neon-glow">
+    <header className="border-border/60 frosted-glass glass-card neon-glow sticky top-0 z-50 w-full border-b">
       <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         {/* Logo + Breadcrumb */}
         <div className="flex flex-col gap-0">
           <button
             type="button"
-            className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+            className="flex items-center gap-2 transition-opacity hover:opacity-80"
             onClick={() => navigateTo("home")}
             aria-label="Go to homepage"
           >
-            <img src="/ecotech-logo.png" alt="Ecotech" className="h-8 w-8 rounded-md object-contain" />
-            <img src="/ecotech-name.png" alt="Ecotech" className="h-6 w-auto hidden sm:inline object-contain" />
+            <img
+              src="/ecotech-logo.png"
+              alt="Ecotech"
+              className="h-8 w-8 rounded-md object-contain"
+            />
+            <img
+              src="/ecotech-name.png"
+              alt="Ecotech"
+              className="hidden h-6 w-auto object-contain sm:inline"
+            />
           </button>
           {/* Breadcrumb: subtle page indicator */}
           {currentView !== "home" && (
-            <span className={cn(
-              "text-[10px] font-medium leading-none tracking-wide uppercase",
-              "text-muted-foreground/60 sm:hidden"
-            )}>
+            <span
+              className={cn(
+                "text-[10px] leading-none font-medium tracking-wide uppercase",
+                "text-muted-foreground/60 sm:hidden",
+              )}
+            >
               {currentPageLabel}
             </span>
           )}
           {currentView !== "home" && (
-            <span className={cn(
-              "hidden sm:block text-[10px] font-medium leading-none tracking-wide",
-              "text-muted-foreground/50 pl-10"
-            )}>
+            <span
+              className={cn(
+                "hidden text-[10px] leading-none font-medium tracking-wide sm:block",
+                "text-muted-foreground/50 pl-10",
+              )}
+            >
               {currentPageLabel}
             </span>
           )}
         </div>
 
         {/* Desktop Navigation */}
-        <nav className="hidden md:flex items-center gap-1" aria-label="Main navigation">
+        <nav className="hidden items-center gap-1 md:flex" aria-label="Main navigation">
           {visibleNavItems.map((item) => (
             <Button
               key={item.view}
@@ -546,10 +589,10 @@ export function Navbar() {
               size="sm"
               onClick={() => navigateTo(item.view)}
               className={cn(
-                "gap-2 rounded-lg transition-all duration-200 hover-lift",
+                "hover-lift gap-2 rounded-lg transition-all duration-200",
                 currentView === item.view
                   ? "bg-primary/10 text-primary font-medium shadow-sm"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted/50",
               )}
             >
               {item.icon}
@@ -561,17 +604,17 @@ export function Navbar() {
         {/* Right Actions */}
         <div className="flex items-center gap-1.5">
           {/* Search Bar (desktop) */}
-          <div className="relative hidden sm:flex items-center">
+          <div className="relative hidden items-center sm:flex">
             <div
               className={cn(
-                "flex items-center rounded-lg border border-border/60 bg-muted/40 transition-all duration-300 overflow-hidden",
-                searchExpanded ? "w-56 h-9" : "w-9 h-9"
+                "border-border/60 bg-muted/40 flex items-center overflow-hidden rounded-lg border transition-all duration-300",
+                searchExpanded ? "h-9 w-56" : "h-9 w-9",
               )}
             >
               <button
                 type="button"
                 onClick={handleSearchClick}
-                className="flex h-9 w-9 shrink-0 items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+                className="text-muted-foreground hover:text-foreground flex h-9 w-9 shrink-0 items-center justify-center transition-colors"
                 aria-label="Search"
               >
                 <Search className="h-4 w-4" />
@@ -581,7 +624,7 @@ export function Navbar() {
                   ref={searchInputRef}
                   type="text"
                   placeholder="Search courses..."
-                  className="h-full flex-1 bg-transparent px-0 pr-3 text-sm outline-none placeholder:text-muted-foreground/50"
+                  className="placeholder:text-muted-foreground/50 h-full flex-1 bg-transparent px-0 pr-3 text-sm outline-none"
                   onKeyDown={handleSearchKeyDown}
                 />
               )}
@@ -592,7 +635,7 @@ export function Navbar() {
           <Button
             variant="ghost"
             size="icon"
-            className="sm:hidden h-9 w-9 rounded-lg"
+            className="h-9 w-9 rounded-lg sm:hidden"
             onClick={handleSearchClick}
             aria-label="Search"
           >
@@ -630,7 +673,7 @@ export function Navbar() {
                   size="icon"
                   className={cn(
                     "relative h-9 w-9 rounded-lg transition-all duration-300",
-                    unreadCount > 0 && "badge-glow"
+                    unreadCount > 0 && "badge-glow",
                   )}
                   onClick={toggleNotifications}
                   aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ""}`}
@@ -639,7 +682,7 @@ export function Navbar() {
                   {unreadCount > 0 && (
                     <span
                       key={badgeKey}
-                      className="badge-bounce absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground shadow-sm"
+                      className="badge-bounce bg-destructive text-destructive-foreground absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold shadow-sm"
                     >
                       {unreadCount > 9 ? "9+" : unreadCount}
                     </span>
@@ -651,15 +694,16 @@ export function Navbar() {
 
             {/* Notification Panel Dropdown */}
             {showNotifications && (
-              <div className="panel-slide-in absolute right-0 top-full mt-2 w-80 rounded-xl border border-border/60 bg-card shadow-xl sm:w-96">
+              <div className="panel-slide-in border-border/60 bg-card absolute top-full right-0 mt-2 w-80 rounded-xl border shadow-xl sm:w-96">
                 {/* Header */}
                 <div className="flex items-center justify-between px-4 py-3">
                   <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-semibold text-foreground">
-                      Notifications
-                    </h3>
+                    <h3 className="text-foreground text-sm font-semibold">Notifications</h3>
                     {!notificationsLoading && unreadCount > 0 && (
-                      <Badge variant="secondary" className="h-5 min-w-5 px-1.5 text-[10px] font-bold">
+                      <Badge
+                        variant="secondary"
+                        className="h-5 min-w-5 px-1.5 text-[10px] font-bold"
+                      >
                         {unreadCount}
                       </Badge>
                     )}
@@ -668,7 +712,7 @@ export function Navbar() {
                     <button
                       type="button"
                       onClick={markAllAsRead}
-                      className="flex items-center gap-1 text-xs font-medium text-primary hover:text-primary/80 transition-colors"
+                      className="text-primary hover:text-primary/80 flex items-center gap-1 text-xs font-medium transition-colors"
                     >
                       <CheckCheck className="h-3 w-3" />
                       Mark all read
@@ -683,20 +727,32 @@ export function Navbar() {
                       <NotificationSkeleton />
                     ) : notifications.length === 0 ? (
                       <div className="flex flex-col items-center py-8 text-center">
-                        <Bell className="h-8 w-8 text-muted-foreground/30 mb-2" />
-                        <p className="text-sm text-muted-foreground">No notifications</p>
+                        <Bell className="text-muted-foreground/30 mb-2 h-8 w-8" />
+                        <p className="text-muted-foreground text-sm">No notifications</p>
                       </div>
                     ) : (
                       groupedNotifications && (
                         <>
                           {groupedNotifications.today.length > 0 && (
-                            <NotificationGroup label="Today" items={groupedNotifications.today} onNotificationClick={handleMarkAsRead} />
+                            <NotificationGroup
+                              label="Today"
+                              items={groupedNotifications.today}
+                              onNotificationClick={handleMarkAsRead}
+                            />
                           )}
                           {groupedNotifications.yesterday.length > 0 && (
-                            <NotificationGroup label="Yesterday" items={groupedNotifications.yesterday} onNotificationClick={handleMarkAsRead} />
+                            <NotificationGroup
+                              label="Yesterday"
+                              items={groupedNotifications.yesterday}
+                              onNotificationClick={handleMarkAsRead}
+                            />
                           )}
                           {groupedNotifications.earlier.length > 0 && (
-                            <NotificationGroup label="Earlier" items={groupedNotifications.earlier} onNotificationClick={handleMarkAsRead} />
+                            <NotificationGroup
+                              label="Earlier"
+                              items={groupedNotifications.earlier}
+                              onNotificationClick={handleMarkAsRead}
+                            />
                           )}
                         </>
                       )
@@ -708,7 +764,7 @@ export function Navbar() {
                 <div className="px-4 py-2.5">
                   <button
                     type="button"
-                    className="w-full text-center text-xs font-medium text-primary hover:text-primary/80 transition-colors"
+                    className="text-primary hover:text-primary/80 w-full text-center text-xs font-medium transition-colors"
                     onClick={handleViewAll}
                   >
                     View all notifications
@@ -722,7 +778,7 @@ export function Navbar() {
           {currentRole === "instructor" && (
             <Button
               size="sm"
-              className="hidden sm:flex gap-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg shadow-sm transition-all duration-200 hover:shadow-md press-effect"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground press-effect hidden gap-2 rounded-lg shadow-sm transition-all duration-200 hover:shadow-md sm:flex"
               onClick={() => navigateTo("create-course")}
             >
               <PlusCircle className="h-4 w-4" />
@@ -736,31 +792,35 @@ export function Navbar() {
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-9 w-9 rounded-full relative"
+                className="relative h-9 w-9 rounded-full"
                 onClick={() => navigateTo("profile")}
                 aria-label="User profile"
               >
                 <span className="relative">
-                  <Avatar className="h-7 w-7 border-2 border-primary/20">
-                    <AvatarFallback className={cn(
-                      "text-xs font-semibold",
-                      currentRole === "instructor"
-                        ? "bg-violet-500/10 text-violet-600 dark:text-violet-400"
-                        : "bg-primary/10 text-primary"
-                    )}>
+                  <Avatar className="border-primary/20 h-7 w-7 border-2">
+                    <AvatarFallback
+                      className={cn(
+                        "text-xs font-semibold",
+                        currentRole === "instructor"
+                          ? "bg-violet-500/10 text-violet-600 dark:text-violet-400"
+                          : "bg-primary/10 text-primary",
+                      )}
+                    >
                       {getInitials(currentUserId)}
                     </AvatarFallback>
                   </Avatar>
                   <span
-                    className="pulse-dot absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-card bg-emerald-500"
+                    className="pulse-dot border-card absolute -right-0.5 -bottom-0.5 h-2.5 w-2.5 rounded-full border-2 bg-emerald-500"
                     aria-hidden="true"
                   />
                 </span>
                 {/* Tiny role indicator dot */}
-                <span className={cn(
-                  "absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full border border-card",
-                  currentRole === "instructor" ? "bg-violet-500" : "bg-emerald-500"
-                )} />
+                <span
+                  className={cn(
+                    "border-card absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full border",
+                    currentRole === "instructor" ? "bg-violet-500" : "bg-emerald-500",
+                  )}
+                />
               </Button>
             </TooltipTrigger>
             <TooltipContent>
@@ -775,31 +835,30 @@ export function Navbar() {
           <Button
             variant="ghost"
             size="icon"
-            className="md:hidden h-9 w-9 rounded-lg"
+            className="h-9 w-9 rounded-lg md:hidden"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             aria-label={mobileMenuOpen ? "Close navigation menu" : "Open navigation menu"}
           >
-            {mobileMenuOpen ? (
-              <X className="h-5 w-5" />
-            ) : (
-              <Menu className="h-5 w-5" />
-            )}
+            {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </Button>
         </div>
       </div>
 
       {/* Mobile Navigation Dropdown */}
       {mobileMenuOpen && (
-        <nav className="md:hidden border-t border-border/60 bg-card/95 backdrop-blur-lg px-4 py-3 space-y-1 slide-in-left" aria-label="Mobile navigation">
+        <nav
+          className="border-border/60 bg-card/95 slide-in-left space-y-1 border-t px-4 py-3 backdrop-blur-lg md:hidden"
+          aria-label="Mobile navigation"
+        >
           {visibleNavItems.map((item) => (
             <Button
               key={item.view}
               variant="ghost"
               className={cn(
-                "w-full justify-start gap-3 rounded-lg h-11",
+                "h-11 w-full justify-start gap-3 rounded-lg",
                 currentView === item.view
                   ? "bg-primary/10 text-primary font-medium"
-                  : "text-muted-foreground"
+                  : "text-muted-foreground",
               )}
               onClick={() => {
                 navigateTo(item.view);
@@ -812,10 +871,10 @@ export function Navbar() {
           ))}
           {/* Gradient Create Course CTA - only for instructors */}
           {currentRole === "instructor" && (
-            <div className="pt-2 border-t border-border/60 mt-2">
+            <div className="border-border/60 mt-2 border-t pt-2">
               <Button
                 size="sm"
-                className="w-full gap-2 rounded-lg text-white font-semibold shadow-md transition-all duration-200 hover:shadow-lg bg-gradient-to-r from-primary to-primary/70 hover:from-primary/90 hover:to-primary/60"
+                className="from-primary to-primary/70 hover:from-primary/90 hover:to-primary/60 w-full gap-2 rounded-lg bg-gradient-to-r font-semibold text-white shadow-md transition-all duration-200 hover:shadow-lg"
                 onClick={() => {
                   navigateTo("create-course");
                   setMobileMenuOpen(false);
@@ -827,29 +886,36 @@ export function Navbar() {
             </div>
           )}
           {/* User Info Section at Bottom */}
-          <div className="flex items-center gap-3 rounded-lg bg-muted/40 px-3 py-2.5 mt-2">
+          <div className="bg-muted/40 mt-2 flex items-center gap-3 rounded-lg px-3 py-2.5">
             <span className="relative">
-              <Avatar className="h-9 w-9 border-2 border-primary/20">
+              <Avatar className="border-primary/20 h-9 w-9 border-2">
                 <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
                   {getInitials(currentUserId)}
                 </AvatarFallback>
               </Avatar>
               <span
-                className="pulse-dot absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-card bg-emerald-500"
+                className="pulse-dot border-card absolute -right-0.5 -bottom-0.5 h-2.5 w-2.5 rounded-full border-2 bg-emerald-500"
                 aria-hidden="true"
               />
             </span>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
-                <p className="text-sm font-medium text-foreground truncate">{displayName}</p>
-                <Badge variant="outline" className={cn(
-                  "text-[9px] px-1.5 py-0 h-4 font-medium shrink-0",
-                  currentRole === "instructor" ? "border-violet-500/50 text-violet-600 dark:text-violet-400" : "border-emerald-500/50 text-emerald-600 dark:text-emerald-400"
-                )}>
+                <p className="text-foreground truncate text-sm font-medium">{displayName}</p>
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    "h-4 shrink-0 px-1.5 py-0 text-[9px] font-medium",
+                    currentRole === "instructor"
+                      ? "border-violet-500/50 text-violet-600 dark:text-violet-400"
+                      : "border-emerald-500/50 text-emerald-600 dark:text-emerald-400",
+                  )}
+                >
                   {currentRole === "instructor" ? "Instructor" : "Student"}
                 </Badge>
               </div>
-              <p className="text-xs text-muted-foreground truncate">{currentUserId.replace(/_/g, ".")}@ecotech.com</p>
+              <p className="text-muted-foreground truncate text-xs">
+                {currentUserId.replace(/_/g, ".")}@ecotech.com
+              </p>
             </div>
             <span className="flex items-center gap-1 text-[10px] font-medium text-emerald-500">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
@@ -859,8 +925,11 @@ export function Navbar() {
           {/* Logout Button */}
           <button
             type="button"
-            onClick={() => { logout(); setMobileMenuOpen(false); }}
-            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 mt-2 text-sm font-medium text-destructive hover:bg-destructive/10 transition-colors"
+            onClick={() => {
+              logout();
+              setMobileMenuOpen(false);
+            }}
+            className="text-destructive hover:bg-destructive/10 mt-2 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors"
           >
             <LogOut className="h-4 w-4" />
             Sign Out

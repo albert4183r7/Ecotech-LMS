@@ -9,7 +9,13 @@ interface SocialActivityItem {
   userName: string;
   userAvatar: string;
   userRole: string;
-  action: "completed_lesson" | "enrolled_course" | "posted_comment" | "earned_badge" | "rated_course" | "started_streak";
+  action:
+    | "completed_lesson"
+    | "enrolled_course"
+    | "posted_comment"
+    | "earned_badge"
+    | "rated_course"
+    | "started_streak";
   targetTitle: string;
   targetType: string;
   timestamp: string;
@@ -64,7 +70,16 @@ const NAMES = [
   "Noah Williams",
 ];
 
-const ROLES = ["Engineer", "Designer", "Product Manager", "Data Analyst", "Marketing Lead", "DevOps", "QA Engineer", "Team Lead"];
+const ROLES = [
+  "Engineer",
+  "Designer",
+  "Product Manager",
+  "Data Analyst",
+  "Marketing Lead",
+  "DevOps",
+  "QA Engineer",
+  "Team Lead",
+];
 
 const COURSE_TITLES = [
   "React Performance Patterns",

@@ -11,10 +11,7 @@ export async function GET(request: NextRequest) {
     const userId = searchParams.get("userId");
 
     if (!userId) {
-      return NextResponse.json(
-        { error: "userId is required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "userId is required" }, { status: 400 });
     }
 
     const notifications = await db.notification.findMany({
@@ -26,10 +23,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ notifications });
   } catch (error) {
     console.error("Error fetching notifications:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch notifications" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to fetch notifications" }, { status: 500 });
   }
 }
 
@@ -46,7 +40,7 @@ export async function POST(request: NextRequest) {
     if (!userId || !title || !message) {
       return NextResponse.json(
         { error: "userId, title, and message are required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -63,10 +57,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ notification }, { status: 201 });
   } catch (error) {
     console.error("Error creating notification:", error);
-    return NextResponse.json(
-      { error: "Failed to create notification" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to create notification" }, { status: 500 });
   }
 }
 
@@ -101,13 +92,10 @@ export async function PUT(request: NextRequest) {
 
     return NextResponse.json(
       { error: "Invalid request. Provide { notificationId, read } or { userId, readAll: true }" },
-      { status: 400 }
+      { status: 400 },
     );
   } catch (error) {
     console.error("Error updating notification:", error);
-    return NextResponse.json(
-      { error: "Failed to update notification" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to update notification" }, { status: 500 });
   }
 }

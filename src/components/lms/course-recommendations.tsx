@@ -1,23 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import {
-  Sparkles,
-  Star,
-  Users,
-  Eye,
-  Info,
-  BookOpen,
-} from "lucide-react";
+import { Sparkles, Star, Users, Eye, Info, BookOpen } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Tooltip,
-  TooltipTrigger,
-  TooltipContent,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { useUserStore, useNavigationStore } from "@/stores/lms-store";
 import { cn } from "@/lib/utils";
 
@@ -55,17 +44,13 @@ const GRADIENTS = [
 export function CourseRecommendations() {
   const { currentUserId } = useUserStore();
   const { openCourseDetail } = useNavigationStore();
-  const [recommendations, setRecommendations] = useState<
-    RecommendedCourse[]
-  >([]);
+  const [recommendations, setRecommendations] = useState<RecommendedCourse[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function fetchRecommendations() {
       try {
-        const res = await fetch(
-          `/api/recommendations?userId=${currentUserId}`
-        );
+        const res = await fetch(`/api/recommendations?userId=${currentUserId}`);
         const json = await res.json();
         if (json.success) {
           setRecommendations(json.data);
@@ -94,13 +79,11 @@ export function CourseRecommendations() {
         <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500 to-purple-600">
           <Sparkles className="h-3.5 w-3.5 text-white" />
         </div>
-        <h2 className="text-base font-semibold text-foreground">
-          Recommended For You
-        </h2>
+        <h2 className="text-foreground text-base font-semibold">Recommended For You</h2>
         <Tooltip>
           <TooltipTrigger asChild>
             <button className="ml-1" aria-label="Recommendation info">
-              <Info className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground transition-colors" />
+              <Info className="text-muted-foreground hover:text-foreground h-3.5 w-3.5 transition-colors" />
             </button>
           </TooltipTrigger>
           <TooltipContent side="top" className="max-w-[220px] text-xs">
@@ -117,12 +100,12 @@ export function CourseRecommendations() {
             className="stagger-fade-in w-64 shrink-0"
             style={{ animationDelay: `${index * 80}ms` }}
           >
-            <Card className="glass-card group overflow-hidden border-border/50 transition-all hover:shadow-lg hover:border-primary/20">
+            <Card className="glass-card group border-border/50 hover:border-primary/20 overflow-hidden transition-all hover:shadow-lg">
               {/* Cover / Gradient */}
               <div
                 className={cn(
                   "relative aspect-[16/9] w-full bg-gradient-to-br",
-                  GRADIENTS[index % GRADIENTS.length]
+                  GRADIENTS[index % GRADIENTS.length],
                 )}
               >
                 {course.coverImage ? (
@@ -138,10 +121,10 @@ export function CourseRecommendations() {
                 )}
                 {/* Category badge */}
                 {course.categoryName && (
-                  <div className="absolute left-2 top-2">
+                  <div className="absolute top-2 left-2">
                     <Badge
                       variant="secondary"
-                      className="text-[10px] font-medium backdrop-blur-sm bg-white/20 text-white border-white/10"
+                      className="border-white/10 bg-white/20 text-[10px] font-medium text-white backdrop-blur-sm"
                     >
                       {course.categoryName}
                     </Badge>
@@ -151,27 +134,25 @@ export function CourseRecommendations() {
 
               {/* Content */}
               <CardContent className="p-3">
-                <h3 className="line-clamp-2 text-sm font-semibold text-foreground leading-snug">
+                <h3 className="text-foreground line-clamp-2 text-sm leading-snug font-semibold">
                   {course.title}
                 </h3>
 
                 {/* Reason / Why this? */}
                 <div className="mt-1.5 flex items-start gap-1">
                   <Sparkles className="mt-0.5 h-3 w-3 shrink-0 text-violet-500" />
-                  <p className="line-clamp-1 text-[11px] text-muted-foreground">
-                    {course.reason}
-                  </p>
+                  <p className="text-muted-foreground line-clamp-1 text-[11px]">{course.reason}</p>
                 </div>
 
                 {/* Rating & students */}
                 <div className="mt-2 flex items-center gap-3">
                   <div className="flex items-center gap-0.5">
                     <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
-                    <span className="text-xs font-medium text-foreground">
+                    <span className="text-foreground text-xs font-medium">
                       {course.rating.toFixed(1)}
                     </span>
                   </div>
-                  <div className="flex items-center gap-0.5 text-muted-foreground">
+                  <div className="text-muted-foreground flex items-center gap-0.5">
                     <Users className="h-3 w-3" />
                     <span className="text-xs">{course.studentCount}</span>
                   </div>
@@ -210,9 +191,9 @@ function RecommendationsSkeleton() {
       <div className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-2 sm:mx-0 sm:px-0">
         {Array.from({ length: 4 }).map((_, i) => (
           <div key={i} className="w-64 shrink-0">
-            <Card className="overflow-hidden border-border/50">
+            <Card className="border-border/50 overflow-hidden">
               <Skeleton className="aspect-[16/9] w-full" />
-              <CardContent className="p-3 space-y-2">
+              <CardContent className="space-y-2 p-3">
                 <Skeleton className="h-4 w-full" />
                 <Skeleton className="h-3 w-48" />
                 <Skeleton className="h-3 w-20" />

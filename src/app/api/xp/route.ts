@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextResponse } from "next/server";
 
 // ------------------------------------------------------------------
 //  Types
@@ -26,16 +26,16 @@ interface XpResponse {
 // ------------------------------------------------------------------
 
 const LEVEL_TITLES: Record<number, string> = {
-  1: 'Beginner',
-  2: 'Learner',
-  3: 'Scholar',
-  4: 'Adept',
-  5: 'Expert',
-  6: 'Master',
-  7: 'Sage',
-  8: 'Grandmaster',
-  9: 'Legend',
-  10: 'Champion',
+  1: "Beginner",
+  2: "Learner",
+  3: "Scholar",
+  4: "Adept",
+  5: "Expert",
+  6: "Master",
+  7: "Sage",
+  8: "Grandmaster",
+  9: "Legend",
+  10: "Champion",
 };
 
 // ------------------------------------------------------------------
@@ -77,7 +77,7 @@ function seededRandom(seed: number): () => number {
 }
 
 function hashUserId(userId: string): number {
-  return userId.split('').reduce((a, c) => {
+  return userId.split("").reduce((a, c) => {
     return ((a << 5) - a + c.charCodeAt(0)) | 0;
   }, 0);
 }
@@ -89,16 +89,16 @@ function hashUserId(userId: string): number {
 function generateMockHistory(userId: string): XpHistoryEntry[] {
   const rand = seededRandom(Math.abs(hashUserId(userId)) + 42);
   const reasons = [
-    { reason: 'Completed lesson: Intro to React', type: 'lesson' },
-    { reason: 'Quiz score: 80% on TypeScript Basics', type: 'quiz' },
-    { reason: 'Studied for 20 minutes', type: 'study' },
-    { reason: 'Posted a course comment', type: 'comment' },
-    { reason: 'Rated course: Advanced CSS', type: 'rating' },
-    { reason: 'Completed lesson: State Management', type: 'lesson' },
-    { reason: 'Daily login streak bonus', type: 'streak' },
-    { reason: 'Completed lesson: API Design', type: 'lesson' },
-    { reason: 'Quiz score: 100% on Python Basics', type: 'quiz' },
-    { reason: 'Bookmarked 3 courses', type: 'bookmark' },
+    { reason: "Completed lesson: Intro to React", type: "lesson" },
+    { reason: "Quiz score: 80% on TypeScript Basics", type: "quiz" },
+    { reason: "Studied for 20 minutes", type: "study" },
+    { reason: "Posted a course comment", type: "comment" },
+    { reason: "Rated course: Advanced CSS", type: "rating" },
+    { reason: "Completed lesson: State Management", type: "lesson" },
+    { reason: "Daily login streak bonus", type: "streak" },
+    { reason: "Completed lesson: API Design", type: "lesson" },
+    { reason: "Quiz score: 100% on Python Basics", type: "quiz" },
+    { reason: "Bookmarked 3 courses", type: "bookmark" },
   ];
 
   const history: XpHistoryEntry[] = [];
@@ -107,7 +107,7 @@ function generateMockHistory(userId: string): XpHistoryEntry[] {
   for (let i = 0; i < 7; i++) {
     const date = new Date(now);
     date.setDate(date.getDate() - i);
-    const dateStr = date.toISOString().split('T')[0];
+    const dateStr = date.toISOString().split("T")[0];
     const entry = reasons[Math.floor(rand() * reasons.length)];
     const xp = Math.floor(rand() * 60) + 15; // 15-75 XP per entry
 
@@ -129,7 +129,7 @@ function generateMockHistory(userId: string): XpHistoryEntry[] {
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId') || 'user_student_001';
+    const userId = searchParams.get("userId") || "user_student_001";
 
     // Generate mock total XP in 150-600 range, seeded by userId
     const rand = seededRandom(Math.abs(hashUserId(userId)));
@@ -140,7 +140,8 @@ export async function GET(request: Request) {
     const nextLevelXp = level < 10 ? xpForLevel(level + 1) : currentLevelXp;
     const xpInCurrentLevel = totalXp - currentLevelXp;
     const xpNeededForNext = nextLevelXp - currentLevelXp;
-    const progressPercent = level >= 10 ? 100 : Math.min(100, Math.round((xpInCurrentLevel / xpNeededForNext) * 100));
+    const progressPercent =
+      level >= 10 ? 100 : Math.min(100, Math.round((xpInCurrentLevel / xpNeededForNext) * 100));
 
     const xpHistory = generateMockHistory(userId);
 
@@ -152,16 +153,13 @@ export async function GET(request: Request) {
         currentLevelXp,
         nextLevelXp,
         xpHistory,
-        levelTitle: LEVEL_TITLES[level] || 'Beginner',
+        levelTitle: LEVEL_TITLES[level] || "Beginner",
         progressPercent,
       } satisfies XpResponse,
     });
   } catch (error) {
-    console.error('Error fetching XP:', error);
-    return NextResponse.json(
-      { success: false, error: 'Failed to fetch XP data' },
-      { status: 500 }
-    );
+    console.error("Error fetching XP:", error);
+    return NextResponse.json({ success: false, error: "Failed to fetch XP data" }, { status: 500 });
   }
 }
 
@@ -181,8 +179,8 @@ export async function POST(request: Request) {
 
     if (!userId || !xp || xp <= 0) {
       return NextResponse.json(
-        { success: false, error: 'userId and positive xp are required' },
-        { status: 400 }
+        { success: false, error: "userId and positive xp are required" },
+        { status: 400 },
       );
     }
 
@@ -196,7 +194,8 @@ export async function POST(request: Request) {
     const nextLevelXp = level < 10 ? xpForLevel(level + 1) : currentLevelXp;
     const xpInCurrentLevel = newTotal - currentLevelXp;
     const xpNeededForNext = nextLevelXp - currentLevelXp;
-    const progressPercent = level >= 10 ? 100 : Math.min(100, Math.round((xpInCurrentLevel / xpNeededForNext) * 100));
+    const progressPercent =
+      level >= 10 ? 100 : Math.min(100, Math.round((xpInCurrentLevel / xpNeededForNext) * 100));
 
     return NextResponse.json({
       success: true,
@@ -205,18 +204,15 @@ export async function POST(request: Request) {
         level,
         currentLevelXp,
         nextLevelXp,
-        levelTitle: LEVEL_TITLES[level] || 'Beginner',
+        levelTitle: LEVEL_TITLES[level] || "Beginner",
         progressPercent,
         addedXp: xp,
-        reason: reason || 'XP earned',
-        type: type || 'other',
+        reason: reason || "XP earned",
+        type: type || "other",
       },
     });
   } catch (error) {
-    console.error('Error adding XP:', error);
-    return NextResponse.json(
-      { success: false, error: 'Failed to add XP' },
-      { status: 500 }
-    );
+    console.error("Error adding XP:", error);
+    return NextResponse.json({ success: false, error: "Failed to add XP" }, { status: 500 });
   }
 }

@@ -1,15 +1,15 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/lib/db";
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const category = searchParams.get('category');
-    const sortBy = searchParams.get('sortBy') || 'newest';
-    const timeRange = searchParams.get('timeRange');
-    const search = searchParams.get('search');
-    const tab = searchParams.get('tab');
-    const creatorId = searchParams.get('creatorId');
+    const category = searchParams.get("category");
+    const sortBy = searchParams.get("sortBy") || "newest";
+    const timeRange = searchParams.get("timeRange");
+    const search = searchParams.get("search");
+    const tab = searchParams.get("tab");
+    const creatorId = searchParams.get("creatorId");
 
     // Build where clause
     const where: Record<string, unknown> = {};
@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     if (creatorId) {
       where.creatorId = creatorId;
     } else {
-      where.status = 'published';
+      where.status = "published";
     }
 
     if (category) {
@@ -26,10 +26,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (search) {
-      where.OR = [
-        { title: { contains: search } },
-        { description: { contains: search } },
-      ];
+      where.OR = [{ title: { contains: search } }, { description: { contains: search } }];
     }
 
     if (timeRange) {
@@ -37,16 +34,16 @@ export async function GET(request: NextRequest) {
       let startDate: Date;
 
       switch (timeRange) {
-        case 'week':
+        case "week":
           startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
           break;
-        case 'month':
+        case "month":
           startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
           break;
-        case 'quarter':
+        case "quarter":
           startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
           break;
-        case 'year':
+        case "year":
           startDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
           break;
         default:
@@ -56,30 +53,30 @@ export async function GET(request: NextRequest) {
     }
 
     // Build orderBy clause
-    let orderBy: Record<string, string> = { createdAt: 'desc' };
+    let orderBy: Record<string, string> = { createdAt: "desc" };
 
     switch (sortBy) {
-      case 'newest':
-        orderBy = { createdAt: 'desc' };
+      case "newest":
+        orderBy = { createdAt: "desc" };
         break;
-      case 'most_students':
-        orderBy = { studentCount: 'desc' };
+      case "most_students":
+        orderBy = { studentCount: "desc" };
         break;
-      case 'alphabetical':
-        orderBy = { title: 'asc' };
+      case "alphabetical":
+        orderBy = { title: "asc" };
         break;
-      case 'rating':
-        orderBy = { rating: 'desc' };
+      case "rating":
+        orderBy = { rating: "desc" };
         break;
     }
 
     // Handle tab-based queries
-    if (tab === 'hot') {
-      orderBy = { studentCount: 'desc' };
-    } else if (tab === 'new') {
-      orderBy = { createdAt: 'desc' };
-    } else if (tab === 'recommended') {
-      orderBy = { rating: 'desc' };
+    if (tab === "hot") {
+      orderBy = { studentCount: "desc" };
+    } else if (tab === "new") {
+      orderBy = { createdAt: "desc" };
+    } else if (tab === "recommended") {
+      orderBy = { rating: "desc" };
     }
 
     const courses = await db.course.findMany({
@@ -121,31 +118,20 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: formattedCourses });
   } catch (error) {
-    console.error('Error fetching courses:', error);
-    return NextResponse.json(
-      { success: false, error: 'Failed to fetch courses' },
-      { status: 500 }
-    );
+    console.error("Error fetching courses:", error);
+    return NextResponse.json({ success: false, error: "Failed to fetch courses" }, { status: 500 });
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const {
-      title,
-      description,
-      categoryId,
-      language,
-      creatorId,
-      coverImage,
-      lessons,
-    } = body;
+    const { title, description, categoryId, language, creatorId, coverImage, lessons } = body;
 
     if (!title || !creatorId) {
       return NextResponse.json(
-        { success: false, error: 'Title and creatorId are required' },
-        { status: 400 }
+        { success: false, error: "Title and creatorId are required" },
+        { status: 400 },
       );
     }
 
@@ -154,21 +140,16 @@ export async function POST(request: NextRequest) {
         title,
         description: description || null,
         categoryId: categoryId || null,
-        language: language || 'english',
+        language: language || "english",
         creatorId,
         coverImage: coverImage || null,
-        status: 'draft',
+        status: "draft",
         lessons: lessons
           ? {
-              create: lessons.map(
-                (
-                  lesson: { title: string; order: number },
-                  index: number
-                ) => ({
-                  title: lesson.title,
-                  order: lesson.order ?? index,
-                })
-              ),
+              create: lessons.map((lesson: { title: string; order: number }, index: number) => ({
+                title: lesson.title,
+                order: lesson.order ?? index,
+              })),
             }
           : undefined,
       },
@@ -178,17 +159,14 @@ export async function POST(request: NextRequest) {
           select: { id: true, name: true, email: true, avatar: true },
         },
         lessons: {
-          orderBy: { order: 'asc' },
+          orderBy: { order: "asc" },
         },
       },
     });
 
     return NextResponse.json({ success: true, data: course }, { status: 201 });
   } catch (error) {
-    console.error('Error creating course:', error);
-    return NextResponse.json(
-      { success: false, error: 'Failed to create course' },
-      { status: 500 }
-    );
+    console.error("Error creating course:", error);
+    return NextResponse.json({ success: false, error: "Failed to create course" }, { status: 500 });
   }
 }

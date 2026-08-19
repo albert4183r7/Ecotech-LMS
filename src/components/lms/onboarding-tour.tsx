@@ -1,12 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useSyncExternalStore } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import {
   GraduationCap,
@@ -37,49 +32,46 @@ const tourSteps: TourStep[] = [
     title: "Welcome to Ecotech!",
     description:
       "Your personalized learning platform is ready. Discover courses, track your progress, and achieve your professional goals — all in one place.",
-    icon: <GraduationCap className="w-20 h-20" />,
-    gradient:
-      "from-[oklch(0.55_0.18_250)] via-[oklch(0.50_0.15_200)] to-[oklch(0.55_0.16_175)]",
+    icon: <GraduationCap className="h-20 w-20" />,
+    gradient: "from-[oklch(0.55_0.18_250)] via-[oklch(0.50_0.15_200)] to-[oklch(0.55_0.16_175)]",
   },
   {
     title: "Explore Your Workspace",
     description: "Navigate through powerful features designed for your learning journey.",
-    icon: <BookOpen className="w-14 h-14" />,
-    gradient:
-      "from-[oklch(0.50_0.15_200)] via-[oklch(0.55_0.16_175)] to-[oklch(0.50_0.14_165)]",
+    icon: <BookOpen className="h-14 w-14" />,
+    gradient: "from-[oklch(0.50_0.15_200)] via-[oklch(0.55_0.16_175)] to-[oklch(0.50_0.14_165)]",
   },
   {
     title: "Interactive Classrooms",
-    description: "Engage with rich course content including slides, quizzes, notes, and detailed progress tracking.",
-    icon: <Presentation className="w-14 h-14" />,
-    gradient:
-      "from-[oklch(0.55_0.16_175)] via-[oklch(0.50_0.14_165)] to-[oklch(0.45_0.18_250)]",
+    description:
+      "Engage with rich course content including slides, quizzes, notes, and detailed progress tracking.",
+    icon: <Presentation className="h-14 w-14" />,
+    gradient: "from-[oklch(0.55_0.16_175)] via-[oklch(0.50_0.14_165)] to-[oklch(0.45_0.18_250)]",
   },
   {
     title: "You're All Set!",
     description:
       "Start exploring courses and build your skills today. Your learning adventure begins now.",
-    icon: <Rocket className="w-14 h-14" />,
-    gradient:
-      "from-[oklch(0.45_0.18_250)] via-[oklch(0.55_0.18_250)] to-[oklch(0.50_0.15_200)]",
+    icon: <Rocket className="h-14 w-14" />,
+    gradient: "from-[oklch(0.45_0.18_250)] via-[oklch(0.55_0.18_250)] to-[oklch(0.50_0.15_200)]",
   },
 ];
 
 const featureItems = [
-  { icon: <BookOpen className="w-5 h-5" />, label: "Courses", desc: "Browse & enroll" },
+  { icon: <BookOpen className="h-5 w-5" />, label: "Courses", desc: "Browse & enroll" },
   {
-    icon: <BookMarked className="w-5 h-5" />,
+    icon: <BookMarked className="h-5 w-5" />,
     label: "My Learning",
     desc: "Track progress",
   },
-  { icon: <UserCircle className="w-5 h-5" />, label: "Profile", desc: "View achievements" },
+  { icon: <UserCircle className="h-5 w-5" />, label: "Profile", desc: "View achievements" },
 ];
 
 const classroomItems = [
-  { icon: <Presentation className="w-5 h-5" />, label: "Slides" },
-  { icon: <ClipboardCheck className="w-5 h-5" />, label: "Quizzes" },
-  { icon: <StickyNote className="w-5 h-5" />, label: "Notes" },
-  { icon: <BarChart3 className="w-5 h-5" />, label: "Progress" },
+  { icon: <Presentation className="h-5 w-5" />, label: "Slides" },
+  { icon: <ClipboardCheck className="h-5 w-5" />, label: "Quizzes" },
+  { icon: <StickyNote className="h-5 w-5" />, label: "Notes" },
+  { icon: <BarChart3 className="h-5 w-5" />, label: "Progress" },
 ];
 
 export function OnboardingTour() {
@@ -89,7 +81,7 @@ export function OnboardingTour() {
   const mounted = useSyncExternalStore(
     () => () => {},
     () => true,
-    () => false
+    () => false,
   );
 
   useEffect(() => {
@@ -131,7 +123,7 @@ export function OnboardingTour() {
         handleComplete();
       }
     },
-    [handleComplete]
+    [handleComplete],
   );
 
   if (!mounted) return null;
@@ -144,39 +136,37 @@ export function OnboardingTour() {
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
-        className="sm:max-w-lg p-0 overflow-hidden border-0 shadow-2xl"
+        className="overflow-hidden border-0 p-0 shadow-2xl sm:max-w-lg"
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
         {/* Gradient background layer */}
-        <div
-          className={`relative bg-gradient-to-br ${step.gradient} p-[1px] rounded-xl`}
-        >
-          <div className="rounded-xl overflow-hidden bg-background">
+        <div className={`relative bg-gradient-to-br ${step.gradient} rounded-xl p-[1px]`}>
+          <div className="bg-background overflow-hidden rounded-xl">
             {/* Header with gradient accent */}
             <div
-              className={`relative bg-gradient-to-br ${step.gradient} px-6 pt-8 pb-6 text-center overflow-hidden`}
+              className={`relative bg-gradient-to-br ${step.gradient} overflow-hidden px-6 pt-8 pb-6 text-center`}
             >
               {/* Decorative circles */}
-              <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full bg-white/10 blur-2xl" />
-              <div className="absolute -bottom-4 -left-4 w-24 h-24 rounded-full bg-black/10 blur-xl" />
+              <div className="absolute -top-8 -right-8 h-32 w-32 rounded-full bg-white/10 blur-2xl" />
+              <div className="absolute -bottom-4 -left-4 h-24 w-24 rounded-full bg-black/10 blur-xl" />
 
               {/* Icon */}
               <div className="onboarding-scale-in relative mx-auto mb-4">
-                <div className="inline-flex items-center justify-center w-24 h-24 rounded-2xl bg-white/20 backdrop-blur-sm text-white shadow-lg">
+                <div className="inline-flex h-24 w-24 items-center justify-center rounded-2xl bg-white/20 text-white shadow-lg backdrop-blur-sm">
                   {step.icon}
                 </div>
               </div>
 
               {/* Title */}
-              <DialogTitle className="onboarding-fade-in relative text-2xl font-bold text-white tracking-tight">
+              <DialogTitle className="onboarding-fade-in relative text-2xl font-bold tracking-tight text-white">
                 {step.title}
               </DialogTitle>
 
               {/* Sparkles decoration for first step */}
               {isFirst && (
                 <>
-                  <Sparkles className="absolute top-4 left-6 w-5 h-5 text-white/40 animate-pulse" />
-                  <Sparkles className="absolute top-8 right-8 w-4 h-4 text-white/30 animate-pulse [animation-delay:0.5s]" />
+                  <Sparkles className="absolute top-4 left-6 h-5 w-5 animate-pulse text-white/40" />
+                  <Sparkles className="absolute top-8 right-8 h-4 w-4 animate-pulse text-white/30 [animation-delay:0.5s]" />
                 </>
               )}
             </div>
@@ -184,7 +174,7 @@ export function OnboardingTour() {
             {/* Body content area */}
             <div className="p-6">
               <div key={currentStep} className={`${animClass} onboarding-step-content`}>
-                <DialogDescription className="text-muted-foreground text-center text-sm leading-relaxed mb-6">
+                <DialogDescription className="text-muted-foreground mb-6 text-center text-sm leading-relaxed">
                   {step.description}
                 </DialogDescription>
 
@@ -194,17 +184,13 @@ export function OnboardingTour() {
                     {featureItems.map((item) => (
                       <div
                         key={item.label}
-                        className="glass-card rounded-xl p-4 text-center flex-1 max-w-[120px] hover-lift cursor-default"
+                        className="glass-card hover-lift max-w-[120px] flex-1 cursor-default rounded-xl p-4 text-center"
                       >
-                        <div className="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-[oklch(0.55_0.18_250_/0.1)] text-[oklch(0.50_0.18_250)] mb-2">
+                        <div className="mb-2 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-[oklch(0.55_0.18_250_/0.1)] text-[oklch(0.50_0.18_250)]">
                           {item.icon}
                         </div>
-                        <p className="text-sm font-semibold text-foreground">
-                          {item.label}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          {item.desc}
-                        </p>
+                        <p className="text-foreground text-sm font-semibold">{item.label}</p>
+                        <p className="text-muted-foreground mt-0.5 text-xs">{item.desc}</p>
                       </div>
                     ))}
                   </div>
@@ -215,19 +201,15 @@ export function OnboardingTour() {
                     {featureItems.map((item, i) => (
                       <div
                         key={item.label}
-                        className="flex items-center gap-4 p-3 rounded-xl bg-muted/50 hover:bg-muted/80 transition-colors"
+                        className="bg-muted/50 hover:bg-muted/80 flex items-center gap-4 rounded-xl p-3 transition-colors"
                         style={{ animationDelay: `${i * 80}ms` }}
                       >
-                        <div className="flex-shrink-0 w-11 h-11 rounded-xl bg-gradient-to-br from-[oklch(0.55_0.16_175)] to-[oklch(0.50_0.18_250)] text-white flex items-center justify-center shadow-md">
+                        <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[oklch(0.55_0.16_175)] to-[oklch(0.50_0.18_250)] text-white shadow-md">
                           {item.icon}
                         </div>
                         <div>
-                          <p className="text-sm font-semibold text-foreground">
-                            {item.label}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {item.desc}
-                          </p>
+                          <p className="text-foreground text-sm font-semibold">{item.label}</p>
+                          <p className="text-muted-foreground text-xs">{item.desc}</p>
                         </div>
                       </div>
                     ))}
@@ -239,14 +221,12 @@ export function OnboardingTour() {
                     {classroomItems.map((item) => (
                       <div
                         key={item.label}
-                        className="glass-card rounded-xl p-4 flex items-center gap-3 hover-lift cursor-default"
+                        className="glass-card hover-lift flex cursor-default items-center gap-3 rounded-xl p-4"
                       >
-                        <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-gradient-to-br from-[oklch(0.55_0.16_175)] to-[oklch(0.50_0.14_165)] text-white flex items-center justify-center shadow-md">
+                        <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[oklch(0.55_0.16_175)] to-[oklch(0.50_0.14_165)] text-white shadow-md">
                           {item.icon}
                         </div>
-                        <span className="text-sm font-medium text-foreground">
-                          {item.label}
-                        </span>
+                        <span className="text-foreground text-sm font-medium">{item.label}</span>
                       </div>
                     ))}
                   </div>
@@ -254,12 +234,12 @@ export function OnboardingTour() {
 
                 {currentStep === 3 && (
                   <div className="text-center">
-                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-[oklch(0.55_0.16_175)] to-[oklch(0.50_0.18_250)] text-white mb-4 shadow-lg glow-pulse">
-                      <Rocket className="w-8 h-8" />
+                    <div className="glow-pulse mb-4 inline-flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-[oklch(0.55_0.16_175)] to-[oklch(0.50_0.18_250)] text-white shadow-lg">
+                      <Rocket className="h-8 w-8" />
                     </div>
-                    <p className="text-sm text-muted-foreground max-w-xs mx-auto">
-                      Dive into our curated courses and start building skills that
-                      matter to your career.
+                    <p className="text-muted-foreground mx-auto max-w-xs text-sm">
+                      Dive into our curated courses and start building skills that matter to your
+                      career.
                     </p>
                   </div>
                 )}
@@ -276,7 +256,7 @@ export function OnboardingTour() {
                       onClick={handlePrev}
                       className="text-muted-foreground hover:text-foreground gap-1.5"
                     >
-                      <ChevronLeft className="w-4 h-4" />
+                      <ChevronLeft className="h-4 w-4" />
                       Back
                     </Button>
                   ) : (
@@ -297,11 +277,7 @@ export function OnboardingTour() {
                     <span
                       key={i}
                       className={`dot ${
-                        i === currentStep
-                          ? "active"
-                          : i < currentStep
-                            ? "completed"
-                            : ""
+                        i === currentStep ? "active" : i < currentStep ? "completed" : ""
                       }`}
                     />
                   ))}
@@ -314,13 +290,13 @@ export function OnboardingTour() {
                     onClick={handleNext}
                     className={
                       isLast
-                        ? "bg-gradient-to-r from-[oklch(0.55_0.16_175)] to-[oklch(0.50_0.18_250)] text-white hover:shadow-lg gap-1.5 glow-pulse"
+                        ? "glow-pulse gap-1.5 bg-gradient-to-r from-[oklch(0.55_0.16_175)] to-[oklch(0.50_0.18_250)] text-white hover:shadow-lg"
                         : "gap-1.5"
                     }
                   >
                     {isLast ? "Start Learning" : "Next"}
-                    {!isLast && <ChevronRight className="w-4 h-4" />}
-                    {isLast && <Rocket className="w-4 h-4" />}
+                    {!isLast && <ChevronRight className="h-4 w-4" />}
+                    {isLast && <Rocket className="h-4 w-4" />}
                   </Button>
                 </div>
               </div>

@@ -1,7 +1,23 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Sparkles, BookOpen, Star, GraduationCap, FolderOpen, Users, Play, ChevronDown, TrendingUp, BarChart3, BookMarked, ArrowRight, Zap, Search, Send } from "lucide-react";
+import {
+  Sparkles,
+  BookOpen,
+  Star,
+  GraduationCap,
+  FolderOpen,
+  Users,
+  Play,
+  ChevronDown,
+  TrendingUp,
+  BarChart3,
+  BookMarked,
+  ArrowRight,
+  Zap,
+  Search,
+  Send,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -49,11 +65,11 @@ const CATEGORY_ICONS: Record<string, string> = {
   "Web Development": "💻",
   "Data Science": "📊",
   "Mobile Dev": "📱",
-  "DevOps": "⚙️",
-  "Design": "🎨",
+  DevOps: "⚙️",
+  Design: "🎨",
   "AI/ML": "🤖",
-  "Security": "🔒",
-  "Cloud": "☁️",
+  Security: "🔒",
+  Cloud: "☁️",
 };
 
 /** Count-up animation hook */
@@ -121,16 +137,54 @@ const TABS: { key: HomeTab; label: string }[] = [
 
 /** Quick stat card data */
 const QUICK_STATS = [
-  { key: "courses", label: "Total Courses", icon: BookOpen, gradient: "from-blue-500 to-cyan-500", getValue: (courses: number) => courses, animated: true },
-  { key: "categories", label: "Categories", icon: FolderOpen, gradient: "from-violet-500 to-purple-500", getValue: (_: number, cats: number) => cats, animated: true },
-  { key: "learners", label: "Learners", icon: Users, gradient: "from-emerald-500 to-teal-500", getValue: () => 150, animated: true },
-  { key: "completion", label: "Completion Rate", icon: Zap, gradient: "from-amber-500 to-orange-500", getValue: () => 92, animated: true, suffix: "%" },
+  {
+    key: "courses",
+    label: "Total Courses",
+    icon: BookOpen,
+    gradient: "from-blue-500 to-cyan-500",
+    getValue: (courses: number) => courses,
+    animated: true,
+  },
+  {
+    key: "categories",
+    label: "Categories",
+    icon: FolderOpen,
+    gradient: "from-violet-500 to-purple-500",
+    getValue: (_: number, cats: number) => cats,
+    animated: true,
+  },
+  {
+    key: "learners",
+    label: "Learners",
+    icon: Users,
+    gradient: "from-emerald-500 to-teal-500",
+    getValue: () => 150,
+    animated: true,
+  },
+  {
+    key: "completion",
+    label: "Completion Rate",
+    icon: Zap,
+    gradient: "from-amber-500 to-orange-500",
+    getValue: () => 92,
+    animated: true,
+    suffix: "%",
+  },
 ];
 
 export function HomePage() {
   const { navigateTo, openCourseDetail } = useNavigationStore();
-  const { homeTab, categories, courses, setCategories, setCourses, setHomeTab, courseFilters, setCourseFilters, setCreatePrompt } =
-    useCourseStore();
+  const {
+    homeTab,
+    categories,
+    courses,
+    setCategories,
+    setCourses,
+    setHomeTab,
+    courseFilters,
+    setCourseFilters,
+    setCreatePrompt,
+  } = useCourseStore();
   const currentUserId = useUserStore((s) => s.currentUserId);
   const currentRole = useUserStore((s) => s.currentRole);
 
@@ -157,13 +211,21 @@ export function HomePage() {
         const res = await fetch("/api/categories");
         const json = await res.json();
         if (!cancelled && json.success) {
-          const items: CategoryItem[] = json.data.map((c: { id: string; name: string; description?: string | null; color?: string | null; coursesCount: number }) => ({
-            id: c.id,
-            name: c.name,
-            description: c.description ?? null,
-            color: c.color ?? null,
-            _count: { courses: c.coursesCount },
-          }));
+          const items: CategoryItem[] = json.data.map(
+            (c: {
+              id: string;
+              name: string;
+              description?: string | null;
+              color?: string | null;
+              coursesCount: number;
+            }) => ({
+              id: c.id,
+              name: c.name,
+              description: c.description ?? null,
+              color: c.color ?? null,
+              _count: { courses: c.coursesCount },
+            }),
+          );
           setCategories(items);
         }
       } catch (err) {
@@ -229,7 +291,9 @@ export function HomePage() {
       }
     }
     fetchEnrollments();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [currentUserId]);
 
   // ── Typing animation ──────────────────────────────────────────────
@@ -264,8 +328,10 @@ export function HomePage() {
     const el = statsRef.current;
     if (!el) return;
     const observer = new IntersectionObserver(
-      ([entry]) => { if (entry.isIntersecting) setStatsVisible(true); },
-      { threshold: 0.3 }
+      ([entry]) => {
+        if (entry.isIntersecting) setStatsVisible(true);
+      },
+      { threshold: 0.3 },
     );
     observer.observe(el);
     return () => observer.disconnect();
@@ -308,14 +374,13 @@ export function HomePage() {
   // ── Render helpers ─────────────────────────────────────────────────
 
   return (
-    <div className="flex flex-col min-h-0 overflow-x-hidden">
-
+    <div className="flex min-h-0 flex-col overflow-x-hidden">
       {/* ─── Hero Section ────────────────────────────────────────── */}
       <section className="relative overflow-hidden px-4 pt-8 pb-6 sm:px-6 sm:pt-12 sm:pb-8 md:px-12 lg:pt-16 lg:pb-10">
         {/* Background decoration */}
         <div className="pointer-events-none absolute inset-0 -z-10">
-          <div className="absolute -left-20 -top-20 h-72 w-72 rounded-full bg-teal-500/10 blur-3xl" />
-          <div className="absolute -right-20 top-10 h-64 w-64 rounded-full bg-emerald-500/8 blur-3xl" />
+          <div className="absolute -top-20 -left-20 h-72 w-72 rounded-full bg-teal-500/10 blur-3xl" />
+          <div className="absolute top-10 -right-20 h-64 w-64 rounded-full bg-emerald-500/8 blur-3xl" />
           <div className="absolute bottom-0 left-1/2 h-48 w-96 -translate-x-1/2 rounded-full bg-cyan-500/6 blur-3xl" />
         </div>
 
@@ -324,25 +389,26 @@ export function HomePage() {
             <span className="gradient-text">Unlock Your Potential</span>{" "}
             <span className="text-foreground">
               {TYPING_WORDS[typingIndex].slice(0, typingCharIndex)}
-              <span className="animate-pulse text-primary">|</span>
+              <span className="text-primary animate-pulse">|</span>
             </span>
           </h1>
-          <p className="mt-4 text-base text-muted-foreground sm:text-lg">
-            Explore expert-led courses, track your progress, and achieve your learning goals with Ecotech LMS.
+          <p className="text-muted-foreground mt-4 text-base sm:text-lg">
+            Explore expert-led courses, track your progress, and achieve your learning goals with
+            Ecotech LMS.
           </p>
 
           {/* AI Prompt Input */}
           {currentRole === "instructor" && (
-            <div className="mt-6 mx-auto max-w-xl">
-              <div className="relative flex items-center rounded-xl border border-border/60 bg-card shadow-sm focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/20 transition-all">
-                <Sparkles className="ml-3 h-4 w-4 shrink-0 text-muted-foreground" />
+            <div className="mx-auto mt-6 max-w-xl">
+              <div className="border-border/60 bg-card focus-within:border-primary/50 focus-within:ring-primary/20 relative flex items-center rounded-xl border shadow-sm transition-all focus-within:ring-2">
+                <Sparkles className="text-muted-foreground ml-3 h-4 w-4 shrink-0" />
                 <input
                   type="text"
                   value={heroPrompt}
                   onChange={(e) => setHeroPrompt(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleCreateCourse()}
                   placeholder="Describe a course topic to create with AI..."
-                  className="flex-1 bg-transparent px-3 py-3 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none"
+                  className="text-foreground placeholder:text-muted-foreground/60 flex-1 bg-transparent px-3 py-3 text-sm focus:outline-none"
                 />
                 <Button
                   size="sm"
@@ -378,24 +444,26 @@ export function HomePage() {
           {QUICK_STATS.map((stat, i) => {
             const Icon = stat.icon;
             const animatedValue = statsVisible ? counterValues[i] : 0;
-            const suffix = 'suffix' in stat && stat.suffix ? stat.suffix : '';
+            const suffix = "suffix" in stat && stat.suffix ? stat.suffix : "";
             return (
               <div
                 key={stat.key}
                 className={`glass-card stat-pop stat-delay-${i + 1} flex items-center gap-3 rounded-xl p-4`}
               >
-                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${stat.gradient} shadow-sm`}>
+                <div
+                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${stat.gradient} shadow-sm`}
+                >
                   <Icon className="h-5 w-5 text-white" aria-hidden="true" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-lg font-bold tabular-nums text-foreground">
-                    <span className={statsVisible ? 'counter-value' : ''}>
-                      {stat.animated ? `${animatedValue}${suffix}` : stat.getValue(totalCourseCount, categories.length)}
+                  <p className="text-foreground text-lg font-bold tabular-nums">
+                    <span className={statsVisible ? "counter-value" : ""}>
+                      {stat.animated
+                        ? `${animatedValue}${suffix}`
+                        : stat.getValue(totalCourseCount, categories.length)}
                     </span>
                   </p>
-                  <p className="text-xs text-muted-foreground">
-                    {stat.label}
-                  </p>
+                  <p className="text-muted-foreground text-xs">{stat.label}</p>
                 </div>
               </div>
             );
@@ -419,10 +487,12 @@ export function HomePage() {
                 }`}
               >
                 <span className="flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-primary/60" />
+                  <span className="bg-primary/60 h-2 w-2 rounded-full" />
                   All
                 </span>
-                <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-muted px-1.5 text-[11px] font-semibold tabular-nums text-muted-foreground">{totalCourseCount}</span>
+                <span className="bg-muted text-muted-foreground inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold tabular-nums">
+                  {totalCourseCount}
+                </span>
               </button>
 
               {loadingCategories
@@ -434,14 +504,17 @@ export function HomePage() {
                   ))
                 : categories.map((cat) => {
                     const count = cat._count?.courses ?? 0;
-                    const isFeatured = !loadingCategories && categories.length > 0 && count === Math.max(...categories.map((c) => c._count?.courses ?? 0));
+                    const isFeatured =
+                      !loadingCategories &&
+                      categories.length > 0 &&
+                      count === Math.max(...categories.map((c) => c._count?.courses ?? 0));
                     return (
                       <button
                         key={cat.id}
                         onClick={() => handleCategorySelect(cat.id)}
                         className={`category-item flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm transition-colors ${
                           courseFilters.category === cat.id
-                            ? "bg-primary/10 font-medium text-primary"
+                            ? "bg-primary/10 text-primary font-medium"
                             : "text-muted-foreground hover:bg-muted hover:text-foreground"
                         }`}
                       >
@@ -451,9 +524,13 @@ export function HomePage() {
                             style={{ backgroundColor: cat.color ?? "var(--color-primary)" }}
                           />
                           <span className="truncate">{cat.name}</span>
-                          {isFeatured && <Star className="h-3 w-3 shrink-0 fill-amber-400 text-amber-400" />}
+                          {isFeatured && (
+                            <Star className="h-3 w-3 shrink-0 fill-amber-400 text-amber-400" />
+                          )}
                         </span>
-                        <span className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-muted px-1.5 text-[11px] font-semibold tabular-nums text-muted-foreground">{count}</span>
+                        <span className="bg-muted text-muted-foreground inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold tabular-nums">
+                          {count}
+                        </span>
                       </button>
                     );
                   })}
@@ -463,13 +540,13 @@ export function HomePage() {
 
         {/* ── Mobile Category Chips ────────────────────────────────── */}
         <div className="mb-2 block md:hidden">
-          <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar">
+          <div className="custom-scrollbar flex gap-2 overflow-x-auto pb-2">
             <button
               onClick={() => handleCategorySelect("all")}
               className={`shrink-0 rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
                 courseFilters.category === "all"
                   ? "bg-primary text-primary-foreground"
-                  : "border border-border bg-card text-muted-foreground hover:bg-muted"
+                  : "border-border bg-card text-muted-foreground hover:bg-muted border"
               }`}
             >
               All ({totalCourseCount})
@@ -484,8 +561,8 @@ export function HomePage() {
                     onClick={() => handleCategorySelect(cat.id)}
                     className={`shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-sm transition-colors ${
                       courseFilters.category === cat.id
-                        ? "inline-flex bg-primary text-primary-foreground"
-                        : "inline-flex border border-border bg-card text-muted-foreground hover:bg-muted"
+                        ? "bg-primary text-primary-foreground inline-flex"
+                        : "border-border bg-card text-muted-foreground hover:bg-muted inline-flex border"
                     }`}
                   >
                     <span
@@ -515,13 +592,16 @@ export function HomePage() {
             />
             {/* Popular Searches */}
             <div className="mt-2 flex items-center gap-2">
-              <TrendingUp className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-              <span className="text-xs text-muted-foreground">Popular:</span>
+              <TrendingUp
+                className="text-muted-foreground h-3.5 w-3.5 shrink-0"
+                aria-hidden="true"
+              />
+              <span className="text-muted-foreground text-xs">Popular:</span>
               {POPULAR_SEARCHES.map((tag) => (
                 <button
                   key={tag}
                   onClick={() => handlePopularSearch(tag)}
-                  className="shrink-0 rounded-full border border-border/60 bg-card px-2.5 py-0.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+                  className="border-border/60 bg-card text-muted-foreground hover:bg-primary/10 hover:text-primary shrink-0 rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors"
                 >
                   {tag}
                 </button>
@@ -542,13 +622,16 @@ export function HomePage() {
             />
             {/* Popular Searches */}
             <div className="mt-2 flex items-center gap-2 overflow-x-auto">
-              <TrendingUp className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-              <span className="shrink-0 text-xs text-muted-foreground">Popular:</span>
+              <TrendingUp
+                className="text-muted-foreground h-3.5 w-3.5 shrink-0"
+                aria-hidden="true"
+              />
+              <span className="text-muted-foreground shrink-0 text-xs">Popular:</span>
               {POPULAR_SEARCHES.map((tag) => (
                 <button
                   key={tag}
                   onClick={() => handlePopularSearch(tag)}
-                  className="shrink-0 rounded-full border border-border/60 bg-card px-2.5 py-0.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+                  className="border-border/60 bg-card text-muted-foreground hover:bg-primary/10 hover:text-primary shrink-0 rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors"
                 >
                   {tag}
                 </button>
@@ -560,17 +643,17 @@ export function HomePage() {
           {currentRole === "student" && !loadingEnrollments && enrollments.length > 0 && (
             <div className="mb-5">
               <div className="mb-3 flex items-center gap-2">
-                <BookMarked className="h-4 w-4 text-primary" aria-hidden="true" />
-                <h2 className="text-sm font-semibold text-foreground">Continue Learning</h2>
+                <BookMarked className="text-primary h-4 w-4" aria-hidden="true" />
+                <h2 className="text-foreground text-sm font-semibold">Continue Learning</h2>
               </div>
-              <div className="flex gap-3 overflow-x-auto pb-2 custom-scrollbar">
+              <div className="custom-scrollbar flex gap-3 overflow-x-auto pb-2">
                 {enrollments.map((enrollment, i) => (
                   <div
                     key={enrollment.id}
-                    className="stagger-fade-in w-64 shrink-0 overflow-hidden rounded-xl border border-border/50 bg-card transition-shadow hover:shadow-md"
+                    className="stagger-fade-in border-border/50 bg-card w-64 shrink-0 overflow-hidden rounded-xl border transition-shadow hover:shadow-md"
                     style={{ animationDelay: `${i * 80}ms` }}
                   >
-                    <div className="relative aspect-video w-full bg-muted">
+                    <div className="bg-muted relative aspect-video w-full">
                       {enrollment.course.coverImage ? (
                         <img
                           src={enrollment.course.coverImage}
@@ -579,28 +662,31 @@ export function HomePage() {
                         />
                       ) : (
                         <div className="flex h-full w-full items-center justify-center">
-                          <BookOpen className="h-8 w-8 text-muted-foreground/40" />
+                          <BookOpen className="text-muted-foreground/40 h-8 w-8" />
                         </div>
                       )}
                       <div className="absolute bottom-2 left-2">
-                        <Badge variant="secondary" className="bg-background/80 text-[10px] font-medium backdrop-blur-sm">
+                        <Badge
+                          variant="secondary"
+                          className="bg-background/80 text-[10px] font-medium backdrop-blur-sm"
+                        >
                           {enrollment.progress}%
                         </Badge>
                       </div>
                     </div>
                     <div className="p-3">
-                      <h3 className="line-clamp-1 text-sm font-semibold text-foreground">
+                      <h3 className="text-foreground line-clamp-1 text-sm font-semibold">
                         {enrollment.course.title}
                       </h3>
                       {enrollment.course.category && (
-                        <p className="mt-0.5 text-[11px] text-muted-foreground">
+                        <p className="text-muted-foreground mt-0.5 text-[11px]">
                           {enrollment.course.category.name}
                         </p>
                       )}
                       <div className="mt-2 flex items-center gap-2">
                         <Progress
                           value={enrollment.progress}
-                          className="h-1.5 flex-1 [&_[data-slot=progress-indicator]]:bg-gradient-to-r [&_[data-slot=progress-indicator]]:from-primary/80 [&_[data-slot=progress-indicator]]:to-primary"
+                          className="[&_[data-slot=progress-indicator]]:from-primary/80 [&_[data-slot=progress-indicator]]:to-primary h-1.5 flex-1 [&_[data-slot=progress-indicator]]:bg-gradient-to-r"
                         />
                         <Button
                           size="sm"
@@ -627,7 +713,10 @@ export function HomePage() {
               </div>
               <div className="flex gap-3 overflow-x-auto pb-2">
                 {Array.from({ length: 2 }).map((_, i) => (
-                  <div key={i} className="w-64 shrink-0 overflow-hidden rounded-xl border border-border/50">
+                  <div
+                    key={i}
+                    className="border-border/50 w-64 shrink-0 overflow-hidden rounded-xl border"
+                  >
                     <Skeleton className="aspect-video w-full" />
                     <div className="p-3">
                       <Skeleton className="mb-2 h-4 w-full" />
@@ -641,16 +730,16 @@ export function HomePage() {
 
           {/* ── Daily Challenges (Student Only) ─────────────────────── */}
           {currentRole === "student" && (
-          <div className="mb-5">
-            <DailyChallenges />
-          </div>
+            <div className="mb-5">
+              <DailyChallenges />
+            </div>
           )}
 
           {/* Course Grid / Loading / Empty ────────────────────────── */}
           {loadingCourses ? (
             <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">
               {Array.from({ length: 8 }).map((_, i) => (
-                <div key={i} className="overflow-hidden rounded-xl border border-border/50">
+                <div key={i} className="border-border/50 overflow-hidden rounded-xl border">
                   <Skeleton className="aspect-video w-full" />
                   <div className="p-3">
                     <Skeleton className="mb-2 h-4 w-full" />
@@ -662,13 +751,11 @@ export function HomePage() {
             </div>
           ) : courses.length === 0 ? (
             <div className="empty-state flex flex-col items-center justify-center py-20 text-center">
-              <div className="empty-illustration flex h-16 w-16 items-center justify-center rounded-full bg-muted">
-                <BookOpen className="h-7 w-7 text-muted-foreground" />
+              <div className="empty-illustration bg-muted flex h-16 w-16 items-center justify-center rounded-full">
+                <BookOpen className="text-muted-foreground h-7 w-7" />
               </div>
-              <h3 className="mt-4 text-base font-semibold text-foreground">
-                No courses found
-              </h3>
-              <p className="mt-1 max-w-xs text-sm text-muted-foreground">
+              <h3 className="text-foreground mt-4 text-base font-semibold">No courses found</h3>
+              <p className="text-muted-foreground mt-1 max-w-xs text-sm">
                 Try adjusting your search or filters to discover courses that match your interests.
               </p>
               {courseFilters.search && (
@@ -687,7 +774,11 @@ export function HomePage() {
           ) : (
             <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">
               {courses.map((course, i) => (
-                <div key={course.id} className="stagger-fade-in" style={{ animationDelay: `${i * 60}ms` }}>
+                <div
+                  key={course.id}
+                  className="stagger-fade-in"
+                  style={{ animationDelay: `${i * 60}ms` }}
+                >
                   <CourseCard course={course} index={i} />
                 </div>
               ))}
@@ -700,45 +791,45 @@ export function HomePage() {
 
         {/* ── Desktop Right Sidebar (Student: Leaderboard + Social Feed) */}
         {currentRole === "student" && (
-        <aside className="hidden w-72 shrink-0 lg:block">
-          <div className="sticky top-6 space-y-4">
-            <LeaderboardWidget />
-            <SocialFeed />
-          </div>
-        </aside>
+          <aside className="hidden w-72 shrink-0 lg:block">
+            <div className="sticky top-6 space-y-4">
+              <LeaderboardWidget />
+              <SocialFeed />
+            </div>
+          </aside>
         )}
       </section>
 
       {/* ── Mobile Leaderboard (Collapsible, Student Only) ────────── */}
       {currentRole === "student" && (
-      <section className="px-4 pb-6 md:hidden">
-        <Collapsible open={leaderboardOpen} onOpenChange={setLeaderboardOpen}>
-          <CollapsibleTrigger className="flex w-full items-center justify-between rounded-xl border border-border/50 bg-card p-4 transition-colors hover:bg-muted/50">
-            <div className="flex items-center gap-2">
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-cyan-500 to-teal-500">
-                <BarChart3 className="h-4 w-4 text-white" aria-hidden="true" />
+        <section className="px-4 pb-6 md:hidden">
+          <Collapsible open={leaderboardOpen} onOpenChange={setLeaderboardOpen}>
+            <CollapsibleTrigger className="border-border/50 bg-card hover:bg-muted/50 flex w-full items-center justify-between rounded-xl border p-4 transition-colors">
+              <div className="flex items-center gap-2">
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-cyan-500 to-teal-500">
+                  <BarChart3 className="h-4 w-4 text-white" aria-hidden="true" />
+                </div>
+                <span className="text-foreground text-sm font-semibold">Leaderboard</span>
               </div>
-              <span className="text-sm font-semibold text-foreground">Leaderboard</span>
-            </div>
-            <ChevronDown
-              className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${leaderboardOpen ? "rotate-180" : ""}`}
-              aria-hidden="true"
-            />
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <div className="mt-3">
-              <LeaderboardWidget />
-            </div>
-          </CollapsibleContent>
-        </Collapsible>
-      </section>
+              <ChevronDown
+                className={`text-muted-foreground h-4 w-4 transition-transform duration-200 ${leaderboardOpen ? "rotate-180" : ""}`}
+                aria-hidden="true"
+              />
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="mt-3">
+                <LeaderboardWidget />
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+        </section>
       )}
 
       {/* ── Mobile Social Feed (Student Only) ─────────────────────── */}
       {currentRole === "student" && (
-      <section className="px-4 pb-6 md:hidden">
-        <SocialFeed />
-      </section>
+        <section className="px-4 pb-6 md:hidden">
+          <SocialFeed />
+        </section>
       )}
     </div>
   );

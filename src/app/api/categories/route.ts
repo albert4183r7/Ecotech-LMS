@@ -1,5 +1,5 @@
-import { NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { NextResponse } from "next/server";
+import { db } from "@/lib/db";
 
 export async function GET() {
   try {
@@ -11,7 +11,7 @@ export async function GET() {
           },
         },
       },
-      orderBy: { name: 'asc' },
+      orderBy: { name: "asc" },
     });
 
     const formattedCategories = categories.map((category) => ({
@@ -24,10 +24,10 @@ export async function GET() {
 
     return NextResponse.json({ success: true, data: formattedCategories });
   } catch (error) {
-    console.error('Error fetching categories:', error);
+    console.error("Error fetching categories:", error);
     return NextResponse.json(
-      { success: false, error: 'Failed to fetch categories' },
-      { status: 500 }
+      { success: false, error: "Failed to fetch categories" },
+      { status: 500 },
     );
   }
 }

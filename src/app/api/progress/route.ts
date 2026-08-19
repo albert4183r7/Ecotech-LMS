@@ -1,15 +1,15 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/lib/db";
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const enrollmentId = searchParams.get('enrollmentId');
+    const enrollmentId = searchParams.get("enrollmentId");
 
     if (!enrollmentId) {
       return NextResponse.json(
-        { success: false, error: 'enrollmentId is required' },
-        { status: 400 }
+        { success: false, error: "enrollmentId is required" },
+        { status: 400 },
       );
     }
 
@@ -20,15 +20,15 @@ export async function GET(request: NextRequest) {
           select: { id: true, title: true },
         },
       },
-      orderBy: { lastAccessedAt: 'desc' },
+      orderBy: { lastAccessedAt: "desc" },
     });
 
     return NextResponse.json({ success: true, data: progresses });
   } catch (error) {
-    console.error('Error fetching progress:', error);
+    console.error("Error fetching progress:", error);
     return NextResponse.json(
-      { success: false, error: 'Failed to fetch progress' },
-      { status: 500 }
+      { success: false, error: "Failed to fetch progress" },
+      { status: 500 },
     );
   }
 }
@@ -40,8 +40,8 @@ export async function POST(request: NextRequest) {
 
     if (!enrollmentId || !lessonId) {
       return NextResponse.json(
-        { success: false, error: 'enrollmentId and lessonId are required' },
-        { status: 400 }
+        { success: false, error: "enrollmentId and lessonId are required" },
+        { status: 400 },
       );
     }
 
@@ -50,10 +50,7 @@ export async function POST(request: NextRequest) {
       where: { id: enrollmentId },
     });
     if (!enrollment) {
-      return NextResponse.json(
-        { success: false, error: 'Enrollment not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ success: false, error: "Enrollment not found" }, { status: 404 });
     }
 
     // Verify lesson exists
@@ -61,10 +58,7 @@ export async function POST(request: NextRequest) {
       where: { id: lessonId },
     });
     if (!lesson) {
-      return NextResponse.json(
-        { success: false, error: 'Lesson not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ success: false, error: "Lesson not found" }, { status: 404 });
     }
 
     // Upsert progress record
@@ -88,10 +82,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: progress });
   } catch (error) {
-    console.error('Error saving progress:', error);
-    return NextResponse.json(
-      { success: false, error: 'Failed to save progress' },
-      { status: 500 }
-    );
+    console.error("Error saving progress:", error);
+    return NextResponse.json({ success: false, error: "Failed to save progress" }, { status: 500 });
   }
 }

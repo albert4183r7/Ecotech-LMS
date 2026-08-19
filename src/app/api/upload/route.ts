@@ -5,13 +5,20 @@ import { randomUUID } from "crypto";
 
 const UPLOAD_DIR = path.join(process.cwd(), "public", "uploads");
 
-const COVER_EXTENSIONS = new Set([
-  ".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg", ".bmp",
-]);
+const COVER_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg", ".bmp"]);
 
 const DOC_EXTENSIONS = new Set([
-  ".pdf", ".doc", ".docx", ".ppt", ".pptx",
-  ".txt", ".csv", ".xls", ".xlsx", ".md", ".rtf",
+  ".pdf",
+  ".doc",
+  ".docx",
+  ".ppt",
+  ".pptx",
+  ".txt",
+  ".csv",
+  ".xls",
+  ".xlsx",
+  ".md",
+  ".rtf",
 ]);
 
 const MAX_COVER_SIZE = 5 * 1024 * 1024; // 5 MB
@@ -28,17 +35,14 @@ export async function POST(req: NextRequest) {
     if (type !== "cover" && type !== "doc") {
       return NextResponse.json(
         { success: false, error: "Invalid upload type. Use ?type=cover or ?type=doc" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
     if (!file) {
-      return NextResponse.json(
-        { success: false, error: "No file provided" },
-        { status: 400 }
-      );
+      return NextResponse.json({ success: false, error: "No file provided" }, { status: 400 });
     }
 
     const ext = getExt(file.name);
@@ -48,14 +52,14 @@ export async function POST(req: NextRequest) {
     if (!allowed.has(ext)) {
       return NextResponse.json(
         { success: false, error: `File type ${ext} is not allowed` },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     if (file.size > maxSize) {
       return NextResponse.json(
         { success: false, error: `File is too large (max ${maxSize / 1024 / 1024}MB)` },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -87,9 +91,6 @@ export async function POST(req: NextRequest) {
     });
   } catch (err) {
     console.error("[upload] Error:", err);
-    return NextResponse.json(
-      { success: false, error: "Upload failed" },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: "Upload failed" }, { status: 500 });
   }
 }

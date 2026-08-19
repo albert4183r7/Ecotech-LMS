@@ -1,4 +1,4 @@
-import DOMPurify from 'isomorphic-dompurify';
+import DOMPurify from "isomorphic-dompurify";
 
 // ============================================
 // HTML Sanitizer for AI-generated slide content
@@ -6,26 +6,62 @@ import DOMPurify from 'isomorphic-dompurify';
 // ============================================
 
 const ALLOWED_TAGS = [
-  'div', 'section', 'article', 'header', 'footer', 'main',
-  'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-  'p', 'span',
-  'ul', 'ol', 'li',
-  'a', 'img',
-  'strong', 'em', 'b', 'i', 'u',
-  'br', 'hr',
-  'table', 'thead', 'tbody', 'tr', 'td', 'th',
-  'blockquote', 'code', 'pre',
+  "div",
+  "section",
+  "article",
+  "header",
+  "footer",
+  "main",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+  "p",
+  "span",
+  "ul",
+  "ol",
+  "li",
+  "a",
+  "img",
+  "strong",
+  "em",
+  "b",
+  "i",
+  "u",
+  "br",
+  "hr",
+  "table",
+  "thead",
+  "tbody",
+  "tr",
+  "td",
+  "th",
+  "blockquote",
+  "code",
+  "pre",
 ];
 
 const FORBIDDEN_TAGS = [
-  'script', 'style', 'iframe', 'object', 'embed',
-  'form', 'input', 'button', 'link', 'meta', 'base',
-  'noscript', 'svg',
+  "script",
+  "style",
+  "iframe",
+  "object",
+  "embed",
+  "form",
+  "input",
+  "button",
+  "link",
+  "meta",
+  "base",
+  "noscript",
+  "svg",
 ];
 
 /** Check whether ImageKit is properly configured */
 function isImageKitConfigured(): boolean {
-  return !!(process.env.IMAGEKIT_URL_ENDPOINT);
+  return !!process.env.IMAGEKIT_URL_ENDPOINT;
 }
 
 /** Get the allowed ImageKit URL endpoint from env */
@@ -55,16 +91,17 @@ function signImageKitUrl(url: string): string {
     const signatureBase = pathAndQuery + expiry;
 
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const crypto = require('crypto');
-    const hmac = crypto.createHmac('sha1', privateKey);
+    const crypto = require("crypto");
+    const hmac = crypto.createHmac("sha1", privateKey);
     hmac.update(signatureBase);
-    const signature = hmac.digest('base64')
-      .replace(/\+/g, '-')
-      .replace(/\//g, '_')
-      .replace(/=+$/, '');
+    const signature = hmac
+      .digest("base64")
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=+$/, "");
 
-    parsedUrl.searchParams.set('ik-s', signature);
-    parsedUrl.searchParams.set('ik-t', String(expiry));
+    parsedUrl.searchParams.set("ik-s", signature);
+    parsedUrl.searchParams.set("ik-t", String(expiry));
     return parsedUrl.toString();
   } catch {
     return url;
@@ -75,8 +112,8 @@ function signImageKitUrl(url: string): string {
 function isValidHref(href: string): boolean {
   const trimmed = href.trim().toLowerCase();
   // Only allow https links or same-page anchors
-  if (trimmed.startsWith('https://')) return true;
-  if (trimmed.startsWith('#')) return true;
+  if (trimmed.startsWith("https://")) return true;
+  if (trimmed.startsWith("#")) return true;
   return false;
 }
 
@@ -86,13 +123,13 @@ function isValidImgSrc(src: string): boolean {
   const trimmed = src.trim();
 
   // SECURITY: Block data: URIs entirely (can contain SVG with embedded scripts)
-  if (trimmed.startsWith('data:')) return false;
+  if (trimmed.startsWith("data:")) return false;
 
   if (ikDomain) {
     // When ImageKit is configured, ONLY allow ImageKit domain images
     try {
       const url = new URL(trimmed);
-      return url.hostname === ikDomain && url.protocol === 'https:';
+      return url.hostname === ikDomain && url.protocol === "https:";
     } catch {
       return false;
     }
@@ -102,7 +139,7 @@ function isValidImgSrc(src: string): boolean {
   // This prevents the AI from generating URLs that point to arbitrary domains
   // or to the placeholder "ik.imagekit.io/YOUR_ID" that would fail to load.
   // Relative paths (e.g. /uploads/...) are allowed for user-uploaded images.
-  if (trimmed.startsWith('/') || trimmed.startsWith('./')) return true;
+  if (trimmed.startsWith("/") || trimmed.startsWith("./")) return true;
 
   return false;
 }
@@ -114,7 +151,7 @@ function serverSidePostProcess(html: string): string {
   html = html.replace(
     /<a\s+([^>]*?)\bhref=("[^"]*"|'[^']*')([^>]*?)>/gi,
     (_match, before, href, after) => {
-      const hrefVal = href.replace(/^['"]|['"]$/g, '');
+      const hrefVal = href.replace(/^['"]|['"]$/g, "");
       if (!isValidHref(hrefVal)) {
         // Remove the href attribute but keep the <a> tag
         return `<a ${before}${after}>`;
@@ -127,7 +164,7 @@ function serverSidePostProcess(html: string): string {
   html = html.replace(
     /<img\s+([^>]*?)\bsrc=("[^"]*"|'[^']*')([^>]*?)(\/?)>/gi,
     (_match, before, src, after, selfClose) => {
-      const srcVal = src.replace(/^['"]|['"]$/g, '');
+      const srcVal = src.replace(/^['"]|['"]$/g, "");
       if (!isValidImgSrc(srcVal)) {
         // Remove the src attribute but keep the <img> tag
         return `<img ${before}${after}${selfClose}>`;
@@ -137,13 +174,13 @@ function serverSidePostProcess(html: string): string {
   );
 
   // 3. Strip on* event handler attributes
-  html = html.replace(/\s+on\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '');
+  html = html.replace(/\s+on\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "");
 
   // 4. Strip inline style attributes
-  html = html.replace(/\s+style\s*=\s*("[^"]*"|'[^']*')/gi, '');
+  html = html.replace(/\s+style\s*=\s*("[^"]*"|'[^']*')/gi, "");
 
   // 5. Sign ImageKit URLs server-side (only when configured)
-  if (typeof require === 'function' && isImageKitConfigured()) {
+  if (typeof require === "function" && isImageKitConfigured()) {
     html = html.replace(
       /(<img\s[^>]*?\bsrc=)("([^"]*)"|'([^']*)')([^>]*?)(\/?>)/gi,
       (_match, before, srcFull, srcDq, srcSq, after, close) => {
@@ -161,22 +198,22 @@ function serverSidePostProcess(html: string): string {
 
 /** Browser-side post-processing using DOM (more precise, used as supplement on client) */
 function browserSidePostProcess(html: string): string {
-  if (typeof document === 'undefined') return html;
+  if (typeof document === "undefined") return html;
 
-  const temp = document.createElement('div');
+  const temp = document.createElement("div");
   temp.innerHTML = html;
 
-  temp.querySelectorAll('a').forEach((a) => {
-    const href = a.getAttribute('href');
+  temp.querySelectorAll("a").forEach((a) => {
+    const href = a.getAttribute("href");
     if (href && !isValidHref(href)) {
-      a.removeAttribute('href');
+      a.removeAttribute("href");
     }
   });
 
-  temp.querySelectorAll('img').forEach((img) => {
-    const src = img.getAttribute('src');
+  temp.querySelectorAll("img").forEach((img) => {
+    const src = img.getAttribute("src");
     if (src && !isValidImgSrc(src)) {
-      img.removeAttribute('src');
+      img.removeAttribute("src");
     }
   });
 
@@ -187,10 +224,10 @@ function browserSidePostProcess(html: string): string {
     if (el instanceof Element) {
       const attrs = Array.from(el.attributes);
       for (const attr of attrs) {
-        if (attr.name.startsWith('on')) {
+        if (attr.name.startsWith("on")) {
           el.removeAttribute(attr.name);
         }
-        if (attr.name === 'style') {
+        if (attr.name === "style") {
           el.removeAttribute(attr.name);
         }
       }
@@ -204,7 +241,7 @@ function browserSidePostProcess(html: string): string {
 export function sanitizeHtml(rawHtml: string): string {
   const config: DOMPurify.Config = {
     ALLOWED_TAGS,
-    ALLOWED_ATTR: ['class', 'id', 'href', 'src', 'alt', 'width', 'height'],
+    ALLOWED_ATTR: ["class", "id", "href", "src", "alt", "width", "height"],
     FORBIDDEN_TAGS,
     ALLOW_COMMENTS: false,
     KEEP_CONTENT: true,
@@ -224,7 +261,7 @@ export function sanitizeHtml(rawHtml: string): string {
 
 /** Wrap sanitized HTML in a full slide document for iframe srcDoc */
 export function wrapSlideHtml(bodyHtml: string, options?: { title?: string }): string {
-  const title = options?.title || 'Slide';
+  const title = options?.title || "Slide";
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -245,8 +282,8 @@ export function wrapSlideHtml(bodyHtml: string, options?: { title?: string }): s
 
 function escapeHtml(str: string): string {
   return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }

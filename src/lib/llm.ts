@@ -57,9 +57,7 @@ function throwFriendlyError(err: unknown, context: string): never {
   }
 
   if (/401|403|PERMISSION_DENIED|UNAUTHENTICATED|API.?key/i.test(msg)) {
-    throw new Error(
-      `[LLM Auth Error] ${context} — check that GEMINI_API_KEY is set and valid.`,
-    );
+    throw new Error(`[LLM Auth Error] ${context} — check that GEMINI_API_KEY is set and valid.`);
   }
 
   if (/404|NOT_FOUND/i.test(msg)) {

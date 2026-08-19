@@ -85,10 +85,7 @@ function ChallengesSkeleton() {
       </div>
       <div className="flex gap-3 overflow-x-auto pb-1">
         {Array.from({ length: 4 }).map((_, i) => (
-          <div
-            key={i}
-            className="w-64 shrink-0 rounded-xl border border-border/50 p-4"
-          >
+          <div key={i} className="border-border/50 w-64 shrink-0 rounded-xl border p-4">
             <div className="flex items-start gap-3">
               <Skeleton className="h-10 w-10 shrink-0 rounded-full" />
               <div className="flex-1 space-y-2">
@@ -117,9 +114,7 @@ function ChallengeCard({ challenge }: { challenge: Challenge }) {
     <div
       className={cn(
         "glass-card hover-lift group relative w-64 shrink-0 rounded-xl border p-4 transition-all duration-200",
-        challenge.completed
-          ? "border-emerald-500/30 bg-emerald-500/5"
-          : "border-border/50 bg-card"
+        challenge.completed ? "border-emerald-500/30 bg-emerald-500/5" : "border-border/50 bg-card",
       )}
     >
       {/* Completion overlay checkmark */}
@@ -137,7 +132,7 @@ function ChallengeCard({ challenge }: { challenge: Challenge }) {
           className={cn(
             "flex h-10 w-10 shrink-0 items-center justify-center rounded-full shadow-sm transition-transform duration-200 group-hover:scale-110",
             `bg-gradient-to-br ${gradient}`,
-            challenge.completed ? "opacity-60" : ""
+            challenge.completed ? "opacity-60" : "",
           )}
         >
           <Icon className="h-5 w-5 text-white" />
@@ -146,10 +141,8 @@ function ChallengeCard({ challenge }: { challenge: Challenge }) {
         <div className="min-w-0 flex-1">
           <h3
             className={cn(
-              "text-sm font-semibold leading-tight",
-              challenge.completed
-                ? "text-muted-foreground line-through"
-                : "text-foreground"
+              "text-sm leading-tight font-semibold",
+              challenge.completed ? "text-muted-foreground line-through" : "text-foreground",
             )}
           >
             {challenge.title}
@@ -157,9 +150,7 @@ function ChallengeCard({ challenge }: { challenge: Challenge }) {
           <p
             className={cn(
               "mt-1 line-clamp-2 text-xs leading-relaxed",
-              challenge.completed
-                ? "text-muted-foreground/60"
-                : "text-muted-foreground"
+              challenge.completed ? "text-muted-foreground/60" : "text-muted-foreground",
             )}
           >
             {challenge.description}
@@ -171,7 +162,7 @@ function ChallengeCard({ challenge }: { challenge: Challenge }) {
                 "gap-1 border-0 text-[11px] font-bold",
                 challenge.completed
                   ? "bg-emerald-500/20 text-emerald-700 dark:text-emerald-400"
-                  : "bg-gradient-to-r from-teal-500/15 to-emerald-500/15 text-teal-700 dark:text-teal-400"
+                  : "bg-gradient-to-r from-teal-500/15 to-emerald-500/15 text-teal-700 dark:text-teal-400",
               )}
             >
               +{challenge.xpReward} XP
@@ -183,7 +174,7 @@ function ChallengeCard({ challenge }: { challenge: Challenge }) {
               "mt-1.5 text-[11px]",
               challenge.completed
                 ? "font-medium text-emerald-600 dark:text-emerald-400"
-                : "text-muted-foreground"
+                : "text-muted-foreground",
             )}
           >
             {challenge.progressText}
@@ -234,9 +225,7 @@ export function DailyChallenges({ userId = "user_student_001" }: { userId?: stri
         <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-amber-500 to-orange-500">
           <Zap className="h-4 w-4 text-white" />
         </div>
-        <h2 className="text-sm font-semibold text-foreground">
-          Daily Challenges
-        </h2>
+        <h2 className="text-foreground text-sm font-semibold">Daily Challenges</h2>
         <Badge
           variant="secondary"
           className="bg-gradient-to-r from-amber-500/10 to-orange-500/10 text-[11px] font-medium text-amber-700 dark:text-amber-400"
@@ -244,27 +233,25 @@ export function DailyChallenges({ userId = "user_student_001" }: { userId?: stri
           Today
         </Badge>
         {/* Completion counter */}
-        <span className="ml-auto text-xs text-muted-foreground">
+        <span className="text-muted-foreground ml-auto text-xs">
           {data.completedCount}/{data.totalCount} completed
         </span>
       </div>
 
       {/* Horizontal scrollable challenge cards */}
-      <div className="flex gap-3 overflow-x-auto pb-2 custom-scrollbar">
+      <div className="custom-scrollbar flex gap-3 overflow-x-auto pb-2">
         {data.challenges.map((challenge) => (
           <ChallengeCard key={challenge.id} challenge={challenge} />
         ))}
       </div>
 
       {/* XP summary */}
-      <div className="flex items-center gap-3 text-xs text-muted-foreground">
+      <div className="text-muted-foreground flex items-center gap-3 text-xs">
         <span>
-          <span className="font-semibold text-foreground">
-            {data.totalXpEarned}
-          </span>{" "}
-          / {data.totalXpAvailable} XP earned today
+          <span className="text-foreground font-semibold">{data.totalXpEarned}</span> /{" "}
+          {data.totalXpAvailable} XP earned today
         </span>
-        <div className="h-3 flex-1 overflow-hidden rounded-full bg-muted/60">
+        <div className="bg-muted/60 h-3 flex-1 overflow-hidden rounded-full">
           <div
             className="h-full rounded-full bg-gradient-to-r from-teal-500 to-emerald-500 transition-all duration-700"
             style={{

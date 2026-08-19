@@ -1,20 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import {
-  Plus,
-  Search,
-  LayoutGrid,
-  Home,
-  ChevronUp,
-  X,
-} from "lucide-react";
+import { Plus, Search, LayoutGrid, Home, ChevronUp, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { useNavigationStore, useUserStore } from "@/stores/lms-store";
 
@@ -96,7 +85,7 @@ export function FloatingActions() {
       navigateTo(view);
       setExpanded(false);
     },
-    [navigateTo]
+    [navigateTo],
   );
 
   const handleScrollToTop = useCallback(() => {
@@ -111,16 +100,18 @@ export function FloatingActions() {
           data-fab-menu
           className={cn(
             "flex flex-col items-end gap-2 transition-all duration-300 ease-out",
-            expanded
-              ? "translate-y-0 opacity-100"
-              : "pointer-events-none translate-y-4 opacity-0"
+            expanded ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-4 opacity-0",
           )}
         >
           {QUICK_ACTIONS.filter((action) => {
-              // Students cannot create courses or access dashboard
-              if (currentRole === "student" && (action.view === "create-course" || action.view === "dashboard")) return false;
-              return true;
-            }).map((action, idx) => (
+            // Students cannot create courses or access dashboard
+            if (
+              currentRole === "student" &&
+              (action.view === "create-course" || action.view === "dashboard")
+            )
+              return false;
+            return true;
+          }).map((action, idx) => (
             <Tooltip key={action.label}>
               <TooltipTrigger asChild>
                 <button
@@ -129,7 +120,7 @@ export function FloatingActions() {
                     "flex items-center gap-2.5 rounded-full px-4 py-2.5 text-sm font-medium text-white shadow-lg transition-all duration-200",
                     "hover:scale-105 hover:shadow-xl active:scale-95",
                     "backdrop-blur-md",
-                    action.color
+                    action.color,
                   )}
                   style={{
                     transitionDelay: expanded ? `${idx * 50}ms` : "0ms",
@@ -157,21 +148,12 @@ export function FloatingActions() {
             "backdrop-blur-md",
             "border border-white/20",
             /* Subtle pulse animation when not expanded */
-            !expanded && "animate-fab-pulse"
+            !expanded && "animate-fab-pulse",
           )}
           aria-label={expanded ? "Close quick actions" : "Open quick actions"}
         >
-          <div
-            className={cn(
-              "transition-transform duration-300",
-              expanded && "rotate-45"
-            )}
-          >
-            {expanded ? (
-              <X className="h-6 w-6" />
-            ) : (
-              <Plus className="h-6 w-6" />
-            )}
+          <div className={cn("transition-transform duration-300", expanded && "rotate-45")}>
+            {expanded ? <X className="h-6 w-6" /> : <Plus className="h-6 w-6" />}
           </div>
         </button>
 
@@ -180,11 +162,11 @@ export function FloatingActions() {
           onClick={handleScrollToTop}
           className={cn(
             "flex h-10 w-10 items-center justify-center rounded-full shadow-lg transition-all duration-300",
-            "bg-background/80 text-foreground border border-border/50 backdrop-blur-md",
+            "bg-background/80 text-foreground border-border/50 border backdrop-blur-md",
             "hover:scale-110 active:scale-95",
             showScrollTop
               ? "translate-y-0 opacity-100"
-              : "pointer-events-none translate-y-4 opacity-0"
+              : "pointer-events-none translate-y-4 opacity-0",
           )}
           aria-label="Scroll to top"
         >

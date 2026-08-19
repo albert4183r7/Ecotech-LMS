@@ -1,15 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import {
-  Users,
-  CheckCircle2,
-  BookOpen,
-  MessageSquare,
-  Trophy,
-  Star,
-  Flame,
-} from "lucide-react";
+import { Users, CheckCircle2, BookOpen, MessageSquare, Trophy, Star, Flame } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -119,7 +111,7 @@ function FeedSkeleton() {
     <div className="space-y-3 p-4">
       {Array.from({ length: 5 }).map((_, i) => (
         <div key={i} className="flex items-start gap-3">
-          <Skeleton className="h-8 w-8 rounded-full shrink-0" />
+          <Skeleton className="h-8 w-8 shrink-0 rounded-full" />
           <div className="flex-1 space-y-2">
             <div className="flex items-center gap-2">
               <Skeleton className="h-4 w-24" />
@@ -145,9 +137,7 @@ export function SocialFeed({ userId }: { userId: string }) {
   const fetchFeed = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(
-        `/api/social-feed?userId=${encodeURIComponent(userId)}&limit=10`
-      );
+      const res = await fetch(`/api/social-feed?userId=${encodeURIComponent(userId)}&limit=10`);
       const json = await res.json();
       if (json.success) {
         setActivities(json.data as SocialActivityItem[]);
@@ -164,16 +154,14 @@ export function SocialFeed({ userId }: { userId: string }) {
   }, [fetchFeed]);
 
   return (
-    <div className="glass-card rounded-xl border border-border bg-card/80 overflow-hidden">
+    <div className="glass-card border-border bg-card/80 overflow-hidden rounded-xl border">
       {/* ─── Header ─── */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+      <div className="border-border flex items-center justify-between border-b px-4 py-3">
         <div className="flex items-center gap-2.5">
-          <div className="flex items-center justify-center h-7 w-7 rounded-lg bg-gradient-to-br from-teal-500 to-cyan-500">
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-teal-500 to-cyan-500">
             <Users className="h-4 w-4 text-white" />
           </div>
-          <h2 className="text-sm font-semibold text-foreground">
-            Community Activity
-          </h2>
+          <h2 className="text-foreground text-sm font-semibold">Community Activity</h2>
         </div>
         <div className="flex items-center gap-1.5">
           <span className="relative flex h-2 w-2">
@@ -187,20 +175,18 @@ export function SocialFeed({ userId }: { userId: string }) {
       </div>
 
       {/* ─── Feed Items ─── */}
-      <div className="max-h-96 overflow-y-auto custom-scrollbar">
+      <div className="custom-scrollbar max-h-96 overflow-y-auto">
         {loading ? (
           <FeedSkeleton />
         ) : activities.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-10 text-center px-4">
-            <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center mb-2">
-              <Users className="h-5 w-5 text-muted-foreground" />
+          <div className="flex flex-col items-center justify-center px-4 py-10 text-center">
+            <div className="bg-muted mb-2 flex h-10 w-10 items-center justify-center rounded-full">
+              <Users className="text-muted-foreground h-5 w-5" />
             </div>
-            <p className="text-sm text-muted-foreground">
-              No recent activity
-            </p>
+            <p className="text-muted-foreground text-sm">No recent activity</p>
           </div>
         ) : (
-          <div className="divide-y divide-border/50">
+          <div className="divide-border/50 divide-y">
             {activities.map((item, idx) => {
               const config = ACTION_CONFIG[item.action];
               const IconComp = config.icon;
@@ -210,7 +196,7 @@ export function SocialFeed({ userId }: { userId: string }) {
                 <div
                   key={item.id}
                   className={cn(
-                    "content-reveal flex items-start gap-3 px-4 py-3 border-l-2 transition-all duration-200 hover:bg-muted/30",
+                    "content-reveal hover:bg-muted/30 flex items-start gap-3 border-l-2 px-4 py-3 transition-all duration-200",
                     config.borderColor,
                   )}
                   style={{ animationDelay: `${idx * 50}ms` }}
@@ -218,45 +204,39 @@ export function SocialFeed({ userId }: { userId: string }) {
                   {/* Type Icon */}
                   <div
                     className={cn(
-                      "mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-muted/60",
-                      config.colorClass
+                      "bg-muted/60 mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md",
+                      config.colorClass,
                     )}
                   >
                     <IconComp className="h-3.5 w-3.5" />
                   </div>
 
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-0.5">
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-0.5 flex items-center gap-2">
                       <Avatar className="h-5 w-5 shrink-0">
                         <AvatarFallback
                           className={cn(
-                            "bg-gradient-to-br text-white text-[9px] font-semibold",
-                            gradient
+                            "bg-gradient-to-br text-[9px] font-semibold text-white",
+                            gradient,
                           )}
                         >
                           {item.userAvatar}
                         </AvatarFallback>
                       </Avatar>
-                      <span className="text-xs font-semibold text-foreground truncate">
+                      <span className="text-foreground truncate text-xs font-semibold">
                         {item.userName}
                       </span>
                     </div>
-                    <p className="text-xs text-muted-foreground leading-relaxed">
-                      <span className="font-medium text-foreground/80">
-                        {config.label}
-                      </span>{" "}
-                      <span className="font-medium text-foreground">
-                        {item.targetTitle}
-                      </span>
+                    <p className="text-muted-foreground text-xs leading-relaxed">
+                      <span className="text-foreground/80 font-medium">{config.label}</span>{" "}
+                      <span className="text-foreground font-medium">{item.targetTitle}</span>
                     </p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="text-[11px] text-muted-foreground/70">
-                        {item.timestamp}
-                      </span>
+                    <div className="mt-1 flex items-center gap-2">
+                      <span className="text-muted-foreground/70 text-[11px]">{item.timestamp}</span>
                       {item.xpEarned !== null && item.xpEarned > 0 && (
                         <Badge
                           variant="secondary"
-                          className="h-4 px-1.5 text-[10px] font-semibold bg-teal-500/10 text-teal-600 dark:text-teal-400 border-0"
+                          className="h-4 border-0 bg-teal-500/10 px-1.5 text-[10px] font-semibold text-teal-600 dark:text-teal-400"
                         >
                           +{item.xpEarned} XP
                         </Badge>

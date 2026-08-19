@@ -51,19 +51,17 @@ export function StarRating({
           onRate?.({ score, average: json.data.average, count: json.data.count });
         }
       } catch (err) {
-        toast.error(
-          err instanceof Error ? err.message : "Failed to submit rating"
-        );
+        toast.error(err instanceof Error ? err.message : "Failed to submit rating");
       } finally {
         setSubmitting(false);
       }
     },
-    [submitting, userId, courseId, onRate]
+    [submitting, userId, courseId, onRate],
   );
 
   return (
     <div className="flex items-center gap-2">
-      <span className="text-xs text-muted-foreground font-medium whitespace-nowrap">
+      <span className="text-muted-foreground text-xs font-medium whitespace-nowrap">
         Your rating
       </span>
       <div
@@ -75,9 +73,7 @@ export function StarRating({
         {[1, 2, 3, 4, 5].map((star) => {
           const isFilled = star <= Math.round(displayRating);
           const isHalfFilled =
-            !isFilled &&
-            star === Math.ceil(displayRating) &&
-            displayRating % 1 >= 0.3;
+            !isFilled && star === Math.ceil(displayRating) && displayRating % 1 >= 0.3;
 
           return (
             <button
@@ -85,7 +81,7 @@ export function StarRating({
               type="button"
               disabled={submitting}
               className={
-                "relative p-0.5 transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-1 rounded-sm disabled:opacity-50 disabled:cursor-wait"
+                "relative rounded-sm p-0.5 transition-transform hover:scale-110 focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-1 focus-visible:outline-none disabled:cursor-wait disabled:opacity-50"
               }
               onClick={() => handleSubmitRating(star)}
               onMouseEnter={() => setHoveredStar(star)}
@@ -97,13 +93,11 @@ export function StarRating({
               <span
                 key={pulseKey}
                 className={
-                  pulseKey > 0
-                    ? "inline-block animate-[ratingPulse_0.4s_ease-out]"
-                    : "inline-block"
+                  pulseKey > 0 ? "inline-block animate-[ratingPulse_0.4s_ease-out]" : "inline-block"
                 }
               >
                 {/* Background (empty) star */}
-                <Star className="h-5 w-5 text-muted-foreground/25" />
+                <Star className="text-muted-foreground/25 h-5 w-5" />
 
                 {/* Filled overlay */}
                 {(isFilled || isHalfFilled) && (
@@ -121,9 +115,9 @@ export function StarRating({
       </div>
 
       {/* Rating number */}
-      <span className="text-sm font-semibold text-foreground tabular-nums min-w-[2.5rem]">
+      <span className="text-foreground min-w-[2.5rem] text-sm font-semibold tabular-nums">
         {submitting ? (
-          <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+          <Loader2 className="text-muted-foreground h-3.5 w-3.5 animate-spin" />
         ) : currentRating ? (
           <span className="text-amber-500">{currentRating}.0</span>
         ) : (
@@ -132,7 +126,7 @@ export function StarRating({
       </span>
 
       {/* Total count */}
-      <span className="text-xs text-muted-foreground">
+      <span className="text-muted-foreground text-xs">
         ({ratingCount} {ratingCount === 1 ? "rating" : "ratings"})
       </span>
     </div>

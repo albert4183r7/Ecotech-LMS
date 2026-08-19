@@ -1,10 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/lib/db";
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
 
@@ -21,10 +18,7 @@ export async function GET(
     });
 
     if (!user) {
-      return NextResponse.json(
-        { success: false, error: 'User not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ success: false, error: "User not found" }, { status: 404 });
     }
 
     // Calculate learning stats
@@ -43,12 +37,8 @@ export async function GET(
     });
 
     const totalCourses = enrollments.length;
-    const inProgress = enrollments.filter(
-      (e) => e.status === 'in_progress'
-    ).length;
-    const completed = enrollments.filter(
-      (e) => e.status === 'completed'
-    ).length;
+    const inProgress = enrollments.filter((e) => e.status === "in_progress").length;
+    const completed = enrollments.filter((e) => e.status === "completed").length;
 
     // Calculate average progress across all enrollments
     let totalProgress = 0;
@@ -57,18 +47,13 @@ export async function GET(
     for (const enrollment of enrollments) {
       const totalLessons = enrollment.course._count.lessons;
       if (totalLessons > 0) {
-        const completedLessons = enrollment.progresses.filter(
-          (p) => p.completed
-        ).length;
+        const completedLessons = enrollment.progresses.filter((p) => p.completed).length;
         totalProgress += (completedLessons / totalLessons) * 100;
         enrollmentCount++;
       }
     }
 
-    const avgProgress =
-      enrollmentCount > 0
-        ? Math.round(totalProgress / enrollmentCount)
-        : 0;
+    const avgProgress = enrollmentCount > 0 ? Math.round(totalProgress / enrollmentCount) : 0;
 
     return NextResponse.json({
       success: true,
@@ -91,10 +76,10 @@ export async function GET(
       },
     });
   } catch (error) {
-    console.error('Error fetching user profile:', error);
+    console.error("Error fetching user profile:", error);
     return NextResponse.json(
-      { success: false, error: 'Failed to fetch user profile' },
-      { status: 500 }
+      { success: false, error: "Failed to fetch user profile" },
+      { status: 500 },
     );
   }
 }

@@ -25,7 +25,7 @@ export default function AppPage() {
 
   if (!isAuthenticated || currentView === "auth") {
     return (
-      <div className="min-h-screen flex flex-col bg-background">
+      <div className="bg-background flex min-h-screen flex-col">
         <Navbar />
         <main className="flex-1">
           <AuthPage />
@@ -76,14 +76,11 @@ export default function AppPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
+    <div className="bg-background flex min-h-screen flex-col">
       <Navbar />
       <AnnouncementBanner />
-      <main className="flex-1 page-transition">
-        <div
-          key={currentView}
-          className="view-transition-enter"
-        >
+      <main className="page-transition flex-1">
+        <div key={currentView} className="view-transition-enter">
           {renderView()}
         </div>
       </main>

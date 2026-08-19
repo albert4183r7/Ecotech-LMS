@@ -185,16 +185,12 @@ function StatsDashboardCard({
           {loading ? (
             <Skeleton className="mb-1 h-7 w-12" />
           ) : (
-            <p className="text-2xl font-extrabold leading-none tracking-tight text-foreground">
+            <p className="text-foreground text-2xl leading-none font-extrabold tracking-tight">
               {value}
             </p>
           )}
-          <p className="mt-0.5 truncate text-xs font-medium text-muted-foreground">
-            {label}
-          </p>
-          {sub && !loading && (
-            <p className="text-[10px] font-medium text-emerald-500">{sub}</p>
-          )}
+          <p className="text-muted-foreground mt-0.5 truncate text-xs font-medium">{label}</p>
+          {sub && !loading && <p className="text-[10px] font-medium text-emerald-500">{sub}</p>}
         </div>
       </div>
     </div>
@@ -243,9 +239,7 @@ function CircularMiniProgress({ percentage }: { percentage: number }) {
           </linearGradient>
         </defs>
       </svg>
-      <span className="absolute text-[9px] font-bold text-foreground">
-        {percentage}%
-      </span>
+      <span className="text-foreground absolute text-[9px] font-bold">{percentage}%</span>
     </div>
   );
 }
@@ -265,14 +259,43 @@ function EnhancedEmptyState({
     "in-progress": {
       svg: (
         <svg viewBox="0 0 120 120" className="h-28 w-28" fill="none">
-          <rect x="20" y="30" width="60" height="70" rx="4" className="fill-primary/10 stroke-primary/30" strokeWidth="2" />
+          <rect
+            x="20"
+            y="30"
+            width="60"
+            height="70"
+            rx="4"
+            className="fill-primary/10 stroke-primary/30"
+            strokeWidth="2"
+          />
           <rect x="26" y="38" width="48" height="4" rx="2" className="fill-primary/20" />
           <rect x="26" y="48" width="36" height="4" rx="2" className="fill-primary/15" />
           <rect x="26" y="58" width="42" height="4" rx="2" className="fill-primary/15" />
           <rect x="26" y="68" width="30" height="4" rx="2" className="fill-primary/15" />
-          <circle cx="90" cy="85" r="20" className="fill-teal-500/20 stroke-teal-500/40" strokeWidth="2" />
-          <path d="M83 85 L88 90 L98 80" className="stroke-teal-500" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-          <rect x="55" y="22" width="30" height="14" rx="3" className="fill-amber-400/20 stroke-amber-400/40" strokeWidth="1.5" transform="rotate(-10 70 29)" />
+          <circle
+            cx="90"
+            cy="85"
+            r="20"
+            className="fill-teal-500/20 stroke-teal-500/40"
+            strokeWidth="2"
+          />
+          <path
+            d="M83 85 L88 90 L98 80"
+            className="stroke-teal-500"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <rect
+            x="55"
+            y="22"
+            width="30"
+            height="14"
+            rx="3"
+            className="fill-amber-400/20 stroke-amber-400/40"
+            strokeWidth="1.5"
+            transform="rotate(-10 70 29)"
+          />
         </svg>
       ),
       title: "No courses in progress",
@@ -283,9 +306,26 @@ function EnhancedEmptyState({
     completed: {
       svg: (
         <svg viewBox="0 0 120 120" className="h-28 w-28" fill="none">
-          <path d="M60 10 L72 38 H100 L78 55 L86 85 L60 68 L34 85 L42 55 L20 38 H48 Z" className="fill-amber-400/20 stroke-amber-400/40" strokeWidth="2" strokeLinejoin="round" />
-          <circle cx="60" cy="58" r="14" className="fill-emerald-500/20 stroke-emerald-500/40" strokeWidth="2" />
-          <path d="M54 58 L58 62 L67 53" className="stroke-emerald-500" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+          <path
+            d="M60 10 L72 38 H100 L78 55 L86 85 L60 68 L34 85 L42 55 L20 38 H48 Z"
+            className="fill-amber-400/20 stroke-amber-400/40"
+            strokeWidth="2"
+            strokeLinejoin="round"
+          />
+          <circle
+            cx="60"
+            cy="58"
+            r="14"
+            className="fill-emerald-500/20 stroke-emerald-500/40"
+            strokeWidth="2"
+          />
+          <path
+            d="M54 58 L58 62 L67 53"
+            className="stroke-emerald-500"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
         </svg>
       ),
       title: "No completed courses yet",
@@ -323,17 +363,13 @@ function EnhancedEmptyState({
     <div className="glass-card relative flex flex-col items-center justify-center overflow-hidden rounded-2xl py-16 text-center">
       {/* Decorative gradient background orbs */}
       <div className="pointer-events-none absolute inset-0">
-        <div className="absolute left-1/4 top-1/4 h-40 w-40 rounded-full bg-gradient-to-br from-primary/5 to-transparent blur-3xl" />
-        <div className="absolute bottom-1/4 right-1/4 h-32 w-32 rounded-full bg-gradient-to-tr from-amber-400/5 to-transparent blur-3xl" />
+        <div className="from-primary/5 absolute top-1/4 left-1/4 h-40 w-40 rounded-full bg-gradient-to-br to-transparent blur-3xl" />
+        <div className="absolute right-1/4 bottom-1/4 h-32 w-32 rounded-full bg-gradient-to-tr from-amber-400/5 to-transparent blur-3xl" />
       </div>
 
-      <div className="relative mb-4">
-        {c.svg}
-      </div>
-      <h3 className="relative text-lg font-bold text-foreground">
-        {c.title}
-      </h3>
-      <p className="relative mt-2 max-w-sm text-sm leading-relaxed text-muted-foreground">
+      <div className="relative mb-4">{c.svg}</div>
+      <h3 className="text-foreground relative text-lg font-bold">{c.title}</h3>
+      <p className="text-muted-foreground relative mt-2 max-w-sm text-sm leading-relaxed">
         {c.description}
       </p>
       <Button
@@ -352,11 +388,7 @@ function EnhancedEmptyState({
 /*  Enhanced In-Progress Course Card                                    */
 /* ------------------------------------------------------------------ */
 
-function CourseProgressCard({
-  enrollment,
-}: {
-  enrollment: EnrollmentItem;
-}) {
+function CourseProgressCard({ enrollment }: { enrollment: EnrollmentItem }) {
   const { openCourseDetail, navigateTo } = useNavigationStore();
 
   const handleResume = (e: React.MouseEvent) => {
@@ -372,13 +404,13 @@ function CourseProgressCard({
 
   return (
     <Card
-      className="lms-card-hover card-shine cursor-pointer overflow-hidden border-border/50"
+      className="lms-card-hover card-shine border-border/50 cursor-pointer overflow-hidden"
       onClick={handleViewDetails}
     >
       <CardContent className="p-0">
         <div className="flex flex-col sm:flex-row">
           {/* Cover Image */}
-          <div className="relative h-40 w-full shrink-0 overflow-hidden sm:h-auto sm:w-56 sm:min-h-[200px]">
+          <div className="relative h-40 w-full shrink-0 overflow-hidden sm:h-auto sm:min-h-[200px] sm:w-56">
             {enrollment.course.coverImage ? (
               <img
                 src={enrollment.course.coverImage}
@@ -392,7 +424,7 @@ function CourseProgressCard({
             )}
             {/* Progress overlay */}
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
-            <div className="absolute bottom-3 left-3 right-3">
+            <div className="absolute right-3 bottom-3 left-3">
               <div className="flex items-center justify-between">
                 <span className="rounded-md bg-black/40 px-2 py-0.5 text-[10px] font-semibold text-white backdrop-blur-sm">
                   {enrollment.progress}% complete
@@ -413,20 +445,17 @@ function CourseProgressCard({
               {/* Category & Sections */}
               <div className="mb-2 flex items-center gap-2">
                 {enrollment.course.category && (
-                  <Badge
-                    variant="secondary"
-                    className="text-[10px] px-1.5 py-0"
-                  >
+                  <Badge variant="secondary" className="px-1.5 py-0 text-[10px]">
                     {enrollment.course.category.name}
                   </Badge>
                 )}
-                <span className="text-[11px] text-muted-foreground">
+                <span className="text-muted-foreground text-[11px]">
                   {enrollment.course.lessonsCount} lessons
                 </span>
               </div>
 
               {/* Title */}
-              <h4 className="text-base font-bold leading-snug text-foreground">
+              <h4 className="text-foreground text-base leading-snug font-bold">
                 {enrollment.course.title}
               </h4>
 
@@ -436,22 +465,17 @@ function CourseProgressCard({
                   <div className="flex h-5 w-5 items-center justify-center rounded-full bg-gradient-to-br from-slate-400 to-slate-600">
                     <User className="h-3 w-3 text-white" />
                   </div>
-                  <span className="text-[11px] text-muted-foreground">
-                    Instructor
-                  </span>
+                  <span className="text-muted-foreground text-[11px]">Instructor</span>
                 </div>
-                <span className="text-[11px] text-muted-foreground">
+                <span className="text-muted-foreground text-[11px]">
                   Last accessed {formatLastAccessed(enrollment.enrolledAt)}
                 </span>
               </div>
 
               {/* Progress Bar */}
               <div className="mt-3 flex items-center gap-3">
-                <Progress
-                  value={enrollment.progress}
-                  className="h-2 flex-1"
-                />
-                <span className="text-sm font-bold tabular-nums text-foreground">
+                <Progress value={enrollment.progress} className="h-2 flex-1" />
+                <span className="text-foreground text-sm font-bold tabular-nums">
                   {enrollment.progress}%
                 </span>
               </div>
@@ -461,7 +485,7 @@ function CourseProgressCard({
             <div className="flex items-center gap-2 pt-1">
               <Button
                 size="sm"
-                className="gap-1.5 bg-gradient-to-r from-primary to-teal-500 font-semibold text-white shadow-sm hover:opacity-90"
+                className="from-primary gap-1.5 bg-gradient-to-r to-teal-500 font-semibold text-white shadow-sm hover:opacity-90"
                 onClick={handleResume}
               >
                 <Play className="h-3.5 w-3.5" />
@@ -507,13 +531,13 @@ function CompletedCourseCard({
 
   return (
     <Card
-      className="lms-card-hover card-shine cursor-pointer overflow-hidden border-border/50"
+      className="lms-card-hover card-shine border-border/50 cursor-pointer overflow-hidden"
       onClick={handleCardClick}
     >
       <CardContent className="p-0">
         <div className="flex flex-col sm:flex-row">
           {/* Cover Image */}
-          <div className="relative h-40 w-full shrink-0 overflow-hidden sm:h-auto sm:w-56 sm:min-h-[180px]">
+          <div className="relative h-40 w-full shrink-0 overflow-hidden sm:h-auto sm:min-h-[180px] sm:w-56">
             {enrollment.course.coverImage ? (
               <img
                 src={enrollment.course.coverImage}
@@ -545,15 +569,12 @@ function CompletedCourseCard({
               {/* Category & Completion Date */}
               <div className="mb-2 flex flex-wrap items-center gap-2">
                 {enrollment.course.category && (
-                  <Badge
-                    variant="secondary"
-                    className="text-[10px] px-1.5 py-0"
-                  >
+                  <Badge variant="secondary" className="px-1.5 py-0 text-[10px]">
                     {enrollment.course.category.name}
                   </Badge>
                 )}
                 {enrollment.completedAt && (
-                  <span className="text-[11px] text-muted-foreground">
+                  <span className="text-muted-foreground text-[11px]">
                     Completed {formatDate(enrollment.completedAt)}
                   </span>
                 )}
@@ -561,14 +582,14 @@ function CompletedCourseCard({
 
               {/* Title with checkmark */}
               <div className="flex items-start gap-2">
-                <h4 className="text-base font-bold leading-snug text-foreground">
+                <h4 className="text-foreground text-base leading-snug font-bold">
                   {enrollment.course.title}
                 </h4>
               </div>
 
               {/* Star Rating */}
               <div className="mt-2 flex items-center gap-2">
-                <span className="text-[11px] font-medium text-muted-foreground">Rate Course:</span>
+                <span className="text-muted-foreground text-[11px] font-medium">Rate Course:</span>
                 <div className="flex items-center gap-0.5">
                   {[1, 2, 3, 4, 5].map((star) => (
                     <button
@@ -600,10 +621,7 @@ function CompletedCourseCard({
               </div>
 
               {/* Full progress bar */}
-              <Progress
-                value={100}
-                className="mt-3 h-1.5 [&>div]:bg-emerald-500"
-              />
+              <Progress value={100} className="mt-3 h-1.5 [&>div]:bg-emerald-500" />
             </div>
 
             {/* Action Buttons */}
@@ -655,9 +673,7 @@ function FavoritesCard({
   const { openCourseDetail } = useNavigationStore();
 
   return (
-    <Card
-      className="lms-card-hover card-shine group overflow-hidden border-border/50"
-    >
+    <Card className="lms-card-hover card-shine group border-border/50 overflow-hidden">
       <CardContent className="p-0">
         {/* Cover Image */}
         <div className="relative h-40 w-full overflow-hidden">
@@ -685,9 +701,7 @@ function FavoritesCard({
           <div className="absolute bottom-3 left-3">
             <span
               className={`rounded-full px-2 py-0.5 text-[10px] font-bold backdrop-blur-sm ${
-                isEnrolled
-                  ? "bg-emerald-500/90 text-white"
-                  : "bg-white/20 text-white"
+                isEnrolled ? "bg-emerald-500/90 text-white" : "bg-white/20 text-white"
               }`}
             >
               {isEnrolled ? "✓ Enrolled" : "Not Enrolled"}
@@ -699,24 +713,21 @@ function FavoritesCard({
         <div className="p-4">
           {/* Category */}
           {favorite.course.category && (
-            <Badge
-              variant="secondary"
-              className="mb-2 text-[10px] px-1.5 py-0"
-            >
+            <Badge variant="secondary" className="mb-2 px-1.5 py-0 text-[10px]">
               {favorite.course.category.name}
             </Badge>
           )}
 
           {/* Title */}
           <h4
-            className="cursor-pointer text-sm font-bold leading-snug text-foreground hover:text-primary hover:underline"
+            className="text-foreground hover:text-primary cursor-pointer text-sm leading-snug font-bold hover:underline"
             onClick={() => openCourseDetail(favorite.course.id)}
           >
             {favorite.course.title}
           </h4>
 
           {/* Metadata */}
-          <div className="mt-2 flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
+          <div className="text-muted-foreground mt-2 flex flex-wrap items-center gap-3 text-[11px]">
             {favorite.course.rating > 0 && (
               <span className="flex items-center gap-0.5">
                 <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
@@ -799,7 +810,7 @@ function GridSkeleton() {
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       {Array.from({ length: 4 }).map((_, i) => (
-        <Card key={i} className="overflow-hidden border-border/50">
+        <Card key={i} className="border-border/50 overflow-hidden">
           <Skeleton className="aspect-video w-full" />
           <div className="space-y-2 p-3">
             <Skeleton className="h-4 w-full" />
@@ -815,19 +826,15 @@ function GridSkeleton() {
 /*  Continue Learning Widget                                           */
 /* ------------------------------------------------------------------ */
 
-function ContinueLearningWidget({
-  enrollment,
-}: {
-  enrollment: EnrollmentItem | null | undefined;
-}) {
+function ContinueLearningWidget({ enrollment }: { enrollment: EnrollmentItem | null | undefined }) {
   const { openCourseDetail, navigateTo } = useNavigationStore();
 
   /* Loading state */
   if (enrollment === undefined) {
     return (
-      <Card className="overflow-hidden border-border/50">
+      <Card className="border-border/50 overflow-hidden">
         <CardContent className="flex items-center gap-4 p-4">
-          <Skeleton className="h-28 w-full sm:h-32 sm:w-52 rounded-xl" />
+          <Skeleton className="h-28 w-full rounded-xl sm:h-32 sm:w-52" />
           <div className="flex-1 space-y-3">
             <Skeleton className="h-5 w-3/4" />
             <Skeleton className="h-3 w-1/2" />
@@ -842,16 +849,14 @@ function ContinueLearningWidget({
   /* Empty state - no in-progress courses */
   if (!enrollment) {
     return (
-      <Card className="overflow-hidden border-border/50 bg-gradient-to-r from-muted/40 via-muted/20 to-muted/40">
+      <Card className="border-border/50 from-muted/40 via-muted/20 to-muted/40 overflow-hidden bg-gradient-to-r">
         <CardContent className="relative flex flex-col items-center justify-center gap-3 px-6 py-10 text-center sm:flex-row sm:text-left">
-          <div className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/10 to-accent/10">
-            <GraduationCap className="h-7 w-7 text-primary" />
+          <div className="from-primary/10 to-accent/10 relative flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br">
+            <GraduationCap className="text-primary h-7 w-7" />
           </div>
           <div className="relative flex-1">
-            <h3 className="text-base font-semibold text-foreground">
-              Ready to start learning?
-            </h3>
-            <p className="mt-1 text-sm text-muted-foreground">
+            <h3 className="text-foreground text-base font-semibold">Ready to start learning?</h3>
+            <p className="text-muted-foreground mt-1 text-sm">
               Browse our course catalog and enroll in a course to track your progress here.
             </p>
           </div>
@@ -872,11 +877,11 @@ function ContinueLearningWidget({
   const { course, progress, enrolledAt } = enrollment;
 
   return (
-    <Card className="group overflow-hidden border-border/50 transition-shadow hover:shadow-lg">
+    <Card className="group border-border/50 overflow-hidden transition-shadow hover:shadow-lg">
       <CardContent className="p-0">
         <div className="flex flex-col sm:flex-row">
           {/* Cover Banner */}
-          <div className="relative h-36 w-full shrink-0 overflow-hidden sm:h-auto sm:w-56 sm:min-h-[180px]">
+          <div className="relative h-36 w-full shrink-0 overflow-hidden sm:h-auto sm:min-h-[180px] sm:w-56">
             {course.coverImage ? (
               <img
                 src={course.coverImage}
@@ -889,39 +894,37 @@ function ContinueLearningWidget({
               </div>
             )}
             {/* Gradient overlay */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent sm:bg-gradient-to-r sm:from-transparent sm:to-card" />
+            <div className="sm:to-card absolute inset-0 bg-gradient-to-t from-black/50 to-transparent sm:bg-gradient-to-r sm:from-transparent" />
           </div>
 
           {/* Content */}
           <div className="relative flex flex-1 flex-col justify-center gap-3 p-4 sm:p-5">
             <div className="flex items-center gap-2">
-              <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-semibold text-primary">
+              <span className="bg-primary/10 text-primary rounded-full px-2.5 py-0.5 text-[11px] font-semibold">
                 Continue Learning
               </span>
               {course.category && (
-                <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                <Badge variant="secondary" className="px-1.5 py-0 text-[10px]">
                   {course.category.name}
                 </Badge>
               )}
             </div>
 
-            <h3 className="text-lg font-bold leading-snug text-foreground sm:text-xl">
+            <h3 className="text-foreground text-lg leading-snug font-bold sm:text-xl">
               {course.title}
             </h3>
 
-            <p className="text-xs text-muted-foreground">
+            <p className="text-muted-foreground text-xs">
               {course.lessonsCount} lessons - Enrolled {formatDate(enrolledAt)}
             </p>
 
             <div className="flex items-center gap-3">
               <Progress value={progress} className="h-2 flex-1" />
-              <span className="text-sm font-bold tabular-nums text-foreground">
-                {progress}%
-              </span>
+              <span className="text-foreground text-sm font-bold tabular-nums">{progress}%</span>
             </div>
 
             <Button
-              className="w-fit gap-2 bg-gradient-to-r from-primary to-accent font-semibold text-primary-foreground shadow-md transition-all hover:shadow-lg hover:opacity-90"
+              className="from-primary to-accent text-primary-foreground w-fit gap-2 bg-gradient-to-r font-semibold shadow-md transition-all hover:opacity-90 hover:shadow-lg"
               onClick={() => openCourseDetail(course.id)}
             >
               <Play className="h-4 w-4" />
@@ -934,7 +937,6 @@ function ContinueLearningWidget({
     </Card>
   );
 }
-
 
 /* ------------------------------------------------------------------ */
 /*  Main My Learning Page                                              */
@@ -977,15 +979,11 @@ export function MyLearningPage() {
   const fetchEnrollments = useCallback(async () => {
     setLoadingEnrollments(true);
     try {
-      const res = await fetch(
-        `/api/enrollments?userId=${currentUserId}`
-      );
+      const res = await fetch(`/api/enrollments?userId=${currentUserId}`);
       const json = await res.json();
       if (json.success) {
         setEnrollmentsState(json.data);
-        setEnrollments(
-          json.data.map((e: EnrollmentItem) => enrollmentToCourseItem(e))
-        );
+        setEnrollments(json.data.map((e: EnrollmentItem) => enrollmentToCourseItem(e)));
       }
     } catch {
       /* silent */
@@ -997,15 +995,11 @@ export function MyLearningPage() {
   const fetchFavorites = useCallback(async () => {
     setLoadingFavorites(true);
     try {
-      const res = await fetch(
-        `/api/favorites?userId=${currentUserId}`
-      );
+      const res = await fetch(`/api/favorites?userId=${currentUserId}`);
       const json = await res.json();
       if (json.success) {
         setFavoritesState(json.data);
-        setFavorites(
-          json.data.map((f: FavoriteItem) => favoriteToCourseItem(f))
-        );
+        setFavorites(json.data.map((f: FavoriteItem) => favoriteToCourseItem(f)));
       }
     } catch {
       /* silent */
@@ -1035,7 +1029,7 @@ export function MyLearningPage() {
         /* silent */
       }
     },
-    [currentUserId, favorites, fetchFavorites]
+    [currentUserId, favorites, fetchFavorites],
   );
 
   useEffect(() => {
@@ -1045,23 +1039,17 @@ export function MyLearningPage() {
   }, [fetchStats, fetchEnrollments, fetchFavorites]);
 
   /* Derived lists */
-  const inProgressList = enrollments.filter(
-    (e) => e.status === "in_progress"
-  );
-  const completedList = enrollments.filter(
-    (e) => e.status === "completed"
-  );
+  const inProgressList = enrollments.filter((e) => e.status === "in_progress");
+  const completedList = enrollments.filter((e) => e.status === "completed");
 
   /* Calculate derived stats */
   const totalLearningHours =
     enrollments.length > 0
       ? Math.round(
           enrollments.reduce((acc, e) => {
-            const completedLessons = Math.round(
-              (e.progress / 100) * e.course.lessonsCount
-            );
+            const completedLessons = Math.round((e.progress / 100) * e.course.lessonsCount);
             return acc + completedLessons * 0.5; // ~30 min per lesson
-          }, 0) * 10
+          }, 0) * 10,
         ) / 10
       : 0;
 
@@ -1078,29 +1066,19 @@ export function MyLearningPage() {
   const currentStreak =
     enrollments.length > 0
       ? Math.min(
-          Math.max(
-            1,
-            Math.floor(
-              inProgressList.reduce((acc, e) => acc + e.progress, 0) / 50
-            )
-          ),
-          30
+          Math.max(1, Math.floor(inProgressList.reduce((acc, e) => acc + e.progress, 0) / 50)),
+          30,
         )
       : 0;
 
   const avgCompletionRate = stats?.avgProgress ?? 0;
 
   /* Certificate handlers */
-  const handleOpenCertificate = useCallback(
-    (enrollment: EnrollmentItem) => {
-      setCertCourseName(enrollment.course.title);
-      setCertCompletionDate(
-        enrollment.completedAt || new Date().toISOString()
-      );
-      setCertOpen(true);
-    },
-    []
-  );
+  const handleOpenCertificate = useCallback((enrollment: EnrollmentItem) => {
+    setCertCourseName(enrollment.course.title);
+    setCertCompletionDate(enrollment.completedAt || new Date().toISOString());
+    setCertOpen(true);
+  }, []);
 
   /* Check which favorite courses are enrolled */
   const enrolledCourseIds = new Set(enrollments.map((e) => e.course.id));
@@ -1114,8 +1092,8 @@ export function MyLearningPage() {
     <div className="space-y-6">
       {/* Page Header */}
       <div>
-        <h1 className="text-2xl font-bold text-foreground">My Learning</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <h1 className="text-foreground text-2xl font-bold">My Learning</h1>
+        <p className="text-muted-foreground mt-1 text-sm">
           Track your learning progress and manage your courses
         </p>
       </div>
@@ -1163,30 +1141,22 @@ export function MyLearningPage() {
       {/* Continue Learning Widget */}
       <ContinueLearningWidget
         enrollment={
-          loadingEnrollments
-            ? undefined
-            : inProgressList.length > 0
-              ? inProgressList[0]
-              : null
+          loadingEnrollments ? undefined : inProgressList.length > 0 ? inProgressList[0] : null
         }
       />
 
       {/* Tabs */}
-      <Tabs
-        value={tab}
-        onValueChange={handleTabChange}
-        className="w-full"
-      >
+      <Tabs value={tab} onValueChange={handleTabChange} className="w-full">
         {/* Underline-style tab list with animated indicator */}
-        <TabsList className="relative h-auto w-full justify-start gap-6 rounded-none border-b border-border bg-transparent p-0">
+        <TabsList className="border-border relative h-auto w-full justify-start gap-6 rounded-none border-b bg-transparent p-0">
           <TabsTrigger
             value="in-progress"
-            className="rounded-none border-b-2 border-transparent px-1 pb-3 pt-1 text-sm font-medium text-muted-foreground transition-all duration-300 data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:font-semibold data-[state=active]:shadow-none data-[state=active]:text-foreground"
+            className="text-muted-foreground data-[state=active]:border-primary data-[state=active]:text-foreground rounded-none border-b-2 border-transparent px-1 pt-1 pb-3 text-sm font-medium transition-all duration-300 data-[state=active]:bg-transparent data-[state=active]:font-semibold data-[state=active]:shadow-none"
           >
             <span className="flex items-center gap-1.5">
               In Progress
               {!loadingEnrollments && inProgressList.length > 0 && (
-                <Badge className="ml-0.5 h-5 min-w-5 rounded-full bg-primary/10 px-1.5 text-[10px] font-bold text-primary">
+                <Badge className="bg-primary/10 text-primary ml-0.5 h-5 min-w-5 rounded-full px-1.5 text-[10px] font-bold">
                   {inProgressList.length}
                 </Badge>
               )}
@@ -1194,12 +1164,12 @@ export function MyLearningPage() {
           </TabsTrigger>
           <TabsTrigger
             value="completed"
-            className="rounded-none border-b-2 border-transparent px-1 pb-3 pt-1 text-sm font-medium text-muted-foreground transition-all duration-300 data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:font-semibold data-[state=active]:shadow-none data-[state=active]:text-foreground"
+            className="text-muted-foreground data-[state=active]:border-primary data-[state=active]:text-foreground rounded-none border-b-2 border-transparent px-1 pt-1 pb-3 text-sm font-medium transition-all duration-300 data-[state=active]:bg-transparent data-[state=active]:font-semibold data-[state=active]:shadow-none"
           >
             <span className="flex items-center gap-1.5">
               Completed
               {!loadingEnrollments && completedList.length > 0 && (
-                <Badge className="ml-0.5 h-5 min-w-5 rounded-full bg-primary/10 px-1.5 text-[10px] font-bold text-primary">
+                <Badge className="bg-primary/10 text-primary ml-0.5 h-5 min-w-5 rounded-full px-1.5 text-[10px] font-bold">
                   {completedList.length}
                 </Badge>
               )}
@@ -1207,12 +1177,12 @@ export function MyLearningPage() {
           </TabsTrigger>
           <TabsTrigger
             value="favorites"
-            className="rounded-none border-b-2 border-transparent px-1 pb-3 pt-1 text-sm font-medium text-muted-foreground transition-all duration-300 data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:font-semibold data-[state=active]:shadow-none data-[state=active]:text-foreground"
+            className="text-muted-foreground data-[state=active]:border-primary data-[state=active]:text-foreground rounded-none border-b-2 border-transparent px-1 pt-1 pb-3 text-sm font-medium transition-all duration-300 data-[state=active]:bg-transparent data-[state=active]:font-semibold data-[state=active]:shadow-none"
           >
             <span className="flex items-center gap-1.5">
               Favorites
               {!loadingFavorites && favorites.length > 0 && (
-                <Badge className="ml-0.5 h-5 min-w-5 rounded-full bg-primary/10 px-1.5 text-[10px] font-bold text-primary">
+                <Badge className="bg-primary/10 text-primary ml-0.5 h-5 min-w-5 rounded-full px-1.5 text-[10px] font-bold">
                   {favorites.length}
                 </Badge>
               )}
@@ -1225,17 +1195,11 @@ export function MyLearningPage() {
           {loadingEnrollments ? (
             <ListSkeleton />
           ) : inProgressList.length === 0 ? (
-            <EnhancedEmptyState
-              type="in-progress"
-              onAction={() => navigateTo("courses")}
-            />
+            <EnhancedEmptyState type="in-progress" onAction={() => navigateTo("courses")} />
           ) : (
             <div className="space-y-4">
               {inProgressList.map((enrollment) => (
-                <CourseProgressCard
-                  key={enrollment.id}
-                  enrollment={enrollment}
-                />
+                <CourseProgressCard key={enrollment.id} enrollment={enrollment} />
               ))}
             </div>
           )}
@@ -1246,10 +1210,7 @@ export function MyLearningPage() {
           {loadingEnrollments ? (
             <ListSkeleton />
           ) : completedList.length === 0 ? (
-            <EnhancedEmptyState
-              type="completed"
-              onAction={() => navigateTo("courses")}
-            />
+            <EnhancedEmptyState type="completed" onAction={() => navigateTo("courses")} />
           ) : (
             <div className="space-y-4">
               {completedList.map((enrollment) => (
@@ -1269,10 +1230,7 @@ export function MyLearningPage() {
           {loadingFavorites ? (
             <GridSkeleton />
           ) : favorites.length === 0 ? (
-            <EnhancedEmptyState
-              type="favorites"
-              onAction={() => navigateTo("courses")}
-            />
+            <EnhancedEmptyState type="favorites" onAction={() => navigateTo("courses")} />
           ) : (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {favorites.map((favorite) => (

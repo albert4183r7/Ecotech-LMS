@@ -1,16 +1,6 @@
 "use client";
 
-import {
-  Award,
-  Star,
-  BookOpen,
-  Target,
-  Flame,
-  Compass,
-  Zap,
-  Shield,
-  Lock,
-} from "lucide-react";
+import { Award, Star, BookOpen, Target, Flame, Compass, Zap, Shield, Lock } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -67,7 +57,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
 
 function computeAchievements(
   stats: AchievementBadgesProps["stats"],
-  apiAchievements: AchievementData[] | null
+  apiAchievements: AchievementData[] | null,
 ): AchievementBadge[] {
   // If we have API achievements, merge with computed local ones
   const baseBadges: AchievementBadge[] = [
@@ -153,7 +143,7 @@ function AchievementsSkeleton() {
           {Array.from({ length: 6 }).map((_, i) => (
             <div
               key={i}
-              className="flex flex-col items-center gap-2 rounded-xl border border-border/30 p-4"
+              className="border-border/30 flex flex-col items-center gap-2 rounded-xl border p-4"
             >
               <Skeleton className="h-10 w-10 rounded-xl" />
               <Skeleton className="h-3.5 w-20" />
@@ -177,7 +167,7 @@ function BadgeCard({ badge }: { badge: AchievementBadge }) {
     <div
       className={`group relative flex flex-col items-center gap-2.5 rounded-xl border p-4 text-center transition-all duration-200 ${
         badge.earned
-          ? "border-primary/20 bg-gradient-to-b from-primary/5 to-transparent shadow-sm hover:border-primary/40 hover:shadow-md card-gradient-border"
+          ? "border-primary/20 from-primary/5 hover:border-primary/40 card-gradient-border bg-gradient-to-b to-transparent shadow-sm hover:shadow-md"
           : "border-border/30 bg-muted/20 opacity-50 grayscale"
       }`}
       role="listitem"
@@ -204,7 +194,7 @@ function BadgeCard({ badge }: { badge: AchievementBadge }) {
 
       {/* Name */}
       <p
-        className={`text-xs font-semibold leading-tight ${
+        className={`text-xs leading-tight font-semibold ${
           badge.earned ? "text-foreground" : "text-muted-foreground"
         }`}
       >
@@ -212,9 +202,7 @@ function BadgeCard({ badge }: { badge: AchievementBadge }) {
       </p>
 
       {/* Description */}
-      <p className="text-[10px] leading-tight text-muted-foreground">
-        {badge.description}
-      </p>
+      <p className="text-muted-foreground text-[10px] leading-tight">{badge.description}</p>
 
       {/* Earned checkmark */}
       {badge.earned && (
@@ -228,11 +216,7 @@ function BadgeCard({ badge }: { badge: AchievementBadge }) {
               strokeWidth={3}
               aria-hidden="true"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M5 13l4 4L19 7"
-              />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
             </svg>
           </div>
         </div>
@@ -247,8 +231,7 @@ function BadgeCard({ badge }: { badge: AchievementBadge }) {
 
 export function AchievementBadges({ stats }: AchievementBadgesProps) {
   const [achievements, setAchievements] = useState<AchievementBadge[]>([]);
-  const [apiAchievements, setApiAchievements] =
-    useState<AchievementData[] | null>(null);
+  const [apiAchievements, setApiAchievements] = useState<AchievementData[] | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

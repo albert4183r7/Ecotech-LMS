@@ -20,15 +20,12 @@ interface CertificateModalProps {
   completionDate: string;
 }
 
-function handleDownloadCertificate(
-  userName: string,
-  courseName: string,
-  completionDate: string
-) {
-  const formattedDate = new Date(completionDate).toLocaleDateString(
-    "en-US",
-    { year: "numeric", month: "long", day: "numeric" }
-  );
+function handleDownloadCertificate(userName: string, courseName: string, completionDate: string) {
+  const formattedDate = new Date(completionDate).toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
 
   const border = "=".repeat(58);
   const mid = " ".repeat(58);
@@ -76,15 +73,16 @@ export function CertificateModal({
   courseName,
   completionDate,
 }: CertificateModalProps) {
-  const formattedDate = new Date(completionDate).toLocaleDateString(
-    "en-US",
-    { year: "numeric", month: "long", day: "numeric" }
-  );
+  const formattedDate = new Date(completionDate).toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="max-w-2xl p-0 overflow-hidden"
+        className="max-w-2xl overflow-hidden p-0"
         showCloseButton={false}
         aria-describedby="certificate-description"
       >
@@ -93,19 +91,27 @@ export function CertificateModal({
           {/* Outer gradient border */}
           <div className="m-4 rounded-lg bg-gradient-to-r from-cyan-500 via-teal-500 to-emerald-500 p-1">
             {/* Inner decorative border */}
-            <div className="rounded-md border-2 border-dashed border-white/20 bg-gradient-to-br from-white to-cyan-50 dark:from-gray-900 dark:to-gray-950 p-6 sm:p-8">
+            <div className="rounded-md border-2 border-dashed border-white/20 bg-gradient-to-br from-white to-cyan-50 p-6 sm:p-8 dark:from-gray-900 dark:to-gray-950">
               {/* Corner decorations */}
               <div className="pointer-events-none absolute top-8 left-8 h-8 w-8 border-t-2 border-l-2 border-cyan-400/50 sm:top-10 sm:left-10" />
               <div className="pointer-events-none absolute top-8 right-8 h-8 w-8 border-t-2 border-r-2 border-cyan-400/50 sm:top-10 sm:right-10" />
               <div className="pointer-events-none absolute bottom-8 left-8 h-8 w-8 border-b-2 border-l-2 border-cyan-400/50 sm:bottom-10 sm:left-10" />
-              <div className="pointer-events-none absolute bottom-8 right-8 h-8 w-8 border-b-2 border-r-2 border-cyan-400/50 sm:bottom-10 sm:right-10" />
+              <div className="pointer-events-none absolute right-8 bottom-8 h-8 w-8 border-r-2 border-b-2 border-cyan-400/50 sm:right-10 sm:bottom-10" />
 
               {/* Certificate content */}
               <div className="flex flex-col items-center text-center">
                 {/* Logo and Brand */}
                 <div className="mb-4 flex items-center gap-2">
-                  <img src="/ecotech-logo.png" alt="Ecotech" className="h-10 w-10 rounded-lg object-contain" />
-                  <img src="/ecotech-name.png" alt="Ecotech" className="h-5 w-auto object-contain" />
+                  <img
+                    src="/ecotech-logo.png"
+                    alt="Ecotech"
+                    className="h-10 w-10 rounded-lg object-contain"
+                  />
+                  <img
+                    src="/ecotech-name.png"
+                    alt="Ecotech"
+                    className="h-5 w-auto object-contain"
+                  />
                 </div>
 
                 {/* Decorative separator */}
@@ -116,38 +122,32 @@ export function CertificateModal({
                 </div>
 
                 {/* Title */}
-                <h2 className="mb-1 text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+                <h2 className="text-foreground mb-1 text-2xl font-bold tracking-tight sm:text-3xl">
                   Certificate of Completion
                 </h2>
-                <p
-                  id="certificate-description"
-                  className="mb-6 text-xs text-muted-foreground"
-                >
+                <p id="certificate-description" className="text-muted-foreground mb-6 text-xs">
                   Awarded for outstanding achievement in the course
                 </p>
 
                 {/* Certification statement */}
-                <p className="mb-2 text-sm text-muted-foreground">
-                  This is to certify that
-                </p>
+                <p className="text-muted-foreground mb-2 text-sm">This is to certify that</p>
 
                 {/* User name */}
-                <h3 className="mb-5 text-xl font-extrabold text-foreground sm:text-2xl">
+                <h3 className="text-foreground mb-5 text-xl font-extrabold sm:text-2xl">
                   {userName}
                 </h3>
 
                 {/* Course name */}
-                <p className="mb-1 text-sm text-muted-foreground">
+                <p className="text-muted-foreground mb-1 text-sm">
                   has successfully completed the course
                 </p>
-                <h4 className="mb-6 max-w-sm rounded-md bg-gradient-to-r from-cyan-500/10 to-teal-500/10 px-4 py-2 text-base font-semibold text-foreground sm:text-lg">
+                <h4 className="text-foreground mb-6 max-w-sm rounded-md bg-gradient-to-r from-cyan-500/10 to-teal-500/10 px-4 py-2 text-base font-semibold sm:text-lg">
                   &quot;{courseName}&quot;
                 </h4>
 
                 {/* Date */}
-                <p className="text-sm text-muted-foreground">
-                  <span className="font-medium text-foreground">Date:</span>{" "}
-                  {formattedDate}
+                <p className="text-muted-foreground text-sm">
+                  <span className="text-foreground font-medium">Date:</span> {formattedDate}
                 </p>
 
                 {/* Bottom decorative separator */}
@@ -158,7 +158,7 @@ export function CertificateModal({
                 </div>
 
                 {/* Footer */}
-                <p className="mt-3 text-[10px] tracking-wider text-muted-foreground/70 uppercase">
+                <p className="text-muted-foreground/70 mt-3 text-[10px] tracking-wider uppercase">
                   Ecotech &mdash; Learning Management Platform
                 </p>
               </div>
@@ -175,19 +175,13 @@ export function CertificateModal({
         </DialogHeader>
 
         {/* Actions */}
-        <DialogFooter className="flex-row gap-2 border-t border-border/50 bg-muted/30 px-6 py-4 sm:justify-between">
-          <Button
-            variant="ghost"
-            onClick={() => onOpenChange(false)}
-            className="gap-2"
-          >
+        <DialogFooter className="border-border/50 bg-muted/30 flex-row gap-2 border-t px-6 py-4 sm:justify-between">
+          <Button variant="ghost" onClick={() => onOpenChange(false)} className="gap-2">
             <X className="h-4 w-4" aria-hidden="true" />
             Close
           </Button>
           <Button
-            onClick={() =>
-              handleDownloadCertificate(userName, courseName, completionDate)
-            }
+            onClick={() => handleDownloadCertificate(userName, courseName, completionDate)}
             className="gap-2 bg-gradient-to-r from-cyan-600 to-teal-500 text-white hover:from-cyan-700 hover:to-teal-600"
           >
             <Download className="h-4 w-4" aria-hidden="true" />

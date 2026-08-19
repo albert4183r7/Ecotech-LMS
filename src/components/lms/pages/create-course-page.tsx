@@ -119,7 +119,9 @@ export function CreateCoursePage() {
   const [docUploading, setDocUploading] = useState(false);
 
   // ---- Reference documents state ----
-  const [referenceFiles, setReferenceFiles] = useState<{ name: string; url: string; size: number; type: string }[]>([]);
+  const [referenceFiles, setReferenceFiles] = useState<
+    { name: string; url: string; size: number; type: string }[]
+  >([]);
 
   // ---- Outline modal state ----
   const [outlineTopic, setOutlineTopic] = useState("");
@@ -205,25 +207,40 @@ export function CreateCoursePage() {
 
         // Load lessons and their slides
         if (c.lessons && c.lessons.length > 0) {
-          const lessonDrafts: OutlineLessonDraft[] = c.lessons.map((lesson: { id: string; title: string; outlineJson: string | null; slides: { id: string; title: string; htmlBody: string; status: string; order: number }[] }) => {
-            const parsedOutline = lesson.outlineJson ? JSON.parse(lesson.outlineJson) : null;
-            const slides: OutlineSlideDraft[] = (lesson.slides || []).map((s: { id: string; title: string; order: number }, i: number) => ({
-              id: `local_${Date.now()}_${i}`,
-              slideId: s.id,
-              title: s.title,
-              outline: parsedOutline?.slides?.[i]?.outline || "",
-              order: s.order,
-            }));
-            return {
-              id: lesson.id,
-              title: lesson.title,
-              slides,
-              language: c.language || "english",
-              style: parsedOutline?.style || "professional",
-              topic: parsedOutline?.topic || lesson.title,
-              allReady: (lesson.slides || []).some((s) => s.status === "READY"),
-            };
-          });
+          const lessonDrafts: OutlineLessonDraft[] = c.lessons.map(
+            (lesson: {
+              id: string;
+              title: string;
+              outlineJson: string | null;
+              slides: {
+                id: string;
+                title: string;
+                htmlBody: string;
+                status: string;
+                order: number;
+              }[];
+            }) => {
+              const parsedOutline = lesson.outlineJson ? JSON.parse(lesson.outlineJson) : null;
+              const slides: OutlineSlideDraft[] = (lesson.slides || []).map(
+                (s: { id: string; title: string; order: number }, i: number) => ({
+                  id: `local_${Date.now()}_${i}`,
+                  slideId: s.id,
+                  title: s.title,
+                  outline: parsedOutline?.slides?.[i]?.outline || "",
+                  order: s.order,
+                }),
+              );
+              return {
+                id: lesson.id,
+                title: lesson.title,
+                slides,
+                language: c.language || "english",
+                style: parsedOutline?.style || "professional",
+                topic: parsedOutline?.topic || lesson.title,
+                allReady: (lesson.slides || []).some((s) => s.status === "READY"),
+              };
+            },
+          );
           setOutlineLessons(lessonDrafts);
           // Auto-expand the first lesson
           if (lessonDrafts.length > 0) setExpandedOutlineLessonId(lessonDrafts[0].id);
@@ -232,7 +249,9 @@ export function CreateCoursePage() {
         toast.error("Failed to load course data");
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [courseId, currentUserId]);
 
   // ---- Cover image handlers (local file upload) ----
@@ -394,7 +413,8 @@ export function CreateCoursePage() {
           slideCount: outlineSlideCount,
           style: outlineStyle,
           language: outlineLanguage,
-          referenceFileUrls: referenceFiles.length > 0 ? referenceFiles.map((f) => f.url) : undefined,
+          referenceFileUrls:
+            referenceFiles.length > 0 ? referenceFiles.map((f) => f.url) : undefined,
         }),
       });
       const json = await res.json();
@@ -414,7 +434,7 @@ export function CreateCoursePage() {
           title: s.title,
           outline: parsedOutline.slides?.[i]?.outline || "",
           order: s.order,
-        })
+        }),
       );
 
       const newLesson: OutlineLessonDraft = {
@@ -435,12 +455,20 @@ export function CreateCoursePage() {
       toast.error("Failed to generate outline. Please try again.");
       setOutlineGenerating(false);
     }
-  }, [outlineTopic, outlineSlideCount, outlineStyle, outlineLanguage, referenceFiles, ensureCourseSaved, outlineLessons.length]);
+  }, [
+    outlineTopic,
+    outlineSlideCount,
+    outlineStyle,
+    outlineLanguage,
+    referenceFiles,
+    ensureCourseSaved,
+    outlineLessons.length,
+  ]);
 
   // ---- Update lesson title (in outline modal) ----
   const handleUpdateLessonTitle = async (lessonId: string, newTitle: string) => {
     setOutlineLessons((prev) =>
-      prev.map((ol) => (ol.id === lessonId ? { ...ol, title: newTitle } : ol))
+      prev.map((ol) => (ol.id === lessonId ? { ...ol, title: newTitle } : ol)),
     );
     try {
       await fetch(`/api/lessons/${lessonId}`, {
@@ -456,19 +484,17 @@ export function CreateCoursePage() {
   // ---- Update slide title (inline edit) ----
   const handleUpdateSlideTitle = async (slideId: string, newTitle: string) => {
     setOutlineEditingSlides((prev) =>
-      prev.map((s) => (s.slideId === slideId ? { ...s, title: newTitle } : s))
+      prev.map((s) => (s.slideId === slideId ? { ...s, title: newTitle } : s)),
     );
     setOutlineLessons((prev) =>
       prev.map((ol) =>
         ol.id === editingOutlineLesson
           ? {
               ...ol,
-              slides: ol.slides.map((s) =>
-                s.slideId === slideId ? { ...s, title: newTitle } : s
-              ),
+              slides: ol.slides.map((s) => (s.slideId === slideId ? { ...s, title: newTitle } : s)),
             }
-          : ol
-      )
+          : ol,
+      ),
     );
     try {
       await fetch(`/api/slides/${slideId}`, {
@@ -488,8 +514,8 @@ export function CreateCoursePage() {
       prev.map((ol) =>
         ol.id === editingOutlineLesson
           ? { ...ol, slides: ol.slides.filter((s) => s.id !== localId) }
-          : ol
-      )
+          : ol,
+      ),
     );
     if (slideId) {
       try {
@@ -514,10 +540,8 @@ export function CreateCoursePage() {
     setOutlineEditingSlides((prev) => [...prev, newSlide]);
     setOutlineLessons((prev) =>
       prev.map((ol) =>
-        ol.id === editingOutlineLesson
-          ? { ...ol, slides: [...ol.slides, newSlide] }
-          : ol
-      )
+        ol.id === editingOutlineLesson ? { ...ol, slides: [...ol.slides, newSlide] } : ol,
+      ),
     );
   };
 
@@ -536,7 +560,8 @@ export function CreateCoursePage() {
           style: outlineStyle,
           language: outlineLanguage,
           existingLessonId: editingOutlineLesson,
-          referenceFileUrls: referenceFiles.length > 0 ? referenceFiles.map((f) => f.url) : undefined,
+          referenceFileUrls:
+            referenceFiles.length > 0 ? referenceFiles.map((f) => f.url) : undefined,
         }),
       });
       const json = await res.json();
@@ -554,15 +579,13 @@ export function CreateCoursePage() {
           title: s.title,
           outline: parsedOutline.slides?.[i]?.outline || "",
           order: s.order,
-        })
+        }),
       );
       setOutlineEditingSlides(slides);
       setOutlineLessons((prev) =>
         prev.map((ol) =>
-          ol.id === editingOutlineLesson
-            ? { ...ol, title: lessonData.title, slides }
-            : ol
-        )
+          ol.id === editingOutlineLesson ? { ...ol, title: lessonData.title, slides } : ol,
+        ),
       );
       setOutlineGenerating(false);
       toast.success("Outline regenerated");
@@ -694,15 +717,17 @@ export function CreateCoursePage() {
               abortGenRef.current = null;
 
               if (newErrors > 0) {
-                toast.warning(`${newCompleted} of ${totalSlides} slides generated. ${newErrors} failed.`);
+                toast.warning(
+                  `${newCompleted} of ${totalSlides} slides generated. ${newErrors} failed.`,
+                );
               } else {
                 toast.success(`All ${newCompleted} slides generated!`);
               }
 
               setOutlineLessons((prev) =>
                 prev.map((ol) =>
-                  ol.id === lessonId ? { ...ol, allReady: newCompleted === totalSlides } : ol
-                )
+                  ol.id === lessonId ? { ...ol, allReady: newCompleted === totalSlides } : ol,
+                ),
               );
             }
           } catch (pollErr) {
@@ -732,7 +757,7 @@ export function CreateCoursePage() {
         abortGenRef.current = null;
       }
     },
-    [outlineLessons]
+    [outlineLessons],
   );
 
   const handleCancelGeneration = () => {
@@ -813,13 +838,13 @@ export function CreateCoursePage() {
       <div className="mb-6 flex items-center gap-3">
         <button
           onClick={goBack}
-          className="flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+          className="text-muted-foreground hover:text-foreground flex items-center gap-1.5 text-sm transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />
           Back
         </button>
         <Separator orientation="vertical" className="h-4" />
-        <h1 className="text-lg font-semibold text-foreground">Create Course</h1>
+        <h1 className="text-foreground text-lg font-semibold">Create Course</h1>
       </div>
 
       {/* ---- Two-Column Layout ---- */}
@@ -832,7 +857,7 @@ export function CreateCoursePage() {
               <div className="space-y-2">
                 <Label className="text-sm font-medium">Cover Image</Label>
                 {coverPreview ? (
-                  <div className="relative overflow-hidden rounded-lg border border-border">
+                  <div className="border-border relative overflow-hidden rounded-lg border">
                     <img
                       src={coverPreview}
                       alt="Course cover"
@@ -851,22 +876,20 @@ export function CreateCoursePage() {
                     type="button"
                     onClick={handleCoverUpload}
                     disabled={coverUploading}
-                    className="flex h-48 w-full flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-border/70 bg-muted/30 transition-colors hover:border-primary/50 hover:bg-muted/50 disabled:opacity-50"
+                    className="border-border/70 bg-muted/30 hover:border-primary/50 hover:bg-muted/50 flex h-48 w-full flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed transition-colors disabled:opacity-50"
                   >
                     {coverUploading ? (
-                      <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                      <Loader2 className="text-primary h-5 w-5 animate-spin" />
                     ) : (
-                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-                        <Upload className="h-5 w-5 text-muted-foreground" />
+                      <div className="bg-muted flex h-12 w-12 items-center justify-center rounded-full">
+                        <Upload className="text-muted-foreground h-5 w-5" />
                       </div>
                     )}
                     <div className="text-center">
-                      <p className="text-sm font-medium text-foreground">
+                      <p className="text-foreground text-sm font-medium">
                         {coverUploading ? "Uploading..." : "Upload cover image"}
                       </p>
-                      <p className="mt-0.5 text-xs text-muted-foreground">
-                        Recommended 1920×1080
-                      </p>
+                      <p className="text-muted-foreground mt-0.5 text-xs">Recommended 1920×1080</p>
                     </div>
                   </button>
                 )}
@@ -887,7 +910,7 @@ export function CreateCoursePage() {
                   <Label htmlFor="course-title" className="text-sm font-medium">
                     Course Title <span className="text-destructive">*</span>
                   </Label>
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-muted-foreground text-xs">
                     {title.length}/{MAX_TITLE_LENGTH}
                   </span>
                 </div>
@@ -910,7 +933,7 @@ export function CreateCoursePage() {
                   <Label htmlFor="course-description" className="text-sm font-medium">
                     Description
                   </Label>
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-muted-foreground text-xs">
                     {description.length}/{MAX_COURSE_DESC_LENGTH}
                   </span>
                 </div>
@@ -934,7 +957,7 @@ export function CreateCoursePage() {
               <div className="space-y-2">
                 <Label className="text-sm font-medium">Category</Label>
                 <Select value={categoryId} onValueChange={setCategoryId}>
-                  <SelectTrigger className="w-full h-10">
+                  <SelectTrigger className="h-10 w-full">
                     <SelectValue placeholder="Select a category" />
                   </SelectTrigger>
                   <SelectContent>
@@ -950,11 +973,7 @@ export function CreateCoursePage() {
               {/* Language */}
               <div className="space-y-3">
                 <Label className="text-sm font-medium">Language</Label>
-                <RadioGroup
-                  value={language}
-                  onValueChange={setLanguage}
-                  className="flex gap-6"
-                >
+                <RadioGroup value={language} onValueChange={setLanguage} className="flex gap-6">
                   <div className="flex items-center gap-2">
                     <RadioGroupItem value="chinese" id="lang-zh" />
                     <Label htmlFor="lang-zh" className="cursor-pointer text-sm font-normal">
@@ -976,7 +995,7 @@ export function CreateCoursePage() {
               <Button
                 onClick={handleSave}
                 disabled={saving || !title.trim() || outlineLessons.length === 0}
-                className="w-full h-10"
+                className="h-10 w-full"
               >
                 {saving ? (
                   <>
@@ -998,7 +1017,7 @@ export function CreateCoursePage() {
               {/* Header */}
               <div className="mb-4 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <h2 className="text-base font-semibold text-foreground">Lessons</h2>
+                  <h2 className="text-foreground text-base font-semibold">Lessons</h2>
                   <Badge variant="secondary" className="text-xs font-normal">
                     {outlineLessons.length}/{MAX_LESSONS}
                   </Badge>
@@ -1016,17 +1035,18 @@ export function CreateCoursePage() {
               </div>
 
               {outlineLessons.length === 0 ? (
-                <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border/70 bg-muted/20 py-16">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-                    <FileText className="h-5 w-5 text-muted-foreground" />
+                <div className="border-border/70 bg-muted/20 flex flex-col items-center justify-center rounded-lg border border-dashed py-16">
+                  <div className="bg-muted flex h-12 w-12 items-center justify-center rounded-full">
+                    <FileText className="text-muted-foreground h-5 w-5" />
                   </div>
-                  <p className="mt-3 text-sm text-muted-foreground">No lessons yet</p>
-                  <p className="mt-1 text-xs text-muted-foreground/70">
-                    Click <span className="font-medium text-primary">Generate Lesson with AI</span> to create your first lesson.
+                  <p className="text-muted-foreground mt-3 text-sm">No lessons yet</p>
+                  <p className="text-muted-foreground/70 mt-1 text-xs">
+                    Click <span className="text-primary font-medium">Generate Lesson with AI</span>{" "}
+                    to create your first lesson.
                   </p>
                 </div>
               ) : (
-                <div className="space-y-2 max-h-[600px] overflow-y-auto pr-1">
+                <div className="max-h-[600px] space-y-2 overflow-y-auto pr-1">
                   {outlineLessons.map((ol, index) => (
                     <OutlineLessonCard
                       key={ol.id}
@@ -1038,9 +1058,7 @@ export function CreateCoursePage() {
                       currentGenSlideId={currentGenSlideId}
                       genProgress={genProgress}
                       onToggleExpand={() =>
-                        setExpandedOutlineLessonId((prev) =>
-                          prev === ol.id ? null : ol.id
-                        )
+                        setExpandedOutlineLessonId((prev) => (prev === ol.id ? null : ol.id))
                       }
                       onEditOutline={() => {
                         setEditingOutlineLesson(ol.id);
@@ -1050,8 +1068,12 @@ export function CreateCoursePage() {
                         setOutlineStyle(ol.style);
                         setModalOpen(true);
                       }}
-                      onUpdateSlideTitle={(slideId, newTitle) => handleUpdateSlideTitle(slideId, newTitle)}
-                      onDeleteSlide={(slideId, localId) => handleDeleteOutlineSlide(slideId, localId)}
+                      onUpdateSlideTitle={(slideId, newTitle) =>
+                        handleUpdateSlideTitle(slideId, newTitle)
+                      }
+                      onDeleteSlide={(slideId, localId) =>
+                        handleDeleteOutlineSlide(slideId, localId)
+                      }
                       onGenerateSlides={() => handleGenerateSlides(ol.id)}
                       onCancelGeneration={handleCancelGeneration}
                       onDelete={() => handleDeleteOutlineLesson(ol.id)}
@@ -1065,11 +1087,20 @@ export function CreateCoursePage() {
       </div>
 
       {/* ======== Generate Lesson Modal (Unified Outline Flow) ======== */}
-      <Dialog open={modalOpen} onOpenChange={(open) => { if (!open && outlineGenerating) return; setModalOpen(open); }}>
-        <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto" onInteractOutside={(e) => e.preventDefault()}>
+      <Dialog
+        open={modalOpen}
+        onOpenChange={(open) => {
+          if (!open && outlineGenerating) return;
+          setModalOpen(open);
+        }}
+      >
+        <DialogContent
+          className="max-h-[90vh] overflow-y-auto sm:max-w-3xl"
+          onInteractOutside={(e) => e.preventDefault()}
+        >
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-primary" />
+              <Sparkles className="text-primary h-5 w-5" />
               Generate Lesson with AI
             </DialogTitle>
             <DialogDescription className="sr-only">
@@ -1101,7 +1132,7 @@ export function CreateCoursePage() {
                   <button
                     onClick={() => setOutlineSlideCount((p) => Math.max(MIN_SLIDES, p - 1))}
                     disabled={outlineGenerating || outlineSlideCount <= MIN_SLIDES}
-                    className="flex h-9 w-9 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-muted disabled:opacity-40"
+                    className="border-border text-muted-foreground hover:bg-muted flex h-9 w-9 items-center justify-center rounded-md border transition-colors disabled:opacity-40"
                   >
                     <Minus className="h-4 w-4" />
                   </button>
@@ -1112,7 +1143,8 @@ export function CreateCoursePage() {
                     value={outlineSlideCount}
                     onChange={(e) => {
                       const v = parseInt(e.target.value, 10);
-                      if (!isNaN(v)) setOutlineSlideCount(Math.max(MIN_SLIDES, Math.min(MAX_SLIDES, v)));
+                      if (!isNaN(v))
+                        setOutlineSlideCount(Math.max(MIN_SLIDES, Math.min(MAX_SLIDES, v)));
                     }}
                     className="h-9 w-16 text-center"
                     disabled={outlineGenerating}
@@ -1120,7 +1152,7 @@ export function CreateCoursePage() {
                   <button
                     onClick={() => setOutlineSlideCount((p) => Math.min(MAX_SLIDES, p + 1))}
                     disabled={outlineGenerating || outlineSlideCount >= MAX_SLIDES}
-                    className="flex h-9 w-9 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-muted disabled:opacity-40"
+                    className="border-border text-muted-foreground hover:bg-muted flex h-9 w-9 items-center justify-center rounded-md border transition-colors disabled:opacity-40"
                   >
                     <Plus className="h-4 w-4" />
                   </button>
@@ -1130,7 +1162,11 @@ export function CreateCoursePage() {
               {/* Style */}
               <div className="space-y-2">
                 <Label className="text-sm font-medium">Design Style</Label>
-                <Select value={outlineStyle} onValueChange={setOutlineStyle} disabled={outlineGenerating}>
+                <Select
+                  value={outlineStyle}
+                  onValueChange={setOutlineStyle}
+                  disabled={outlineGenerating}
+                >
                   <SelectTrigger className="h-9">
                     <SelectValue />
                   </SelectTrigger>
@@ -1139,7 +1175,7 @@ export function CreateCoursePage() {
                       <SelectItem key={s.value} value={s.value}>
                         <div className="flex items-center gap-2">
                           <span>{s.label}</span>
-                          <span className="text-xs text-muted-foreground">{s.description}</span>
+                          <span className="text-muted-foreground text-xs">{s.description}</span>
                         </div>
                       </SelectItem>
                     ))}
@@ -1158,7 +1194,11 @@ export function CreateCoursePage() {
                     Language
                   </span>
                 </Label>
-                <Select value={outlineLanguage} onValueChange={setOutlineLanguage} disabled={outlineGenerating}>
+                <Select
+                  value={outlineLanguage}
+                  onValueChange={setOutlineLanguage}
+                  disabled={outlineGenerating}
+                >
                   <SelectTrigger className="h-9">
                     <SelectValue />
                   </SelectTrigger>
@@ -1187,7 +1227,9 @@ export function CreateCoursePage() {
                     <Paperclip className="h-3.5 w-3.5" />
                     Reference Documents
                   </span>
-                  <span className="ml-1.5 text-xs font-normal text-muted-foreground">(optional)</span>
+                  <span className="text-muted-foreground ml-1.5 text-xs font-normal">
+                    (optional)
+                  </span>
                 </Label>
                 <input
                   ref={docInputRef}
@@ -1201,7 +1243,7 @@ export function CreateCoursePage() {
                   type="button"
                   onClick={handleDocUploadClick}
                   disabled={outlineGenerating || docUploading}
-                  className="flex h-9 w-full items-center justify-center gap-2 rounded-md border border-dashed border-border/70 bg-muted/30 text-sm text-muted-foreground transition-colors hover:border-primary/50 hover:bg-muted/50 hover:text-foreground disabled:opacity-50"
+                  className="border-border/70 bg-muted/30 text-muted-foreground hover:border-primary/50 hover:bg-muted/50 hover:text-foreground flex h-9 w-full items-center justify-center gap-2 rounded-md border border-dashed text-sm transition-colors disabled:opacity-50"
                 >
                   {docUploading ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -1210,7 +1252,7 @@ export function CreateCoursePage() {
                   )}
                   {docUploading ? "Uploading..." : "Upload Documents"}
                 </button>
-                <p className="text-[10px] text-muted-foreground">
+                <p className="text-muted-foreground text-[10px]">
                   PDF, DOCX, PPTX, TXT, CSV, XLSX, MD, RTF
                 </p>
               </div>
@@ -1222,17 +1264,17 @@ export function CreateCoursePage() {
                 {referenceFiles.map((f) => (
                   <div
                     key={f.url}
-                    className="flex items-center gap-2 rounded-md border border-border/50 bg-muted/20 px-3 py-2"
+                    className="border-border/50 bg-muted/20 flex items-center gap-2 rounded-md border px-3 py-2"
                   >
-                    <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
-                    <span className="flex-1 truncate text-xs text-foreground">{f.name}</span>
-                    <span className="text-[10px] text-muted-foreground">
+                    <FileText className="text-muted-foreground h-4 w-4 shrink-0" />
+                    <span className="text-foreground flex-1 truncate text-xs">{f.name}</span>
+                    <span className="text-muted-foreground text-[10px]">
                       {(f.size / 1024).toFixed(0)} KB
                     </span>
                     <button
                       onClick={() => handleRemoveDoc(f.url)}
                       disabled={outlineGenerating}
-                      className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-40"
+                      className="text-muted-foreground hover:bg-muted hover:text-foreground flex h-5 w-5 items-center justify-center rounded transition-colors disabled:opacity-40"
                     >
                       <X className="h-3 w-3" />
                     </button>
@@ -1243,9 +1285,9 @@ export function CreateCoursePage() {
 
             {/* ---- Loading state ---- */}
             {outlineGenerating && (
-              <div className="flex flex-col items-center justify-center py-12 gap-3">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                <p className="text-sm text-muted-foreground">Generating slide outline...</p>
+              <div className="flex flex-col items-center justify-center gap-3 py-12">
+                <Loader2 className="text-primary h-8 w-8 animate-spin" />
+                <p className="text-muted-foreground text-sm">Generating slide outline...</p>
               </div>
             )}
 
@@ -1254,13 +1296,15 @@ export function CreateCoursePage() {
               <div className="space-y-3">
                 {/* Editable Lesson Title */}
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-medium text-muted-foreground">Lesson Title</Label>
+                  <Label className="text-muted-foreground text-xs font-medium">Lesson Title</Label>
                   <Input
                     value={outlineLessons.find((ol) => ol.id === editingOutlineLesson)?.title || ""}
                     onChange={(e) => {
                       const newTitle = e.target.value;
                       setOutlineLessons((prev) =>
-                        prev.map((ol) => (ol.id === editingOutlineLesson ? { ...ol, title: newTitle } : ol))
+                        prev.map((ol) =>
+                          ol.id === editingOutlineLesson ? { ...ol, title: newTitle } : ol,
+                        ),
                       );
                     }}
                     onBlur={() => {
@@ -1275,7 +1319,7 @@ export function CreateCoursePage() {
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Label className="text-sm font-semibold text-foreground">
+                    <Label className="text-foreground text-sm font-semibold">
                       Slide Outline ({outlineEditingSlides.length} slides)
                     </Label>
                     <Badge variant="secondary" className="text-[10px]">
@@ -1304,13 +1348,13 @@ export function CreateCoursePage() {
                   </div>
                 </div>
 
-                <div className="max-h-[340px] overflow-y-auto space-y-2 pr-1">
+                <div className="max-h-[340px] space-y-2 overflow-y-auto pr-1">
                   {outlineEditingSlides.map((slide, i) => (
                     <div
                       key={slide.id}
-                      className="group flex items-start gap-3 rounded-lg border border-border/50 bg-card p-3 transition-colors hover:border-primary/30"
+                      className="group border-border/50 bg-card hover:border-primary/30 flex items-start gap-3 rounded-lg border p-3 transition-colors"
                     >
-                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+                      <div className="bg-primary/10 text-primary flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold">
                         {i + 1}
                       </div>
                       <div className="min-w-0 flex-1 space-y-1.5">
@@ -1319,13 +1363,13 @@ export function CreateCoursePage() {
                           onChange={(e) => {
                             const newTitle = e.target.value;
                             setOutlineEditingSlides((prev) =>
-                              prev.map((s) => (s.id === slide.id ? { ...s, title: newTitle } : s))
+                              prev.map((s) => (s.id === slide.id ? { ...s, title: newTitle } : s)),
                             );
                           }}
                           onBlur={() => {
                             if (slide.slideId) handleUpdateSlideTitle(slide.slideId, slide.title);
                           }}
-                          className="w-full bg-transparent text-sm font-medium text-foreground outline-none placeholder:text-muted-foreground/50 border-b border-transparent focus:border-primary/30 transition-colors"
+                          className="text-foreground placeholder:text-muted-foreground/50 focus:border-primary/30 w-full border-b border-transparent bg-transparent text-sm font-medium transition-colors outline-none"
                           placeholder="Slide title..."
                         />
                         <textarea
@@ -1333,17 +1377,19 @@ export function CreateCoursePage() {
                           onChange={(e) => {
                             const newOutline = e.target.value;
                             setOutlineEditingSlides((prev) =>
-                              prev.map((s) => (s.id === slide.id ? { ...s, outline: newOutline } : s))
+                              prev.map((s) =>
+                                s.id === slide.id ? { ...s, outline: newOutline } : s,
+                              ),
                             );
                           }}
                           rows={2}
-                          className="w-full bg-transparent text-xs text-muted-foreground leading-relaxed outline-none placeholder:text-muted-foreground/50 border border-transparent focus:border-primary/30 rounded-md px-2 py-1 resize-none transition-colors"
+                          className="text-muted-foreground placeholder:text-muted-foreground/50 focus:border-primary/30 w-full resize-none rounded-md border border-transparent bg-transparent px-2 py-1 text-xs leading-relaxed transition-colors outline-none"
                           placeholder="Slide description..."
                         />
                       </div>
                       <button
                         onClick={() => handleDeleteOutlineSlide(slide.slideId || "", slide.id)}
-                        className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-muted-foreground/40 opacity-0 transition-all hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
+                        className="text-muted-foreground/40 hover:bg-destructive/10 hover:text-destructive flex h-6 w-6 shrink-0 items-center justify-center rounded opacity-0 transition-all group-hover:opacity-100"
                         aria-label="Remove slide"
                       >
                         <Trash2 className="h-3 w-3" />
@@ -1430,17 +1476,19 @@ function OutlineLessonCard({
   onDelete,
 }: OutlineLessonCardProps) {
   const styleLabel = SLIDE_STYLES.find((s) => s.value === lesson.style)?.label || lesson.style;
-  const hasReadySlides = lesson.slides.some((s) => s.slideId && slideGenStates[s.slideId]?.status === "complete");
-  const allComplete = lesson.allReady || lesson.slides.every(
-    (s) => !s.slideId || slideGenStates[s.slideId]?.status === "complete"
+  const hasReadySlides = lesson.slides.some(
+    (s) => s.slideId && slideGenStates[s.slideId]?.status === "complete",
   );
+  const allComplete =
+    lesson.allReady ||
+    lesson.slides.every((s) => !s.slideId || slideGenStates[s.slideId]?.status === "complete");
   const completedCount = lesson.slides.filter(
-    (s) => s.slideId && slideGenStates[s.slideId]?.status === "complete"
+    (s) => s.slideId && slideGenStates[s.slideId]?.status === "complete",
   ).length;
 
   const firstCompletedHtml = (() => {
     const found = lesson.slides.find((s) => s.slideId && slideGenStates[s.slideId]?.htmlBody);
-    return found?.slideId ? (slideGenStates[found.slideId]?.htmlBody || "") : "";
+    return found?.slideId ? slideGenStates[found.slideId]?.htmlBody || "" : "";
   })();
 
   return (
@@ -1460,7 +1508,7 @@ function OutlineLessonCard({
         <div
           className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
             allComplete
-              ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400"
+              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400"
               : isGenerating
                 ? "bg-primary/10 text-primary animate-pulse"
                 : "bg-primary/10 text-primary"
@@ -1471,24 +1519,24 @@ function OutlineLessonCard({
 
         {/* Content */}
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium text-foreground">{lesson.title}</p>
-          <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+          <p className="text-foreground truncate text-sm font-medium">{lesson.title}</p>
+          <div className="text-muted-foreground mt-0.5 flex items-center gap-1.5 text-xs">
             {allComplete ? (
-              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 dark:bg-emerald-900/30 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-400">
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
                 <Check className="h-2.5 w-2.5" />
                 Ready
               </span>
             ) : isGenerating ? (
-              <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+              <span className="bg-primary/10 text-primary inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium">
                 <Loader2 className="h-2.5 w-2.5 animate-spin" />
                 Generating {genProgress.current}/{genProgress.total}
               </span>
             ) : hasReadySlides ? (
-              <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 dark:bg-amber-900/30 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-400">
+              <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
                 {completedCount}/{lesson.slides.length} slides
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 dark:bg-blue-900/30 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 dark:text-blue-400">
+              <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
                 <LayoutList className="h-2.5 w-2.5" />
                 {lesson.slides.length} slides
               </span>
@@ -1502,7 +1550,7 @@ function OutlineLessonCard({
         {!isGenerating && !allComplete && (
           <button
             onClick={onEditOutline}
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground/50 opacity-0 transition-all hover:bg-primary/10 hover:text-primary group-hover:opacity-100"
+            className="text-muted-foreground/50 hover:bg-primary/10 hover:text-primary flex h-7 w-7 shrink-0 items-center justify-center rounded-md opacity-0 transition-all group-hover:opacity-100"
             title="Edit outline"
           >
             <Pencil className="h-3.5 w-3.5" />
@@ -1526,7 +1574,7 @@ function OutlineLessonCard({
         {!isGenerating && (
           <button
             onClick={onDelete}
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground/50 opacity-0 transition-all hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
+            className="text-muted-foreground/50 hover:bg-destructive/10 hover:text-destructive flex h-7 w-7 shrink-0 items-center justify-center rounded-md opacity-0 transition-all group-hover:opacity-100"
             aria-label="Delete lesson"
           >
             <Trash2 className="h-3.5 w-3.5" />
@@ -1536,7 +1584,7 @@ function OutlineLessonCard({
 
       {/* ---- Expanded content ---- */}
       {expanded && (
-        <div className="border-t border-border/40 px-3 pb-3 pt-2 space-y-3">
+        <div className="border-border/40 space-y-3 border-t px-3 pt-2 pb-3">
           {/* Generation progress bar */}
           {isGenerating && (
             <div className="space-y-2">
@@ -1548,15 +1596,15 @@ function OutlineLessonCard({
                   size="sm"
                   variant="ghost"
                   onClick={onCancelGeneration}
-                  className="h-6 gap-1 text-xs text-destructive hover:text-destructive"
+                  className="text-destructive hover:text-destructive h-6 gap-1 text-xs"
                 >
                   <X className="h-3 w-3" />
                   Cancel
                 </Button>
               </div>
-              <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+              <div className="bg-muted h-1.5 w-full overflow-hidden rounded-full">
                 <div
-                  className="h-full rounded-full bg-primary transition-all duration-500"
+                  className="bg-primary h-full rounded-full transition-all duration-500"
                   style={{
                     width: `${genProgress.total > 0 ? (genProgress.current / genProgress.total) * 100 : 0}%`,
                   }}
@@ -1576,7 +1624,7 @@ function OutlineLessonCard({
                   key={slide.id}
                   className={`flex items-center gap-2 rounded-md px-2.5 py-1.5 transition-colors ${
                     isCurrentGen
-                      ? "bg-primary/10 border border-primary/30"
+                      ? "bg-primary/10 border-primary/30 border"
                       : genState?.status === "complete"
                         ? "bg-emerald-50/50 dark:bg-emerald-950/20"
                         : genState?.status === "error"
@@ -1584,23 +1632,23 @@ function OutlineLessonCard({
                           : "bg-muted/30"
                   }`}
                 >
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-[10px] font-bold text-muted-foreground">
+                  <span className="text-muted-foreground flex h-5 w-5 shrink-0 items-center justify-center rounded text-[10px] font-bold">
                     {i + 1}
                   </span>
-                  <span className="flex-1 truncate text-xs text-foreground">{slide.title}</span>
+                  <span className="text-foreground flex-1 truncate text-xs">{slide.title}</span>
 
                   {/* Status icon */}
                   {genState?.status === "generating" && (
-                    <Loader2 className="h-3 w-3 animate-spin text-primary" />
+                    <Loader2 className="text-primary h-3 w-3 animate-spin" />
                   )}
                   {genState?.status === "complete" && (
                     <Check className="h-3 w-3 text-emerald-500" />
                   )}
                   {genState?.status === "error" && (
-                    <AlertCircle className="h-3 w-3 text-destructive" title={genState.error} />
+                    <AlertCircle className="text-destructive h-3 w-3" title={genState.error} />
                   )}
                   {!genState && (
-                    <span className="inline-flex items-center rounded-full bg-amber-100 dark:bg-amber-900/30 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-400">
+                    <span className="inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
                       Draft
                     </span>
                   )}
@@ -1611,11 +1659,7 @@ function OutlineLessonCard({
 
           {/* Generate Slides button (only when not generating and not all complete) */}
           {!isGenerating && !allComplete && (
-            <Button
-              size="sm"
-              onClick={onGenerateSlides}
-              className="w-full gap-1.5 h-8 text-xs"
-            >
+            <Button size="sm" onClick={onGenerateSlides} className="h-8 w-full gap-1.5 text-xs">
               <Play className="h-3 w-3" />
               Generate Slides
             </Button>
@@ -1624,12 +1668,12 @@ function OutlineLessonCard({
           {/* View completed slides (show first slide preview) */}
           {!isGenerating && hasReadySlides && (
             <div className="space-y-2">
-              <p className="text-xs font-medium text-muted-foreground">
+              <p className="text-muted-foreground text-xs font-medium">
                 {completedCount} slide{completedCount !== 1 ? "s" : ""} generated
               </p>
               {/* Show first completed slide as preview */}
               {lesson.slides.some((s) => s.slideId && slideGenStates[s.slideId]?.htmlBody) && (
-                <div className="rounded-md overflow-hidden border border-border/40">
+                <div className="border-border/40 overflow-hidden rounded-md border">
                   <iframe
                     srcDoc={firstCompletedHtml}
                     sandbox="allow-same-origin allow-scripts"

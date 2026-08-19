@@ -12,10 +12,7 @@ export async function GET(request: NextRequest) {
     const lessonId = searchParams.get("lessonId");
 
     if (!courseId) {
-      return NextResponse.json(
-        { success: false, error: "courseId is required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ success: false, error: "courseId is required" }, { status: 400 });
     }
 
     // Fetch top-level comments (no parentId) for this course/lesson
@@ -46,7 +43,7 @@ export async function GET(request: NextRequest) {
     console.error("GET /api/comments error:", error);
     return NextResponse.json(
       { success: false, error: "Failed to fetch comments" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -64,26 +61,20 @@ export async function POST(request: NextRequest) {
     if (!content?.trim() || !courseId || !userId) {
       return NextResponse.json(
         { success: false, error: "content, courseId, and userId are required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     // Validate courseId exists
     const course = await db.course.findUnique({ where: { id: courseId } });
     if (!course) {
-      return NextResponse.json(
-        { success: false, error: "Course not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ success: false, error: "Course not found" }, { status: 404 });
     }
 
     // Validate userId exists
     const user = await db.user.findUnique({ where: { id: userId } });
     if (!user) {
-      return NextResponse.json(
-        { success: false, error: "User not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ success: false, error: "User not found" }, { status: 404 });
     }
 
     // Validate parentId if provided
@@ -94,7 +85,7 @@ export async function POST(request: NextRequest) {
       if (!parentComment) {
         return NextResponse.json(
           { success: false, error: "Parent comment not found" },
-          { status: 404 }
+          { status: 404 },
         );
       }
     }
@@ -119,7 +110,7 @@ export async function POST(request: NextRequest) {
     console.error("POST /api/comments error:", error);
     return NextResponse.json(
       { success: false, error: "Failed to create comment" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

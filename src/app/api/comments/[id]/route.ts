@@ -8,7 +8,7 @@ import { db } from "@/lib/db";
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await params;
@@ -16,10 +16,7 @@ export async function DELETE(
     const userId = searchParams.get("userId");
 
     if (!userId) {
-      return NextResponse.json(
-        { success: false, error: "userId is required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ success: false, error: "userId is required" }, { status: 400 });
     }
 
     // Find the comment and verify ownership
@@ -29,16 +26,13 @@ export async function DELETE(
     });
 
     if (!comment) {
-      return NextResponse.json(
-        { success: false, error: "Comment not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ success: false, error: "Comment not found" }, { status: 404 });
     }
 
     if (comment.userId !== userId) {
       return NextResponse.json(
         { success: false, error: "You can only delete your own comments" },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
@@ -50,7 +44,7 @@ export async function DELETE(
     console.error("DELETE /api/comments/[id] error:", error);
     return NextResponse.json(
       { success: false, error: "Failed to delete comment" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

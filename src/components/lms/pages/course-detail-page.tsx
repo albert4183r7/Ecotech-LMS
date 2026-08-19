@@ -57,8 +57,7 @@ type CourseDetailData = CourseItem & {
 };
 
 export function CourseDetailPage() {
-  const { selectedCourseId, goBack, openClassroom, navigateTo } =
-    useNavigationStore();
+  const { selectedCourseId, goBack, openClassroom, navigateTo } = useNavigationStore();
   const userId = useUserStore((s) => s.currentUserId);
   const currentRole = useUserStore((s) => s.currentRole);
 
@@ -79,9 +78,7 @@ export function CourseDetailPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(
-        `/api/courses/${selectedCourseId}?userId=${userId}`
-      );
+      const res = await fetch(`/api/courses/${selectedCourseId}?userId=${userId}`);
       if (!res.ok) throw new Error("Failed to load course");
       const json = await res.json();
       if (json.success) {
@@ -104,17 +101,13 @@ export function CourseDetailPage() {
   const fetchRatingData = useCallback(async () => {
     if (!selectedCourseId) return;
     try {
-      const res = await fetch(
-        `/api/ratings?courseId=${selectedCourseId}&userId=${userId}`
-      );
+      const res = await fetch(`/api/ratings?courseId=${selectedCourseId}&userId=${userId}`);
       if (res.ok) {
         const json = await res.json();
         if (json.success) {
           setUserRating(json.data.userRating);
           setRatingCount(json.data.count);
-          setCourse((prev) =>
-            prev ? { ...prev, rating: json.data.average } : prev
-          );
+          setCourse((prev) => (prev ? { ...prev, rating: json.data.average } : prev));
         }
       }
     } catch {
@@ -134,7 +127,7 @@ export function CourseDetailPage() {
       const enrollJson = await enrollRes.json();
       if (enrollJson.success && Array.isArray(enrollJson.data)) {
         const enrollment = enrollJson.data.find(
-          (e: Record<string, unknown>) => e.courseId === selectedCourseId
+          (e: Record<string, unknown>) => e.courseId === selectedCourseId,
         );
         if (enrollment) {
           const progRes = await fetch(`/api/progress?enrollmentId=${enrollment.id}`);
@@ -170,9 +163,7 @@ export function CourseDetailPage() {
       });
       if (res.ok) {
         setCourse((prev) =>
-          prev
-            ? { ...prev, isEnrolled: true, studentCount: prev.studentCount + 1 }
-            : prev
+          prev ? { ...prev, isEnrolled: true, studentCount: prev.studentCount + 1 } : prev,
         );
         toast.success("You're enrolled! Let's start learning.");
       } else {
@@ -198,11 +189,7 @@ export function CourseDetailPage() {
       });
       if (res.ok) {
         const json = await res.json();
-        setCourse((prev) =>
-          prev
-            ? { ...prev, isFavorited: json.favorited }
-            : prev
-        );
+        setCourse((prev) => (prev ? { ...prev, isFavorited: json.favorited } : prev));
       } else {
         toast.error("Failed to update favorite.");
       }
@@ -225,9 +212,8 @@ export function CourseDetailPage() {
           const res = await fetch(`/api/lessons/${lesson.id}`);
           if (!res.ok) continue;
           const json = await res.json();
-          const htmlBody = json.success && json.data.slides?.length > 0
-            ? json.data.slides[0].htmlBody
-            : null;
+          const htmlBody =
+            json.success && json.data.slides?.length > 0 ? json.data.slides[0].htmlBody : null;
           if (htmlBody) {
             lessonHtmlBodies.push({ title: lesson.title, htmlBody });
           }
@@ -236,25 +222,25 @@ export function CourseDetailPage() {
         }
       }
       if (lessonHtmlBodies.length === 0) {
-        toast.error('No content available for download.');
+        toast.error("No content available for download.");
         return;
       }
-      const res = await fetch('/api/generate-pptx', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/api/generate-pptx", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ slides: lessonHtmlBodies, courseName: course.title }),
       });
       if (!res.ok) {
-        toast.error('Failed to generate PPT');
+        toast.error("Failed to generate PPT");
         return;
       }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
+      const a = document.createElement("a");
       a.href = url;
       const safeName = course.title
-        .replace(/[^a-zA-Z0-9\s-]/g, '')
-        .replace(/\s+/g, '-')
+        .replace(/[^a-zA-Z0-9\s-]/g, "")
+        .replace(/\s+/g, "-")
         .toLowerCase()
         .slice(0, 60);
       a.download = `${safeName}.pptx`;
@@ -262,9 +248,9 @@ export function CourseDetailPage() {
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
-      toast.success('Course PPT downloaded successfully!');
+      toast.success("Course PPT downloaded successfully!");
     } catch {
-      toast.error('Failed to download course PPT.');
+      toast.error("Failed to download course PPT.");
     } finally {
       setDownloadingPptx(false);
     }
@@ -290,9 +276,10 @@ export function CourseDetailPage() {
       const res = await fetch(`/api/lessons/${lesson.id}`);
       if (!res.ok) return;
       const json = await res.json();
-      const htmlBody = json.success && json.data.slides?.length > 0
-        ? json.data.slides[0].htmlBody
-        : '<div class="flex items-center justify-center h-full"><p class="text-gray-500">No content available.</p></div>';
+      const htmlBody =
+        json.success && json.data.slides?.length > 0
+          ? json.data.slides[0].htmlBody
+          : '<div class="flex items-center justify-center h-full"><p class="text-gray-500">No content available.</p></div>';
       const allLessonIds = course.lessons.map((s) => s.id);
       const currentLessonIndex = allLessonIds.indexOf(lesson.id);
       const classroomState: ClassroomState = {
@@ -318,11 +305,9 @@ export function CourseDetailPage() {
         <Star
           key={i}
           className={`h-4 w-4 ${
-            i <= Math.round(rating)
-              ? "fill-amber-400 text-amber-400"
-              : "text-muted-foreground/30"
+            i <= Math.round(rating) ? "fill-amber-400 text-amber-400" : "text-muted-foreground/30"
           }`}
-        />
+        />,
       );
     }
     return stars;
@@ -357,23 +342,23 @@ export function CourseDetailPage() {
     return (
       <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 lg:px-8">
         {/* Hero skeleton (full-width banner) */}
-        <Skeleton className="w-full aspect-[21/9] sm:aspect-[3/1] rounded-2xl mb-6" />
+        <Skeleton className="mb-6 aspect-[21/9] w-full rounded-2xl sm:aspect-[3/1]" />
 
         {/* Description skeleton */}
-        <div className="flex items-start gap-3 mb-4">
+        <div className="mb-4 flex items-start gap-3">
           <Skeleton className="h-5 w-16 rounded-full" />
           <Skeleton className="h-4 w-2/3" />
         </div>
 
         {/* Action bar skeleton */}
-        <div className="flex items-center gap-3 mb-8">
+        <div className="mb-8 flex items-center gap-3">
           <Skeleton className="h-10 w-10 rounded-lg" />
           <Skeleton className="h-10 w-10 rounded-lg" />
           <Skeleton className="ml-auto h-12 w-44 rounded-lg" />
         </div>
 
         {/* Curriculum skeleton */}
-        <Skeleton className="h-6 w-32 mb-4" />
+        <Skeleton className="mb-4 h-6 w-32" />
         <div className="space-y-3">
           {[1, 2, 3].map((i) => (
             <Skeleton key={i} className="h-16 w-full rounded-lg" />
@@ -386,8 +371,8 @@ export function CourseDetailPage() {
   // ─── Error State ───────────────────────────────────────
   if (error || !course) {
     return (
-      <div className="mx-auto max-w-5xl px-4 py-16 sm:px-6 lg:px-8 text-center">
-        <p className="text-muted-foreground text-lg mb-4">{error || "Course not found"}</p>
+      <div className="mx-auto max-w-5xl px-4 py-16 text-center sm:px-6 lg:px-8">
+        <p className="text-muted-foreground mb-4 text-lg">{error || "Course not found"}</p>
         <Button variant="outline" onClick={goBack}>
           <ChevronLeft className="h-4 w-4" />
           Go Back
@@ -416,7 +401,7 @@ export function CourseDetailPage() {
   return (
     <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 lg:px-8">
       {/* ─── Course Hero (Full-Width Image + Overlay) ── */}
-      <div className="relative w-full aspect-[21/9] sm:aspect-[3/1] rounded-2xl overflow-hidden mb-6">
+      <div className="relative mb-6 aspect-[21/9] w-full overflow-hidden rounded-2xl sm:aspect-[3/1]">
         {/* Cover Image / Gradient Fallback */}
         <div className="absolute inset-0">
           {!imgError && course.coverImage ? (
@@ -427,10 +412,7 @@ export function CourseDetailPage() {
               onError={() => setImgError(true)}
             />
           ) : (
-            <div
-              className="h-full w-full"
-              style={getGradientStyle()}
-            />
+            <div className="h-full w-full" style={getGradientStyle()} />
           )}
         </div>
 
@@ -438,13 +420,13 @@ export function CourseDetailPage() {
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent" />
 
         {/* Content overlayed on image */}
-        <div className="relative h-full flex flex-col justify-end p-5 sm:p-8">
+        <div className="relative flex h-full flex-col justify-end p-5 sm:p-8">
           {/* Breadcrumb overlayed on image */}
           <Breadcrumb className="mb-3 [&_ol]:flex-nowrap">
             <BreadcrumbList className="text-white/80">
               <BreadcrumbItem>
                 <BreadcrumbLink
-                  className="cursor-pointer hover:text-white transition-colors text-white/80 hover:text-white"
+                  className="cursor-pointer text-white/80 transition-colors hover:text-white"
                   onClick={() => navigateTo("home")}
                 >
                   Home
@@ -453,7 +435,7 @@ export function CourseDetailPage() {
               <BreadcrumbSeparator className="text-white/50" />
               <BreadcrumbItem>
                 <BreadcrumbLink
-                  className="cursor-pointer hover:text-white transition-colors text-white/80 hover:text-white"
+                  className="cursor-pointer text-white/80 transition-colors hover:text-white"
                   onClick={() => navigateTo("courses")}
                 >
                   All Courses
@@ -461,7 +443,7 @@ export function CourseDetailPage() {
               </BreadcrumbItem>
               <BreadcrumbSeparator className="text-white/50" />
               <BreadcrumbItem>
-                <BreadcrumbPage className="font-medium truncate max-w-[180px] sm:max-w-[280px] text-white">
+                <BreadcrumbPage className="max-w-[180px] truncate font-medium text-white sm:max-w-[280px]">
                   {course.title}
                 </BreadcrumbPage>
               </BreadcrumbItem>
@@ -469,7 +451,7 @@ export function CourseDetailPage() {
           </Breadcrumb>
 
           {/* Title on image */}
-          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white leading-tight mb-3 [text-shadow:0_2px_8px_rgba(0,0,0,0.3)]">
+          <h1 className="mb-3 text-2xl leading-tight font-bold text-white [text-shadow:0_2px_8px_rgba(0,0,0,0.3)] sm:text-3xl lg:text-4xl">
             {course.title}
           </h1>
 
@@ -477,20 +459,16 @@ export function CourseDetailPage() {
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-white/90">
             {/* Rating with prominent number */}
             <div className="flex items-center gap-1.5">
-              <span className="text-xl sm:text-2xl font-bold text-white [text-shadow:0_1px_4px_rgba(0,0,0,0.3)]">
+              <span className="text-xl font-bold text-white [text-shadow:0_1px_4px_rgba(0,0,0,0.3)] sm:text-2xl">
                 {course.rating.toFixed(1)}
               </span>
-              <div className="flex items-center gap-0.5">
-                {renderStars(course.rating)}
-              </div>
+              <div className="flex items-center gap-0.5">{renderStars(course.rating)}</div>
               {ratingCount > 0 && (
-                <span className="text-xs text-white/60 ml-0.5">
-                  ({ratingCount})
-                </span>
+                <span className="ml-0.5 text-xs text-white/60">({ratingCount})</span>
               )}
             </div>
 
-            <span className="w-px h-4 bg-white/30" />
+            <span className="h-4 w-px bg-white/30" />
 
             {/* Students count */}
             <span className="inline-flex items-center gap-1.5 [text-shadow:0_1px_4px_rgba(0,0,0,0.3)]">
@@ -499,7 +477,7 @@ export function CourseDetailPage() {
               <span className="text-white/70">students</span>
             </span>
 
-            <span className="w-px h-4 bg-white/30" />
+            <span className="h-4 w-px bg-white/30" />
 
             {/* Lesson count */}
             <span className="inline-flex items-center gap-1.5 [text-shadow:0_1px_4px_rgba(0,0,0,0.3)]">
@@ -508,7 +486,7 @@ export function CourseDetailPage() {
               <span className="text-white/70">lessons</span>
             </span>
 
-            <span className="w-px h-4 bg-white/30" />
+            <span className="h-4 w-px bg-white/30" />
 
             {/* Estimated duration */}
             <span className="inline-flex items-center gap-1.5 [text-shadow:0_1px_4px_rgba(0,0,0,0.3)]">
@@ -527,16 +505,14 @@ export function CourseDetailPage() {
       </div>
 
       {/* ─── Description + Language ─────────────────── */}
-      <div className="flex items-start gap-3 mb-2">
+      <div className="mb-2 flex items-start gap-3">
         {course.language && (
-          <Badge variant="secondary" className="shrink-0 mt-0.5">
+          <Badge variant="secondary" className="mt-0.5 shrink-0">
             {course.language}
           </Badge>
         )}
         {course.description && (
-          <p className="text-sm text-muted-foreground leading-relaxed">
-            {course.description}
-          </p>
+          <p className="text-muted-foreground text-sm leading-relaxed">{course.description}</p>
         )}
       </div>
 
@@ -552,9 +528,7 @@ export function CourseDetailPage() {
             onRate={(data) => {
               setUserRating(data.score);
               setRatingCount(data.count);
-              setCourse((prev) =>
-                prev ? { ...prev, rating: data.average } : prev
-              );
+              setCourse((prev) => (prev ? { ...prev, rating: data.average } : prev));
             }}
           />
         </div>
@@ -562,7 +536,7 @@ export function CourseDetailPage() {
 
       {/* ─── Action Bar ──────────────────────────── */}
       <Separator className="my-4" />
-      <div className="flex flex-wrap items-center gap-3 mb-8">
+      <div className="mb-8 flex flex-wrap items-center gap-3">
         {/* Grouped: Favorite + Share */}
         <div className="flex items-center gap-2">
           <Button
@@ -575,9 +549,7 @@ export function CourseDetailPage() {
           >
             <Heart
               className={`h-4 w-4 transition-colors ${
-                course.isFavorited
-                  ? "fill-red-500 text-red-500"
-                  : "text-muted-foreground"
+                course.isFavorited ? "fill-red-500 text-red-500" : "text-muted-foreground"
               }`}
             />
           </Button>
@@ -588,7 +560,7 @@ export function CourseDetailPage() {
             onClick={handleShare}
             aria-label="Share course"
           >
-            <Share2 className="h-4 w-4 text-muted-foreground" />
+            <Share2 className="text-muted-foreground h-4 w-4" />
           </Button>
         </div>
 
@@ -596,7 +568,7 @@ export function CourseDetailPage() {
         <Button
           variant="outline"
           size="lg"
-          className="gap-2 font-medium text-sm px-5 py-6"
+          className="gap-2 px-5 py-6 text-sm font-medium"
           onClick={handleDownloadCoursePptx}
           disabled={downloadingPptx || course.lessons.length === 0}
         >
@@ -612,10 +584,10 @@ export function CourseDetailPage() {
         {currentRole === "student" ? (
           <Button
             size="lg"
-            className={`ml-auto gap-2.5 font-semibold text-base px-8 py-6 ${
+            className={`ml-auto gap-2.5 px-8 py-6 text-base font-semibold ${
               course.isEnrolled
                 ? "bg-primary hover:bg-primary/90 text-primary-foreground"
-                : "bg-gradient-to-r from-primary to-accent hover:opacity-90 text-primary-foreground pulse-glow"
+                : "from-primary to-accent text-primary-foreground pulse-glow bg-gradient-to-r hover:opacity-90"
             }`}
             onClick={
               course.isEnrolled
@@ -638,7 +610,7 @@ export function CourseDetailPage() {
             {course.isEnrolled ? "Continue Learning" : "Start Learning"}
           </Button>
         ) : (
-          <div className="ml-auto flex items-center gap-2 rounded-lg border border-violet-200 bg-violet-50 dark:border-violet-800/60 dark:bg-violet-950/40 px-4 py-3 text-sm text-violet-700 dark:text-violet-300">
+          <div className="ml-auto flex items-center gap-2 rounded-lg border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-700 dark:border-violet-800/60 dark:bg-violet-950/40 dark:text-violet-300">
             <BookOpen className="h-4 w-4" />
             Viewing as instructor. Switch to Student role to enroll.
           </div>
@@ -647,14 +619,14 @@ export function CourseDetailPage() {
 
       {/* ─── Curriculum Section ───────────────────── */}
       <section>
-        <h2 className="text-xl font-bold text-foreground mb-4">Curriculum</h2>
+        <h2 className="text-foreground mb-4 text-xl font-bold">Curriculum</h2>
 
         {course.lessons.length === 0 ? (
-          <p className="text-muted-foreground text-sm py-8 text-center">
+          <p className="text-muted-foreground py-8 text-center text-sm">
             No chapters available yet.
           </p>
         ) : (
-          <Accordion type="multiple" className="w-full border rounded-xl bg-card overflow-hidden">
+          <Accordion type="multiple" className="bg-card w-full overflow-hidden rounded-xl border">
             {course.lessons.map((lesson, index) => {
               const status = getLessonStatus(lesson);
               const prog = getLessonProgress(lesson.id);
@@ -666,76 +638,65 @@ export function CourseDetailPage() {
                 <AccordionItem
                   key={lesson.id}
                   value={lesson.id}
-                  className="px-4 border-b last:border-b-0 transition-colors hover:bg-muted/50"
+                  className="hover:bg-muted/50 border-b px-4 transition-colors last:border-b-0"
                 >
                   <AccordionTrigger
-                    className="hover:no-underline py-4 group"
+                    className="group py-4 hover:no-underline"
                     onClick={(e) => {
                       e.preventDefault();
                       handleLessonClick(lesson);
                     }}
                   >
-                    <div className="flex items-center gap-3 flex-1 min-w-0 text-left">
+                    <div className="flex min-w-0 flex-1 items-center gap-3 text-left">
                       {/* Section Number - Gradient Circle */}
-                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-accent text-primary-foreground text-xs font-bold shadow-sm">
-                        {status === "completed" ? (
-                          <CheckCircle2 className="h-4 w-4" />
-                        ) : (
-                          index + 1
-                        )}
+                      <span className="from-primary to-accent text-primary-foreground flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-xs font-bold shadow-sm">
+                        {status === "completed" ? <CheckCircle2 className="h-4 w-4" /> : index + 1}
                       </span>
 
                       {/* Title, Page Count, Progress */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-0.5">
-                          <span className="font-semibold text-sm text-foreground block truncate">
+                      <div className="min-w-0 flex-1">
+                        <div className="mb-0.5 flex items-center gap-2">
+                          <span className="text-foreground block truncate text-sm font-semibold">
                             {lesson.title}
                           </span>
                           {/* Status Badge */}
                           {status === "completed" && (
-                            <Badge className="bg-emerald-500/10 text-emerald-600 border-0 text-[10px] px-1.5 py-0">
+                            <Badge className="border-0 bg-emerald-500/10 px-1.5 py-0 text-[10px] text-emerald-600">
                               Completed
                             </Badge>
                           )}
                           {status === "in-progress" && (
-                            <Badge className="bg-amber-500/10 text-amber-600 border-0 text-[10px] px-1.5 py-0">
+                            <Badge className="border-0 bg-amber-500/10 px-1.5 py-0 text-[10px] text-amber-600">
                               In Progress
                             </Badge>
                           )}
                           {status === "not-started" && (
-                            <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                            <Badge variant="secondary" className="px-1.5 py-0 text-[10px]">
                               Not started
                             </Badge>
                           )}
                         </div>
                         <div className="flex items-center gap-3">
-                          <span className="text-xs text-muted-foreground">
-                            {totalP} pages
-                          </span>
+                          <span className="text-muted-foreground text-xs">{totalP} pages</span>
                           {/* Progress indicator if enrolled */}
                           {course.isEnrolled && status && status !== "not-started" && (
-                            <span className="text-xs text-muted-foreground">
+                            <span className="text-muted-foreground text-xs">
                               ✓ {completedPages}/{totalP} pages
                             </span>
                           )}
                           {course.isEnrolled && status === "not-started" && (
-                            <span className="text-xs text-muted-foreground">
-                              0/{totalP} pages
-                            </span>
+                            <span className="text-muted-foreground text-xs">0/{totalP} pages</span>
                           )}
                         </div>
                         {/* Mini progress bar if enrolled */}
                         {course.isEnrolled && (
-                          <Progress
-                            value={progressPct}
-                            className="mt-1.5 h-1"
-                          />
+                          <Progress value={progressPct} className="mt-1.5 h-1" />
                         )}
                       </div>
                     </div>
                   </AccordionTrigger>
                   <AccordionContent className="pb-4">
-                    <p className="text-sm text-muted-foreground pl-11">
+                    <p className="text-muted-foreground pl-11 text-sm">
                       Click &quot;{lesson.title}&quot; to open the lesson viewer and start learning.
                     </p>
                   </AccordionContent>
@@ -762,10 +723,7 @@ export function CourseDetailPage() {
       )}
 
       <section className="mt-8">
-        <DiscussionPanel
-          courseId={course.id}
-          userId={userId}
-        />
+        <DiscussionPanel courseId={course.id} userId={userId} />
       </section>
       {/* ─── Browser Warning ─────────────────────── */}
       <div className="mt-8 flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-200">

@@ -19,12 +19,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useUserStore, useNavigationStore, useCourseStore } from "@/stores/lms-store";
 import { cn } from "@/lib/utils";
 
@@ -106,7 +101,7 @@ function SparklineChart({
 }) {
   const max = Math.max(...data, 1);
   return (
-    <div className="flex items-end gap-[3px] h-8">
+    <div className="flex h-8 items-end gap-[3px]">
       {data.map((val, i) => {
         const height = Math.max(4, (val / max) * 100);
         return (
@@ -114,7 +109,7 @@ function SparklineChart({
             key={i}
             className={cn(
               "w-[6px] rounded-full transition-all duration-500",
-              `bg-gradient-to-t ${gradientFrom} ${gradientTo}`
+              `bg-gradient-to-t ${gradientFrom} ${gradientTo}`,
             )}
             style={{
               height: `${height}%`,
@@ -160,7 +155,7 @@ function StatCard({
 
   return (
     <Card
-      className="glass-card stat-pop hover-lift overflow-hidden border-border/50 transition-shadow hover:shadow-lg"
+      className="glass-card stat-pop hover-lift border-border/50 overflow-hidden transition-shadow hover:shadow-lg"
       style={{ animationDelay: `${delay}ms` }}
     >
       <CardContent className="p-4 sm:p-5">
@@ -168,25 +163,21 @@ function StatCard({
           <div
             className={cn(
               "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br shadow-md transition-transform duration-200 hover:scale-110",
-              gradient
+              gradient,
             )}
           >
             {icon}
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+            <p className="text-muted-foreground text-[11px] font-medium tracking-wider uppercase">
               {label}
             </p>
-            <p className="text-2xl font-bold tracking-tight text-foreground leading-tight">
+            <p className="text-foreground text-2xl leading-tight font-bold tracking-tight">
               {value}
             </p>
           </div>
           <div className="shrink-0 opacity-60">
-            <SparklineChart
-              data={sparkData}
-              gradientFrom={gradientFrom}
-              gradientTo={gradientTo}
-            />
+            <SparklineChart data={sparkData} gradientFrom={gradientFrom} gradientTo={gradientTo} />
           </div>
         </div>
       </CardContent>
@@ -206,15 +197,11 @@ function StarRating({ rating }: { rating: number }) {
           key={i}
           className={cn(
             "h-3.5 w-3.5",
-            i < Math.round(rating)
-            ? "fill-amber-400 text-amber-400"
-            : "fill-muted text-muted"
+            i < Math.round(rating) ? "fill-amber-400 text-amber-400" : "fill-muted text-muted",
           )}
         />
       ))}
-      <span className="ml-1 text-xs font-medium text-muted-foreground">
-        {rating.toFixed(1)}
-      </span>
+      <span className="text-muted-foreground ml-1 text-xs font-medium">{rating.toFixed(1)}</span>
     </div>
   );
 }
@@ -229,10 +216,10 @@ function StatusBadge({ status }: { status: string }) {
     <Badge
       variant="secondary"
       className={cn(
-        "text-[10px] font-semibold uppercase tracking-wider",
+        "text-[10px] font-semibold tracking-wider uppercase",
         isPublished
           ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400"
-          : "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400"
+          : "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400",
       )}
     >
       {isPublished ? "Published" : "Draft"}
@@ -306,18 +293,12 @@ export function DashboardPage() {
   if (error) {
     return (
       <div className="flex min-h-[50vh] flex-col items-center justify-center px-4">
-        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-destructive/10">
-          <BarChart3 className="h-7 w-7 text-destructive" />
+        <div className="bg-destructive/10 flex h-16 w-16 items-center justify-center rounded-full">
+          <BarChart3 className="text-destructive h-7 w-7" />
         </div>
-        <h2 className="mt-4 text-lg font-semibold text-foreground">
-          Something went wrong
-        </h2>
-        <p className="mt-1 text-sm text-muted-foreground">{error}</p>
-        <Button
-          variant="outline"
-          className="mt-4"
-          onClick={() => window.location.reload()}
-        >
+        <h2 className="text-foreground mt-4 text-lg font-semibold">Something went wrong</h2>
+        <p className="text-muted-foreground mt-1 text-sm">{error}</p>
+        <Button variant="outline" className="mt-4" onClick={() => window.location.reload()}>
           Try Again
         </Button>
       </div>
@@ -333,10 +314,10 @@ export function DashboardPage() {
             <BarChart3 className="h-5 w-5 text-white" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight gradient-text">
+            <h1 className="gradient-text text-2xl font-bold tracking-tight">
               Instructor Dashboard
             </h1>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-muted-foreground text-sm">
               Manage your courses and track student engagement
             </p>
           </div>
@@ -395,7 +376,7 @@ export function DashboardPage() {
           <div className="content-reveal-delay-1 content-reveal flex flex-wrap gap-3">
             <Button
               onClick={() => navigateTo("create-course")}
-              className="gap-2 bg-gradient-to-r from-teal-500 to-emerald-600 text-white hover:from-teal-600 hover:to-emerald-700 shadow-md transition-all hover:shadow-lg"
+              className="gap-2 bg-gradient-to-r from-teal-500 to-emerald-600 text-white shadow-md transition-all hover:from-teal-600 hover:to-emerald-700 hover:shadow-lg"
             >
               <Plus className="h-4 w-4" />
               Create New Course
@@ -403,7 +384,7 @@ export function DashboardPage() {
             <Button
               variant="outline"
               onClick={() => navigateTo("courses")}
-              className="gap-2 hover:bg-muted/80 transition-colors"
+              className="hover:bg-muted/80 gap-2 transition-colors"
             >
               <Compass className="h-4 w-4" />
               Browse All Courses
@@ -413,7 +394,7 @@ export function DashboardPage() {
           {/* ---- My Courses Table ---- */}
           <Card className="glass-card content-reveal-delay-2 content-reveal hover-lift border-border/50">
             <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base gradient-text">
+              <CardTitle className="gradient-text flex items-center gap-2 text-base">
                 <BookOpen className="h-4 w-4 text-teal-500" />
                 My Courses
               </CardTitle>
@@ -421,8 +402,8 @@ export function DashboardPage() {
             <CardContent>
               {courses.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-8 text-center">
-                  <BookOpen className="h-8 w-8 text-muted-foreground/30" />
-                  <p className="mt-2 text-sm text-muted-foreground">
+                  <BookOpen className="text-muted-foreground/30 h-8 w-8" />
+                  <p className="text-muted-foreground mt-2 text-sm">
                     You haven&apos;t created any courses yet
                   </p>
                   <Button
@@ -436,24 +417,24 @@ export function DashboardPage() {
                   </Button>
                 </div>
               ) : (
-                <div className="max-h-96 overflow-y-auto custom-scrollbar">
+                <div className="custom-scrollbar max-h-96 overflow-y-auto">
                   {/* Desktop table header */}
-                  <div className="hidden sm:grid sm:grid-cols-[1fr_auto_auto_auto_auto] sm:gap-4 sm:items-center sm:px-3 sm:py-2 sm:text-[11px] sm:font-semibold sm:uppercase sm:tracking-wider sm:text-muted-foreground border-b border-border/50 mb-2">
+                  <div className="sm:text-muted-foreground border-border/50 mb-2 hidden border-b sm:grid sm:grid-cols-[1fr_auto_auto_auto_auto] sm:items-center sm:gap-4 sm:px-3 sm:py-2 sm:text-[11px] sm:font-semibold sm:tracking-wider sm:uppercase">
                     <span>Course</span>
                     <span className="text-center">Students</span>
                     <span className="text-center">Rating</span>
                     <span className="text-center">Status</span>
-                    <span className="text-center w-16">Action</span>
+                    <span className="w-16 text-center">Action</span>
                   </div>
                   <div className="space-y-1">
                     {courses.map((course) => (
                       <div
                         key={course.id}
-                        className="group flex flex-col sm:grid sm:grid-cols-[1fr_auto_auto_auto_auto] sm:gap-4 sm:items-center rounded-xl p-3 transition-colors hover:bg-muted/50"
+                        className="group hover:bg-muted/50 flex flex-col rounded-xl p-3 transition-colors sm:grid sm:grid-cols-[1fr_auto_auto_auto_auto] sm:items-center sm:gap-4"
                       >
                         {/* Course title + category */}
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-semibold text-foreground group-hover:text-primary transition-colors">
+                          <p className="text-foreground group-hover:text-primary truncate text-sm font-semibold transition-colors">
                             {course.title}
                           </p>
                           <div className="mt-1 flex items-center gap-2">
@@ -474,22 +455,22 @@ export function DashboardPage() {
                                 {course.category.name}
                               </Badge>
                             )}
-                            <span className="text-xs text-muted-foreground">
+                            <span className="text-muted-foreground text-xs">
                               {course.lessonsCount} lesson{course.lessonsCount !== 1 ? "s" : ""}
                             </span>
                           </div>
                         </div>
 
                         {/* Students enrolled */}
-                        <div className="flex items-center gap-1.5 mt-2 sm:mt-0 sm:justify-center sm:min-w-[70px]">
-                          <Users className="h-3.5 w-3.5 text-muted-foreground" />
-                          <span className="text-sm font-medium text-foreground">
+                        <div className="mt-2 flex items-center gap-1.5 sm:mt-0 sm:min-w-[70px] sm:justify-center">
+                          <Users className="text-muted-foreground h-3.5 w-3.5" />
+                          <span className="text-foreground text-sm font-medium">
                             {course.studentCount}
                           </span>
                         </div>
 
                         {/* Rating */}
-                        <div className="mt-2 sm:mt-0 sm:justify-center sm:min-w-[90px]">
+                        <div className="mt-2 sm:mt-0 sm:min-w-[90px] sm:justify-center">
                           <StarRating rating={course.rating} />
                         </div>
 
@@ -499,7 +480,7 @@ export function DashboardPage() {
                         </div>
 
                         {/* Action buttons */}
-                        <div className="mt-2 sm:mt-0 sm:justify-center flex items-center gap-1">
+                        <div className="mt-2 flex items-center gap-1 sm:mt-0 sm:justify-center">
                           {course.status === "draft" ? (
                             <>
                               <TooltipProvider delayDuration={200}>
@@ -526,7 +507,7 @@ export function DashboardPage() {
                                     <Button
                                       variant="default"
                                       size="sm"
-                                      className="h-8 gap-1 px-2 opacity-0 transition-opacity group-hover:opacity-100 text-xs"
+                                      className="h-8 gap-1 px-2 text-xs opacity-0 transition-opacity group-hover:opacity-100"
                                       onClick={async () => {
                                         try {
                                           await fetch(`/api/courses/${course.id}`, {
@@ -535,7 +516,9 @@ export function DashboardPage() {
                                             body: JSON.stringify({ status: "published" }),
                                           });
                                           window.location.reload();
-                                        } catch { /* silent */ }
+                                        } catch {
+                                          /* silent */
+                                        }
                                       }}
                                     >
                                       <ArrowUpRight className="h-3.5 w-3.5" />
@@ -577,7 +560,7 @@ export function DashboardPage() {
             {/* Recent Student Activity */}
             <Card className="glass-card content-reveal-delay-3 content-reveal hover-lift border-border/50">
               <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-base gradient-text">
+                <CardTitle className="gradient-text flex items-center gap-2 text-base">
                   <UserPlus className="h-4 w-4 text-emerald-500" />
                   Recent Student Activity
                 </CardTitle>
@@ -585,35 +568,30 @@ export function DashboardPage() {
               <CardContent>
                 {!activities || activities.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-8 text-center">
-                    <Users className="h-8 w-8 text-muted-foreground/30" />
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      No student enrollments yet
-                    </p>
-                    <p className="mt-1 text-xs text-muted-foreground/70">
+                    <Users className="text-muted-foreground/30 h-8 w-8" />
+                    <p className="text-muted-foreground mt-2 text-sm">No student enrollments yet</p>
+                    <p className="text-muted-foreground/70 mt-1 text-xs">
                       Enrollments will appear here once students join your courses
                     </p>
                   </div>
                 ) : (
-                  <div className="space-y-1 max-h-96 overflow-y-auto pr-1 custom-scrollbar">
+                  <div className="custom-scrollbar max-h-96 space-y-1 overflow-y-auto pr-1">
                     {activities.map((activity) => (
                       <div
                         key={activity.id}
-                        className="flex items-start gap-3 rounded-lg p-2.5 transition-colors hover:bg-muted/50"
+                        className="hover:bg-muted/50 flex items-start gap-3 rounded-lg p-2.5 transition-colors"
                       >
                         <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-teal-100 to-emerald-100 dark:from-teal-950 dark:to-emerald-950">
                           <UserPlus className="h-4 w-4 text-teal-600 dark:text-teal-400" />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p className="text-sm text-foreground">
-                            <span className="font-medium">
-                              {activity.studentName}
-                            </span>{" "}
-                            enrolled in{" "}
+                          <p className="text-foreground text-sm">
+                            <span className="font-medium">{activity.studentName}</span> enrolled in{" "}
                             <span className="font-medium text-teal-600 dark:text-teal-400">
                               {activity.courseTitle}
                             </span>
                           </p>
-                          <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                          <p className="text-muted-foreground mt-0.5 flex items-center gap-1 text-xs">
                             <Clock className="h-3 w-3" />
                             {timeAgo(activity.enrolledAt)}
                           </p>
@@ -628,7 +606,7 @@ export function DashboardPage() {
             {/* Quick Stats Summary */}
             <Card className="glass-card content-reveal-delay-4 content-reveal hover-lift border-border/50">
               <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-base gradient-text">
+                <CardTitle className="gradient-text flex items-center gap-2 text-base">
                   <GraduationCap className="h-4 w-4 text-amber-500" />
                   Course Overview
                 </CardTitle>
@@ -636,31 +614,29 @@ export function DashboardPage() {
               <CardContent>
                 {courses.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-8 text-center">
-                    <GraduationCap className="h-8 w-8 text-muted-foreground/30" />
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      No course data yet
-                    </p>
+                    <GraduationCap className="text-muted-foreground/30 h-8 w-8" />
+                    <p className="text-muted-foreground mt-2 text-sm">No course data yet</p>
                   </div>
                 ) : (
-                  <div className="space-y-3 max-h-96 overflow-y-auto pr-1 custom-scrollbar">
+                  <div className="custom-scrollbar max-h-96 space-y-3 overflow-y-auto pr-1">
                     {/* Published vs Draft breakdown */}
-                    <div className="grid grid-cols-2 gap-3 mb-4">
-                      <div className="rounded-xl border border-border/50 p-3 text-center">
+                    <div className="mb-4 grid grid-cols-2 gap-3">
+                      <div className="border-border/50 rounded-xl border p-3 text-center">
                         <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
                           {courses.filter((c) => c.status === "published").length}
                         </p>
-                        <p className="text-xs text-muted-foreground mt-0.5">Published</p>
+                        <p className="text-muted-foreground mt-0.5 text-xs">Published</p>
                       </div>
-                      <div className="rounded-xl border border-border/50 p-3 text-center">
+                      <div className="border-border/50 rounded-xl border p-3 text-center">
                         <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">
                           {courses.filter((c) => c.status === "draft").length}
                         </p>
-                        <p className="text-xs text-muted-foreground mt-0.5">Drafts</p>
+                        <p className="text-muted-foreground mt-0.5 text-xs">Drafts</p>
                       </div>
                     </div>
 
                     {/* Top courses by students */}
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    <p className="text-muted-foreground text-[11px] font-semibold tracking-wider uppercase">
                       Most Popular
                     </p>
                     {courses
@@ -670,7 +646,7 @@ export function DashboardPage() {
                         <button
                           key={course.id}
                           onClick={() => openCourseDetail(course.id)}
-                          className="group flex w-full items-center gap-3 rounded-xl border border-border/50 p-3 text-left transition-all hover:border-primary/30 hover:shadow-sm"
+                          className="group border-border/50 hover:border-primary/30 flex w-full items-center gap-3 rounded-xl border p-3 text-left transition-all hover:shadow-sm"
                         >
                           <div
                             className={cn(
@@ -681,17 +657,17 @@ export function DashboardPage() {
                                   ? "bg-gradient-to-br from-slate-300 to-slate-400"
                                   : index === 2
                                     ? "bg-gradient-to-br from-amber-600 to-orange-600"
-                                    : "bg-gradient-to-br from-muted-foreground/30 to-muted-foreground/20"
+                                    : "from-muted-foreground/30 to-muted-foreground/20 bg-gradient-to-br",
                             )}
                           >
                             {index + 1}
                           </div>
                           <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-semibold text-foreground group-hover:text-primary transition-colors">
+                            <p className="text-foreground group-hover:text-primary truncate text-sm font-semibold transition-colors">
                               {course.title}
                             </p>
                             <div className="mt-1 flex items-center gap-3">
-                              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <span className="text-muted-foreground flex items-center gap-1 text-xs">
                                 <Users className="h-3 w-3" />
                                 {course.studentCount} students
                               </span>
@@ -715,7 +691,7 @@ export function DashboardPage() {
                               {course.category.name}
                             </Badge>
                           )}
-                          <ArrowUpRight className="h-4 w-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+                          <ArrowUpRight className="text-muted-foreground h-4 w-4 shrink-0 opacity-0 transition-opacity group-hover:opacity-100" />
                         </button>
                       ))}
                   </div>
@@ -767,7 +743,7 @@ function DashboardSkeleton() {
         </CardHeader>
         <CardContent className="space-y-3">
           {/* Table header skeleton */}
-          <div className="hidden sm:grid sm:grid-cols-[1fr_auto_auto_auto_auto] sm:gap-4 sm:items-center sm:px-3 sm:py-2 border-b border-border/50">
+          <div className="border-border/50 hidden border-b sm:grid sm:grid-cols-[1fr_auto_auto_auto_auto] sm:items-center sm:gap-4 sm:px-3 sm:py-2">
             <Skeleton className="h-3 w-16" />
             <Skeleton className="h-3 w-16" />
             <Skeleton className="h-3 w-12" />
@@ -777,7 +753,7 @@ function DashboardSkeleton() {
           {Array.from({ length: 4 }).map((_, i) => (
             <div
               key={i}
-              className="flex flex-col sm:grid sm:grid-cols-[1fr_auto_auto_auto_auto] sm:gap-4 sm:items-center sm:px-3 sm:py-3"
+              className="flex flex-col sm:grid sm:grid-cols-[1fr_auto_auto_auto_auto] sm:items-center sm:gap-4 sm:px-3 sm:py-3"
             >
               <div className="space-y-1.5">
                 <Skeleton className="h-4 w-56" />
@@ -826,7 +802,7 @@ function DashboardSkeleton() {
             {Array.from({ length: 3 }).map((_, i) => (
               <div
                 key={i}
-                className="flex items-center gap-3 rounded-xl border border-border/50 p-3"
+                className="border-border/50 flex items-center gap-3 rounded-xl border p-3"
               >
                 <Skeleton className="h-8 w-8 rounded-lg" />
                 <div className="flex-1 space-y-1.5">

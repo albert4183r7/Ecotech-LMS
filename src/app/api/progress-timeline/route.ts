@@ -69,10 +69,7 @@ export async function GET(request: NextRequest) {
     const courseId = searchParams.get("courseId");
 
     if (!courseId) {
-      return NextResponse.json(
-        { success: false, error: "courseId is required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ success: false, error: "courseId is required" }, { status: 400 });
     }
 
     // Fetch enrollment with progress data
@@ -100,7 +97,7 @@ export async function GET(request: NextRequest) {
     if (!enrollment) {
       return NextResponse.json(
         { success: false, error: "Not enrolled in this course" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -108,9 +105,7 @@ export async function GET(request: NextRequest) {
     const progresses = enrollment.progresses;
 
     // Build lesson timeline data
-    const lessonMap = new Map(
-      progresses.map((p) => [p.lessonId, p])
-    );
+    const lessonMap = new Map(progresses.map((p) => [p.lessonId, p]));
 
     const lessonTimeline: LessonTimelineData[] = lessons.map((lesson) => {
       const prog = lessonMap.get(lesson.id);
@@ -122,10 +117,7 @@ export async function GET(request: NextRequest) {
       if (prog) {
         currentPage = prog.currentPage;
         lastAccessedAt = prog.lastAccessedAt?.toISOString() || prog.updatedAt.toISOString();
-        lastAccessedDaysAgo = daysBetween(
-          new Date(lastAccessedAt),
-          new Date()
-        );
+        lastAccessedDaysAgo = daysBetween(new Date(lastAccessedAt), new Date());
         if (prog.completed) {
           status = "completed";
         } else if (prog.currentPage > 0) {
@@ -134,8 +126,7 @@ export async function GET(request: NextRequest) {
       }
 
       const totalPages = 1; // TODO: derive from slide count later
-      const progressPct =
-        totalPages > 0 ? Math.round((currentPage / totalPages) * 100) : 0;
+      const progressPct = totalPages > 0 ? Math.round((currentPage / totalPages) * 100) : 0;
       // Estimate ~2 min per page
       const timeEstimateMinutes = Math.max(2, totalPages * 2);
 
@@ -155,18 +146,14 @@ export async function GET(request: NextRequest) {
 
     // Compute overall progress
     const totalLessons = lessons.length;
-    const completedLessons = lessonTimeline.filter(
-      (l) => l.status === "completed"
-    ).length;
+    const completedLessons = lessonTimeline.filter((l) => l.status === "completed").length;
     const overallProgress =
-      totalLessons > 0
-        ? Math.round((completedLessons / totalLessons) * 100)
-        : 0;
+      totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
 
     // Total time estimate
     const totalTimeEstimateMinutes = lessonTimeline.reduce(
       (sum, l) => sum + l.timeEstimateMinutes,
-      0
+      0,
     );
 
     // Build milestones
@@ -246,7 +233,7 @@ export async function GET(request: NextRequest) {
     console.error("[Progress Timeline API] Error:", error);
     return NextResponse.json(
       { success: false, error: "Failed to load progress timeline" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

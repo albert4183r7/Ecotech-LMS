@@ -1,7 +1,17 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Timer, Play, Pause, RotateCcw, Coffee, Brain, ChevronDown, ChevronUp, X } from "lucide-react";
+import {
+  Timer,
+  Play,
+  Pause,
+  RotateCcw,
+  Coffee,
+  Brain,
+  ChevronDown,
+  ChevronUp,
+  X,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -27,19 +37,40 @@ const SHORT_BREAK_DURATION = 5 * 60;
 const LONG_BREAK_DURATION = 15 * 60;
 const SESSIONS_BEFORE_LONG_BREAK = 4;
 
-const MODE_CONFIG: Record<TimerMode, { label: string; color: string; ringColor: string; icon: typeof Brain }> = {
-  focus: { label: "Focus", color: "text-teal-500 dark:text-emerald-400", ringColor: "stroke-teal-500 dark:stroke-emerald-400", icon: Brain },
-  "short-break": { label: "Short Break", color: "text-cyan-500 dark:text-cyan-400", ringColor: "stroke-cyan-500 dark:stroke-cyan-400", icon: Coffee },
-  "long-break": { label: "Long Break", color: "text-blue-500 dark:text-blue-400", ringColor: "stroke-blue-500 dark:stroke-blue-400", icon: Coffee },
+const MODE_CONFIG: Record<
+  TimerMode,
+  { label: string; color: string; ringColor: string; icon: typeof Brain }
+> = {
+  focus: {
+    label: "Focus",
+    color: "text-teal-500 dark:text-emerald-400",
+    ringColor: "stroke-teal-500 dark:stroke-emerald-400",
+    icon: Brain,
+  },
+  "short-break": {
+    label: "Short Break",
+    color: "text-cyan-500 dark:text-cyan-400",
+    ringColor: "stroke-cyan-500 dark:stroke-cyan-400",
+    icon: Coffee,
+  },
+  "long-break": {
+    label: "Long Break",
+    color: "text-blue-500 dark:text-blue-400",
+    ringColor: "stroke-blue-500 dark:stroke-blue-400",
+    icon: Coffee,
+  },
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────
 
 function getModeDuration(mode: TimerMode, focusDuration: number): number {
   switch (mode) {
-    case "focus": return focusDuration * 60;
-    case "short-break": return SHORT_BREAK_DURATION;
-    case "long-break": return LONG_BREAK_DURATION;
+    case "focus":
+      return focusDuration * 60;
+    case "short-break":
+      return SHORT_BREAK_DURATION;
+    case "long-break":
+      return LONG_BREAK_DURATION;
   }
 }
 
@@ -64,7 +95,9 @@ function loadTimerState(): TimerState | null {
     const parsed = JSON.parse(raw) as TimerState;
     // If timer was running when the page was closed, pause it
     if (parsed.isRunning) {
-      const elapsed = Math.floor((Date.now() - (parsed as TimerState & { _lastTick?: number })._lastTick!) / 1000);
+      const elapsed = Math.floor(
+        (Date.now() - (parsed as TimerState & { _lastTick?: number })._lastTick!) / 1000,
+      );
       parsed.timeRemaining = Math.max(0, parsed.timeRemaining - elapsed);
       if (parsed.timeRemaining <= 0) {
         parsed.timeRemaining = 0;
@@ -169,9 +202,15 @@ export function StudyTimer() {
               ...prev,
               timeRemaining: 0,
               isRunning: false,
-              completedFocusSessions: isFocus ? prev.completedFocusSessions + 1 : prev.completedFocusSessions,
-              totalCompletedFocusSessions: isFocus ? prev.totalCompletedFocusSessions + 1 : prev.totalCompletedFocusSessions,
-              totalCompletedMinutes: isFocus ? prev.totalCompletedMinutes + prev.focusDuration : prev.totalCompletedMinutes,
+              completedFocusSessions: isFocus
+                ? prev.completedFocusSessions + 1
+                : prev.completedFocusSessions,
+              totalCompletedFocusSessions: isFocus
+                ? prev.totalCompletedFocusSessions + 1
+                : prev.totalCompletedFocusSessions,
+              totalCompletedMinutes: isFocus
+                ? prev.totalCompletedMinutes + prev.focusDuration
+                : prev.totalCompletedMinutes,
               sessionCount: prev.sessionCount + 1,
             };
           }
@@ -273,10 +312,19 @@ export function StudyTimer() {
   }, []);
 
   // ─── Auto-suggest break after 4 sessions ─────────────
-  const shouldSuggestBreak = state.completedFocusSessions > 0 && state.completedFocusSessions % SESSIONS_BEFORE_LONG_BREAK === 0 && state.mode === "focus" && !state.isRunning;
+  const shouldSuggestBreak =
+    state.completedFocusSessions > 0 &&
+    state.completedFocusSessions % SESSIONS_BEFORE_LONG_BREAK === 0 &&
+    state.mode === "focus" &&
+    !state.isRunning;
 
-  const estimatedTotalMinutes = state.totalCompletedMinutes + (state.mode === "focus" ? (state.focusDuration - Math.floor(state.timeRemaining / 60)) : 0);
-  const estimatedPlannedMinutes = state.totalCompletedMinutes + (SESSIONS_BEFORE_LONG_BREAK - state.completedFocusSessions % SESSIONS_BEFORE_LONG_BREAK) * state.focusDuration;
+  const estimatedTotalMinutes =
+    state.totalCompletedMinutes +
+    (state.mode === "focus" ? state.focusDuration - Math.floor(state.timeRemaining / 60) : 0);
+  const estimatedPlannedMinutes =
+    state.totalCompletedMinutes +
+    (SESSIONS_BEFORE_LONG_BREAK - (state.completedFocusSessions % SESSIONS_BEFORE_LONG_BREAK)) *
+      state.focusDuration;
 
   // ─── Compact Button ───────────────────────────────────
   if (!isExpanded) {
@@ -285,14 +333,17 @@ export function StudyTimer() {
         type="button"
         onClick={() => setIsExpanded(true)}
         className={cn(
-          "fixed bottom-20 right-4 z-40 flex items-center gap-2 rounded-full px-3.5 py-2.5 shadow-lg border transition-all duration-300",
-          "bg-card/90 backdrop-blur-md border-border/60",
-          "hover:shadow-xl hover:scale-105 press-effect",
-          state.isRunning ? "study-timer-pulse" : ""
+          "fixed right-4 bottom-20 z-40 flex items-center gap-2 rounded-full border px-3.5 py-2.5 shadow-lg transition-all duration-300",
+          "bg-card/90 border-border/60 backdrop-blur-md",
+          "press-effect hover:scale-105 hover:shadow-xl",
+          state.isRunning ? "study-timer-pulse" : "",
         )}
         aria-label="Open study timer"
       >
-        <Timer className={cn("h-4 w-4", state.isRunning ? "animate-spin" : "", config.color)} style={state.isRunning ? { animationDuration: "3s" } : undefined} />
+        <Timer
+          className={cn("h-4 w-4", state.isRunning ? "animate-spin" : "", config.color)}
+          style={state.isRunning ? { animationDuration: "3s" } : undefined}
+        />
         <span className={cn("text-xs font-semibold tabular-nums", config.color)}>
           {formatTime(state.timeRemaining)}
         </span>
@@ -305,9 +356,9 @@ export function StudyTimer() {
     <div
       ref={containerRef}
       className={cn(
-        "fixed bottom-20 right-4 z-40 w-72 rounded-2xl border shadow-2xl overflow-hidden transition-all duration-300",
-        "bg-card/95 backdrop-blur-xl border-border/60",
-        flashComplete && "study-timer-complete"
+        "fixed right-4 bottom-20 z-40 w-72 overflow-hidden rounded-2xl border shadow-2xl transition-all duration-300",
+        "bg-card/95 border-border/60 backdrop-blur-xl",
+        flashComplete && "study-timer-complete",
       )}
       role="dialog"
       aria-label="Study Timer"
@@ -316,20 +367,20 @@ export function StudyTimer() {
       <div className="flex items-center justify-between px-4 pt-3 pb-2">
         <div className="flex items-center gap-2">
           <IconComponent className={cn("h-4 w-4", config.color)} />
-          <span className="text-sm font-semibold text-foreground">Study Timer</span>
+          <span className="text-foreground text-sm font-semibold">Study Timer</span>
         </div>
         <button
           type="button"
           onClick={() => setIsExpanded(false)}
-          className="flex h-6 w-6 items-center justify-center rounded-full hover:bg-muted/80 transition-colors"
+          className="hover:bg-muted/80 flex h-6 w-6 items-center justify-center rounded-full transition-colors"
           aria-label="Minimize timer"
         >
-          <X className="h-3.5 w-3.5 text-muted-foreground" />
+          <X className="text-muted-foreground h-3.5 w-3.5" />
         </button>
       </div>
 
       {/* Mode Tabs */}
-      <div className="flex px-3 gap-1">
+      <div className="flex gap-1 px-3">
         {(["focus", "short-break", "long-break"] as TimerMode[]).map((mode) => {
           const mConfig = MODE_CONFIG[mode];
           const isActive = state.mode === mode;
@@ -342,9 +393,13 @@ export function StudyTimer() {
                 "flex-1 rounded-lg px-2 py-1.5 text-[11px] font-medium transition-all duration-200",
                 isActive
                   ? cn(mConfig.color, "bg-current/10 dark:bg-current/15")
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted/50",
               )}
-              style={isActive ? { backgroundColor: "color-mix(in oklch, currentColor 10%, transparent)" } : undefined}
+              style={
+                isActive
+                  ? { backgroundColor: "color-mix(in oklch, currentColor 10%, transparent)" }
+                  : undefined
+              }
             >
               {mConfig.label}
             </button>
@@ -354,17 +409,21 @@ export function StudyTimer() {
 
       {/* Focus Duration Selector (only in focus mode) */}
       {state.mode === "focus" && (
-        <div className="px-3 mt-2">
+        <div className="mt-2 px-3">
           <button
             type="button"
             onClick={() => setShowFocusOptions(!showFocusOptions)}
-            className="flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors w-full"
+            className="text-muted-foreground hover:text-foreground flex w-full items-center gap-1.5 text-[11px] transition-colors"
           >
             <span>Focus: {state.focusDuration} min</span>
-            {showFocusOptions ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+            {showFocusOptions ? (
+              <ChevronUp className="h-3 w-3" />
+            ) : (
+              <ChevronDown className="h-3 w-3" />
+            )}
           </button>
           {showFocusOptions && (
-            <div className="flex gap-1 mt-1.5">
+            <div className="mt-1.5 flex gap-1">
               {FOCUS_OPTIONS.map((opt) => (
                 <button
                   key={opt}
@@ -374,7 +433,7 @@ export function StudyTimer() {
                     "flex-1 rounded-md py-1 text-[11px] font-medium transition-all duration-200",
                     state.focusDuration === opt
                       ? "bg-primary text-primary-foreground shadow-sm"
-                      : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground"
+                      : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground",
                   )}
                 >
                   {opt}m
@@ -388,7 +447,7 @@ export function StudyTimer() {
       {/* Circular Timer */}
       <div className="flex justify-center py-4">
         <div className="relative flex items-center justify-center">
-          <svg className="timer-ring w-28 h-28 -rotate-90" viewBox="0 0 100 100">
+          <svg className="timer-ring h-28 w-28 -rotate-90" viewBox="0 0 100 100">
             <circle
               cx="50"
               cy="50"
@@ -409,15 +468,17 @@ export function StudyTimer() {
               strokeDasharray={circumference}
               strokeDashoffset={strokeDashoffset}
               style={{
-            filter: state.isRunning ? `drop-shadow(0 0 6px color-mix(in oklch, currentColor 40%, transparent))` : "none",
-          }}
+                filter: state.isRunning
+                  ? `drop-shadow(0 0 6px color-mix(in oklch, currentColor 40%, transparent))`
+                  : "none",
+              }}
             />
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className={cn("text-2xl font-bold tabular-nums tracking-tight", config.color)}>
+            <span className={cn("text-2xl font-bold tracking-tight tabular-nums", config.color)}>
               {formatTime(state.timeRemaining)}
             </span>
-            <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">
+            <span className="text-muted-foreground text-[10px] font-medium tracking-wider uppercase">
               {config.label}
             </span>
           </div>
@@ -429,7 +490,7 @@ export function StudyTimer() {
         <Button
           variant="outline"
           size="icon"
-          className="h-8 w-8 rounded-full press-effect"
+          className="press-effect h-8 w-8 rounded-full"
           onClick={resetTimer}
           aria-label="Reset timer"
         >
@@ -438,34 +499,37 @@ export function StudyTimer() {
         <Button
           size="icon"
           className={cn(
-            "h-10 w-10 rounded-full shadow-md press-effect transition-all duration-200",
-            state.isRunning && "study-timer-pulse"
+            "press-effect h-10 w-10 rounded-full shadow-md transition-all duration-200",
+            state.isRunning && "study-timer-pulse",
           )}
           onClick={toggleTimer}
           aria-label={state.isRunning ? "Pause timer" : "Start timer"}
         >
-          {state.isRunning ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 ml-0.5" />}
+          {state.isRunning ? <Pause className="h-4 w-4" /> : <Play className="ml-0.5 h-4 w-4" />}
         </Button>
         <div className="h-8 w-8" /> {/* Spacer for centering */}
       </div>
 
       {/* Session Info */}
-      <div className="border-t border-border/40 px-4 py-2.5 space-y-1.5">
+      <div className="border-border/40 space-y-1.5 border-t px-4 py-2.5">
         <div className="flex items-center justify-between">
-          <span className="text-[11px] text-muted-foreground">Session</span>
+          <span className="text-muted-foreground text-[11px]">Session</span>
           <span className={cn("text-[11px] font-semibold tabular-nums", config.color)}>
-            {(state.completedFocusSessions % SESSIONS_BEFORE_LONG_BREAK) + (state.mode === "focus" && state.isRunning ? 1 : 0)}/{SESSIONS_BEFORE_LONG_BREAK}
+            {(state.completedFocusSessions % SESSIONS_BEFORE_LONG_BREAK) +
+              (state.mode === "focus" && state.isRunning ? 1 : 0)}
+            /{SESSIONS_BEFORE_LONG_BREAK}
           </span>
         </div>
         <div className="flex items-center justify-between">
-          <span className="text-[11px] text-muted-foreground">Studied</span>
-          <span className="text-[11px] font-semibold tabular-nums text-foreground">
-            {state.totalCompletedFocusSessions} sessions · {formatEstimatedTime(state.totalCompletedMinutes)}
+          <span className="text-muted-foreground text-[11px]">Studied</span>
+          <span className="text-foreground text-[11px] font-semibold tabular-nums">
+            {state.totalCompletedFocusSessions} sessions ·{" "}
+            {formatEstimatedTime(state.totalCompletedMinutes)}
           </span>
         </div>
         <div className="flex items-center justify-between">
-          <span className="text-[11px] text-muted-foreground">Est. total</span>
-          <span className="text-[11px] font-medium tabular-nums text-muted-foreground">
+          <span className="text-muted-foreground text-[11px]">Est. total</span>
+          <span className="text-muted-foreground text-[11px] font-medium tabular-nums">
             ~{formatEstimatedTime(estimatedPlannedMinutes)}
           </span>
         </div>
@@ -473,11 +537,11 @@ export function StudyTimer() {
 
       {/* Auto-suggest break banner */}
       {shouldSuggestBreak && (
-        <div className="border-t border-border/40 px-4 py-2.5">
+        <div className="border-border/40 border-t px-4 py-2.5">
           <button
             type="button"
             onClick={() => switchMode("long-break")}
-            className="w-full rounded-lg bg-blue-500/10 dark:bg-blue-500/15 border border-blue-500/20 px-3 py-2 text-center transition-all hover:bg-blue-500/20 press-effect"
+            className="press-effect w-full rounded-lg border border-blue-500/20 bg-blue-500/10 px-3 py-2 text-center transition-all hover:bg-blue-500/20 dark:bg-blue-500/15"
           >
             <span className="text-[11px] font-medium text-blue-600 dark:text-blue-400">
               ☕ Time for a long break! (15 min)
@@ -487,8 +551,8 @@ export function StudyTimer() {
       )}
 
       {/* Keyboard shortcut hint */}
-      <div className="px-4 pb-3 pt-1">
-        <p className="text-[10px] text-muted-foreground/50 text-center">
+      <div className="px-4 pt-1 pb-3">
+        <p className="text-muted-foreground/50 text-center text-[10px]">
           Space: play/pause · R: reset
         </p>
       </div>

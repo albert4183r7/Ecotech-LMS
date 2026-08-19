@@ -36,9 +36,7 @@ interface ShortcutGroup {
 const SHORTCUT_GROUPS: ShortcutGroup[] = [
   {
     title: "General",
-    shortcuts: [
-      { keys: ["?", "Ctrl+K"], description: "Toggle this help dialog" },
-    ],
+    shortcuts: [{ keys: ["?", "Ctrl+K"], description: "Toggle this help dialog" }],
   },
   {
     title: "Navigation",
@@ -69,12 +67,12 @@ function Kbd({ children }: { children: React.ReactNode }) {
     <kbd
       className={cn(
         "inline-flex items-center justify-center",
-        "min-w-[1.75rem] h-7 px-2",
-        "rounded-md border border-border",
-        "bg-muted/60 text-xs font-mono font-medium text-foreground",
+        "h-7 min-w-[1.75rem] px-2",
+        "border-border rounded-md border",
+        "bg-muted/60 text-foreground font-mono text-xs font-medium",
         "shadow-[0_1px_0_1px_oklch(0.80_0.02_200)]",
         "dark:shadow-[0_1px_0_1px_oklch(0.25_0.02_250)]",
-        "select-none"
+        "select-none",
       )}
     >
       {children}
@@ -86,13 +84,13 @@ function Kbd({ children }: { children: React.ReactNode }) {
 function ShortcutRow({ shortcut }: { shortcut: ShortcutItem }) {
   return (
     <div className="flex items-center justify-between gap-4 py-2">
-      <span className="text-sm text-muted-foreground">{shortcut.description}</span>
-      <div className="flex items-center gap-1.5 shrink-0">
+      <span className="text-muted-foreground text-sm">{shortcut.description}</span>
+      <div className="flex shrink-0 items-center gap-1.5">
         {shortcut.keys.map((key, i) => (
           <span key={key} className="flex items-center gap-1.5">
             <Kbd>{key}</Kbd>
             {i < shortcut.keys.length - 1 && (
-              <span className="text-xs text-muted-foreground/60">or</span>
+              <span className="text-muted-foreground/60 text-xs">or</span>
             )}
           </span>
         ))}
@@ -105,7 +103,7 @@ function ShortcutRow({ shortcut }: { shortcut: ShortcutItem }) {
 function ShortcutGroupSection({ group }: { group: ShortcutGroup }) {
   return (
     <div>
-      <h3 className="text-xs font-semibold uppercase tracking-wider text-primary/80 mb-2">
+      <h3 className="text-primary/80 mb-2 text-xs font-semibold tracking-wider uppercase">
         {group.title}
       </h3>
       <div className="space-y-0.5">
@@ -205,12 +203,12 @@ export function KeyboardShortcuts() {
         onClick={toggleDialog}
         aria-label="Keyboard shortcuts"
         className={cn(
-          "fixed bottom-6 right-6 z-40",
+          "fixed right-6 bottom-6 z-40",
           "flex h-10 w-10 items-center justify-center",
-          "rounded-full bg-primary text-primary-foreground",
+          "bg-primary text-primary-foreground rounded-full",
           "shadow-md hover:shadow-lg",
           "transition-all duration-200 hover:scale-105 active:scale-95",
-          "pulse-glow"
+          "pulse-glow",
         )}
       >
         <Keyboard className="h-5 w-5" />
@@ -220,7 +218,7 @@ export function KeyboardShortcuts() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-primary">
+            <DialogTitle className="text-primary flex items-center gap-2">
               <Keyboard className="h-5 w-5" />
               Keyboard Shortcuts
             </DialogTitle>
@@ -236,11 +234,9 @@ export function KeyboardShortcuts() {
           </div>
 
           {/* Footer hint */}
-          <div className="flex items-center justify-center gap-2 pt-2 border-t border-border/60">
+          <div className="border-border/60 flex items-center justify-center gap-2 border-t pt-2">
             <Kbd>?</Kbd>
-            <span className="text-xs text-muted-foreground">
-              to toggle this dialog anytime
-            </span>
+            <span className="text-muted-foreground text-xs">to toggle this dialog anytime</span>
           </div>
         </DialogContent>
       </Dialog>

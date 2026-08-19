@@ -41,9 +41,7 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    const enrolledCourseIds = new Set(
-      enrollments.map((e) => e.courseId)
-    );
+    const enrolledCourseIds = new Set(enrollments.map((e) => e.courseId));
 
     // Collect categories the user is interested in
     const enrolledCategoryIds = new Set<string>();
@@ -76,7 +74,7 @@ export async function GET(request: NextRequest) {
       // Find the course title that triggered the category recommendation
       for (const course of categoryCourses) {
         const relatedEnrollment = enrollments.find(
-          (e) => e.course.categoryId === course.categoryId
+          (e) => e.course.categoryId === course.categoryId,
         );
         const reason = relatedEnrollment
           ? `Because you enrolled in "${relatedEnrollment.course.title}"`
@@ -193,7 +191,7 @@ export async function GET(request: NextRequest) {
     console.error("[Recommendations API] Error:", error);
     return NextResponse.json(
       { success: false, error: "Failed to load recommendations" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

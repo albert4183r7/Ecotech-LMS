@@ -61,9 +61,7 @@ function generateMockData(weeks: number): DayEntry[] {
     // Simulate realistic patterns:
     // - 15% chance of no activity on weekdays, 35% on weekends
     // - Weekdays: 15-120 min, Weekends: 0-60 min
-    const noActivity = isWeekend
-      ? rand() < 0.35
-      : rand() < 0.15;
+    const noActivity = isWeekend ? rand() < 0.35 : rand() < 0.15;
 
     let minutes = 0;
     if (!noActivity) {
@@ -170,7 +168,7 @@ export async function GET(request: NextRequest) {
           // Each progress update represents ~15-30 min of learning
           // Use a deterministic estimate based on time of update
           const hour = p.updatedAt.getHours();
-          const minutes = 15 + Math.round(((hour * 60 + p.updatedAt.getMinutes()) % 45));
+          const minutes = 15 + Math.round((hour * 60 + p.updatedAt.getMinutes()) % 45);
           dayMap.set(dateStr, existing + minutes);
         }
 
@@ -226,7 +224,7 @@ export async function GET(request: NextRequest) {
     console.error("[Activity API] Error:", error);
     return NextResponse.json(
       { success: false, error: "Failed to load activity data" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

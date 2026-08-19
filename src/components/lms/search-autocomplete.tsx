@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  useState,
-  useEffect,
-  useRef,
-  useCallback,
-  type ReactNode,
-} from "react";
+import { useState, useEffect, useRef, useCallback, type ReactNode } from "react";
 import { Clock, Search, BookOpen, FolderOpen, X, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
@@ -54,15 +48,10 @@ function clearRecentSearches() {
 function matchCourses(query: string, courses: CourseItem[]): CourseItem[] {
   if (!query.trim()) return [];
   const q = query.toLowerCase();
-  return courses
-    .filter((c) => c.title.toLowerCase().includes(q))
-    .slice(0, MAX_COURSE_SUGGESTIONS);
+  return courses.filter((c) => c.title.toLowerCase().includes(q)).slice(0, MAX_COURSE_SUGGESTIONS);
 }
 
-function matchCategories(
-  query: string,
-  categories: CategoryItem[]
-): CategoryItem[] {
+function matchCategories(query: string, categories: CategoryItem[]): CategoryItem[] {
   if (!query.trim()) return [];
   const q = query.toLowerCase();
   return categories
@@ -71,13 +60,7 @@ function matchCategories(
 }
 
 /** Highlight the matching portion of text */
-function HighlightMatch({
-  text,
-  query,
-}: {
-  text: string;
-  query: string;
-}) {
+function HighlightMatch({ text, query }: { text: string; query: string }) {
   if (!query.trim()) return <>{text}</>;
   const q = query.trim();
   const lowerText = text.toLowerCase();
@@ -86,9 +69,7 @@ function HighlightMatch({
   return (
     <>
       {text.slice(0, idx)}
-      <span className="font-semibold text-primary">
-        {text.slice(idx, idx + q.length)}
-      </span>
+      <span className="text-primary font-semibold">{text.slice(idx, idx + q.length)}</span>
       {text.slice(idx + q.length)}
     </>
   );
@@ -114,18 +95,16 @@ function SuggestionItem({
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-accent"
+      className="hover:bg-accent flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors"
     >
-      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+      <span className="bg-muted text-muted-foreground flex h-8 w-8 shrink-0 items-center justify-center rounded-md">
         {icon}
       </span>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-foreground">
+        <p className="text-foreground truncate">
           <HighlightMatch text={label} query={query} />
         </p>
-        {sublabel && (
-          <p className="truncate text-xs text-muted-foreground">{sublabel}</p>
-        )}
+        {sublabel && <p className="text-muted-foreground truncate text-xs">{sublabel}</p>}
       </div>
     </button>
   );
@@ -145,7 +124,7 @@ function SectionHeader({
 }) {
   return (
     <div className="flex items-center justify-between px-3 pt-2 pb-1">
-      <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+      <span className="text-muted-foreground flex items-center gap-1.5 text-xs font-semibold tracking-wider uppercase">
         {icon}
         {label}
       </span>
@@ -207,9 +186,7 @@ export function SearchAutocomplete({
 
   // Filter recent searches to only show those not matching current input exactly
   const filteredRecent = value.trim()
-    ? recentSearches.filter((s) =>
-        s.toLowerCase().includes(value.trim().toLowerCase())
-      )
+    ? recentSearches.filter((s) => s.toLowerCase().includes(value.trim().toLowerCase()))
     : recentSearches;
 
   const hasContent =
@@ -218,10 +195,7 @@ export function SearchAutocomplete({
   // ── Close dropdown on outside click ───────────────────────────────
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (
-        containerRef.current &&
-        !containerRef.current.contains(e.target as Node)
-      ) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         closeDropdown();
       }
     }
@@ -293,7 +267,7 @@ export function SearchAutocomplete({
     <div ref={containerRef} className={cn("relative", className)}>
       {/* Search Input */}
       <div className="relative">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
         <Input
           ref={inputRef}
           type="text"
@@ -302,13 +276,13 @@ export function SearchAutocomplete({
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
           onFocus={handleFocus}
-          className="pl-9 pr-9"
+          className="pr-9 pl-9"
         />
         {value && (
           <button
             type="button"
             onClick={handleClear}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+            className="text-muted-foreground hover:text-foreground absolute top-1/2 right-3 -translate-y-1/2 transition-colors"
           >
             <X className="h-4 w-4" />
           </button>
@@ -319,11 +293,9 @@ export function SearchAutocomplete({
       {isOpen && (
         <div
           className={cn(
-            "absolute left-0 right-0 top-full z-50 mt-1.5 overflow-hidden rounded-xl border border-border bg-popover shadow-lg",
+            "border-border bg-popover absolute top-full right-0 left-0 z-50 mt-1.5 overflow-hidden rounded-xl border shadow-lg",
             "transition-all duration-150 ease-out",
-            animating
-              ? "translate-y-0 opacity-100"
-              : "translate-y-1 opacity-0"
+            animating ? "translate-y-0 opacity-100" : "translate-y-1 opacity-0",
           )}
         >
           {hasContent ? (
@@ -339,7 +311,7 @@ export function SearchAutocomplete({
                         <button
                           type="button"
                           onClick={handleClearRecent}
-                          className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-destructive"
+                          className="text-muted-foreground hover:bg-accent hover:text-destructive flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs transition-colors"
                         >
                           <Trash2 className="h-3 w-3" />
                           Clear
@@ -367,10 +339,7 @@ export function SearchAutocomplete({
                 {/* Suggested Courses */}
                 {matchedCourses.length > 0 && (
                   <>
-                    <SectionHeader
-                      icon={<BookOpen className="h-3 w-3" />}
-                      label="Courses"
-                    />
+                    <SectionHeader icon={<BookOpen className="h-3 w-3" />} label="Courses" />
                     {matchedCourses.map((course) => (
                       <SuggestionItem
                         key={`course-${course.id}`}
@@ -392,10 +361,7 @@ export function SearchAutocomplete({
                 {/* Suggested Categories */}
                 {matchedCategories.length > 0 && (
                   <>
-                    <SectionHeader
-                      icon={<FolderOpen className="h-3 w-3" />}
-                      label="Categories"
-                    />
+                    <SectionHeader icon={<FolderOpen className="h-3 w-3" />} label="Categories" />
                     {matchedCategories.map((cat) => (
                       <SuggestionItem
                         key={`cat-${cat.id}`}
@@ -416,10 +382,8 @@ export function SearchAutocomplete({
             </ScrollArea>
           ) : (
             <div className="px-4 py-6 text-center">
-              <p className="text-sm text-muted-foreground">
-                {value.trim()
-                  ? "No matching suggestions"
-                  : "Start typing to search"}
+              <p className="text-muted-foreground text-sm">
+                {value.trim() ? "No matching suggestions" : "Start typing to search"}
               </p>
             </div>
           )}

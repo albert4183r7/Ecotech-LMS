@@ -2,15 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import {
-  Trophy,
-  Medal,
-  Award,
-  Crown,
-  BookOpen,
-  ArrowRight,
-  Users,
-} from "lucide-react";
+import { Trophy, Medal, Award, Crown, BookOpen, ArrowRight, Users } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -58,29 +50,26 @@ function formatXp(score: number): string {
 
 /** Map rank to medal icon and styling */
 function getMedalConfig(
-  rank: number
+  rank: number,
 ): { icon: React.ElementType; label: string; className: string } | null {
   switch (rank) {
     case 1:
       return {
         icon: Trophy,
         label: "Gold",
-        className:
-          "text-amber-500 drop-shadow-sm",
+        className: "text-amber-500 drop-shadow-sm",
       };
     case 2:
       return {
         icon: Medal,
         label: "Silver",
-        className:
-          "text-slate-400 drop-shadow-sm",
+        className: "text-slate-400 drop-shadow-sm",
       };
     case 3:
       return {
         icon: Award,
         label: "Bronze",
-        className:
-          "text-amber-700 dark:text-amber-600 drop-shadow-sm",
+        className: "text-amber-700 dark:text-amber-600 drop-shadow-sm",
       };
     default:
       return null;
@@ -106,10 +95,7 @@ function LeaderboardSkeleton() {
       <CardContent>
         <div className="space-y-2">
           {Array.from({ length: 5 }).map((_, i) => (
-            <div
-              key={i}
-              className="flex items-center gap-3 rounded-xl border border-border/30 p-3"
-            >
+            <div key={i} className="border-border/30 flex items-center gap-3 rounded-xl border p-3">
               <Skeleton className="h-6 w-6 rounded-full" />
               <Skeleton className="h-9 w-9 rounded-full" />
               <div className="flex-1 space-y-1.5">
@@ -145,15 +131,11 @@ function EmptyState() {
       </CardHeader>
       <CardContent>
         <div className="flex flex-col items-center justify-center py-8 text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-            <Users className="h-6 w-6 text-muted-foreground" />
+          <div className="bg-muted flex h-12 w-12 items-center justify-center rounded-full">
+            <Users className="text-muted-foreground h-6 w-6" />
           </div>
-          <p className="mt-3 text-sm font-medium text-foreground">
-            No leaderboard data yet
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Complete courses to climb the ranks!
-          </p>
+          <p className="text-foreground mt-3 text-sm font-medium">No leaderboard data yet</p>
+          <p className="text-muted-foreground mt-1 text-xs">Complete courses to climb the ranks!</p>
         </div>
       </CardContent>
     </Card>
@@ -194,7 +176,7 @@ function LeaderboardRow({
       className={
         "flex items-center gap-3 rounded-xl border p-3 transition-all duration-200 " +
         (isCurrentUser
-          ? "border-primary/30 bg-gradient-to-r from-cyan-500/8 to-teal-500/8 shadow-sm ring-1 ring-primary/10"
+          ? "border-primary/30 ring-primary/10 bg-gradient-to-r from-cyan-500/8 to-teal-500/8 shadow-sm ring-1"
           : entry.rank <= 3
             ? "border-border/40 bg-muted/30"
             : "border-border/20 hover:border-border/40 hover:bg-muted/20")
@@ -210,17 +192,12 @@ function LeaderboardRow({
       {/* Rank / Crown */}
       <div className="flex h-7 w-7 shrink-0 items-center justify-center">
         {entry.rank === 1 ? (
-          <Crown
-            className="h-5 w-5 text-amber-500"
-            aria-label="1st place"
-          />
+          <Crown className="h-5 w-5 text-amber-500" aria-label="1st place" />
         ) : (
           <span
             className={
               "text-xs font-bold tabular-nums " +
-              (entry.rank <= 3
-                ? "text-foreground"
-                : "text-muted-foreground")
+              (entry.rank <= 3 ? "text-foreground" : "text-muted-foreground")
             }
           >
             {entry.rank}
@@ -238,7 +215,7 @@ function LeaderboardRow({
               ? "ring-2 ring-slate-400/50"
               : entry.rank === 3
                 ? "ring-2 ring-amber-700/40"
-              : "")
+                : "")
         }
       >
         <AvatarFallback
@@ -263,17 +240,13 @@ function LeaderboardRow({
         <div className="flex items-center gap-1.5">
           <p
             className={
-              "truncate text-sm font-medium leading-tight " +
-              (isCurrentUser
-                ? "text-foreground"
-                : "text-foreground/90")
+              "truncate text-sm leading-tight font-medium " +
+              (isCurrentUser ? "text-foreground" : "text-foreground/90")
             }
           >
             {entry.name}
             {isCurrentUser && (
-              <span className="ml-1.5 text-[10px] font-normal text-primary">
-                (you)
-              </span>
+              <span className="text-primary ml-1.5 text-[10px] font-normal">(you)</span>
             )}
           </p>
           {medal && (
@@ -285,7 +258,7 @@ function LeaderboardRow({
         </div>
         <div className="mt-1.5 flex items-center gap-2">
           <XpProgressBar value={entry.avgProgress} />
-          <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">
+          <span className="text-muted-foreground shrink-0 text-[10px] tabular-nums">
             {entry.avgProgress}%
           </span>
         </div>
@@ -294,15 +267,12 @@ function LeaderboardRow({
       {/* Stats */}
       <div className="flex shrink-0 flex-col items-end gap-0.5">
         <div className="flex items-center gap-1">
-          <BookOpen
-            className="h-3 w-3 text-muted-foreground"
-            aria-hidden="true"
-          />
-          <span className="text-xs font-medium tabular-nums text-foreground/80">
+          <BookOpen className="text-muted-foreground h-3 w-3" aria-hidden="true" />
+          <span className="text-foreground/80 text-xs font-medium tabular-nums">
             {entry.completedCourses}
           </span>
         </div>
-        <span className="text-[11px] font-semibold tabular-nums text-primary">
+        <span className="text-primary text-[11px] font-semibold tabular-nums">
           {formatXp(entry.score)} XP
         </span>
       </div>
@@ -389,27 +359,18 @@ export function LeaderboardWidget() {
         </CardHeader>
         <CardContent>
           <ScrollArea className="h-[440px] pr-1">
-            <div
-              className="space-y-2"
-              role="list"
-              aria-label="Leaderboard rankings"
-            >
+            <div className="space-y-2" role="list" aria-label="Leaderboard rankings">
               {entries.map((entry, i) => (
-                <LeaderboardRow
-                  key={entry.id}
-                  entry={entry}
-                  maxScore={topScore}
-                  index={i}
-                />
+                <LeaderboardRow key={entry.id} entry={entry} maxScore={topScore} index={i} />
               ))}
             </div>
           </ScrollArea>
 
           {/* View All link */}
-          <div className="mt-4 border-t border-border/40 pt-3">
+          <div className="border-border/40 mt-4 border-t pt-3">
             <Link
               href="/leaderboard"
-              className="group flex items-center justify-center gap-1.5 text-sm font-medium text-primary transition-colors hover:text-primary/80"
+              className="group text-primary hover:text-primary/80 flex items-center justify-center gap-1.5 text-sm font-medium transition-colors"
             >
               View full leaderboard
               <ArrowRight

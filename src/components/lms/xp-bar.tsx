@@ -95,7 +95,7 @@ export function XpBarCompact({ userId = "user_student_001" }: { userId?: string 
     <div
       className={cn(
         "flex items-center gap-2 transition-transform duration-300",
-        flash && "scale-105"
+        flash && "scale-105",
       )}
       title={`Level ${data.level} — ${data.levelTitle}: ${data.totalXp} XP`}
     >
@@ -103,24 +103,22 @@ export function XpBarCompact({ userId = "user_student_001" }: { userId?: string 
         className={cn(
           "h-5 shrink-0 gap-1 border-0 px-1.5 text-[11px] font-bold text-white shadow-sm",
           "bg-gradient-to-r from-teal-500 to-emerald-500",
-          flash && "animate-[badge-pulse_0.6s_ease-in-out_2]"
+          flash && "animate-[badge-pulse_0.6s_ease-in-out_2]",
         )}
       >
         <Zap className="h-3 w-3" />
         Lv.{data.level}
       </Badge>
-      <div className="relative h-2 w-24 overflow-hidden rounded-full bg-muted/60">
+      <div className="bg-muted/60 relative h-2 w-24 overflow-hidden rounded-full">
         <div
           className={cn(
             "h-full rounded-full transition-all duration-700",
-            "bg-gradient-to-r from-teal-500 to-emerald-500"
+            "bg-gradient-to-r from-teal-500 to-emerald-500",
           )}
           style={{ width: `${data.progressPercent}%` }}
         />
         {/* Green flash on XP gain */}
-        {flash && (
-          <div className="xp-flash absolute inset-0 rounded-full bg-emerald-400/40" />
-        )}
+        {flash && <div className="xp-flash absolute inset-0 rounded-full bg-emerald-400/40" />}
       </div>
     </div>
   );
@@ -172,8 +170,8 @@ export function XpBarFull({ userId = "user_student_001" }: { userId?: string }) 
   return (
     <div
       className={cn(
-        "glass-card content-reveal overflow-hidden rounded-xl border border-border/50",
-        flash && "ring-2 ring-emerald-500/40"
+        "glass-card content-reveal border-border/50 overflow-hidden rounded-xl border",
+        flash && "ring-2 ring-emerald-500/40",
       )}
     >
       {/* Top section with level badge and XP display */}
@@ -183,7 +181,7 @@ export function XpBarFull({ userId = "user_student_001" }: { userId?: string }) 
           <div
             className={cn(
               "flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-emerald-500 text-white shadow-lg shadow-teal-500/20 transition-transform duration-300",
-              flash && "scale-110"
+              flash && "scale-110",
             )}
           >
             <Zap className="h-7 w-7" />
@@ -201,107 +199,87 @@ export function XpBarFull({ userId = "user_student_001" }: { userId?: string }) 
               </Badge>
             </div>
             <div className="mt-1 flex items-baseline gap-1.5">
-              <span className="text-2xl font-extrabold tabular-nums text-foreground">
+              <span className="text-foreground text-2xl font-extrabold tabular-nums">
                 {data.totalXp.toLocaleString()}
               </span>
-              <span className="text-sm font-semibold text-teal-600 dark:text-teal-400">
-                XP
-              </span>
+              <span className="text-sm font-semibold text-teal-600 dark:text-teal-400">XP</span>
             </div>
           </div>
         </div>
       </div>
 
       {/* Progress bar section */}
-      <div className="px-5 pb-4 pt-3">
+      <div className="px-5 pt-3 pb-4">
         <div className="space-y-2">
           <div className="flex items-center justify-between text-xs">
-            <span className="font-medium text-muted-foreground">
-              Level {data.level}
-            </span>
-            <span className="font-medium text-muted-foreground">
+            <span className="text-muted-foreground font-medium">Level {data.level}</span>
+            <span className="text-muted-foreground font-medium">
               {data.level < 10 ? `Level ${data.level + 1}` : "Max Level"}
             </span>
           </div>
-          <div className="relative h-3 w-full overflow-hidden rounded-full bg-muted/60">
+          <div className="bg-muted/60 relative h-3 w-full overflow-hidden rounded-full">
             <div
               className={cn(
                 "h-full rounded-full transition-all duration-1000 ease-out",
-                "bg-gradient-to-r from-teal-500 via-emerald-500 to-cyan-500"
+                "bg-gradient-to-r from-teal-500 via-emerald-500 to-cyan-500",
               )}
               style={{ width: `${data.progressPercent}%` }}
             />
             {/* Flash overlay */}
-            {flash && (
-              <div className="xp-flash absolute inset-0 rounded-full bg-emerald-400/30" />
-            )}
+            {flash && <div className="xp-flash absolute inset-0 rounded-full bg-emerald-400/30" />}
           </div>
-          <p className="text-center text-[11px] text-muted-foreground">
+          <p className="text-muted-foreground text-center text-[11px]">
             {xpInLevel} / {xpNeeded} XP to next level
           </p>
         </div>
 
         {/* Stats row */}
         <div className="mt-4 grid grid-cols-3 gap-2">
-          <div className="rounded-lg bg-muted/40 px-3 py-2 text-center">
-            <p className="text-lg font-bold tabular-nums text-foreground">
-              {data.level}
-            </p>
-            <p className="text-[10px] font-medium text-muted-foreground">
-              Current Level
-            </p>
+          <div className="bg-muted/40 rounded-lg px-3 py-2 text-center">
+            <p className="text-foreground text-lg font-bold tabular-nums">{data.level}</p>
+            <p className="text-muted-foreground text-[10px] font-medium">Current Level</p>
           </div>
-          <div className="rounded-lg bg-muted/40 px-3 py-2 text-center">
-            <p className="text-lg font-bold tabular-nums text-foreground">
+          <div className="bg-muted/40 rounded-lg px-3 py-2 text-center">
+            <p className="text-foreground text-lg font-bold tabular-nums">
               {data.progressPercent}%
             </p>
-            <p className="text-[10px] font-medium text-muted-foreground">
-              Progress
-            </p>
+            <p className="text-muted-foreground text-[10px] font-medium">Progress</p>
           </div>
-          <div className="rounded-lg bg-muted/40 px-3 py-2 text-center">
-            <p className="text-lg font-bold tabular-nums text-foreground">
+          <div className="bg-muted/40 rounded-lg px-3 py-2 text-center">
+            <p className="text-foreground text-lg font-bold tabular-nums">
               {data.level < 10 ? data.nextLevelXp - data.totalXp : 0}
             </p>
-            <p className="text-[10px] font-medium text-muted-foreground">
-              XP Needed
-            </p>
+            <p className="text-muted-foreground text-[10px] font-medium">XP Needed</p>
           </div>
         </div>
       </div>
 
       {/* XP History */}
-      <div className="border-t border-border/50 px-5 py-4">
-        <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+      <div className="border-border/50 border-t px-5 py-4">
+        <h3 className="text-muted-foreground mb-3 text-xs font-semibold tracking-wider uppercase">
           Recent XP Activity
         </h3>
         <div className="space-y-2.5">
           {data.xpHistory.map((entry, i) => {
             const Icon = TYPE_ICONS[entry.type] || Zap;
-            const dateLabel = new Date(entry.date + "T00:00:00").toLocaleDateString(
-              "en-US",
-              { weekday: "short", month: "short", day: "numeric" }
-            );
+            const dateLabel = new Date(entry.date + "T00:00:00").toLocaleDateString("en-US", {
+              weekday: "short",
+              month: "short",
+              day: "numeric",
+            });
             return (
-              <div
-                key={`${entry.date}-${i}`}
-                className="flex items-center gap-3"
-              >
+              <div key={`${entry.date}-${i}`} className="flex items-center gap-3">
                 <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-teal-500/10">
                   <Icon className="h-3.5 w-3.5 text-teal-600 dark:text-teal-400" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-xs font-medium text-foreground">
-                    {entry.reason}
-                  </p>
-                  <p className="text-[10px] text-muted-foreground">
-                    {dateLabel}
-                  </p>
+                  <p className="text-foreground truncate text-xs font-medium">{entry.reason}</p>
+                  <p className="text-muted-foreground text-[10px]">{dateLabel}</p>
                 </div>
                 <Badge
                   className={cn(
                     "shrink-0 border-0 bg-teal-500/10 text-[11px] font-bold",
-                    "text-teal-700 dark:text-teal-400"
+                    "text-teal-700 dark:text-teal-400",
                   )}
                 >
                   +{entry.xp} XP
@@ -321,7 +299,7 @@ export function XpBarFull({ userId = "user_student_001" }: { userId?: string }) 
 
 function XpBarFullSkeleton() {
   return (
-    <div className="glass-card overflow-hidden rounded-xl border border-border/50">
+    <div className="glass-card border-border/50 overflow-hidden rounded-xl border">
       <div className="bg-muted/20 px-5 py-5">
         <div className="flex items-center gap-3">
           <Skeleton className="h-14 w-14 shrink-0 rounded-xl" />
@@ -334,7 +312,7 @@ function XpBarFullSkeleton() {
           </div>
         </div>
       </div>
-      <div className="px-5 pb-4 pt-3">
+      <div className="px-5 pt-3 pb-4">
         <div className="space-y-2">
           <div className="flex justify-between">
             <Skeleton className="h-3 w-12" />
@@ -345,17 +323,14 @@ function XpBarFullSkeleton() {
         </div>
         <div className="mt-4 grid grid-cols-3 gap-2">
           {Array.from({ length: 3 }).map((_, i) => (
-            <div
-              key={i}
-              className="rounded-lg bg-muted/40 px-3 py-2 text-center"
-            >
+            <div key={i} className="bg-muted/40 rounded-lg px-3 py-2 text-center">
               <Skeleton className="mx-auto mb-1 h-5 w-10" />
               <Skeleton className="mx-auto h-2.5 w-16" />
             </div>
           ))}
         </div>
       </div>
-      <div className="border-t border-border/50 px-5 py-4">
+      <div className="border-border/50 border-t px-5 py-4">
         <Skeleton className="mb-3 h-3 w-28" />
         <div className="space-y-2.5">
           {Array.from({ length: 4 }).map((_, i) => (

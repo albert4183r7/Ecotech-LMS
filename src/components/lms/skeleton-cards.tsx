@@ -9,14 +9,19 @@ interface SkeletonCardProps {
 
 export function SkeletonCard({ lines = 2, showImage = true, className }: SkeletonCardProps) {
   return (
-    <div className={"overflow-hidden rounded-xl border border-border/50 bg-card/50 backdrop-blur-sm skeleton-shimmer" + (className ? ` ${className}` : "")}>
+    <div
+      className={
+        "border-border/50 bg-card/50 skeleton-shimmer overflow-hidden rounded-xl border backdrop-blur-sm" +
+        (className ? ` ${className}` : "")
+      }
+    >
       {showImage && <Skeleton className="aspect-video w-full rounded-none" />}
       <div className="space-y-2.5 p-3.5">
         <Skeleton className="h-4 w-3/4" />
         {Array.from({ length: lines - 1 }).map((_, i) => (
           <Skeleton key={i} className="h-3 w-full" />
         ))}
-        <div className="flex items-center justify-between pt-2 border-t border-border/30">
+        <div className="border-border/30 flex items-center justify-between border-t pt-2">
           <Skeleton className="h-3 w-16" />
           <Skeleton className="h-3 w-20" />
         </div>

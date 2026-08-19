@@ -23,8 +23,7 @@ const announcements: Announcement[] = [
   {
     id: "streak-milestone",
     type: "success",
-    message:
-      "🏆 Congratulations to our top learners! Over 500 course completions this month.",
+    message: "🏆 Congratulations to our top learners! Over 500 course completions this month.",
   },
   {
     id: "maintenance-window",
@@ -45,21 +44,21 @@ const typeConfig: Record<
   }
 > = {
   info: {
-    icon: <Info className="w-4 h-4" />,
+    icon: <Info className="h-4 w-4" />,
     bgClass: "bg-[oklch(0.95_0.03_200)]",
     borderClass: "border-[oklch(0.75_0.06_200)]",
     iconClass: "text-[oklch(0.50_0.15_230)]",
     textClass: "text-[oklch(0.30_0.05_230)]",
   },
   success: {
-    icon: <CheckCircle2 className="w-4 h-4" />,
+    icon: <CheckCircle2 className="h-4 w-4" />,
     bgClass: "bg-[oklch(0.95_0.03_155)]",
     borderClass: "border-[oklch(0.75_0.08_155)]",
     iconClass: "text-[oklch(0.52_0.14_155)]",
     textClass: "text-[oklch(0.30_0.06_155)]",
   },
   warning: {
-    icon: <AlertTriangle className="w-4 h-4" />,
+    icon: <AlertTriangle className="h-4 w-4" />,
     bgClass: "bg-[oklch(0.97_0.04_85)]",
     borderClass: "border-[oklch(0.80_0.10_85)]",
     iconClass: "text-[oklch(0.65_0.18_65)]",
@@ -100,7 +99,7 @@ export function AnnouncementBanner() {
   const mounted = useSyncExternalStore(
     () => () => {},
     () => true,
-    () => false
+    () => false,
   );
 
   const [visible, setVisible] = useState(false);
@@ -151,10 +150,7 @@ export function AnnouncementBanner() {
       // Mark as dismissed
       const dismissed = getDismissed();
       dismissed.add(announcements[currentIndex].id);
-      localStorage.setItem(
-        `${STORAGE_PREFIX}set`,
-        JSON.stringify([...dismissed])
-      );
+      localStorage.setItem(`${STORAGE_PREFIX}set`, JSON.stringify([...dismissed]));
 
       // Try to show the next one
       const nextIdx = findNextAvailable();
@@ -170,16 +166,10 @@ export function AnnouncementBanner() {
 
   if (!mounted || !visible) return null;
 
-  const animClass = dismissing
-    ? "announcement-slide-up"
-    : "announcement-slide-down";
+  const animClass = dismissing ? "announcement-slide-up" : "announcement-slide-down";
 
   return (
-    <div
-      className={`px-4 pt-0 ${animClass}`}
-      role="status"
-      aria-live="polite"
-    >
+    <div className={`px-4 pt-0 ${animClass}`} role="status" aria-live="polite">
       <div
         className={[
           "relative flex items-center gap-3 rounded-lg border px-4 py-3",
@@ -190,11 +180,7 @@ export function AnnouncementBanner() {
         ].join(" ")}
       >
         {/* Icon */}
-        <div
-          className={["flex-shrink-0", config.iconClass, darkConfig.iconClass].join(
-            " "
-          )}
-        >
+        <div className={["flex-shrink-0", config.iconClass, darkConfig.iconClass].join(" ")}>
           {config.icon}
         </div>
 
@@ -213,13 +199,13 @@ export function AnnouncementBanner() {
         <button
           onClick={handleDismiss}
           className={[
-            "flex-shrink-0 p-1 rounded-md transition-colors hover:bg-black/5 dark:hover:bg-white/5",
+            "flex-shrink-0 rounded-md p-1 transition-colors hover:bg-black/5 dark:hover:bg-white/5",
             config.iconClass,
             darkConfig.iconClass,
           ].join(" ")}
           aria-label="Dismiss announcement"
         >
-          <X className="w-3.5 h-3.5" />
+          <X className="h-3.5 w-3.5" />
         </button>
       </div>
     </div>

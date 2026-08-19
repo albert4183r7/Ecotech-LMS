@@ -73,16 +73,11 @@ function CircularProgress({ percentage }: { percentage: number }) {
   const stroke = 10;
   const normalizedRadius = radius - stroke / 2;
   const circumference = normalizedRadius * 2 * Math.PI;
-  const strokeDashoffset =
-    circumference - (percentage / 100) * circumference;
+  const strokeDashoffset = circumference - (percentage / 100) * circumference;
 
   return (
     <div className="relative inline-flex items-center justify-center">
-      <svg
-        width={radius * 2}
-        height={radius * 2}
-        className="-rotate-90"
-      >
+      <svg width={radius * 2} height={radius * 2} className="-rotate-90">
         {/* Background track */}
         <circle
           cx={radius}
@@ -107,13 +102,7 @@ function CircularProgress({ percentage }: { percentage: number }) {
           className="transition-all duration-700 ease-out"
         />
         <defs>
-          <linearGradient
-            id="progress-gradient"
-            x1="0%"
-            y1="0%"
-            x2="100%"
-            y2="100%"
-          >
+          <linearGradient id="progress-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="#06b6d4" />
             <stop offset="50%" stopColor="#0891b2" />
             <stop offset="100%" stopColor="#0d9488" />
@@ -121,12 +110,10 @@ function CircularProgress({ percentage }: { percentage: number }) {
         </defs>
       </svg>
       <div className="absolute flex flex-col items-center justify-center">
-        <span className="text-3xl font-extrabold tracking-tight text-foreground">
+        <span className="text-foreground text-3xl font-extrabold tracking-tight">
           {percentage}%
         </span>
-        <span className="mt-0.5 text-[11px] font-medium text-muted-foreground">
-          completed
-        </span>
+        <span className="text-muted-foreground mt-0.5 text-[11px] font-medium">completed</span>
       </div>
     </div>
   );
@@ -178,24 +165,26 @@ function EnhancedStatCard({
   label: string;
   value: number;
   color: string;
-  trend?: { value: number; direction: 'up' | 'down' };
+  trend?: { value: number; direction: "up" | "down" };
 }) {
   const animatedValue = useAnimatedCounter(value);
-  const TrendIcon = trend?.direction === 'up' ? TrendingUp : TrendingDown;
+  const TrendIcon = trend?.direction === "up" ? TrendingUp : TrendingDown;
 
   return (
     <div className="glass-card group flex flex-col items-center gap-2 rounded-xl px-4 py-4 transition-all duration-200 hover:shadow-lg">
-      <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${color} shadow-md transition-transform duration-200 group-hover:scale-110`}>
+      <div
+        className={`flex h-9 w-9 items-center justify-center rounded-lg ${color} shadow-md transition-transform duration-200 group-hover:scale-110`}
+      >
         <Icon className="h-4 w-4 text-white" />
       </div>
-      <span className="count-up text-2xl font-extrabold leading-none text-foreground">
+      <span className="count-up text-foreground text-2xl leading-none font-extrabold">
         {animatedValue}
       </span>
-      <span className="text-[10px] font-medium text-muted-foreground">
-        {label}
-      </span>
+      <span className="text-muted-foreground text-[10px] font-medium">{label}</span>
       {trend && (
-        <div className={`flex items-center gap-0.5 text-[10px] font-semibold ${trend.direction === 'up' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'}`}>
+        <div
+          className={`flex items-center gap-0.5 text-[10px] font-semibold ${trend.direction === "up" ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"}`}
+        >
           <TrendIcon className="h-3 w-3" />
           {trend.value}%
         </div>
@@ -208,7 +197,15 @@ function EnhancedStatCard({
 /*  XP Display Panel                                                   */
 /* ------------------------------------------------------------------ */
 
-function XPDisplay({ totalXP, level, progressToNext }: { totalXP: number; level: number; progressToNext: number }) {
+function XPDisplay({
+  totalXP,
+  level,
+  progressToNext,
+}: {
+  totalXP: number;
+  level: number;
+  progressToNext: number;
+}) {
   const animatedXP = useAnimatedCounter(totalXP, 1200);
   const nextLevelXP = level * 500;
 
@@ -227,7 +224,7 @@ function XPDisplay({ totalXP, level, progressToNext }: { totalXP: number; level:
             </span>
             <span className="gradient-text text-lg font-bold">XP</span>
           </div>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-muted-foreground text-xs">
             {nextLevelXP - (totalXP % 500)} XP to Level {level + 1}
           </p>
         </div>
@@ -235,21 +232,19 @@ function XPDisplay({ totalXP, level, progressToNext }: { totalXP: number; level:
       <CardContent className="pt-4 pb-5">
         <div className="space-y-2">
           <div className="flex items-center justify-between text-xs">
-            <span className="font-medium text-muted-foreground">Level {level}</span>
-            <span className="font-medium text-muted-foreground">Level {level + 1}</span>
+            <span className="text-muted-foreground font-medium">Level {level}</span>
+            <span className="text-muted-foreground font-medium">Level {level + 1}</span>
           </div>
-          <div className="h-3 w-full overflow-hidden rounded-full bg-muted/60">
+          <div className="bg-muted/60 h-3 w-full overflow-hidden rounded-full">
             <div
               className="h-full rounded-full transition-all duration-1000 ease-out"
               style={{
                 width: `${progressToNext}%`,
-                background: 'linear-gradient(90deg, #06b6d4, #0891b2, #0d9488, #10b981)',
+                background: "linear-gradient(90deg, #06b6d4, #0891b2, #0d9488, #10b981)",
               }}
             />
           </div>
-          <p className="text-center text-[11px] text-muted-foreground">
-            {totalXP % 500} / 500 XP
-          </p>
+          <p className="text-muted-foreground text-center text-[11px]">{totalXP % 500} / 500 XP</p>
         </div>
       </CardContent>
     </Card>
@@ -260,7 +255,15 @@ function XPDisplay({ totalXP, level, progressToNext }: { totalXP: number; level:
 /*  Streak Calendar (30-day grid)                                      */
 /* ------------------------------------------------------------------ */
 
-function StreakCalendar({ streak, bestStreak, userId }: { streak: number; bestStreak: number; userId: string }) {
+function StreakCalendar({
+  streak,
+  bestStreak,
+  userId,
+}: {
+  streak: number;
+  bestStreak: number;
+  userId: string;
+}) {
   const [activityMap, setActivityMap] = useState<Map<string, number>>(new Map());
   const [days, setDays] = useState<Array<{ date: string; day: string; isToday: boolean }>>([]);
   const [maxMinutes, setMaxMinutes] = useState(1);
@@ -286,11 +289,11 @@ function StreakCalendar({ streak, bestStreak, userId }: { streak: number; bestSt
           for (let i = 0; i < 30; i++) {
             const d = new Date(start);
             d.setDate(d.getDate() + i);
-            const dateStr = d.toISOString().split('T')[0];
+            const dateStr = d.toISOString().split("T")[0];
             allDays.push({
               date: dateStr,
-              day: d.toLocaleDateString('en-US', { weekday: 'narrow' }),
-              isToday: dateStr === today.toISOString().split('T')[0],
+              day: d.toLocaleDateString("en-US", { weekday: "narrow" }),
+              isToday: dateStr === today.toISOString().split("T")[0],
             });
           }
 
@@ -299,7 +302,9 @@ function StreakCalendar({ streak, bestStreak, userId }: { streak: number; bestSt
           const max = Math.max(...Array.from(resMap.values()), 1);
           setMaxMinutes(max);
         }
-      } catch { /* silent */ }
+      } catch {
+        /* silent */
+      }
     }
     fetchActivity();
   }, [userId]);
@@ -311,11 +316,11 @@ function StreakCalendar({ streak, bestStreak, userId }: { streak: number; bestSt
   }
 
   function getCellColor(intensity: number): string {
-    if (intensity === 0) return 'bg-muted/40';
-    if (intensity <= 0.25) return 'bg-cyan-300/40 dark:bg-cyan-700/40';
-    if (intensity <= 0.5) return 'bg-cyan-400/60 dark:bg-cyan-600/50';
-    if (intensity <= 0.75) return 'bg-cyan-500/70 dark:bg-cyan-500/60';
-    return 'bg-cyan-600 dark:bg-cyan-400';
+    if (intensity === 0) return "bg-muted/40";
+    if (intensity <= 0.25) return "bg-cyan-300/40 dark:bg-cyan-700/40";
+    if (intensity <= 0.5) return "bg-cyan-400/60 dark:bg-cyan-600/50";
+    if (intensity <= 0.75) return "bg-cyan-500/70 dark:bg-cyan-500/60";
+    return "bg-cyan-600 dark:bg-cyan-400";
   }
 
   return (
@@ -332,7 +337,7 @@ function StreakCalendar({ streak, bestStreak, userId }: { streak: number; bestSt
             <div className="flex items-center gap-1.5 text-sm font-bold text-orange-600 dark:text-orange-400">
               <span className="text-base">🔥</span>
               <span className="count-up">{streak}</span>
-              <span className="text-xs font-medium text-muted-foreground">days</span>
+              <span className="text-muted-foreground text-xs font-medium">days</span>
             </div>
           </div>
         </div>
@@ -340,21 +345,21 @@ function StreakCalendar({ streak, bestStreak, userId }: { streak: number; bestSt
       <CardContent className="space-y-4">
         {/* Streak stats row */}
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4 text-xs text-muted-foreground">
+          <div className="text-muted-foreground flex items-center gap-4 text-xs">
             <span className="flex items-center gap-1.5">
               <Flame className="h-3.5 w-3.5" />
-              Current: <span className="font-semibold text-foreground">{streak} days</span>
+              Current: <span className="text-foreground font-semibold">{streak} days</span>
             </span>
             <span className="flex items-center gap-1.5">
               <Trophy className="h-3.5 w-3.5" />
-              Best: <span className="font-semibold text-foreground">{bestStreak} days</span>
+              Best: <span className="text-foreground font-semibold">{bestStreak} days</span>
             </span>
           </div>
         </div>
 
         {/* 30-day grid - 6 columns x 5 rows */}
         <div>
-          <p className="mb-2 text-[11px] font-medium text-muted-foreground">Last 30 days</p>
+          <p className="text-muted-foreground mb-2 text-[11px] font-medium">Last 30 days</p>
           <div className="grid grid-cols-6 gap-1.5 sm:grid-cols-10">
             {days.map((d) => {
               const intensity = getIntensity(d.date);
@@ -362,15 +367,15 @@ function StreakCalendar({ streak, bestStreak, userId }: { streak: number; bestSt
                 <div
                   key={d.date}
                   title={`${d.date}: ${activityMap.get(d.date) || 0} min`}
-                  className={`relative aspect-square rounded-sm transition-all duration-200 hover:scale-125 hover:ring-1 hover:ring-primary/30 ${getCellColor(intensity)} ${d.isToday ? 'ring-1 ring-primary' : ''}`}
+                  className={`hover:ring-primary/30 relative aspect-square rounded-sm transition-all duration-200 hover:scale-125 hover:ring-1 ${getCellColor(intensity)} ${d.isToday ? "ring-primary ring-1" : ""}`}
                 />
               );
             })}
           </div>
           {/* Intensity legend */}
-          <div className="mt-2 flex items-center justify-end gap-1 text-[10px] text-muted-foreground">
+          <div className="text-muted-foreground mt-2 flex items-center justify-end gap-1 text-[10px]">
             <span>Less</span>
-            <div className="h-2.5 w-2.5 rounded-sm bg-muted/40" />
+            <div className="bg-muted/40 h-2.5 w-2.5 rounded-sm" />
             <div className="h-2.5 w-2.5 rounded-sm bg-cyan-300/40 dark:bg-cyan-700/40" />
             <div className="h-2.5 w-2.5 rounded-sm bg-cyan-400/60 dark:bg-cyan-600/50" />
             <div className="h-2.5 w-2.5 rounded-sm bg-cyan-500/70 dark:bg-cyan-500/60" />
@@ -411,41 +416,41 @@ function SkillsBadgesGrid({
 }) {
   const badges: SkillBadge[] = [
     {
-      id: 'course-master',
-      name: 'Course Master',
-      description: 'Completed 5+ courses',
+      id: "course-master",
+      name: "Course Master",
+      description: "Completed 5+ courses",
       icon: Award,
       earned: completedCourses >= 5,
       condition: `${completedCourses}/5 courses`,
     },
     {
-      id: 'quick-learner',
-      name: 'Quick Learner',
-      description: 'Completed a course in a day',
+      id: "quick-learner",
+      name: "Quick Learner",
+      description: "Completed a course in a day",
       icon: Zap,
       earned: completedInOneDay,
-      condition: completedInOneDay ? 'Achieved' : 'Not yet',
+      condition: completedInOneDay ? "Achieved" : "Not yet",
     },
     {
-      id: 'bookworm',
-      name: 'Bookworm',
-      description: 'Viewed 50+ slides',
+      id: "bookworm",
+      name: "Bookworm",
+      description: "Viewed 50+ slides",
       icon: BookOpen,
       earned: slidesViewed >= 50,
       condition: `${slidesViewed}/50 slides`,
     },
     {
-      id: 'social-learner',
-      name: 'Social Learner',
-      description: 'Posted 5+ comments',
+      id: "social-learner",
+      name: "Social Learner",
+      description: "Posted 5+ comments",
       icon: MessageSquare,
       earned: commentCount >= 5,
       condition: `${commentCount}/5 comments`,
     },
     {
-      id: 'streak-champion',
-      name: 'Streak Champion',
-      description: '7+ day streak',
+      id: "streak-champion",
+      name: "Streak Champion",
+      description: "7+ day streak",
       icon: Flame,
       earned: currentStreak >= 7,
       condition: `${currentStreak}/7 days`,
@@ -466,12 +471,16 @@ function SkillsBadgesGrid({
             variant="secondary"
             className="gap-1 bg-gradient-to-r from-purple-600/10 to-pink-500/10 text-xs font-medium text-purple-700 dark:text-purple-400"
           >
-            {badges.filter(b => b.earned).length}/{badges.length} earned
+            {badges.filter((b) => b.earned).length}/{badges.length} earned
           </Badge>
         </div>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3" role="list" aria-label="Skill badges">
+        <div
+          className="grid grid-cols-2 gap-3 sm:grid-cols-3"
+          role="list"
+          aria-label="Skill badges"
+        >
           {badges.map((badge) => {
             const IconComp = badge.icon;
             return (
@@ -479,29 +488,43 @@ function SkillsBadgesGrid({
                 key={badge.id}
                 className={`relative flex flex-col items-center gap-2.5 rounded-xl border p-4 text-center transition-all duration-200 ${
                   badge.earned
-                    ? 'border-primary/20 bg-gradient-to-b from-primary/5 to-transparent shadow-sm badge-glow'
-                    : 'border-border/30 bg-muted/20 opacity-50 grayscale'
+                    ? "border-primary/20 from-primary/5 badge-glow bg-gradient-to-b to-transparent shadow-sm"
+                    : "border-border/30 bg-muted/20 opacity-50 grayscale"
                 }`}
                 role="listitem"
               >
-                <div className={`flex h-10 w-10 items-center justify-center rounded-xl transition-transform duration-200 ${
-                  badge.earned
-                    ? 'bg-gradient-to-br from-cyan-500 to-teal-500 text-white shadow-md'
-                    : 'bg-muted text-muted-foreground'
-                }`}>
+                <div
+                  className={`flex h-10 w-10 items-center justify-center rounded-xl transition-transform duration-200 ${
+                    badge.earned
+                      ? "bg-gradient-to-br from-cyan-500 to-teal-500 text-white shadow-md"
+                      : "bg-muted text-muted-foreground"
+                  }`}
+                >
                   {badge.earned ? <IconComp className="h-5 w-5" /> : <Lock className="h-4 w-4" />}
                 </div>
-                <p className={`text-xs font-semibold leading-tight ${badge.earned ? 'text-foreground' : 'text-muted-foreground'}`}>
+                <p
+                  className={`text-xs leading-tight font-semibold ${badge.earned ? "text-foreground" : "text-muted-foreground"}`}
+                >
                   {badge.name}
                 </p>
-                <p className="text-[10px] leading-tight text-muted-foreground">{badge.description}</p>
-                <p className={`text-[10px] font-semibold ${badge.earned ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'}`}>
+                <p className="text-muted-foreground text-[10px] leading-tight">
+                  {badge.description}
+                </p>
+                <p
+                  className={`text-[10px] font-semibold ${badge.earned ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"}`}
+                >
                   {badge.condition}
                 </p>
                 {badge.earned && (
                   <div className="absolute top-2 right-2">
                     <div className="flex h-4 w-4 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600">
-                      <svg className="h-2.5 w-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                      <svg
+                        className="h-2.5 w-2.5 text-white"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={3}
+                      >
                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                       </svg>
                     </div>
@@ -522,7 +545,7 @@ function SkillsBadgesGrid({
 
 function LearningPathTimeline({ enrollments }: { enrollments: EnrollmentData[] }) {
   const completed = enrollments
-    .filter(e => e.status === 'completed' && e.completedAt)
+    .filter((e) => e.status === "completed" && e.completedAt)
     .sort((a, b) => new Date(a.completedAt!).getTime() - new Date(b.completedAt!).getTime());
 
   if (completed.length === 0) {
@@ -537,7 +560,9 @@ function LearningPathTimeline({ enrollments }: { enrollments: EnrollmentData[] }
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground">Complete courses to see your learning timeline here.</p>
+          <p className="text-muted-foreground text-sm">
+            Complete courses to see your learning timeline here.
+          </p>
         </CardContent>
       </Card>
     );
@@ -555,27 +580,33 @@ function LearningPathTimeline({ enrollments }: { enrollments: EnrollmentData[] }
       </CardHeader>
       <CardContent>
         <div className="overflow-x-auto pb-2">
-          <div className="flex items-start gap-0 min-w-max">
+          <div className="flex min-w-max items-start gap-0">
             {completed.map((enrollment, idx) => {
               const date = new Date(enrollment.completedAt!);
-              const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+              const dateStr = date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
               return (
                 <div key={enrollment.id} className="flex items-start">
                   {/* Node */}
                   <div className="flex flex-col items-center">
-                    <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 shadow-md ${
-                      idx === completed.length - 1
-                        ? 'border-cyan-500 bg-gradient-to-br from-cyan-500 to-teal-500 text-white'
-                        : 'border-emerald-400 bg-emerald-500 text-white'
-                    }`}>
-                      {idx === completed.length - 1 ? <Star className="h-4 w-4" /> : <CheckCircle className="h-4 w-4" />}
+                    <div
+                      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 shadow-md ${
+                        idx === completed.length - 1
+                          ? "border-cyan-500 bg-gradient-to-br from-cyan-500 to-teal-500 text-white"
+                          : "border-emerald-400 bg-emerald-500 text-white"
+                      }`}
+                    >
+                      {idx === completed.length - 1 ? (
+                        <Star className="h-4 w-4" />
+                      ) : (
+                        <CheckCircle className="h-4 w-4" />
+                      )}
                     </div>
-                    <p className="mt-1.5 max-w-[100px] text-center text-[10px] font-medium text-muted-foreground">
+                    <p className="text-muted-foreground mt-1.5 max-w-[100px] text-center text-[10px] font-medium">
                       {dateStr}
                     </p>
-                    <p className="mt-0.5 max-w-[100px] text-center text-[11px] font-semibold leading-tight text-foreground">
+                    <p className="text-foreground mt-0.5 max-w-[100px] text-center text-[11px] leading-tight font-semibold">
                       {enrollment.course.title.length > 20
-                        ? enrollment.course.title.slice(0, 20) + '...'
+                        ? enrollment.course.title.slice(0, 20) + "..."
                         : enrollment.course.title}
                     </p>
                   </div>
@@ -631,7 +662,7 @@ function RankBadge({ rank }: { rank: number }) {
     );
   }
   return (
-    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-[11px] font-bold text-muted-foreground">
+    <div className="bg-muted text-muted-foreground flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold">
       {rank}
     </div>
   );
@@ -680,7 +711,7 @@ function TeamLeaderboardCard() {
   useEffect(() => {
     async function fetchLeaderboard() {
       try {
-        const res = await fetch('/api/leaderboard');
+        const res = await fetch("/api/leaderboard");
         const json = await res.json();
         if (json.success) {
           setEntries(json.data);
@@ -727,30 +758,28 @@ function TeamLeaderboardCard() {
           {entries.map((entry) => {
             const isMe = entry.isCurrentUser;
             const initials = entry.name
-              .split(' ')
+              .split(" ")
               .map((w) => w.charAt(0).toUpperCase())
               .slice(0, 2)
-              .join('');
+              .join("");
 
             return (
               <div
                 key={entry.id}
                 className={`group flex items-center gap-3 rounded-lg px-2 py-2.5 transition-colors duration-150 ${
-                  isMe
-                    ? 'bg-primary/5 ring-1 ring-primary/15'
-                    : 'hover:bg-muted/50'
+                  isMe ? "bg-primary/5 ring-primary/15 ring-1" : "hover:bg-muted/50"
                 }`}
               >
                 {/* Rank badge */}
                 <RankBadge rank={entry.rank} />
 
                 {/* Avatar */}
-                <Avatar className="h-8 w-8 border border-border/50">
+                <Avatar className="border-border/50 h-8 w-8 border">
                   <AvatarFallback
                     className={`text-xs font-semibold ${
                       isMe
-                        ? 'bg-gradient-to-br from-cyan-600 to-teal-500 text-white'
-                        : 'bg-muted text-muted-foreground'
+                        ? "bg-gradient-to-br from-cyan-600 to-teal-500 text-white"
+                        : "bg-muted text-muted-foreground"
                     }`}
                   >
                     {initials}
@@ -760,34 +789,30 @@ function TeamLeaderboardCard() {
                 {/* Name + Department */}
                 <div className="min-w-0 flex-1">
                   <p
-                    className={`text-sm font-medium leading-tight ${
-                      isMe ? 'text-primary' : 'text-foreground'
+                    className={`text-sm leading-tight font-medium ${
+                      isMe ? "text-primary" : "text-foreground"
                     }`}
                   >
                     {entry.name}
                     {isMe && (
-                      <span className="ml-1.5 text-[10px] font-normal text-muted-foreground">
+                      <span className="text-muted-foreground ml-1.5 text-[10px] font-normal">
                         (You)
                       </span>
                     )}
                   </p>
-                  <p className="mt-0.5 text-[11px] text-muted-foreground">
-                    {entry.department}
-                  </p>
+                  <p className="text-muted-foreground mt-0.5 text-[11px]">{entry.department}</p>
                 </div>
 
                 {/* Score */}
                 <div className="text-right">
                   <p
                     className={`text-sm font-bold tabular-nums ${
-                      isMe ? 'text-primary' : 'text-foreground'
+                      isMe ? "text-primary" : "text-foreground"
                     }`}
                   >
                     {entry.score.toLocaleString()}
                   </p>
-                  <p className="text-[10px] text-muted-foreground">
-                    pts
-                  </p>
+                  <p className="text-muted-foreground text-[10px]">pts</p>
                 </div>
               </div>
             );
@@ -806,10 +831,13 @@ function ProfileSkeleton() {
   return (
     <div className="space-y-6">
       {/* Banner skeleton */}
-      <Skeleton className="h-40 w-full rounded-2xl skeleton-shimmer" />
+      <Skeleton className="skeleton-shimmer h-40 w-full rounded-2xl" />
       {/* Cards skeleton */}
       <div className="grid gap-6 md:grid-cols-2">
-        <Card className="border-border/50 bg-card/50 backdrop-blur-sm skeleton-shimmer opacity-0" style={{ animation: `viewFadeSlideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) 80ms forwards` }}>
+        <Card
+          className="border-border/50 bg-card/50 skeleton-shimmer opacity-0 backdrop-blur-sm"
+          style={{ animation: `viewFadeSlideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) 80ms forwards` }}
+        >
           <CardHeader className="pb-4">
             <Skeleton className="h-5 w-32" />
           </CardHeader>
@@ -828,7 +856,10 @@ function ProfileSkeleton() {
             </div>
           </CardContent>
         </Card>
-        <Card className="border-border/50 bg-card/50 backdrop-blur-sm skeleton-shimmer opacity-0" style={{ animation: `viewFadeSlideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) 160ms forwards` }}>
+        <Card
+          className="border-border/50 bg-card/50 skeleton-shimmer opacity-0 backdrop-blur-sm"
+          style={{ animation: `viewFadeSlideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) 160ms forwards` }}
+        >
           <CardHeader className="pb-4">
             <Skeleton className="h-5 w-32" />
           </CardHeader>
@@ -847,7 +878,10 @@ function ProfileSkeleton() {
       </div>
 
       {/* Learning path timeline skeleton */}
-      <Card className="border-border/50 bg-card/50 backdrop-blur-sm skeleton-shimmer opacity-0" style={{ animation: `viewFadeSlideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) 240ms forwards` }}>
+      <Card
+        className="border-border/50 bg-card/50 skeleton-shimmer opacity-0 backdrop-blur-sm"
+        style={{ animation: `viewFadeSlideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) 240ms forwards` }}
+      >
         <CardHeader className="pb-3">
           <div className="flex items-center gap-2">
             <Skeleton className="h-7 w-7 rounded-lg" />
@@ -899,13 +933,13 @@ export function ProfilePage() {
   useEffect(() => {
     async function fetchEnrollments() {
       try {
-        const res = await fetch('/api/enrollments?userId=' + currentUserId);
+        const res = await fetch("/api/enrollments?userId=" + currentUserId);
         const json = await res.json();
         if (json.success && json.data) {
           setEnrollments(json.data);
           const completed = json.data.find(
             (e: { status: string; course: { title: string }; completedAt: string | null }) =>
-              e.status === 'completed' && e.completedAt
+              e.status === "completed" && e.completedAt,
           );
           if (completed) {
             setFirstCompletedCourse(completed.course.title);
@@ -946,9 +980,7 @@ export function ProfilePage() {
   if (!profile) {
     return (
       <div className="flex items-center justify-center py-20">
-        <p className="text-sm text-muted-foreground">
-          Unable to load profile
-        </p>
+        <p className="text-muted-foreground text-sm">Unable to load profile</p>
       </div>
     );
   }
@@ -959,23 +991,18 @@ export function ProfilePage() {
     .slice(0, 2)
     .join("");
 
-  const joinDate = new Date(profile.createdAt).toLocaleDateString(
-    "en-US",
-    {
-      month: "long",
-      year: "numeric",
-    }
-  );
+  const joinDate = new Date(profile.createdAt).toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric",
+  });
 
   const completedPercent =
     profile.stats.totalCourses > 0
-      ? Math.round(
-          (profile.stats.completed / profile.stats.totalCourses) * 100
-        )
+      ? Math.round((profile.stats.completed / profile.stats.totalCourses) * 100)
       : 0;
 
   /* ---- XP calculation ---- */
-  const completedEnrollments = enrollments.filter(e => e.status === 'completed');
+  const completedEnrollments = enrollments.filter((e) => e.status === "completed");
   const xpFromCompletedCourses = completedEnrollments.length * 100;
   const xpFromLessons = enrollments.reduce((sum, e) => {
     // Each lesson = 10 XP; estimate completed lessons from progress percentage
@@ -987,7 +1014,7 @@ export function ProfilePage() {
   const progressToNext = (totalXP % 500) / 5; // percentage toward next 500 XP
 
   /* ---- Badge condition helpers ---- */
-  const completedInOneDay = completedEnrollments.some(e => {
+  const completedInOneDay = completedEnrollments.some((e) => {
     if (!e.completedAt || !e.enrolledAt) return false;
     const enrolled = new Date(e.enrolledAt);
     const completed = new Date(e.completedAt);
@@ -1006,8 +1033,8 @@ export function ProfilePage() {
     <div className="space-y-6">
       {/* Page Header */}
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Profile</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <h1 className="text-foreground text-2xl font-bold">Profile</h1>
+        <p className="text-muted-foreground mt-1 text-sm">
           Manage your account and view learning overview
         </p>
       </div>
@@ -1015,7 +1042,7 @@ export function ProfilePage() {
       {/* Profile Banner */}
       <div className="relative overflow-hidden rounded-2xl">
         {/* Gradient background with decorative patterns */}
-        <div className="relative bg-gradient-to-r from-blue-600 via-cyan-600 to-teal-500 px-6 pb-20 pt-8 sm:px-8 sm:pb-24 sm:pt-10">
+        <div className="relative bg-gradient-to-r from-blue-600 via-cyan-600 to-teal-500 px-6 pt-8 pb-20 sm:px-8 sm:pt-10 sm:pb-24">
           {/* Decorative geometric shapes */}
           <div className="absolute -top-12 -right-12 h-48 w-48 rounded-full bg-white/10" />
           <div className="absolute -bottom-8 -left-8 h-32 w-32 rounded-full bg-white/10" />
@@ -1023,7 +1050,7 @@ export function ProfilePage() {
           {/* Diamond shape */}
           <div className="absolute top-4 left-1/3 h-16 w-16 rotate-45 rounded-sm border border-white/10" />
           {/* Small circle */}
-          <div className="absolute bottom-8 right-12 h-6 w-6 rounded-full bg-white/10" />
+          <div className="absolute right-12 bottom-8 h-6 w-6 rounded-full bg-white/10" />
           {/* Dots pattern */}
           <div className="absolute top-1/2 left-8 grid grid-cols-3 gap-2 opacity-20">
             {Array.from({ length: 9 }).map((_, i) => (
@@ -1031,18 +1058,18 @@ export function ProfilePage() {
             ))}
           </div>
           {/* Triangle hint */}
-          <div className="absolute right-16 bottom-4 h-0 w-0 border-l-[12px] border-r-[12px] border-b-[20px] border-l-transparent border-r-transparent border-b-white/10" />
+          <div className="absolute right-16 bottom-4 h-0 w-0 border-r-[12px] border-b-[20px] border-l-[12px] border-r-transparent border-b-white/10 border-l-transparent" />
         </div>
 
         {/* Profile info overlapping the banner */}
         <div className="relative mx-4 -mt-12 sm:mx-6">
-          <div className="flex flex-col gap-4 rounded-xl border border-border/50 bg-card p-5 shadow-sm sm:flex-row sm:items-center sm:gap-5 sm:p-6">
+          <div className="border-border/50 bg-card flex flex-col gap-4 rounded-xl border p-5 shadow-sm sm:flex-row sm:items-center sm:gap-5 sm:p-6">
             {/* Avatar with animated ring */}
             <div className="flex items-start sm:items-center">
               <div className="relative">
                 {/* Animated ring */}
-                <div className="absolute -inset-1 rounded-full bg-gradient-to-r from-cyan-500 via-teal-400 to-emerald-400 opacity-60 blur-[2px] animate-[pulse_3s_ease-in-out_infinite]" />
-                <Avatar className="relative h-20 w-20 border-4 border-card shadow-lg">
+                <div className="absolute -inset-1 animate-[pulse_3s_ease-in-out_infinite] rounded-full bg-gradient-to-r from-cyan-500 via-teal-400 to-emerald-400 opacity-60 blur-[2px]" />
+                <Avatar className="border-card relative h-20 w-20 border-4 shadow-lg">
                   <AvatarFallback className="bg-gradient-to-br from-cyan-600 to-teal-500 text-2xl font-bold text-white">
                     {initials}
                   </AvatarFallback>
@@ -1053,7 +1080,7 @@ export function ProfilePage() {
             {/* Info */}
             <div className="flex-1 space-y-1.5">
               <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-xl font-bold text-foreground">
+                <h2 className="text-foreground text-xl font-bold">
                   {profile.name || "Unnamed User"}
                 </h2>
                 {/* Role badge */}
@@ -1062,22 +1089,15 @@ export function ProfilePage() {
                   {profile.role}
                 </Badge>
               </div>
-              <p className="text-sm text-muted-foreground">
-                {profile.email}
-              </p>
+              <p className="text-muted-foreground text-sm">{profile.email}</p>
               <div className="flex flex-wrap items-center gap-2 pt-0.5">
                 {profile.department && (
-                  <Badge
-                    variant="secondary"
-                    className="gap-1 text-xs"
-                  >
+                  <Badge variant="secondary" className="gap-1 text-xs">
                     <Building2 className="h-3 w-3" />
                     {profile.department}
                   </Badge>
                 )}
-                <span className="text-xs text-muted-foreground">
-                  Joined {joinDate}
-                </span>
+                <span className="text-muted-foreground text-xs">Joined {joinDate}</span>
               </div>
             </div>
           </div>
@@ -1088,147 +1108,135 @@ export function ProfilePage() {
       <div className={currentRole === "instructor" ? "" : "grid gap-6 md:grid-cols-2"}>
         {/* Stats Panel - STUDENT ONLY */}
         {currentRole === "student" && (
-        <Card className="border-border/50">
-          <CardHeader className="pb-4">
-            <CardTitle className="text-base font-semibold">
-              Learning Stats
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Circular Progress */}
-            <div className="flex justify-center">
-              <CircularProgress percentage={completedPercent} />
-            </div>
+          <Card className="border-border/50">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-base font-semibold">Learning Stats</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Circular Progress */}
+              <div className="flex justify-center">
+                <CircularProgress percentage={completedPercent} />
+              </div>
 
-            {/* Enhanced stat cards with glass-morphism & animated counters */}
-            <div className="grid grid-cols-3 gap-3">
-              <EnhancedStatCard
-                icon={BookOpen}
-                label="Total Courses"
-                value={profile.stats.totalCourses}
-                color="bg-gradient-to-br from-blue-500 to-blue-700"
-                trend={{ value: 12, direction: 'up' }}
-              />
-              <EnhancedStatCard
-                icon={CheckCircle}
-                label="Completed"
-                value={profile.stats.completed}
-                color="bg-gradient-to-br from-emerald-500 to-emerald-700"
-                trend={{ value: 25, direction: 'up' }}
-              />
-              <EnhancedStatCard
-                icon={Clock}
-                label="In Progress"
-                value={profile.stats.inProgress}
-                color="bg-gradient-to-br from-amber-500 to-amber-700"
-                trend={{ value: 8, direction: 'down' }}
-              />
-            </div>
-          </CardContent>
-        </Card>
+              {/* Enhanced stat cards with glass-morphism & animated counters */}
+              <div className="grid grid-cols-3 gap-3">
+                <EnhancedStatCard
+                  icon={BookOpen}
+                  label="Total Courses"
+                  value={profile.stats.totalCourses}
+                  color="bg-gradient-to-br from-blue-500 to-blue-700"
+                  trend={{ value: 12, direction: "up" }}
+                />
+                <EnhancedStatCard
+                  icon={CheckCircle}
+                  label="Completed"
+                  value={profile.stats.completed}
+                  color="bg-gradient-to-br from-emerald-500 to-emerald-700"
+                  trend={{ value: 25, direction: "up" }}
+                />
+                <EnhancedStatCard
+                  icon={Clock}
+                  label="In Progress"
+                  value={profile.stats.inProgress}
+                  color="bg-gradient-to-br from-amber-500 to-amber-700"
+                  trend={{ value: 8, direction: "down" }}
+                />
+              </div>
+            </CardContent>
+          </Card>
         )}
 
         {/* Quick Actions */}
         <Card className="border-border/50">
           <CardHeader className="pb-4">
-            <CardTitle className="text-base font-semibold">
-              Quick Actions
-            </CardTitle>
+            <CardTitle className="text-base font-semibold">Quick Actions</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             {/* Create Course - INSTRUCTOR ONLY */}
             {currentRole === "instructor" && (
-            <button
-              className="group flex w-full items-center gap-4 rounded-xl border border-border/50 bg-gradient-to-r from-cyan-600/5 to-teal-500/5 p-4 text-left transition-all duration-200 hover:border-cyan-500/30 hover:bg-gradient-to-r hover:from-cyan-600/10 hover:to-teal-500/10 hover:shadow-sm"
-              onClick={() => navigateTo("create-course")}
-            >
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-600 to-teal-500 text-white shadow-sm transition-transform duration-200 group-hover:scale-110">
-                <Plus className="h-5 w-5" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-foreground">
-                  Create Course
-                </p>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  Build and publish a new learning course
-                </p>
-              </div>
-              <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-primary" />
-            </button>
+              <button
+                className="group border-border/50 flex w-full items-center gap-4 rounded-xl border bg-gradient-to-r from-cyan-600/5 to-teal-500/5 p-4 text-left transition-all duration-200 hover:border-cyan-500/30 hover:bg-gradient-to-r hover:from-cyan-600/10 hover:to-teal-500/10 hover:shadow-sm"
+                onClick={() => navigateTo("create-course")}
+              >
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-600 to-teal-500 text-white shadow-sm transition-transform duration-200 group-hover:scale-110">
+                  <Plus className="h-5 w-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-foreground text-sm font-semibold">Create Course</p>
+                  <p className="text-muted-foreground mt-0.5 text-xs">
+                    Build and publish a new learning course
+                  </p>
+                </div>
+                <ArrowRight className="text-muted-foreground group-hover:text-primary h-4 w-4 shrink-0 transition-transform duration-200 group-hover:translate-x-0.5" />
+              </button>
             )}
 
             {/* Browse Courses */}
             <button
-              className="group flex w-full items-center gap-4 rounded-xl border border-border/50 bg-gradient-to-r from-emerald-600/5 to-cyan-500/5 p-4 text-left transition-all duration-200 hover:border-emerald-500/30 hover:bg-gradient-to-r hover:from-emerald-600/10 hover:to-cyan-500/10 hover:shadow-sm"
+              className="group border-border/50 flex w-full items-center gap-4 rounded-xl border bg-gradient-to-r from-emerald-600/5 to-cyan-500/5 p-4 text-left transition-all duration-200 hover:border-emerald-500/30 hover:bg-gradient-to-r hover:from-emerald-600/10 hover:to-cyan-500/10 hover:shadow-sm"
               onClick={() => navigateTo("courses")}
             >
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-600 to-cyan-500 text-white shadow-sm transition-transform duration-200 group-hover:scale-110">
                 <LayoutGrid className="h-5 w-5" />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-foreground">
-                  Browse Courses
-                </p>
-                <p className="mt-0.5 text-xs text-muted-foreground">
+                <p className="text-foreground text-sm font-semibold">Browse Courses</p>
+                <p className="text-muted-foreground mt-0.5 text-xs">
                   Explore the full course catalog
                 </p>
               </div>
-              <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-primary" />
+              <ArrowRight className="text-muted-foreground group-hover:text-primary h-4 w-4 shrink-0 transition-transform duration-200 group-hover:translate-x-0.5" />
             </button>
 
             {/* View Certificate - STUDENT ONLY */}
             {currentRole === "student" && (
-            <button
-              className="group flex w-full items-center gap-4 rounded-xl border border-border/50 bg-gradient-to-r from-cyan-600/5 to-teal-500/5 p-4 text-left transition-all duration-200 hover:border-cyan-500/30 hover:bg-gradient-to-r hover:from-cyan-600/10 hover:to-teal-500/10 hover:shadow-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:from-cyan-600/5 disabled:hover:to-teal-500/5 disabled:hover:border-border/50 disabled:hover:shadow-none"
-              onClick={() => {
-                if (firstCompletedCourse && completedDate) {
-                  setCertificateOpen(true);
-                } else {
-                  toast.info("Complete a course to earn a certificate!");
-                }
-              }}
-            >
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-600 to-teal-500 text-white shadow-sm transition-transform duration-200 group-hover:scale-110">
-                <FileBadge className="h-5 w-5" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-foreground">
-                  View Certificate
-                </p>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  {firstCompletedCourse
-                    ? `View cert for "${firstCompletedCourse.length > 30 ? firstCompletedCourse.slice(0, 30) + '...' : firstCompletedCourse}"`
-                    : "Complete a course to earn a certificate"}
-                </p>
-              </div>
-              <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-primary" />
-            </button>
+              <button
+                className="group border-border/50 disabled:hover:border-border/50 flex w-full items-center gap-4 rounded-xl border bg-gradient-to-r from-cyan-600/5 to-teal-500/5 p-4 text-left transition-all duration-200 hover:border-cyan-500/30 hover:bg-gradient-to-r hover:from-cyan-600/10 hover:to-teal-500/10 hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:from-cyan-600/5 disabled:hover:to-teal-500/5 disabled:hover:shadow-none"
+                onClick={() => {
+                  if (firstCompletedCourse && completedDate) {
+                    setCertificateOpen(true);
+                  } else {
+                    toast.info("Complete a course to earn a certificate!");
+                  }
+                }}
+              >
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-600 to-teal-500 text-white shadow-sm transition-transform duration-200 group-hover:scale-110">
+                  <FileBadge className="h-5 w-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-foreground text-sm font-semibold">View Certificate</p>
+                  <p className="text-muted-foreground mt-0.5 text-xs">
+                    {firstCompletedCourse
+                      ? `View cert for "${firstCompletedCourse.length > 30 ? firstCompletedCourse.slice(0, 30) + "..." : firstCompletedCourse}"`
+                      : "Complete a course to earn a certificate"}
+                  </p>
+                </div>
+                <ArrowRight className="text-muted-foreground group-hover:text-primary h-4 w-4 shrink-0 transition-transform duration-200 group-hover:translate-x-0.5" />
+              </button>
             )}
 
             {/* My Learning - STUDENT ONLY */}
             {currentRole === "student" && (
-            <button
-              className="group flex w-full items-center gap-4 rounded-xl border border-border/50 bg-gradient-to-r from-amber-600/5 to-orange-500/5 p-4 text-left transition-all duration-200 hover:border-amber-500/30 hover:bg-gradient-to-r hover:from-amber-600/10 hover:to-orange-500/10 hover:shadow-sm"
-              onClick={() => navigateTo("my-learning")}
-            >
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 text-white shadow-sm transition-transform duration-200 group-hover:scale-110">
-                <GraduationCap className="h-5 w-5" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-foreground">
-                  My Learning
-                </p>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  Track your progress and enrolled courses
-                </p>
-              </div>
-              <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-primary" />
-            </button>
+              <button
+                className="group border-border/50 flex w-full items-center gap-4 rounded-xl border bg-gradient-to-r from-amber-600/5 to-orange-500/5 p-4 text-left transition-all duration-200 hover:border-amber-500/30 hover:bg-gradient-to-r hover:from-amber-600/10 hover:to-orange-500/10 hover:shadow-sm"
+                onClick={() => navigateTo("my-learning")}
+              >
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 text-white shadow-sm transition-transform duration-200 group-hover:scale-110">
+                  <GraduationCap className="h-5 w-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-foreground text-sm font-semibold">My Learning</p>
+                  <p className="text-muted-foreground mt-0.5 text-xs">
+                    Track your progress and enrolled courses
+                  </p>
+                </div>
+                <ArrowRight className="text-muted-foreground group-hover:text-primary h-4 w-4 shrink-0 transition-transform duration-200 group-hover:translate-x-0.5" />
+              </button>
             )}
 
             {/* Retake Tour */}
             <button
-              className="group flex w-full items-center gap-4 rounded-xl border border-border/50 bg-gradient-to-r from-violet-600/5 to-purple-500/5 p-4 text-left transition-all duration-200 hover:border-violet-500/30 hover:bg-gradient-to-r hover:from-violet-600/10 hover:to-purple-500/10 hover:shadow-sm"
+              className="group border-border/50 flex w-full items-center gap-4 rounded-xl border bg-gradient-to-r from-violet-600/5 to-purple-500/5 p-4 text-left transition-all duration-200 hover:border-violet-500/30 hover:bg-gradient-to-r hover:from-violet-600/10 hover:to-purple-500/10 hover:shadow-sm"
               onClick={() => {
                 localStorage.removeItem("ecotech_onboarding_done");
                 toast.success("Tour will show on next page refresh!");
@@ -1238,14 +1246,12 @@ export function ProfilePage() {
                 <Sparkles className="h-5 w-5" />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-foreground">
-                  Retake Tour
-                </p>
-                <p className="mt-0.5 text-xs text-muted-foreground">
+                <p className="text-foreground text-sm font-semibold">Retake Tour</p>
+                <p className="text-muted-foreground mt-0.5 text-xs">
                   Replay the welcome guide and feature overview
                 </p>
               </div>
-              <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-primary" />
+              <ArrowRight className="text-muted-foreground group-hover:text-primary h-4 w-4 shrink-0 transition-transform duration-200 group-hover:translate-x-0.5" />
             </button>
 
             <Separator className="my-2" />
@@ -1271,48 +1277,52 @@ export function ProfilePage() {
 
       {/* Student-only widgets */}
       {currentRole === "student" && (
-      <>
-      {/* XP Display + Streak Calendar */}
-      <div className="grid gap-6 md:grid-cols-2">
-        <XPDisplay totalXP={totalXP} level={level} progressToNext={progressToNext} />
-        <StreakCalendar streak={streakData.current} bestStreak={streakData.longest} userId={currentUserId} />
-      </div>
+        <>
+          {/* XP Display + Streak Calendar */}
+          <div className="grid gap-6 md:grid-cols-2">
+            <XPDisplay totalXP={totalXP} level={level} progressToNext={progressToNext} />
+            <StreakCalendar
+              streak={streakData.current}
+              bestStreak={streakData.longest}
+              userId={currentUserId}
+            />
+          </div>
 
-      {/* Skills & Badges Grid */}
-      <SkillsBadgesGrid
-        completedCourses={profile.stats.completed}
-        completedInOneDay={completedInOneDay}
-        slidesViewed={totalSlidesViewed}
-        commentCount={commentCount}
-        currentStreak={streakData.current}
-      />
+          {/* Skills & Badges Grid */}
+          <SkillsBadgesGrid
+            completedCourses={profile.stats.completed}
+            completedInOneDay={completedInOneDay}
+            slidesViewed={totalSlidesViewed}
+            commentCount={commentCount}
+            currentStreak={streakData.current}
+          />
 
-      {/* Learning Path Timeline */}
-      <LearningPathTimeline enrollments={enrollments} />
+          {/* Learning Path Timeline */}
+          <LearningPathTimeline enrollments={enrollments} />
 
-      {/* XP Level Progress (Full) */}
-      <XpBarFull userId={profile.id} />
+          {/* XP Level Progress (Full) */}
+          <XpBarFull userId={profile.id} />
 
-      {/* Weekly Activity Chart */}
-      <ActivityChart userId={profile.id} />
+          {/* Weekly Activity Chart */}
+          <ActivityChart userId={profile.id} />
 
-      {/* Team Leaderboard */}
-      <TeamLeaderboardCard />
+          {/* Team Leaderboard */}
+          <TeamLeaderboardCard />
 
-      {/* Achievement Badges */}
-      <AchievementBadges stats={profile.stats} />
-      </>
+          {/* Achievement Badges */}
+          <AchievementBadges stats={profile.stats} />
+        </>
       )}
 
       {/* Certificate Modal - STUDENT ONLY */}
       {currentRole === "student" && (
-      <CertificateModal
-        open={certificateOpen}
-        onOpenChange={setCertificateOpen}
-        userName={profile?.name || profile?.email || "Learner"}
-        courseName={firstCompletedCourse || "Course"}
-        completionDate={completedDate || new Date().toISOString()}
-      />
+        <CertificateModal
+          open={certificateOpen}
+          onOpenChange={setCertificateOpen}
+          userName={profile?.name || profile?.email || "Learner"}
+          courseName={firstCompletedCourse || "Course"}
+          completionDate={completedDate || new Date().toISOString()}
+        />
       )}
     </div>
   );

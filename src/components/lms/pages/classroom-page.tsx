@@ -121,16 +121,12 @@ export function ClassroomPage() {
         const res = await fetch(`/api/lessons/${lessonId}`);
         if (!res.ok) return;
         const json = await res.json();
-        const slideData =
-          json.success && json.data.slides?.length > 0
-            ? json.data.slides[0]
-            : null;
-        const htmlBody = slideData?.htmlBody
-            || '<div class="flex items-center justify-center h-full"><p class="text-gray-500">No content available.</p></div>';
+        const slideData = json.success && json.data.slides?.length > 0 ? json.data.slides[0] : null;
+        const htmlBody =
+          slideData?.htmlBody ||
+          '<div class="flex items-center justify-center h-full"><p class="text-gray-500">No content available.</p></div>';
         const lessonTitle =
-          json.success && json.data.title
-            ? json.data.title
-            : `Lesson ${index + 1}`;
+          json.success && json.data.title ? json.data.title : `Lesson ${index + 1}`;
         // Track slide ID for element-edit persistence
         if (slideData?.id) currentSlideIdRef.current = slideData.id;
         // Extract slide style context from outlineJson
@@ -140,7 +136,9 @@ export function ClassroomPage() {
             const style = outline.style || "";
             const topic = outline.topic || lessonTitle;
             slideContextRef.current = `This is a ${style ? style + "-style" : ""} slide about "${topic}". Keep edits visually consistent with this style.`;
-          } catch { /* ignore parse errors */ }
+          } catch {
+            /* ignore parse errors */
+          }
         }
         setLocalState((prev) =>
           prev
@@ -151,7 +149,7 @@ export function ClassroomPage() {
                 htmlBody,
                 currentLessonIndex: index,
               }
-            : prev
+            : prev,
         );
       } catch {
         /* silently fail */
@@ -159,7 +157,7 @@ export function ClassroomPage() {
         setNavigating(false);
       }
     },
-    [localState]
+    [localState],
   );
 
   /** Mark lesson as completed and save progress */
@@ -171,7 +169,7 @@ export function ClassroomPage() {
         const enrollJson = await enrollRes.json();
         if (enrollJson.success && Array.isArray(enrollJson.data)) {
           const enrollment = enrollJson.data.find(
-            (e: Record<string, unknown>) => e.courseId === localState.courseId
+            (e: Record<string, unknown>) => e.courseId === localState.courseId,
           );
           if (enrollment) {
             await fetch("/api/progress", {
@@ -190,7 +188,7 @@ export function ClassroomPage() {
         /* best-effort */
       }
     },
-    [userId, localState]
+    [userId, localState],
   );
 
   // Save progress when lesson changes
@@ -255,42 +253,39 @@ export function ClassroomPage() {
   // Attaches a click listener to the iframe's document body.
   // With sandbox="allow-same-origin allow-scripts", the parent can access iframe.contentDocument directly.
   // No sandbox change needed — direct DOM access is safe under allow-same-origin.
-  const handleIframeClick = useCallback(
-    (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      if (!target || target.tagName === "BODY" || target.tagName === "HTML") return;
+  const handleIframeClick = useCallback((e: MouseEvent) => {
+    const target = e.target as HTMLElement;
+    if (!target || target.tagName === "BODY" || target.tagName === "HTML") return;
 
-      const iframe = iframeRef.current;
-      if (!iframe?.contentDocument || !iframe.contentWindow) return;
+    const iframe = iframeRef.current;
+    if (!iframe?.contentDocument || !iframe.contentWindow) return;
 
-      // Capture the element reference and its outerHTML
-      const outerHTML = target.outerHTML;
+    // Capture the element reference and its outerHTML
+    const outerHTML = target.outerHTML;
 
-      // Map click coordinates from iframe viewport to parent viewport
-      // accounting for zoom transform on the container
-      const iframeRect = iframe.getBoundingClientRect();
-      const iframeWidth = iframe.contentWindow.innerWidth;
-      const iframeHeight = iframe.contentWindow.innerHeight;
-      const scaleX = iframeRect.width / iframeWidth;
-      const scaleY = iframeRect.height / iframeHeight;
-      const pageX = iframeRect.left + e.clientX * scaleX;
-      const pageY = iframeRect.top + e.clientY * scaleY;
+    // Map click coordinates from iframe viewport to parent viewport
+    // accounting for zoom transform on the container
+    const iframeRect = iframe.getBoundingClientRect();
+    const iframeWidth = iframe.contentWindow.innerWidth;
+    const iframeHeight = iframe.contentWindow.innerHeight;
+    const scaleX = iframeRect.width / iframeWidth;
+    const scaleY = iframeRect.height / iframeHeight;
+    const pageX = iframeRect.left + e.clientX * scaleX;
+    const pageY = iframeRect.top + e.clientY * scaleY;
 
-      // Position toolbar slightly offset from click
-      const toolbarX = Math.min(pageX + 10, window.innerWidth - 300);
-      const toolbarY = Math.min(pageY - 10, window.innerHeight - 120);
+    // Position toolbar slightly offset from click
+    const toolbarX = Math.min(pageX + 10, window.innerWidth - 300);
+    const toolbarY = Math.min(pageY - 10, window.innerHeight - 120);
 
-      setElementEdit({
-        show: true,
-        targetElement: target,
-        outerHTML,
-        position: { x: Math.max(10, toolbarX), y: Math.max(10, toolbarY) },
-        instruction: "",
-        loading: false,
-      });
-    },
-    []
-  );
+    setElementEdit({
+      show: true,
+      targetElement: target,
+      outerHTML,
+      position: { x: Math.max(10, toolbarX), y: Math.max(10, toolbarY) },
+      instruction: "",
+      loading: false,
+    });
+  }, []);
 
   const attachIframeClickListener = useCallback(() => {
     const iframe = iframeRef.current;
@@ -323,11 +318,7 @@ export function ClassroomPage() {
 
   /** Submit element edit: call API, replace in DOM, persist */
   const handleElementEdit = useCallback(async () => {
-    if (
-      !elementEdit.targetElement ||
-      elementEdit.loading ||
-      !elementEdit.instruction.trim()
-    )
+    if (!elementEdit.targetElement || elementEdit.loading || !elementEdit.instruction.trim())
       return;
 
     setElementEdit((prev) => ({ ...prev, loading: true }));
@@ -378,13 +369,10 @@ export function ClassroomPage() {
           .replace(/</g, "&lt;")
           .replace(/>/g, "&gt;")
           .replace(/"/g, "&quot;");
-        const updatedHtmlBody =
-          `<!DOCTYPE html>\n<html lang="en">\n<head>\n  <meta charset="UTF-8" />\n  <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n  <title>${safeTitle}</title>\n  <script src="https://cdn.tailwindcss.com"><\/script>\n  <style>\n    body { margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }\n    * { box-sizing: border-box; }\n  </style>\n</head>\n<body class="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">\n  ${bodyHtml}\n</body>\n</html>`;
+        const updatedHtmlBody = `<!DOCTYPE html>\n<html lang="en">\n<head>\n  <meta charset="UTF-8" />\n  <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n  <title>${safeTitle}</title>\n  <script src="https://cdn.tailwindcss.com"><\/script>\n  <style>\n    body { margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }\n    * { box-sizing: border-box; }\n  </style>\n</head>\n<body class="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">\n  ${bodyHtml}\n</body>\n</html>`;
 
         // Update local state
-        setLocalState((prev) =>
-          prev ? { ...prev, htmlBody: updatedHtmlBody } : prev
-        );
+        setLocalState((prev) => (prev ? { ...prev, htmlBody: updatedHtmlBody } : prev));
 
         // Persist to database
         const slideId = currentSlideIdRef.current;
@@ -393,7 +381,9 @@ export function ClassroomPage() {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ htmlBody: updatedHtmlBody }),
-          }).catch(() => { /* best-effort */ });
+          }).catch(() => {
+            /* best-effort */
+          });
         }
 
         // Re-attach click listener for the new DOM
@@ -424,9 +414,7 @@ export function ClassroomPage() {
   useEffect(() => {
     if (!localState) return;
     const totalLessons = localState.allLessonIds.length;
-    const isOnLastLesson =
-      totalLessons > 0 &&
-      localState.currentLessonIndex === totalLessons - 1;
+    const isOnLastLesson = totalLessons > 0 && localState.currentLessonIndex === totalLessons - 1;
     if (isOnLastLesson && !confettiShownRef.current) {
       confettiShownRef.current = true;
       setShowConfetti(true);
@@ -454,7 +442,7 @@ export function ClassroomPage() {
     if (!localState || !userId) return;
     try {
       const res = await fetch(
-        `/api/notes?userId=${userId}&courseId=${localState.courseId}&lessonId=${localState.lessonId}`
+        `/api/notes?userId=${userId}&courseId=${localState.courseId}&lessonId=${localState.lessonId}`,
       );
       if (!res.ok) return;
       const json = await res.json();
@@ -491,10 +479,7 @@ export function ClassroomPage() {
       if (json.success && json.data) {
         setNotes((prev) => [...prev, json.data]);
         setNewNoteContent("");
-        setTimeout(
-          () => notesEndRef.current?.scrollIntoView({ behavior: "smooth" }),
-          50
-        );
+        setTimeout(() => notesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
       }
     } catch {
       toast.error("Failed to save note");
@@ -520,9 +505,7 @@ export function ClassroomPage() {
 
   const toggleBookmark = useCallback((noteId: string) => {
     setNotes((prev) =>
-      prev.map((n) =>
-        n.id === noteId ? { ...n, bookmarked: !n.bookmarked } : n
-      )
+      prev.map((n) => (n.id === noteId ? { ...n, bookmarked: !n.bookmarked } : n)),
     );
   }, []);
 
@@ -586,9 +569,7 @@ export function ClassroomPage() {
       const json = await res.json();
       if (json.success && json.data?.htmlBody) {
         const newHtmlBody = json.data.htmlBody;
-        setLocalState((prev) =>
-          prev ? { ...prev, htmlBody: newHtmlBody } : prev
-        );
+        setLocalState((prev) => (prev ? { ...prev, htmlBody: newHtmlBody } : prev));
         toast.success("AI edit applied");
         // Persist to database
         try {
@@ -615,8 +596,8 @@ export function ClassroomPage() {
   // ─── No state guard ─────────────────────────────
   if (!localState) {
     return (
-      <div className="flex h-screen items-center justify-center bg-muted/30">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="bg-muted/30 flex h-screen items-center justify-center">
+        <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
       </div>
     );
   }
@@ -626,12 +607,10 @@ export function ClassroomPage() {
   const isFirst = currentIdx === 0;
   const isLast = totalLessons > 0 && currentIdx >= totalLessons - 1;
   const progressPercent =
-    totalLessons > 1
-      ? Math.round(((currentIdx + 1) / totalLessons) * 100)
-      : 100;
+    totalLessons > 1 ? Math.round(((currentIdx + 1) / totalLessons) * 100) : 100;
 
   return (
-    <div className="flex h-screen flex-col bg-muted/30 relative">
+    <div className="bg-muted/30 relative flex h-screen flex-col">
       {/* ─── Mobile Notes Sheet ──────────────────── */}
       <Sheet
         open={notesSidebarOpen && isMobile}
@@ -639,7 +618,7 @@ export function ClassroomPage() {
           if (!open) setNotesSidebarOpen(false);
         }}
       >
-        <SheetContent side="right" className="w-full sm:max-w-sm p-0">
+        <SheetContent side="right" className="w-full p-0 sm:max-w-sm">
           <SheetHeader className="px-4 pt-4 pb-0">
             <SheetTitle className="flex items-center gap-2 text-base">
               <StickyNote className="h-4 w-4" />
@@ -667,18 +646,18 @@ export function ClassroomPage() {
       {showConfetti && <ConfettiCelebration />}
 
       {/* ─── Top Progress Bar ─────────────────────── */}
-      <div className="shrink-0 h-1 w-full bg-muted overflow-hidden">
+      <div className="bg-muted h-1 w-full shrink-0 overflow-hidden">
         <div
-          className="h-full bg-gradient-to-r from-primary to-accent transition-all duration-500 ease-out"
+          className="from-primary to-accent h-full bg-gradient-to-r transition-all duration-500 ease-out"
           style={{ width: `${progressPercent}%` }}
         />
       </div>
 
       {/* ─── Top Bar ──────────────────────────────── */}
-      <header className="flex h-14 shrink-0 items-center justify-between border-b bg-card px-4 sm:px-6">
+      <header className="bg-card flex h-14 shrink-0 items-center justify-between border-b px-4 sm:px-6">
         {/* Logo, Lesson Title, Course Title */}
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="flex items-center gap-2 shrink-0">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex shrink-0 items-center gap-2">
             <img
               src="/ecotech-logo.png"
               alt="Ecotech"
@@ -687,25 +666,23 @@ export function ClassroomPage() {
             <img
               src="/ecotech-name.png"
               alt="Ecotech"
-              className="h-5 w-auto hidden sm:inline object-contain"
+              className="hidden h-5 w-auto object-contain sm:inline"
             />
           </div>
           <Separator orientation="vertical" className="h-5" />
           <div className="min-w-0">
-            <h2 className="text-sm font-medium text-foreground truncate leading-tight">
+            <h2 className="text-foreground truncate text-sm leading-tight font-medium">
               {localState.lessonTitle}
             </h2>
-            <p className="text-xs text-muted-foreground truncate leading-tight">
+            <p className="text-muted-foreground truncate text-xs leading-tight">
               {localState.courseTitle}
             </p>
           </div>
         </div>
 
         {/* Lesson Counter */}
-        <span className="shrink-0 inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-sm text-primary tabular-nums">
-          <span className="font-semibold">
-            Lesson {currentIdx + 1}
-          </span>
+        <span className="bg-primary/10 text-primary inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-sm tabular-nums">
+          <span className="font-semibold">Lesson {currentIdx + 1}</span>
           <span className="text-primary/40 font-normal">of</span>
           <span className="font-semibold">{totalLessons}</span>
         </span>
@@ -714,9 +691,9 @@ export function ClassroomPage() {
       {/* ─── Main Layout: Content + Desktop Notes Sidebar ── */}
       <div className="flex flex-1 overflow-hidden">
         {/* ─── Lesson Content Area ────────────────── */}
-        <div className="flex-1 overflow-auto flex flex-col items-center py-8 px-4 sm:px-6">
+        <div className="flex flex-1 flex-col items-center overflow-auto px-4 py-8 sm:px-6">
           <div
-            className="bg-card rounded-2xl shadow-lg border w-full max-w-3xl ring-1 ring-black/5 dark:ring-white/5 paper-texture overflow-hidden"
+            className="bg-card paper-texture w-full max-w-3xl overflow-hidden rounded-2xl border shadow-lg ring-1 ring-black/5 dark:ring-white/5"
             style={{
               transform: `scale(${zoom / 100})`,
               transformOrigin: "top center",
@@ -724,7 +701,7 @@ export function ClassroomPage() {
           >
             {navigating ? (
               <div className="flex items-center justify-center py-32">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
               </div>
             ) : (
               <iframe
@@ -741,17 +718,15 @@ export function ClassroomPage() {
 
         {/* ─── Desktop Notes Sidebar (slide-in panel) ── */}
         <aside
-          className={`hidden lg:flex flex-col shrink-0 border-l bg-card transition-all duration-300 ease-in-out overflow-hidden ${
-            notesSidebarOpen
-              ? "w-80 opacity-100"
-              : "w-0 opacity-0 border-l-0"
+          className={`bg-card hidden shrink-0 flex-col overflow-hidden border-l transition-all duration-300 ease-in-out lg:flex ${
+            notesSidebarOpen ? "w-80 opacity-100" : "w-0 border-l-0 opacity-0"
           }`}
         >
-          <div className="flex flex-col h-full w-80">
+          <div className="flex h-full w-80 flex-col">
             {/* Sidebar Header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b">
+            <div className="flex items-center justify-between border-b px-4 py-3">
               <div className="flex items-center gap-2">
-                <StickyNote className="h-4 w-4 text-primary" />
+                <StickyNote className="text-primary h-4 w-4" />
                 <span className="text-sm font-semibold">Notes</span>
               </div>
               <Button
@@ -780,20 +755,19 @@ export function ClassroomPage() {
 
       {/* ─── Keyboard Shortcuts Hint (auto-fades) ── */}
       <div
-        className={`shrink-0 frosted-glass border-t px-4 py-1.5 text-center transition-opacity duration-700 ${
+        className={`frosted-glass shrink-0 border-t px-4 py-1.5 text-center transition-opacity duration-700 ${
           showKeyboardHint
             ? "opacity-100"
-            : "opacity-0 pointer-events-none h-0 py-0 overflow-hidden"
+            : "pointer-events-none h-0 overflow-hidden py-0 opacity-0"
         }`}
       >
-        <p className="text-xs text-muted-foreground/70 tracking-wide">
-          ← → Navigate&nbsp;&nbsp;|&nbsp;&nbsp;Space:
-          Next&nbsp;&nbsp;|&nbsp;&nbsp;Esc: Exit
+        <p className="text-muted-foreground/70 text-xs tracking-wide">
+          ← → Navigate&nbsp;&nbsp;|&nbsp;&nbsp;Space: Next&nbsp;&nbsp;|&nbsp;&nbsp;Esc: Exit
         </p>
       </div>
 
       {/* ─── Bottom Controls (Frosted Glass) ───────── */}
-      <footer className="shrink-0 border-t frosted-glass">
+      <footer className="frosted-glass shrink-0 border-t">
         <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-4 sm:px-6">
           {/* Zoom Controls */}
           <div className="flex items-center gap-1">
@@ -812,7 +786,7 @@ export function ClassroomPage() {
               <TooltipContent>Zoom Out</TooltipContent>
             </Tooltip>
 
-            <span className="w-12 text-center text-xs font-medium text-muted-foreground tabular-nums">
+            <span className="text-muted-foreground w-12 text-center text-xs font-medium tabular-nums">
               {zoom}%
             </span>
 
@@ -833,12 +807,7 @@ export function ClassroomPage() {
 
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={zoomFit}
-                >
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={zoomFit}>
                   <Maximize2 className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
@@ -847,12 +816,7 @@ export function ClassroomPage() {
 
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={zoomFit}
-                >
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={zoomFit}>
                   <RotateCcw className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
@@ -885,9 +849,7 @@ export function ClassroomPage() {
               variant="outline"
               size="sm"
               className={`gap-1.5 transition-opacity ${
-                isFirst || navigating
-                  ? "opacity-40 cursor-not-allowed"
-                  : ""
+                isFirst || navigating ? "cursor-not-allowed opacity-40" : ""
               }`}
               onClick={goPrev}
               disabled={isFirst || navigating}
@@ -900,9 +862,7 @@ export function ClassroomPage() {
               variant="outline"
               size="sm"
               className={`gap-1.5 transition-opacity ${
-                isLast || navigating
-                  ? "opacity-40 cursor-not-allowed"
-                  : ""
+                isLast || navigating ? "cursor-not-allowed opacity-40" : ""
               }`}
               onClick={goNext}
               disabled={isLast || navigating}
@@ -927,13 +887,13 @@ export function ClassroomPage() {
               </TooltipTrigger>
               <TooltipContent>Notes</TooltipContent>
             </Tooltip>
-            <span className="hidden lg:inline text-xs text-muted-foreground">
+            <span className="text-muted-foreground hidden text-xs lg:inline">
               ← → navigate, ESC exit
             </span>
             <Button
               variant="ghost"
               size="sm"
-              className="gap-1.5 text-muted-foreground hover:text-foreground"
+              className="text-muted-foreground hover:text-foreground gap-1.5"
               onClick={goBack}
             >
               <X className="h-4 w-4" />
@@ -946,20 +906,20 @@ export function ClassroomPage() {
       {/* ─── Click-to-Edit Floating Toolbar ── */}
       {elementEdit.show && (
         <div
-          className="fixed z-50 w-72 rounded-lg border bg-card shadow-xl p-3 flex flex-col gap-2"
+          className="bg-card fixed z-50 flex w-72 flex-col gap-2 rounded-lg border p-3 shadow-xl"
           style={{
             left: elementEdit.position.x,
             top: elementEdit.position.y,
           }}
         >
           <div className="flex items-center justify-between">
-            <h3 className="text-xs font-semibold flex items-center gap-1.5 text-muted-foreground">
+            <h3 className="text-muted-foreground flex items-center gap-1.5 text-xs font-semibold">
               <Pencil className="h-3.5 w-3.5" />
               Edit Element
             </h3>
             <button
               type="button"
-              className="p-0.5 rounded hover:bg-muted transition-colors"
+              className="hover:bg-muted rounded p-0.5 transition-colors"
               onClick={() =>
                 setElementEdit((prev) => ({
                   ...prev,
@@ -988,14 +948,14 @@ export function ClassroomPage() {
               }
             }}
             placeholder="e.g. make this shorter"
-            className="w-full rounded-md border bg-background px-2.5 py-1.5 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/20"
+            className="bg-background placeholder:text-muted-foreground/50 focus:ring-primary/20 w-full rounded-md border px-2.5 py-1.5 text-sm focus:ring-2 focus:outline-none"
             autoFocus
             disabled={elementEdit.loading}
           />
           <div className="flex items-center justify-end">
             <Button
               size="sm"
-              className="h-7 text-xs gap-1"
+              className="h-7 gap-1 text-xs"
               onClick={handleElementEdit}
               disabled={elementEdit.loading || !elementEdit.instruction.trim()}
             >
@@ -1012,10 +972,10 @@ export function ClassroomPage() {
 
       {/* ─── AI Edit Floating Panel ────────── */}
       {showAiEdit && (
-        <div className="fixed bottom-20 right-4 z-50 w-72 rounded-lg border bg-card shadow-lg p-4 flex flex-col gap-3">
+        <div className="bg-card fixed right-4 bottom-20 z-50 flex w-72 flex-col gap-3 rounded-lg border p-4 shadow-lg">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold flex items-center gap-1.5">
-              <Wand2 className="h-4 w-4 text-primary" />
+            <h3 className="flex items-center gap-1.5 text-sm font-semibold">
+              <Wand2 className="text-primary h-4 w-4" />
               AI Edit
             </h3>
           </div>
@@ -1050,7 +1010,7 @@ export function ClassroomPage() {
         </div>
       )}
       <Button
-        className="fixed bottom-4 right-4 z-50 h-10 w-10 rounded-full shadow-lg"
+        className="fixed right-4 bottom-4 z-50 h-10 w-10 rounded-full shadow-lg"
         size="icon"
         onClick={() => setShowAiEdit((v) => !v)}
         aria-label="Toggle AI Edit"
@@ -1111,11 +1071,9 @@ function NotesSidebarContent({
         <div className="flex flex-col gap-2 p-3">
           {notes.length === 0 && (
             <div className="flex flex-col items-center justify-center py-12 text-center">
-              <StickyNote className="h-8 w-8 text-muted-foreground/30 mb-2" />
-              <p className="text-xs text-muted-foreground">
-                No notes yet.
-              </p>
-              <p className="text-xs text-muted-foreground/60">
+              <StickyNote className="text-muted-foreground/30 mb-2 h-8 w-8" />
+              <p className="text-muted-foreground text-xs">No notes yet.</p>
+              <p className="text-muted-foreground/60 text-xs">
                 Add a note for lesson {currentLessonIndex + 1}.
               </p>
             </div>
@@ -1123,41 +1081,37 @@ function NotesSidebarContent({
           {notes.map((note) => (
             <div
               key={note.id}
-              className="group relative rounded-lg border bg-background p-3 text-sm transition-colors hover:bg-muted/40"
+              className="group bg-background hover:bg-muted/40 relative rounded-lg border p-3 text-sm transition-colors"
             >
               {/* Slide badge */}
-              <div className="flex items-center justify-between mb-1">
-                <span className="inline-flex items-center rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+              <div className="mb-1 flex items-center justify-between">
+                <span className="bg-primary/10 text-primary inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-semibold">
                   Slide {note.slideNumber}
                 </span>
-                <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
                   <button
                     type="button"
-                    className="p-1 rounded hover:bg-muted transition-colors"
+                    className="hover:bg-muted rounded p-1 transition-colors"
                     onClick={() => onToggleBookmark(note.id)}
-                    aria-label={
-                      note.bookmarked
-                        ? "Remove bookmark"
-                        : "Bookmark note"
-                    }
+                    aria-label={note.bookmarked ? "Remove bookmark" : "Bookmark note"}
                   >
                     {note.bookmarked ? (
                       <BookmarkCheck className="h-3.5 w-3.5 text-amber-500" />
                     ) : (
-                      <Bookmark className="h-3.5 w-3.5 text-muted-foreground" />
+                      <Bookmark className="text-muted-foreground h-3.5 w-3.5" />
                     )}
                   </button>
                   <button
                     type="button"
-                    className="p-1 rounded hover:bg-destructive/10 transition-colors"
+                    className="hover:bg-destructive/10 rounded p-1 transition-colors"
                     onClick={() => onDelete(note.id)}
                     aria-label="Delete note"
                   >
-                    <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
+                    <Trash2 className="text-muted-foreground hover:text-destructive h-3.5 w-3.5" />
                   </button>
                 </div>
               </div>
-              <p className="text-xs text-foreground/80 leading-relaxed whitespace-pre-line">
+              <p className="text-foreground/80 text-xs leading-relaxed whitespace-pre-line">
                 {note.content}
               </p>
             </div>
@@ -1175,7 +1129,7 @@ function NotesSidebarContent({
             onKeyDown={handleKeyDown}
             placeholder={`Add a note for lesson ${currentLessonIndex + 1}…`}
             rows={2}
-            className="flex-1 resize-none rounded-lg border bg-background px-3 py-2 text-xs placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/20"
+            className="bg-background placeholder:text-muted-foreground/50 focus:ring-primary/20 flex-1 resize-none rounded-lg border px-3 py-2 text-xs focus:ring-2 focus:outline-none"
           />
           <Button
             size="icon"
@@ -1232,8 +1186,7 @@ function ConfettiCelebration() {
     const count = 80;
 
     for (let i = 0; i < count; i++) {
-      const shape =
-        shapes[i % 3 === 0 ? 0 : i % 3 === 1 ? 1 : 2];
+      const shape = shapes[i % 3 === 0 ? 0 : i % 3 === 1 ? 1 : 2];
       result.push({
         id: i,
         left: Math.random() * 100,
@@ -1259,15 +1212,17 @@ function ConfettiCelebration() {
               <div
                 key={p.id}
                 className="confetti-particle confetti-triangle"
-                style={{
-                  left: `${p.left}%`,
-                  "--confetti-color": p.color,
-                  "--tri-size": `${p.size}px`,
-                  "--fall-duration": p.fallDuration,
-                  "--fall-delay": p.fallDelay,
-                  "--drift": p.drift,
-                  "--spin": p.spin,
-                } as React.CSSProperties}
+                style={
+                  {
+                    left: `${p.left}%`,
+                    "--confetti-color": p.color,
+                    "--tri-size": `${p.size}px`,
+                    "--fall-duration": p.fallDuration,
+                    "--fall-delay": p.fallDelay,
+                    "--drift": p.drift,
+                    "--spin": p.spin,
+                  } as React.CSSProperties
+                }
               />
             );
           }
@@ -1275,45 +1230,34 @@ function ConfettiCelebration() {
             <div
               key={p.id}
               className={`confetti-particle ${
-                p.shape === "circle"
-                  ? "confetti-circle"
-                  : "confetti-rectangle"
+                p.shape === "circle" ? "confetti-circle" : "confetti-rectangle"
               }`}
-              style={{
-                left: `${p.left}%`,
-                width:
-                  p.shape === "rectangle"
-                    ? `${p.size * 1.4}px`
-                    : `${p.size}px`,
-                height: `${p.size}px`,
-                backgroundColor: p.color,
-                "--fall-duration": p.fallDuration,
-                "--fall-delay": p.fallDelay,
-                "--drift": p.drift,
-                "--spin": p.spin,
-              } as React.CSSProperties}
+              style={
+                {
+                  left: `${p.left}%`,
+                  width: p.shape === "rectangle" ? `${p.size * 1.4}px` : `${p.size}px`,
+                  height: `${p.size}px`,
+                  backgroundColor: p.color,
+                  "--fall-duration": p.fallDuration,
+                  "--fall-delay": p.fallDelay,
+                  "--drift": p.drift,
+                  "--spin": p.spin,
+                } as React.CSSProperties
+              }
             />
           );
         })}
       </div>
 
       {/* Congratulations message */}
-      <div
-        className="confetti-message"
-        role="status"
-        aria-label="Congratulations!"
-      >
+      <div className="confetti-message" role="status" aria-label="Congratulations!">
         <div className="confetti-message-text flex flex-col items-center gap-3">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/90 dark:bg-zinc-800/90 shadow-lg">
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/90 shadow-lg dark:bg-zinc-800/90">
             <span className="text-4xl">🎉</span>
           </div>
-          <div className="rounded-2xl bg-white/90 dark:bg-zinc-800/90 px-8 py-5 shadow-xl text-center">
-            <h2 className="text-2xl sm:text-3xl font-bold text-foreground">
-              🎉 Congratulations!
-            </h2>
-            <p className="mt-2 text-sm text-muted-foreground">
-              You&apos;ve completed this lesson!
-            </p>
+          <div className="rounded-2xl bg-white/90 px-8 py-5 text-center shadow-xl dark:bg-zinc-800/90">
+            <h2 className="text-foreground text-2xl font-bold sm:text-3xl">🎉 Congratulations!</h2>
+            <p className="text-muted-foreground mt-2 text-sm">You&apos;ve completed this lesson!</p>
           </div>
         </div>
       </div>

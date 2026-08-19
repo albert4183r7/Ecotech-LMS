@@ -13,10 +13,7 @@ export async function GET(request: NextRequest) {
     const lessonId = searchParams.get("lessonId");
 
     if (!userId) {
-      return NextResponse.json(
-        { success: false, error: "userId is required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ success: false, error: "userId is required" }, { status: 400 });
     }
 
     const where: Record<string, string> = { userId };
@@ -31,10 +28,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: true, data: notes });
   } catch (error) {
     console.error("GET /api/notes error:", error);
-    return NextResponse.json(
-      { success: false, error: "Failed to fetch notes" },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: "Failed to fetch notes" }, { status: 500 });
   }
 }
 
@@ -51,35 +45,26 @@ export async function POST(request: NextRequest) {
     if (!content?.trim() || !userId || !courseId || !lessonId) {
       return NextResponse.json(
         { success: false, error: "content, userId, courseId, and lessonId are required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     // Validate user exists
     const user = await db.user.findUnique({ where: { id: userId } });
     if (!user) {
-      return NextResponse.json(
-        { success: false, error: "User not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ success: false, error: "User not found" }, { status: 404 });
     }
 
     // Validate course exists
     const course = await db.course.findUnique({ where: { id: courseId } });
     if (!course) {
-      return NextResponse.json(
-        { success: false, error: "Course not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ success: false, error: "Course not found" }, { status: 404 });
     }
 
     // Validate lesson exists
     const lesson = await db.lesson.findUnique({ where: { id: lessonId } });
     if (!lesson) {
-      return NextResponse.json(
-        { success: false, error: "Lesson not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ success: false, error: "Lesson not found" }, { status: 404 });
     }
 
     const note = await db.note.create({
@@ -96,10 +81,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, data: note }, { status: 201 });
   } catch (error) {
     console.error("POST /api/notes error:", error);
-    return NextResponse.json(
-      { success: false, error: "Failed to create note" },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: "Failed to create note" }, { status: 500 });
   }
 }
 
@@ -114,18 +96,12 @@ export async function PUT(request: NextRequest) {
     const { id, content, isBookmarked } = body;
 
     if (!id) {
-      return NextResponse.json(
-        { success: false, error: "id is required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ success: false, error: "id is required" }, { status: 400 });
     }
 
     const note = await db.note.findUnique({ where: { id } });
     if (!note) {
-      return NextResponse.json(
-        { success: false, error: "Note not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ success: false, error: "Note not found" }, { status: 404 });
     }
 
     const updatedNote = await db.note.update({
@@ -139,10 +115,7 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ success: true, data: updatedNote });
   } catch (error) {
     console.error("PUT /api/notes error:", error);
-    return NextResponse.json(
-      { success: false, error: "Failed to update note" },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: "Failed to update note" }, { status: 500 });
   }
 }
 
@@ -156,18 +129,12 @@ export async function DELETE(request: NextRequest) {
     const id = searchParams.get("id");
 
     if (!id) {
-      return NextResponse.json(
-        { success: false, error: "id is required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ success: false, error: "id is required" }, { status: 400 });
     }
 
     const note = await db.note.findUnique({ where: { id } });
     if (!note) {
-      return NextResponse.json(
-        { success: false, error: "Note not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ success: false, error: "Note not found" }, { status: 404 });
     }
 
     await db.note.delete({ where: { id } });
@@ -175,9 +142,6 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ success: true, data: note });
   } catch (error) {
     console.error("DELETE /api/notes error:", error);
-    return NextResponse.json(
-      { success: false, error: "Failed to delete note" },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: "Failed to delete note" }, { status: 500 });
   }
 }

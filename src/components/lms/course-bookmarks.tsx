@@ -1,14 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import {
-  Bookmark,
-  Plus,
-  Trash2,
-  FolderOpen,
-  ChevronRight,
-  X,
-} from "lucide-react";
+import { Bookmark, Plus, Trash2, FolderOpen, ChevronRight, X } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -122,21 +115,19 @@ export function CourseBookmarks() {
       saveCollections(updated);
       toast.success("Collection deleted");
     },
-    [collections]
+    [collections],
   );
 
   /* Remove course from collection */
   const handleRemoveCourse = useCallback(
     (colId: string, courseId: string) => {
       const updated = collections.map((c) =>
-        c.id === colId
-          ? { ...c, courses: c.courses.filter((cr) => cr.id !== courseId) }
-          : c
+        c.id === colId ? { ...c, courses: c.courses.filter((cr) => cr.id !== courseId) } : c,
       );
       setCollections(updated);
       saveCollections(updated);
     },
-    [collections]
+    [collections],
   );
 
   /* Navigate to course */
@@ -144,7 +135,7 @@ export function CourseBookmarks() {
     (courseId: string) => {
       openCourseDetail(courseId);
     },
-    [openCourseDetail]
+    [openCourseDetail],
   );
 
   /* Toggle expand */
@@ -152,10 +143,7 @@ export function CourseBookmarks() {
     setExpandedId((prev) => (prev === colId ? null : colId));
   }, []);
 
-  const totalCourses = collections.reduce(
-    (sum, c) => sum + c.courses.length,
-    0
-  );
+  const totalCourses = collections.reduce((sum, c) => sum + c.courses.length, 0);
 
   return (
     <Card className="border-border/50">
@@ -179,7 +167,7 @@ export function CourseBookmarks() {
             {collections.map((col) => {
               const isExpanded = expandedId === col.id;
               return (
-                <div key={col.id} className="rounded-lg border border-border/40 bg-muted/20">
+                <div key={col.id} className="border-border/40 bg-muted/20 rounded-lg border">
                   {/* Collection header */}
                   <div className="flex items-center gap-2 p-3">
                     <button
@@ -189,13 +177,12 @@ export function CourseBookmarks() {
                       <FolderOpen className="h-4 w-4 shrink-0 text-amber-500" />
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium">{col.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {col.courses.length}{" "}
-                          {col.courses.length === 1 ? "course" : "courses"}
+                        <p className="text-muted-foreground text-xs">
+                          {col.courses.length} {col.courses.length === 1 ? "course" : "courses"}
                         </p>
                       </div>
                       <ChevronRight
-                        className={`h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform duration-200 ${
+                        className={`text-muted-foreground h-3.5 w-3.5 shrink-0 transition-transform duration-200 ${
                           isExpanded ? "rotate-90" : ""
                         }`}
                       />
@@ -208,7 +195,7 @@ export function CourseBookmarks() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
+                            className="text-muted-foreground hover:text-destructive h-7 w-7 shrink-0"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
@@ -218,15 +205,12 @@ export function CourseBookmarks() {
                             <AlertDialogTitle>Delete Collection</AlertDialogTitle>
                             <AlertDialogDescription>
                               Are you sure you want to delete &ldquo;{col.name}
-                              &rdquo;? The courses themselves won&apos;t be
-                              affected.
+                              &rdquo;? The courses themselves won&apos;t be affected.
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
                             <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={() => handleDeleteCollection(col.id)}
-                            >
+                            <AlertDialogAction onClick={() => handleDeleteCollection(col.id)}>
                               Delete
                             </AlertDialogAction>
                           </AlertDialogFooter>
@@ -239,30 +223,27 @@ export function CourseBookmarks() {
                   {isExpanded && (
                     <>
                       <Separator />
-                      <div className="px-3 pb-3 pt-1">
+                      <div className="px-3 pt-1 pb-3">
                         {col.courses.length === 0 ? (
-                          <p className="py-2 text-center text-xs text-muted-foreground">
-                            No courses saved yet. Add courses from their detail
-                            page.
+                          <p className="text-muted-foreground py-2 text-center text-xs">
+                            No courses saved yet. Add courses from their detail page.
                           </p>
                         ) : (
                           <div className="space-y-1">
                             {col.courses.map((course) => (
                               <div
                                 key={course.id}
-                                className="group flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-muted"
+                                className="group hover:bg-muted flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors"
                               >
                                 <button
                                   onClick={() => handleCourseClick(course.id)}
-                                  className="min-w-0 flex-1 truncate text-left text-muted-foreground transition-colors group-hover:text-foreground"
+                                  className="text-muted-foreground group-hover:text-foreground min-w-0 flex-1 truncate text-left transition-colors"
                                 >
                                   {course.title}
                                 </button>
                                 <button
-                                  onClick={() =>
-                                    handleRemoveCourse(col.id, course.id)
-                                  }
-                                  className="shrink-0 rounded p-0.5 text-muted-foreground opacity-0 transition-all hover:text-destructive group-hover:opacity-100"
+                                  onClick={() => handleRemoveCourse(col.id, course.id)}
+                                  className="text-muted-foreground hover:text-destructive shrink-0 rounded p-0.5 opacity-0 transition-all group-hover:opacity-100"
                                 >
                                   <X className="h-3 w-3" />
                                 </button>

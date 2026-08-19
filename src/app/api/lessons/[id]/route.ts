@@ -1,10 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/lib/db";
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
 
@@ -12,16 +9,13 @@ export async function GET(
       where: { id },
       include: {
         slides: {
-          orderBy: { order: 'asc' },
+          orderBy: { order: "asc" },
         },
       },
     });
 
     if (!lesson) {
-      return NextResponse.json(
-        { success: false, error: 'Lesson not found' },
-        { status: 404 },
-      );
+      return NextResponse.json({ success: false, error: "Lesson not found" }, { status: 404 });
     }
 
     const formattedLesson = {
@@ -46,18 +40,12 @@ export async function GET(
 
     return NextResponse.json({ success: true, data: formattedLesson });
   } catch (error) {
-    console.error('Error fetching lesson:', error);
-    return NextResponse.json(
-      { success: false, error: 'Failed to fetch lesson' },
-      { status: 500 },
-    );
+    console.error("Error fetching lesson:", error);
+    return NextResponse.json({ success: false, error: "Failed to fetch lesson" }, { status: 500 });
   }
 }
 
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
     const body = await request.json();
@@ -65,10 +53,7 @@ export async function PUT(
 
     const lesson = await db.lesson.findUnique({ where: { id } });
     if (!lesson) {
-      return NextResponse.json(
-        { success: false, error: 'Lesson not found' },
-        { status: 404 },
-      );
+      return NextResponse.json({ success: false, error: "Lesson not found" }, { status: 404 });
     }
 
     const updated = await db.lesson.update({
@@ -82,27 +67,21 @@ export async function PUT(
 
     return NextResponse.json({ success: true, data: updated });
   } catch (error) {
-    console.error('Error updating lesson:', error);
-    return NextResponse.json(
-      { success: false, error: 'Failed to update lesson' },
-      { status: 500 },
-    );
+    console.error("Error updating lesson:", error);
+    return NextResponse.json({ success: false, error: "Failed to update lesson" }, { status: 500 });
   }
 }
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await params;
 
     const lesson = await db.lesson.findUnique({ where: { id } });
     if (!lesson) {
-      return NextResponse.json(
-        { success: false, error: 'Lesson not found' },
-        { status: 404 },
-      );
+      return NextResponse.json({ success: false, error: "Lesson not found" }, { status: 404 });
     }
 
     // Slides are cascade-deleted by the relation
@@ -110,10 +89,7 @@ export async function DELETE(
 
     return NextResponse.json({ success: true, data: { id } });
   } catch (error) {
-    console.error('Error deleting lesson:', error);
-    return NextResponse.json(
-      { success: false, error: 'Failed to delete lesson' },
-      { status: 500 },
-    );
+    console.error("Error deleting lesson:", error);
+    return NextResponse.json({ success: false, error: "Failed to delete lesson" }, { status: 500 });
   }
 }

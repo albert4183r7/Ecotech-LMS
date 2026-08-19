@@ -1,4 +1,4 @@
-import { getClient, LLM_MODEL } from './llm';
+import { getClient, LLM_MODEL } from "./llm";
 
 // ============================================
 // AI Client — Gemini streaming wrapper
@@ -6,7 +6,7 @@ import { getClient, LLM_MODEL } from './llm';
 // ============================================
 
 /** ImageKit URL endpoint (server-side only, never expose to client) */
-const IMAGEKIT_ENDPOINT = process.env.IMAGEKIT_URL_ENDPOINT || '';
+const IMAGEKIT_ENDPOINT = process.env.IMAGEKIT_URL_ENDPOINT || "";
 
 /** Whether ImageKit is configured for AI image generation */
 const IMAGEKIT_CONFIGURED = !!IMAGEKIT_ENDPOINT;
@@ -145,16 +145,13 @@ export async function* streamSlideHtml(
 export async function collectStream(
   stream: AsyncGenerator<string, void, undefined>,
 ): Promise<string> {
-  let out = '';
+  let out = "";
   for await (const chunk of stream) out += chunk;
   return out;
 }
 
 /** Non-streaming text generation. */
-export async function generateText(
-  userPrompt: string,
-  systemPrompt: string,
-): Promise<string> {
+export async function generateText(userPrompt: string, systemPrompt: string): Promise<string> {
   const response = await getClient().models.generateContent({
     model: LLM_MODEL,
     contents: userPrompt,
@@ -165,5 +162,5 @@ export async function generateText(
     },
   });
 
-  return response.text ?? '';
+  return response.text ?? "";
 }

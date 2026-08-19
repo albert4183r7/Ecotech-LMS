@@ -11,12 +11,7 @@ import {
   MAX_TERMS,
   type OutlineResponse,
 } from "@/lib/lesson-outline";
-import {
-  SLIDE_STYLES,
-  VALID_STYLES,
-  MIN_SLIDES,
-  MAX_SLIDES,
-} from "@/lib/slide-styles";
+import { SLIDE_STYLES, VALID_STYLES, MIN_SLIDES, MAX_SLIDES } from "@/lib/slide-styles";
 import { extractTextFromFiles, truncateTextForContext } from "@/lib/extract-doc";
 import path from "path";
 
@@ -74,10 +69,7 @@ export async function POST(request: NextRequest) {
     // ---- Verify course exists ----
     const course = await db.course.findUnique({ where: { id: courseId } });
     if (!course) {
-      return NextResponse.json(
-        { success: false, error: "Course not found" },
-        { status: 404 },
-      );
+      return NextResponse.json({ success: false, error: "Course not found" }, { status: 404 });
     }
 
     // ---- Extract reference document content ----
@@ -110,9 +102,7 @@ export async function POST(request: NextRequest) {
 
     // ---- Build the LLM prompt ----
     const styleInfo = SLIDE_STYLES.find((s) => s.value === style);
-    const styleDescription = styleInfo
-      ? `${styleInfo.label} (${styleInfo.description})`
-      : style;
+    const styleDescription = styleInfo ? `${styleInfo.label} (${styleInfo.description})` : style;
 
     const referenceSection = referenceContext
       ? `
@@ -145,12 +135,13 @@ ${referenceContext}
 - Favour current mainstream practice, and name the tools, standards, and examples actually in use today for this subject.`;
 
     const prompt = `${isChinese ? "主题" : "SUBJECT"}: ${topic}
-${isChinese ? "（如果上面写成“做一个关于 X 的课程”这样的指令，那么主题就是 X。）" : "(If the subject is phrased as an instruction such as \"create a lesson about X\", the subject matter is X.)"}
+${isChinese ? "（如果上面写成“做一个关于 X 的课程”这样的指令，那么主题就是 X。）" : '(If the subject is phrased as an instruction such as "create a lesson about X", the subject matter is X.)'}
 ${isChinese ? "幻灯片数量" : "NUMBER OF SLIDES"}: ${clampedCount}
 ${isChinese ? "视觉风格" : "VISUAL STYLE"}: ${styleDescription}
 ${referenceSection}
-${isChinese
-      ? `你要为这个主题写出幻灯片的**实际内容**。你写下的每一句话都会原样出现在幻灯片上。
+${
+  isChinese
+    ? `你要为这个主题写出幻灯片的**实际内容**。你写下的每一句话都会原样出现在幻灯片上。
 
 每张幻灯片提供：
 - title：幻灯片标题，少于 ${MAX_SLIDE_TITLE_CHARS} 个字符
@@ -173,7 +164,7 @@ ${groundingRules}
 ${renderingConstraints}
 
 - 用中文生成所有内容。`
-      : `Write the **actual content** of the slides for this subject. Every sentence you write will appear on a slide verbatim.
+    : `Write the **actual content** of the slides for this subject. Every sentence you write will appear on a slide verbatim.
 
 For each slide provide:
 - title: the slide heading, under ${MAX_SLIDE_TITLE_CHARS} characters
@@ -196,19 +187,24 @@ ${groundingRules}
 ${renderingConstraints}
 
 - Generate all content in English.`
-    }`;
+}`;
 
     // ---- Call LLM ----
-    console.log(`[generate-outline] Calling LLM for topic: "${topic}", ${clampedCount} slides, ${style}`);
+    console.log(
+      `[generate-outline] Calling LLM for topic: "${topic}", ${clampedCount} slides, ${style}`,
+    );
     let result: OutlineResponse;
     try {
       result = await generateStructuredJSON(prompt, OutlineResponseSchema, {
         repair: repairOutlineResponse,
       });
-      console.log(`[generate-outline] LLM returned ${result.slides.length} slides, title: "${result.lessonTitle}"`);
+      console.log(
+        `[generate-outline] LLM returned ${result.slides.length} slides, title: "${result.lessonTitle}"`,
+      );
     } catch (llmError) {
       console.error("[generate-outline] LLM call failed:", llmError);
-      const msg = llmError instanceof Error ? llmError.message : "AI service unavailable. Please try again.";
+      const msg =
+        llmError instanceof Error ? llmError.message : "AI service unavailable. Please try again.";
       return NextResponse.json({ success: false, error: msg }, { status: 502 });
     }
 

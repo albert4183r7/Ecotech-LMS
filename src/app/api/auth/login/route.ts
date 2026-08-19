@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/lib/db";
 
 export async function POST(request: NextRequest) {
   try {
@@ -7,8 +7,8 @@ export async function POST(request: NextRequest) {
 
     if (!email || !password) {
       return NextResponse.json(
-        { success: false, error: 'Email and password are required' },
-        { status: 400 }
+        { success: false, error: "Email and password are required" },
+        { status: 400 },
       );
     }
 
@@ -19,8 +19,8 @@ export async function POST(request: NextRequest) {
 
     if (!user || user.password !== password) {
       return NextResponse.json(
-        { success: false, error: 'Invalid email or password' },
-        { status: 401 }
+        { success: false, error: "Invalid email or password" },
+        { status: 401 },
       );
     }
 
@@ -34,10 +34,7 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('Error logging in:', error);
-    return NextResponse.json(
-      { success: false, error: 'Failed to log in' },
-      { status: 500 }
-    );
+    console.error("Error logging in:", error);
+    return NextResponse.json({ success: false, error: "Failed to log in" }, { status: 500 });
   }
 }

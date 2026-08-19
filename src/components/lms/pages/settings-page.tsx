@@ -94,8 +94,12 @@ export function SettingsPage() {
   /* Notifications */
   const [emailNotifs, setEmailNotifs] = useState(() => getSetting("email_notifications", true));
   const [pushNotifs, setPushNotifs] = useState(() => getSetting("push_notifications", true));
-  const [courseUpdateAlerts, setCourseUpdateAlerts] = useState(() => getSetting("course_update_alerts", true));
-  const [achievementAlerts, setAchievementAlerts] = useState(() => getSetting("achievement_alerts", true));
+  const [courseUpdateAlerts, setCourseUpdateAlerts] = useState(() =>
+    getSetting("course_update_alerts", true),
+  );
+  const [achievementAlerts, setAchievementAlerts] = useState(() =>
+    getSetting("achievement_alerts", true),
+  );
   const [weeklyDigest, setWeeklyDigest] = useState(() => getSetting("weekly_digest", false));
 
   /* Learning Preferences */
@@ -104,16 +108,17 @@ export function SettingsPage() {
   const [autoPlayNext, setAutoPlayNext] = useState(() => getSetting("auto_play_next", true));
 
   /* Privacy */
-  const [showProfilePublicly, setShowProfilePublicly] = useState(() => getSetting("show_profile_publicly", false));
-  const [showLearningActivity, setShowLearningActivity] = useState(() => getSetting("show_learning_activity", true));
+  const [showProfilePublicly, setShowProfilePublicly] = useState(() =>
+    getSetting("show_profile_publicly", false),
+  );
+  const [showLearningActivity, setShowLearningActivity] = useState(() =>
+    getSetting("show_learning_activity", true),
+  );
 
   /* Persist helpers */
-  const updateSetting = useCallback(
-    (key: string, value: unknown) => {
-      setSetting(key, value);
-    },
-    []
-  );
+  const updateSetting = useCallback((key: string, value: unknown) => {
+    setSetting(key, value);
+  }, []);
 
   /* Data actions */
   const handleClearSearchHistory = () => {
@@ -152,12 +157,8 @@ export function SettingsPage() {
     <div className="mx-auto max-w-3xl space-y-6 p-4 sm:p-6 lg:p-8">
       {/* Page Header */}
       <div className="space-y-1">
-        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
-          Settings
-        </h1>
-        <p className="text-muted-foreground">
-          Manage your preferences and application settings.
-        </p>
+        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Settings</h1>
+        <p className="text-muted-foreground">Manage your preferences and application settings.</p>
       </div>
 
       {/* 1. Appearance */}
@@ -175,11 +176,9 @@ export function SettingsPage() {
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
               <Label className="text-sm font-medium">Theme</Label>
-              <p className="text-xs text-muted-foreground">
-                Choose your preferred color scheme
-              </p>
+              <p className="text-muted-foreground text-xs">Choose your preferred color scheme</p>
             </div>
-            <div className="flex items-center gap-1 rounded-lg border border-border bg-muted/50 p-1">
+            <div className="border-border bg-muted/50 flex items-center gap-1 rounded-lg border p-1">
               {[
                 { value: "light", icon: Sun, label: "Light" },
                 { value: "dark", icon: Moon, label: "Dark" },
@@ -207,9 +206,7 @@ export function SettingsPage() {
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
               <Label className="text-sm font-medium">Compact Mode</Label>
-              <p className="text-xs text-muted-foreground">
-                Reduce spacing for a denser layout
-              </p>
+              <p className="text-muted-foreground text-xs">Reduce spacing for a denser layout</p>
             </div>
             <Switch
               checked={compactMode}
@@ -233,19 +230,51 @@ export function SettingsPage() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-5">
-          {([
-            { key: "email_notifications", label: "Email Notifications", desc: "Receive notifications via email", value: emailNotifs, setter: setEmailNotifs },
-            { key: "push_notifications", label: "Push Notifications", desc: "Get browser push notifications", value: pushNotifs, setter: setPushNotifs },
-            { key: "course_update_alerts", label: "Course Update Alerts", desc: "Notify when enrolled courses are updated", value: courseUpdateAlerts, setter: setCourseUpdateAlerts },
-            { key: "achievement_alerts", label: "Achievement Alerts", desc: "Celebrate when you earn new achievements", value: achievementAlerts, setter: setAchievementAlerts },
-            { key: "weekly_digest", label: "Weekly Digest", desc: "Receive a weekly summary of your activity", value: weeklyDigest, setter: setWeeklyDigest },
-          ] as const).map((item, idx) => (
+          {(
+            [
+              {
+                key: "email_notifications",
+                label: "Email Notifications",
+                desc: "Receive notifications via email",
+                value: emailNotifs,
+                setter: setEmailNotifs,
+              },
+              {
+                key: "push_notifications",
+                label: "Push Notifications",
+                desc: "Get browser push notifications",
+                value: pushNotifs,
+                setter: setPushNotifs,
+              },
+              {
+                key: "course_update_alerts",
+                label: "Course Update Alerts",
+                desc: "Notify when enrolled courses are updated",
+                value: courseUpdateAlerts,
+                setter: setCourseUpdateAlerts,
+              },
+              {
+                key: "achievement_alerts",
+                label: "Achievement Alerts",
+                desc: "Celebrate when you earn new achievements",
+                value: achievementAlerts,
+                setter: setAchievementAlerts,
+              },
+              {
+                key: "weekly_digest",
+                label: "Weekly Digest",
+                desc: "Receive a weekly summary of your activity",
+                value: weeklyDigest,
+                setter: setWeeklyDigest,
+              },
+            ] as const
+          ).map((item, idx) => (
             <div key={item.key}>
               {idx > 0 && <Separator className="mb-5" />}
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
                   <Label className="text-sm font-medium">{item.label}</Label>
-                  <p className="text-xs text-muted-foreground">{item.desc}</p>
+                  <p className="text-muted-foreground text-xs">{item.desc}</p>
                 </div>
                 <Switch
                   checked={item.value}
@@ -275,9 +304,7 @@ export function SettingsPage() {
           <div className="flex items-center justify-between gap-4">
             <div className="space-y-0.5">
               <Label className="text-sm font-medium">Daily Learning Goal</Label>
-              <p className="text-xs text-muted-foreground">
-                Target minutes of learning per day
-              </p>
+              <p className="text-muted-foreground text-xs">Target minutes of learning per day</p>
             </div>
             <Select
               value={dailyGoal}
@@ -305,7 +332,7 @@ export function SettingsPage() {
           <div className="flex items-center justify-between gap-4">
             <div className="space-y-0.5">
               <Label className="text-sm font-medium">Default Study Timer</Label>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-muted-foreground text-xs">
                 Pomodoro timer duration for study sessions
               </p>
             </div>
@@ -335,7 +362,7 @@ export function SettingsPage() {
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
               <Label className="text-sm font-medium">Auto-play Next Lesson</Label>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-muted-foreground text-xs">
                 Automatically advance to the next lesson
               </p>
             </div>
@@ -365,7 +392,7 @@ export function SettingsPage() {
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
               <Label className="text-sm font-medium">Show Profile Publicly</Label>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-muted-foreground text-xs">
                 Allow others to see your profile and stats
               </p>
             </div>
@@ -384,7 +411,7 @@ export function SettingsPage() {
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
               <Label className="text-sm font-medium">Show Learning Activity</Label>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-muted-foreground text-xs">
                 Display your learning progress on your profile
               </p>
             </div>
@@ -413,9 +440,7 @@ export function SettingsPage() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="space-y-0.5">
               <p className="text-sm font-medium">Clear Search History</p>
-              <p className="text-xs text-muted-foreground">
-                Remove all recent search entries
-              </p>
+              <p className="text-muted-foreground text-xs">Remove all recent search entries</p>
             </div>
             <Button
               variant="outline"
@@ -433,16 +458,11 @@ export function SettingsPage() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="space-y-0.5">
               <p className="text-sm font-medium">Reset Tour</p>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-muted-foreground text-xs">
                 Show the onboarding tour again on next visit
               </p>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleResetTour}
-              className="shrink-0"
-            >
+            <Button variant="outline" size="sm" onClick={handleResetTour} className="shrink-0">
               <RotateCcw className="mr-2 h-3.5 w-3.5" />
               Reset
             </Button>
@@ -453,7 +473,7 @@ export function SettingsPage() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="space-y-0.5">
               <p className="text-sm font-medium">Dismiss All Announcements</p>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-muted-foreground text-xs">
                 Restore all previously dismissed announcements
               </p>
             </div>
@@ -473,10 +493,8 @@ export function SettingsPage() {
           <AlertDialog>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="space-y-0.5">
-                <p className="text-sm font-medium text-destructive">
-                  Clear All Local Data
-                </p>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-destructive text-sm font-medium">Clear All Local Data</p>
+                <p className="text-muted-foreground text-xs">
                   Remove all Ecotech data stored on this device
                 </p>
               </div>
@@ -491,17 +509,14 @@ export function SettingsPage() {
               <AlertDialogHeader>
                 <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  This will permanently delete all Ecotech data stored on this
-                  device, including your preferences, search history, onboarding
-                  progress, and dismissed announcements. This action cannot be
-                  undone.
+                  This will permanently delete all Ecotech data stored on this device, including
+                  your preferences, search history, onboarding progress, and dismissed
+                  announcements. This action cannot be undone.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={handleClearAll}>
-                  Yes, clear all data
-                </AlertDialogAction>
+                <AlertDialogAction onClick={handleClearAll}>Yes, clear all data</AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
@@ -521,7 +536,7 @@ export function SettingsPage() {
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium">Version</p>
-            <p className="text-sm text-muted-foreground">v2.0.0</p>
+            <p className="text-muted-foreground text-sm">v2.0.0</p>
           </div>
 
           <Separator />
@@ -532,7 +547,7 @@ export function SettingsPage() {
               {["Next.js", "TypeScript", "Tailwind CSS"].map((tech) => (
                 <span
                   key={tech}
-                  className="rounded-md border border-border/50 bg-muted/50 px-2.5 py-1 text-xs font-medium text-muted-foreground"
+                  className="border-border/50 bg-muted/50 text-muted-foreground rounded-md border px-2.5 py-1 text-xs font-medium"
                 >
                   {tech}
                 </span>
@@ -554,7 +569,7 @@ export function SettingsPage() {
                   key={link.label}
                   href={link.href}
                   onClick={(e) => e.preventDefault()}
-                  className="flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-primary"
+                  className="text-muted-foreground hover:text-primary flex items-center gap-2 text-sm transition-colors"
                 >
                   <ExternalLink className="h-3.5 w-3.5" />
                   {link.label}

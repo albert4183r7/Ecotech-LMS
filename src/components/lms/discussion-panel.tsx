@@ -1,25 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  MessageSquare,
-  Reply,
-  Send,
-  Loader2,
-  Trash2,
-  ChevronDown,
-  ChevronUp,
-} from "lucide-react";
+import { MessageSquare, Reply, Send, Loader2, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 
@@ -90,7 +78,7 @@ function formatRelativeTime(dateStr: string): string {
 function CommentSkeleton() {
   return (
     <div className="flex gap-3 py-3">
-      <Skeleton className="h-8 w-8 rounded-full shrink-0" />
+      <Skeleton className="h-8 w-8 shrink-0 rounded-full" />
       <div className="flex-1 space-y-2">
         <div className="flex items-center gap-2">
           <Skeleton className="h-4 w-24" />
@@ -106,11 +94,7 @@ function CommentSkeleton() {
 // ─────────────────────────────────────────────────────
 // Main Discussion Panel
 // ─────────────────────────────────────────────────────
-export function DiscussionPanel({
-  courseId,
-  lessonId,
-  userId,
-}: DiscussionPanelProps) {
+export function DiscussionPanel({ courseId, lessonId, userId }: DiscussionPanelProps) {
   const [isOpen, setIsOpen] = useState(true);
   const [comments, setComments] = useState<CommentItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -220,10 +204,7 @@ export function DiscussionPanel({
   /** Delete a comment */
   const handleDelete = async (commentId: string) => {
     try {
-      const res = await fetch(
-        `/api/comments/${commentId}?userId=${userId}`,
-        { method: "DELETE" }
-      );
+      const res = await fetch(`/api/comments/${commentId}?userId=${userId}`, { method: "DELETE" });
       const json = await res.json();
       if (json.success) {
         toast.success("Comment deleted.");
@@ -237,10 +218,7 @@ export function DiscussionPanel({
   };
 
   /** Keyboard shortcuts */
-  const handleKeyDown = (
-    e: React.KeyboardEvent<HTMLTextAreaElement>,
-    submitFn: () => void
-  ) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>, submitFn: () => void) => {
     if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       submitFn();
@@ -253,34 +231,31 @@ export function DiscussionPanel({
     }
   };
 
-  const totalComments = comments.reduce(
-    (sum, c) => sum + 1 + c.replies.length,
-    0
-  );
+  const totalComments = comments.reduce((sum, c) => sum + 1 + c.replies.length, 0);
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
       {/* ─── Header ─── */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="mb-4 flex items-center justify-between">
         <CollapsibleTrigger asChild>
-          <button className="flex items-center gap-2.5 group cursor-pointer">
-            <div className="h-7 w-1 rounded-full bg-gradient-to-b from-primary to-accent" />
-            <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
-              <MessageSquare className="h-5 w-5 text-primary" />
+          <button className="group flex cursor-pointer items-center gap-2.5">
+            <div className="from-primary to-accent h-7 w-1 rounded-full bg-gradient-to-b" />
+            <h2 className="text-foreground flex items-center gap-2 text-xl font-bold">
+              <MessageSquare className="text-primary h-5 w-5" />
               Discussion
               {totalComments > 0 && (
                 <Badge
                   variant="secondary"
-                  className="ml-1 text-xs font-medium bg-primary/10 text-primary border-0"
+                  className="bg-primary/10 text-primary ml-1 border-0 text-xs font-medium"
                 >
                   {totalComments}
                 </Badge>
               )}
             </h2>
             {isOpen ? (
-              <ChevronUp className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+              <ChevronUp className="text-muted-foreground group-hover:text-foreground h-4 w-4 transition-colors" />
             ) : (
-              <ChevronDown className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+              <ChevronDown className="text-muted-foreground group-hover:text-foreground h-4 w-4 transition-colors" />
             )}
           </button>
         </CollapsibleTrigger>
@@ -288,23 +263,21 @@ export function DiscussionPanel({
 
       <CollapsibleContent>
         {/* ─── New Comment Input ─── */}
-        <div className="relative rounded-xl border bg-card p-4 mb-4">
-          <div className="absolute top-0 left-6 right-6 h-[2px] rounded-full bg-gradient-to-r from-primary/60 via-accent/40 to-transparent" />
+        <div className="bg-card relative mb-4 rounded-xl border p-4">
+          <div className="from-primary/60 via-accent/40 absolute top-0 right-6 left-6 h-[2px] rounded-full bg-gradient-to-r to-transparent" />
           <Textarea
             placeholder="Ask a question or share your thoughts..."
             value={newComment}
             onChange={(e) => setNewComment(e.target.value)}
             onKeyDown={(e) => handleKeyDown(e, handleSubmitComment)}
-            className="resize-none min-h-[72px] border-0 bg-muted/50 focus-visible:ring-1 focus-visible:ring-primary/30 text-sm"
+            className="bg-muted/50 focus-visible:ring-primary/30 min-h-[72px] resize-none border-0 text-sm focus-visible:ring-1"
             rows={3}
           />
-          <div className="flex items-center justify-between mt-2">
-            <span className="text-[11px] text-muted-foreground">
-              Ctrl+Enter to send
-            </span>
+          <div className="mt-2 flex items-center justify-between">
+            <span className="text-muted-foreground text-[11px]">Ctrl+Enter to send</span>
             <Button
               size="sm"
-              className="h-8 gap-1.5 bg-gradient-to-r from-primary to-accent hover:opacity-90 text-primary-foreground text-xs font-medium px-4"
+              className="from-primary to-accent text-primary-foreground h-8 gap-1.5 bg-gradient-to-r px-4 text-xs font-medium hover:opacity-90"
               disabled={!newComment.trim() || submitting}
               onClick={handleSubmitComment}
             >
@@ -319,7 +292,7 @@ export function DiscussionPanel({
         </div>
 
         {/* ─── Comments List ─── */}
-        <div className="max-h-[480px] overflow-y-auto custom-scrollbar">
+        <div className="custom-scrollbar max-h-[480px] overflow-y-auto">
           {loading ? (
             <div className="space-y-1">
               <CommentSkeleton />
@@ -328,13 +301,11 @@ export function DiscussionPanel({
             </div>
           ) : comments.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
-              <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-3">
-                <MessageSquare className="h-6 w-6 text-muted-foreground" />
+              <div className="bg-muted mb-3 flex h-12 w-12 items-center justify-center rounded-full">
+                <MessageSquare className="text-muted-foreground h-6 w-6" />
               </div>
-              <p className="text-sm font-medium text-muted-foreground">
-                No comments yet
-              </p>
-              <p className="text-xs text-muted-foreground/70 mt-1">
+              <p className="text-muted-foreground text-sm font-medium">No comments yet</p>
+              <p className="text-muted-foreground/70 mt-1 text-xs">
                 Be the first to start a discussion!
               </p>
             </div>
@@ -344,56 +315,55 @@ export function DiscussionPanel({
                 <div key={comment.id}>
                   {/* Parent comment */}
                   <div className="py-3">
-                    <div className="flex gap-3 group">
+                    <div className="group flex gap-3">
                       <Avatar className="h-8 w-8 shrink-0">
-                        <AvatarFallback className="bg-gradient-to-br from-cyan-500 to-teal-500 text-white text-xs font-semibold">
+                        <AvatarFallback className="bg-gradient-to-br from-cyan-500 to-teal-500 text-xs font-semibold text-white">
                           {getInitials(comment.author.name)}
                         </AvatarFallback>
                       </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-sm font-semibold text-foreground">
+                      <div className="min-w-0 flex-1">
+                        <div className="mb-1 flex items-center gap-2">
+                          <span className="text-foreground text-sm font-semibold">
                             {comment.author.name || "Anonymous"}
                           </span>
                           {comment.author.role === "instructor" && (
                             <Badge
                               variant="secondary"
-                              className="text-[10px] px-1.5 py-0 h-4 bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-0"
+                              className="h-4 border-0 bg-cyan-500/10 px-1.5 py-0 text-[10px] text-cyan-600 dark:text-cyan-400"
                             >
                               Instructor
                             </Badge>
                           )}
-                          <span className="text-xs text-muted-foreground">
+                          <span className="text-muted-foreground text-xs">
                             {formatRelativeTime(comment.createdAt)}
                           </span>
                         </div>
-                        <p className="text-sm text-foreground/90 leading-relaxed whitespace-pre-wrap break-words">
+                        <p className="text-foreground/90 text-sm leading-relaxed break-words whitespace-pre-wrap">
                           {comment.content}
                         </p>
-                        <div className="flex items-center gap-1 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="mt-2 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="h-7 px-2 text-xs text-muted-foreground hover:text-primary"
+                            className="text-muted-foreground hover:text-primary h-7 px-2 text-xs"
                             onClick={() =>
                               setReplyingTo({
                                 id: comment.id,
-                                authorName:
-                                  comment.author.name || "someone",
+                                authorName: comment.author.name || "someone",
                               })
                             }
                           >
-                            <Reply className="h-3 w-3 mr-1" />
+                            <Reply className="mr-1 h-3 w-3" />
                             Reply
                           </Button>
                           {comment.author.id === userId && (
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive"
+                              className="text-muted-foreground hover:text-destructive h-7 px-2 text-xs"
                               onClick={() => handleDelete(comment.id)}
                             >
-                              <Trash2 className="h-3 w-3 mr-1" />
+                              <Trash2 className="mr-1 h-3 w-3" />
                               Delete
                             </Button>
                           )}
@@ -404,44 +374,44 @@ export function DiscussionPanel({
 
                   {/* Nested replies */}
                   {comment.replies.length > 0 && (
-                    <div className="ml-8 pl-4 border-l-2 border-border/50 space-y-0">
+                    <div className="border-border/50 ml-8 space-y-0 border-l-2 pl-4">
                       {comment.replies.map((reply) => (
                         <div key={reply.id} className="py-2">
-                          <div className="flex gap-3 group">
+                          <div className="group flex gap-3">
                             <Avatar className="h-7 w-7 shrink-0">
-                              <AvatarFallback className="bg-gradient-to-br from-cyan-500 to-teal-500 text-white text-[10px] font-semibold">
+                              <AvatarFallback className="bg-gradient-to-br from-cyan-500 to-teal-500 text-[10px] font-semibold text-white">
                                 {getInitials(reply.author.name)}
                               </AvatarFallback>
                             </Avatar>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className="text-sm font-semibold text-foreground">
+                            <div className="min-w-0 flex-1">
+                              <div className="mb-1 flex items-center gap-2">
+                                <span className="text-foreground text-sm font-semibold">
                                   {reply.author.name || "Anonymous"}
                                 </span>
                                 {reply.author.role === "instructor" && (
                                   <Badge
                                     variant="secondary"
-                                    className="text-[10px] px-1.5 py-0 h-4 bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-0"
+                                    className="h-4 border-0 bg-cyan-500/10 px-1.5 py-0 text-[10px] text-cyan-600 dark:text-cyan-400"
                                   >
                                     Instructor
                                   </Badge>
                                 )}
-                                <span className="text-xs text-muted-foreground">
+                                <span className="text-muted-foreground text-xs">
                                   {formatRelativeTime(reply.createdAt)}
                                 </span>
                               </div>
-                              <p className="text-sm text-foreground/90 leading-relaxed whitespace-pre-wrap break-words">
+                              <p className="text-foreground/90 text-sm leading-relaxed break-words whitespace-pre-wrap">
                                 {reply.content}
                               </p>
-                              <div className="flex items-center gap-1 mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <div className="mt-1.5 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                                 {reply.author.id === userId && (
                                   <Button
                                     variant="ghost"
                                     size="sm"
-                                    className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive"
+                                    className="text-muted-foreground hover:text-destructive h-7 px-2 text-xs"
                                     onClick={() => handleDelete(reply.id)}
                                   >
-                                    <Trash2 className="h-3 w-3 mr-1" />
+                                    <Trash2 className="mr-1 h-3 w-3" />
                                     Delete
                                   </Button>
                                 )}
@@ -455,28 +425,24 @@ export function DiscussionPanel({
 
                   {/* Inline reply input */}
                   {replyingTo?.id === comment.id && (
-                    <div className="ml-8 pl-4 border-l-2 border-primary/30 py-2">
+                    <div className="border-primary/30 ml-8 border-l-2 py-2 pl-4">
                       <div className="flex gap-3">
                         <Avatar className="h-7 w-7 shrink-0">
-                          <AvatarFallback className="bg-gradient-to-br from-cyan-400 to-teal-500 text-white text-[10px] font-bold">
+                          <AvatarFallback className="bg-gradient-to-br from-cyan-400 to-teal-500 text-[10px] font-bold text-white">
                             ME
                           </AvatarFallback>
                         </Avatar>
-                        <div className="flex-1 rounded-lg border bg-muted/30 p-2.5">
+                        <div className="bg-muted/30 flex-1 rounded-lg border p-2.5">
                           <Textarea
                             ref={replyTextareaRef}
                             placeholder={`Reply to ${replyingTo.authorName}...`}
                             value={replyContent}
-                            onChange={(e) =>
-                              setReplyContent(e.target.value)
-                            }
-                            onKeyDown={(e) =>
-                              handleKeyDown(e, handleSubmitReply)
-                            }
-                            className="resize-none min-h-[44px] border-0 bg-transparent focus-visible:ring-0 text-sm p-0"
+                            onChange={(e) => setReplyContent(e.target.value)}
+                            onKeyDown={(e) => handleKeyDown(e, handleSubmitReply)}
+                            className="min-h-[44px] resize-none border-0 bg-transparent p-0 text-sm focus-visible:ring-0"
                             rows={2}
                           />
-                          <div className="flex items-center justify-end gap-2 mt-1.5">
+                          <div className="mt-1.5 flex items-center justify-end gap-2">
                             <Button
                               variant="ghost"
                               size="sm"
@@ -490,10 +456,8 @@ export function DiscussionPanel({
                             </Button>
                             <Button
                               size="sm"
-                              className="h-7 gap-1 bg-gradient-to-r from-primary to-accent hover:opacity-90 text-primary-foreground text-xs px-3"
-                              disabled={
-                                !replyContent.trim() || submitting
-                              }
+                              className="from-primary to-accent text-primary-foreground h-7 gap-1 bg-gradient-to-r px-3 text-xs hover:opacity-90"
+                              disabled={!replyContent.trim() || submitting}
                               onClick={handleSubmitReply}
                             >
                               {submitting && replyingTo ? (
@@ -509,9 +473,7 @@ export function DiscussionPanel({
                     </div>
                   )}
 
-                  {idx < comments.length - 1 && (
-                    <Separator />
-                  )}
+                  {idx < comments.length - 1 && <Separator />}
                 </div>
               ))}
             </div>

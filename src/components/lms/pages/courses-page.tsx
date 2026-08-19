@@ -6,13 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SkeletonCard } from "@/components/lms/skeleton-cards";
 import { Badge } from "@/components/ui/badge";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { CourseCard } from "@/components/lms/course-card";
@@ -102,15 +96,12 @@ function FilterButton({
         "flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm font-medium transition-colors",
         active
           ? "bg-primary text-primary-foreground"
-          : "text-muted-foreground hover:bg-accent hover:text-foreground"
+          : "text-muted-foreground hover:bg-accent hover:text-foreground",
       )}
     >
       <span>{label}</span>
       {count !== undefined && (
-        <Badge
-          variant={active ? "secondary" : "outline"}
-          className="ml-2 text-[10px] px-1.5 py-0"
-        >
+        <Badge variant={active ? "secondary" : "outline"} className="ml-2 px-1.5 py-0 text-[10px]">
           {count}
         </Badge>
       )}
@@ -135,7 +126,7 @@ function FilterSidebarContent({
       <div className="space-y-6 p-4">
         {/* Category Filter */}
         <div className="space-y-2">
-          <h3 className="text-sm font-semibold text-foreground">Category</h3>
+          <h3 className="text-foreground text-sm font-semibold">Category</h3>
           <div className="space-y-1">
             <FilterButton
               label="All"
@@ -159,7 +150,7 @@ function FilterSidebarContent({
 
         {/* Sort By */}
         <div className="space-y-2">
-          <h3 className="text-sm font-semibold text-foreground">Sort By</h3>
+          <h3 className="text-foreground text-sm font-semibold">Sort By</h3>
           <div className="space-y-1">
             {SORT_OPTIONS.map((opt) => (
               <FilterButton
@@ -180,7 +171,7 @@ function FilterSidebarContent({
 
         {/* Time Range */}
         <div className="space-y-2">
-          <h3 className="text-sm font-semibold text-foreground">Time Range</h3>
+          <h3 className="text-foreground text-sm font-semibold">Time Range</h3>
           <div className="space-y-1">
             {TIME_RANGE_OPTIONS.map((opt) => (
               <FilterButton
@@ -245,7 +236,7 @@ export function CoursesPage() {
               description: (c.description as string) ?? null,
               color: (c.color as string) ?? null,
               _count: { courses: (c.coursesCount as number) ?? 0 },
-            }))
+            })),
           );
         }
       } catch (err) {
@@ -256,57 +247,60 @@ export function CoursesPage() {
   }, [setCategories]);
 
   // ---------- Fetch courses based on filters ----------
-  const fetchCourses = useCallback(async (filters: CourseFilters) => {
-    setIsLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (filters.category && filters.category !== "all") {
-        params.set("category", filters.category);
-      }
-      if (filters.sortBy && filters.sortBy !== "newest") {
-        params.set("sortBy", filters.sortBy);
-      }
-      if (filters.timeRange && filters.timeRange !== "all") {
-        params.set("timeRange", filters.timeRange);
-      }
-      if (filters.search && filters.search.trim()) {
-        params.set("search", filters.search.trim());
-      }
+  const fetchCourses = useCallback(
+    async (filters: CourseFilters) => {
+      setIsLoading(true);
+      try {
+        const params = new URLSearchParams();
+        if (filters.category && filters.category !== "all") {
+          params.set("category", filters.category);
+        }
+        if (filters.sortBy && filters.sortBy !== "newest") {
+          params.set("sortBy", filters.sortBy);
+        }
+        if (filters.timeRange && filters.timeRange !== "all") {
+          params.set("timeRange", filters.timeRange);
+        }
+        if (filters.search && filters.search.trim()) {
+          params.set("search", filters.search.trim());
+        }
 
-      const queryStr = params.toString();
-      const url = queryStr ? `/api/courses?${queryStr}` : "/api/courses";
-      const res = await fetch(url);
-      const json = await res.json();
-      if (json.success) {
-        setCourses(
-          (json.data as Array<Record<string, unknown>>).map((c) => ({
-            id: c.id as string,
-            title: c.title as string,
-            description: (c.description as string) ?? null,
-            coverImage: (c.coverImage as string) ?? null,
-            rating: (c.rating as number) ?? 0,
-            studentCount: (c.studentCount as number) ?? 0,
-            status: (c.status as string) ?? "published",
-            language: (c.language as string) ?? "english",
-            category: c.category
-              ? {
-                  id: (c.category as Record<string, unknown>).id as string,
-                  name: (c.category as Record<string, unknown>).name as string,
-                  color: ((c.category as Record<string, unknown>).color as string) ?? null,
-                }
-              : null,
-            lessons: [],
-            createdAt: (c.createdAt as string) ?? "",
-            updatedAt: (c.updatedAt as string) ?? "",
-          }))
-        );
+        const queryStr = params.toString();
+        const url = queryStr ? `/api/courses?${queryStr}` : "/api/courses";
+        const res = await fetch(url);
+        const json = await res.json();
+        if (json.success) {
+          setCourses(
+            (json.data as Array<Record<string, unknown>>).map((c) => ({
+              id: c.id as string,
+              title: c.title as string,
+              description: (c.description as string) ?? null,
+              coverImage: (c.coverImage as string) ?? null,
+              rating: (c.rating as number) ?? 0,
+              studentCount: (c.studentCount as number) ?? 0,
+              status: (c.status as string) ?? "published",
+              language: (c.language as string) ?? "english",
+              category: c.category
+                ? {
+                    id: (c.category as Record<string, unknown>).id as string,
+                    name: (c.category as Record<string, unknown>).name as string,
+                    color: ((c.category as Record<string, unknown>).color as string) ?? null,
+                  }
+                : null,
+              lessons: [],
+              createdAt: (c.createdAt as string) ?? "",
+              updatedAt: (c.updatedAt as string) ?? "",
+            })),
+          );
+        }
+      } catch (err) {
+        console.error("Failed to fetch courses:", err);
+      } finally {
+        setIsLoading(false);
       }
-    } catch (err) {
-      console.error("Failed to fetch courses:", err);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [setCourses]);
+    },
+    [setCourses],
+  );
 
   // ---------- Re-fetch courses whenever non-search filters change ----------
   useEffect(() => {
@@ -335,7 +329,7 @@ export function CoursesPage() {
     (partial: Partial<CourseFilters>) => {
       setCourseFilters(partial);
     },
-    [setCourseFilters]
+    [setCourseFilters],
   );
 
   // ---------- Active filter count for mobile badge ----------
@@ -350,10 +344,8 @@ export function CoursesPage() {
     <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
       {/* Page Header */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">
-          Courses
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <h1 className="text-foreground text-2xl font-bold tracking-tight">Courses</h1>
+        <p className="text-muted-foreground mt-1 text-sm">
           Explore our library of courses and start learning today.
         </p>
       </div>
@@ -363,7 +355,7 @@ export function CoursesPage() {
         {/* Desktop Sidebar */}
         {/* ============================================ */}
         <aside className="hidden w-64 shrink-0 md:block">
-          <div className="sticky top-20 rounded-xl border border-border bg-card">
+          <div className="border-border bg-card sticky top-20 rounded-xl border">
             {categories.length === 0 ? (
               <FilterSkeleton />
             ) : (
@@ -394,8 +386,8 @@ export function CoursesPage() {
             />
 
             {/* Results count — inline with search */}
-            <span className="hidden shrink-0 text-sm text-muted-foreground sm:inline">
-              <span className="font-semibold text-foreground">
+            <span className="text-muted-foreground hidden shrink-0 text-sm sm:inline">
+              <span className="text-foreground font-semibold">
                 {isLoading ? "..." : courses.length}
               </span>{" "}
               courses found
@@ -404,17 +396,17 @@ export function CoursesPage() {
             {/* Mobile Filter Button */}
             <Sheet open={isSidebarOpen} onOpenChange={setIsSidebarOpen}>
               <SheetTrigger asChild>
-                <Button variant="outline" size="icon" className="md:hidden relative shrink-0">
+                <Button variant="outline" size="icon" className="relative shrink-0 md:hidden">
                   <SlidersHorizontal className="h-4 w-4" />
                   {activeFilterCount > 0 && (
-                    <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
+                    <span className="bg-primary text-primary-foreground absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-bold">
                       {activeFilterCount}
                     </span>
                   )}
                 </Button>
               </SheetTrigger>
               <SheetContent side="left" className="w-72 p-0">
-                <SheetHeader className="border-b border-border px-4 py-3">
+                <SheetHeader className="border-border border-b px-4 py-3">
                   <SheetTitle>Filters</SheetTitle>
                 </SheetHeader>
                 {categories.length === 0 ? (
@@ -434,8 +426,8 @@ export function CoursesPage() {
 
           {/* Mobile results count */}
           <div className="mb-3 sm:hidden">
-            <p className="text-sm text-muted-foreground">
-              <span className="font-semibold text-foreground">
+            <p className="text-muted-foreground text-sm">
+              <span className="text-foreground font-semibold">
                 {isLoading ? "..." : courses.length}
               </span>{" "}
               courses found
@@ -452,7 +444,7 @@ export function CoursesPage() {
                   "hover-lift inline-flex items-center rounded-full px-3.5 py-1.5 text-xs font-medium transition-all duration-200",
                   courseFilters.category === "all"
                     ? "bg-gradient-to-r from-teal-500 to-cyan-500 text-white shadow-sm shadow-teal-500/20"
-                    : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
+                    : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground",
                 )}
               >
                 All
@@ -470,16 +462,18 @@ export function CoursesPage() {
                     "hover-lift inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-all duration-200",
                     courseFilters.category === cat.id
                       ? "bg-gradient-to-r from-teal-500 to-cyan-500 text-white shadow-sm shadow-teal-500/20"
-                      : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
+                      : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground",
                   )}
                 >
                   {cat.name}
-                  <span className={cn(
-                    "text-[10px] tabular-nums",
-                    courseFilters.category === cat.id
-                      ? "text-white/80"
-                      : "text-muted-foreground/60"
-                  )}>
+                  <span
+                    className={cn(
+                      "text-[10px] tabular-nums",
+                      courseFilters.category === cat.id
+                        ? "text-white/80"
+                        : "text-muted-foreground/60",
+                    )}
+                  >
                     {cat._count?.courses ?? 0}
                   </span>
                 </button>
@@ -515,14 +509,12 @@ export function CoursesPage() {
           {isLoading ? (
             <CourseGridSkeleton />
           ) : courses.length === 0 ? (
-            <div className="empty-state flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-16">
-              <div className="empty-illustration flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/10 to-accent/10">
-                <Search className="h-7 w-7 text-primary" />
+            <div className="empty-state border-border flex flex-col items-center justify-center rounded-xl border border-dashed py-16">
+              <div className="empty-illustration from-primary/10 to-accent/10 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br">
+                <Search className="text-primary h-7 w-7" />
               </div>
-              <h3 className="mt-5 text-lg font-semibold text-foreground">
-                No courses found
-              </h3>
-              <p className="mt-1.5 max-w-sm text-center text-sm text-muted-foreground leading-relaxed">
+              <h3 className="text-foreground mt-5 text-lg font-semibold">No courses found</h3>
+              <p className="text-muted-foreground mt-1.5 max-w-sm text-center text-sm leading-relaxed">
                 Try adjusting your filters or search terms to find what you&apos;re looking for.
               </p>
               <Button
@@ -544,7 +536,11 @@ export function CoursesPage() {
           ) : (
             <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
               {courses.map((course, i) => (
-                <div key={course.id} className="stagger-fade-in" style={{ animationDelay: `${i * 60}ms` }}>
+                <div
+                  key={course.id}
+                  className="stagger-fade-in"
+                  style={{ animationDelay: `${i * 60}ms` }}
+                >
                   <CourseCard course={course} index={i} />
                 </div>
               ))}

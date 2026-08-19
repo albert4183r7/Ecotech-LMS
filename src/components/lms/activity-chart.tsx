@@ -42,7 +42,10 @@ function ActivityChartSkeleton() {
         <div className="flex items-end justify-between gap-2" style={{ height: 120 }}>
           {Array.from({ length: 7 }).map((_, i) => (
             <div key={i} className="flex flex-1 flex-col items-center gap-2">
-              <Skeleton className="w-full rounded-t-md" style={{ height: `${30 + Math.random() * 70}%` }} />
+              <Skeleton
+                className="w-full rounded-t-md"
+                style={{ height: `${30 + Math.random() * 70}%` }}
+              />
               <Skeleton className="h-3 w-7" />
             </div>
           ))}
@@ -75,9 +78,7 @@ function ActivityBar({
 
   // Height percentage (minimum 4px for visual presence when there's activity)
   const heightPercent =
-    maxMinutes > 0 && hasActivity
-      ? Math.max(8, (minutes / maxMinutes) * 100)
-      : 0;
+    maxMinutes > 0 && hasActivity ? Math.max(8, (minutes / maxMinutes) * 100) : 0;
 
   // Color intensity based on relative activity
   const intensity = maxMinutes > 0 ? minutes / maxMinutes : 0;
@@ -86,10 +87,10 @@ function ActivityBar({
     <div className="group flex flex-1 flex-col items-center gap-1.5">
       {/* Tooltip */}
       {hovered && hasActivity && (
-        <div className="absolute -top-8 left-1/2 z-10 -translate-x-1/2 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-[10px] font-medium text-background shadow-md animate-in fade-in-0 zoom-in-95 duration-100">
+        <div className="bg-foreground text-background animate-in fade-in-0 zoom-in-95 absolute -top-8 left-1/2 z-10 -translate-x-1/2 rounded-md px-2 py-1 text-[10px] font-medium whitespace-nowrap shadow-md duration-100">
           {minutes} min
           {/* Tooltip arrow */}
-          <div className="absolute -bottom-1 left-1/2 h-2 w-2 -translate-x-1/2 rotate-45 bg-foreground" />
+          <div className="bg-foreground absolute -bottom-1 left-1/2 h-2 w-2 -translate-x-1/2 rotate-45" />
         </div>
       )}
 
@@ -102,7 +103,7 @@ function ActivityBar({
         role="img"
         aria-label={`${entry.day}: ${minutes} minutes of learning`}
       >
-        <div className="h-full w-full flex items-end justify-center">
+        <div className="flex h-full w-full items-end justify-center">
           <div
             className={
               "w-full max-w-[40px] rounded-t-md transition-all duration-300 ease-out " +
@@ -124,18 +125,14 @@ function ActivityBar({
       <div className="relative flex flex-col items-center">
         <span
           className={
-            "text-[11px] font-medium leading-none " +
-            (isToday
-              ? "text-primary"
-              : hasActivity
-                ? "text-foreground"
-                : "text-muted-foreground")
+            "text-[11px] leading-none font-medium " +
+            (isToday ? "text-primary" : hasActivity ? "text-foreground" : "text-muted-foreground")
           }
         >
           {entry.day}
         </span>
         {isToday && (
-          <div className="mt-1 h-1.5 w-1.5 rounded-full bg-primary shadow-sm shadow-primary/50" />
+          <div className="bg-primary shadow-primary/50 mt-1 h-1.5 w-1.5 rounded-full shadow-sm" />
         )}
       </div>
     </div>
@@ -222,17 +219,15 @@ export function ActivityChart({ userId }: { userId: string }) {
         </div>
 
         {/* Summary footer */}
-        <div className="mt-4 flex items-center justify-between border-t border-border/40 pt-3">
-          <div className="flex items-center gap-1.5 text-muted-foreground">
+        <div className="border-border/40 mt-4 flex items-center justify-between border-t pt-3">
+          <div className="text-muted-foreground flex items-center gap-1.5">
             <Clock className="h-3.5 w-3.5" aria-hidden="true" />
             <span className="text-xs font-medium">
-              {totalMinutes > 0
-                ? `${totalMinutes} min total this week`
-                : "No activity this week"}
+              {totalMinutes > 0 ? `${totalMinutes} min total this week` : "No activity this week"}
             </span>
           </div>
           {streak.longest > 0 && (
-            <span className="text-[11px] text-muted-foreground">
+            <span className="text-muted-foreground text-[11px]">
               <Flame className="mr-0.5 inline h-3 w-3" aria-hidden="true" />
               Best: {streak.longest} days
             </span>

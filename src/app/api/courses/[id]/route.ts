@@ -1,14 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/lib/db";
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
     const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
+    const userId = searchParams.get("userId");
 
     const course = await db.course.findUnique({
       where: { id },
@@ -18,7 +15,7 @@ export async function GET(
           select: { id: true, name: true, email: true, avatar: true, department: true },
         },
         lessons: {
-          orderBy: { order: 'asc' },
+          orderBy: { order: "asc" },
         },
         _count: {
           select: {
@@ -30,10 +27,7 @@ export async function GET(
     });
 
     if (!course) {
-      return NextResponse.json(
-        { success: false, error: 'Course not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ success: false, error: "Course not found" }, { status: 404 });
     }
 
     // Check if user is enrolled
@@ -104,18 +98,12 @@ export async function GET(
 
     return NextResponse.json({ success: true, data: formattedCourse });
   } catch (error) {
-    console.error('Error fetching course:', error);
-    return NextResponse.json(
-      { success: false, error: 'Failed to fetch course' },
-      { status: 500 }
-    );
+    console.error("Error fetching course:", error);
+    return NextResponse.json({ success: false, error: "Failed to fetch course" }, { status: 500 });
   }
 }
 
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
     const body = await request.json();
@@ -123,10 +111,7 @@ export async function PUT(
 
     const course = await db.course.findUnique({ where: { id } });
     if (!course) {
-      return NextResponse.json(
-        { success: false, error: 'Course not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ success: false, error: "Course not found" }, { status: 404 });
     }
 
     const updated = await db.course.update({
@@ -143,10 +128,7 @@ export async function PUT(
 
     return NextResponse.json({ success: true, data: updated });
   } catch (error) {
-    console.error('Error updating course:', error);
-    return NextResponse.json(
-      { success: false, error: 'Failed to update course' },
-      { status: 500 }
-    );
+    console.error("Error updating course:", error);
+    return NextResponse.json({ success: false, error: "Failed to update course" }, { status: 500 });
   }
 }

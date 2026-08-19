@@ -5,10 +5,7 @@ import { db } from "@/lib/db";
 // PUT /api/slides/[id] — Update a single slide
 // ============================================
 
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
     const body = await request.json();
@@ -16,10 +13,7 @@ export async function PUT(
 
     const slide = await db.slide.findUnique({ where: { id } });
     if (!slide) {
-      return NextResponse.json(
-        { success: false, error: "Slide not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ success: false, error: "Slide not found" }, { status: 404 });
     }
 
     const updated = await db.slide.update({
@@ -35,10 +29,7 @@ export async function PUT(
     return NextResponse.json({ success: true, data: updated });
   } catch (error) {
     console.error("Error updating slide:", error);
-    return NextResponse.json(
-      { success: false, error: "Failed to update slide" },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: "Failed to update slide" }, { status: 500 });
   }
 }
 
@@ -48,17 +39,14 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await params;
 
     const slide = await db.slide.findUnique({ where: { id } });
     if (!slide) {
-      return NextResponse.json(
-        { success: false, error: "Slide not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ success: false, error: "Slide not found" }, { status: 404 });
     }
 
     await db.slide.delete({ where: { id } });
@@ -66,9 +54,6 @@ export async function DELETE(
     return NextResponse.json({ success: true, data: { id } });
   } catch (error) {
     console.error("Error deleting slide:", error);
-    return NextResponse.json(
-      { success: false, error: "Failed to delete slide" },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: "Failed to delete slide" }, { status: 500 });
   }
 }

@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
-import PptxGenJS from 'pptxgenjs';
-import { db } from '@/lib/db';
+import { NextRequest, NextResponse } from "next/server";
+import PptxGenJS from "pptxgenjs";
+import { db } from "@/lib/db";
 
 interface SlideHtmlBody {
   title: string;
@@ -14,24 +14,24 @@ interface GeneratePptxRequest {
 }
 
 // ─── Ecotech Brand Colors ──────────────────────────
-const PRIMARY = '4A6FA5';
-const TEAL = '5B9A8F';
-const LIGHT_BG = 'F5F8FA';
-const DARK_TEXT = '1F2937';
-const BODY_TEXT = '5A6B7D';
-const WHITE = 'FFFFFF';
+const PRIMARY = "4A6FA5";
+const TEAL = "5B9A8F";
+const LIGHT_BG = "F5F8FA";
+const DARK_TEXT = "1F2937";
+const BODY_TEXT = "5A6B7D";
+const WHITE = "FFFFFF";
 
 /** Strip HTML tags and decode entities */
 function stripHtml(html: string): string {
   return html
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<[^>]+>/g, '')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
-    .replace(/&nbsp;/g, ' ')
+    .replace(/&nbsp;/g, " ")
     .trim();
 }
 
@@ -43,7 +43,7 @@ function extractContent(html: string): { title: string; paragraphs: string[] } {
 
   // Try to find the first h1 as title
   const h1Match = bodyHtml.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
-  const title = h1Match ? stripHtml(h1Match[1]) : '';
+  const title = h1Match ? stripHtml(h1Match[1]) : "";
 
   // Extract text from h2, h3, p, li elements
   const paragraphs: string[] = [];
@@ -64,36 +64,61 @@ function extractContent(html: string): { title: string; paragraphs: string[] } {
 }
 
 /** Add a consistent footer with brand text and slide number */
-function addFooter(s: ReturnType<PptxGenJS['addSlide']>, slideNum: number, totalSlides: number) {
-  s.addShape('rect' as never, {
-    x: 0, y: 7.12, w: '100%', h: 0.04,
+function addFooter(s: ReturnType<PptxGenJS["addSlide"]>, slideNum: number, totalSlides: number) {
+  s.addShape("rect" as never, {
+    x: 0,
+    y: 7.12,
+    w: "100%",
+    h: 0.04,
     fill: { color: TEAL },
   });
   s.addText(`${slideNum} / ${totalSlides}`, {
-    x: 6.5, y: 7.15, w: 1.8, h: 0.3,
-    fontSize: 7, fontFace: 'Arial',
-    color: BODY_TEXT, align: 'right',
+    x: 6.5,
+    y: 7.15,
+    w: 1.8,
+    h: 0.3,
+    fontSize: 7,
+    fontFace: "Arial",
+    color: BODY_TEXT,
+    align: "right",
   });
-  s.addText('Ecotech', {
-    x: 8.3, y: 7.15, w: 1.5, h: 0.3,
-    fontSize: 7, fontFace: 'Arial',
-    color: BODY_TEXT, align: 'right', italic: true,
+  s.addText("Ecotech", {
+    x: 8.3,
+    y: 7.15,
+    w: 1.5,
+    h: 0.3,
+    fontSize: 7,
+    fontFace: "Arial",
+    color: BODY_TEXT,
+    align: "right",
+    italic: true,
   });
 }
 
 /** Add the standard slide header with accent bar */
-function addSlideHeader(s: ReturnType<PptxGenJS['addSlide']>, title: string) {
-  s.addShape('rect' as never, {
-    x: 0, y: 0, w: '100%', h: 0.06,
+function addSlideHeader(s: ReturnType<PptxGenJS["addSlide"]>, title: string) {
+  s.addShape("rect" as never, {
+    x: 0,
+    y: 0,
+    w: "100%",
+    h: 0.06,
     fill: { color: PRIMARY },
   });
   s.addText(title, {
-    x: 0.6, y: 0.3, w: 8.8, h: 0.7,
-    fontSize: 24, fontFace: 'Arial',
-    color: PRIMARY, bold: true,
+    x: 0.6,
+    y: 0.3,
+    w: 8.8,
+    h: 0.7,
+    fontSize: 24,
+    fontFace: "Arial",
+    color: PRIMARY,
+    bold: true,
   });
-  s.addShape('rect' as never, {
-    x: 0.6, y: 1.05, w: 1.2, h: 0.04,
+  s.addShape("rect" as never, {
+    x: 0.6,
+    y: 1.05,
+    w: 1.2,
+    h: 0.04,
     fill: { color: TEAL },
   });
 }
@@ -115,7 +140,7 @@ function addHtmlSlide(
 
   for (const p of paragraphs) {
     // Heuristic: short paragraphs are likely headings
-    const isShort = p.length < 80 && !p.endsWith('.');
+    const isShort = p.length < 80 && !p.endsWith(".");
     textObjs.push({
       text: p,
       options: {
@@ -130,8 +155,12 @@ function addHtmlSlide(
 
   if (textObjs.length > 0) {
     s.addText(textObjs, {
-      x: 0.6, y: 1.3, w: 8.8, h: 5.5,
-      fontFace: 'Arial', valign: 'top',
+      x: 0.6,
+      y: 1.3,
+      w: 8.8,
+      h: 5.5,
+      fontFace: "Arial",
+      valign: "top",
       lineSpacingMultiple: 1.3,
     });
   }
@@ -151,29 +180,32 @@ export async function POST(request: NextRequest) {
     if (!resolvedSlides && courseId) {
       const dbLessons = await db.lesson.findMany({
         where: { courseId },
-        orderBy: { order: 'asc' },
+        orderBy: { order: "asc" },
         include: {
           slides: {
-            where: { status: 'READY' },
-            orderBy: { order: 'asc' },
+            where: { status: "READY" },
+            orderBy: { order: "asc" },
             select: { title: true, htmlBody: true },
           },
         },
       });
       resolvedSlides = dbLessons.flatMap((l) =>
-        l.slides.map((s) => ({ title: s.title, htmlBody: s.htmlBody }))
+        l.slides.map((s) => ({ title: s.title, htmlBody: s.htmlBody })),
       );
     }
 
     if (!resolvedSlides || !Array.isArray(resolvedSlides) || resolvedSlides.length === 0) {
-      return NextResponse.json({ error: 'No slides found. Provide slides array or a valid courseId.' }, { status: 400 });
+      return NextResponse.json(
+        { error: "No slides found. Provide slides array or a valid courseId." },
+        { status: 400 },
+      );
     }
 
     const pptx = new PptxGenJS();
-    pptx.layout = 'LAYOUT_16x9';
-    pptx.author = 'Ecotech LMS';
-    pptx.title = courseName || 'Lesson';
-    pptx.subject = `Generated by Ecotech LMS: ${courseName || 'Lesson'}`;
+    pptx.layout = "LAYOUT_16x9";
+    pptx.author = "Ecotech LMS";
+    pptx.title = courseName || "Lesson";
+    pptx.subject = `Generated by Ecotech LMS: ${courseName || "Lesson"}`;
 
     const totalSlides = resolvedSlides.length;
 
@@ -183,24 +215,21 @@ export async function POST(request: NextRequest) {
       addHtmlSlide(pptx, slide.title, content, i + 1, totalSlides);
     }
 
-    const safeName = (courseName || 'lesson')
-      .replace(/[^a-zA-Z0-9\s-]/g, '')
-      .replace(/\s+/g, '-')
+    const safeName = (courseName || "lesson")
+      .replace(/[^a-zA-Z0-9\s-]/g, "")
+      .replace(/\s+/g, "-")
       .toLowerCase()
       .slice(0, 60);
 
-    const buffer: Buffer = await pptx.write({ outputType: 'nodebuffer' }) as Buffer;
+    const buffer: Buffer = (await pptx.write({ outputType: "nodebuffer" })) as Buffer;
     return new Response(new Uint8Array(buffer), {
       headers: {
-        'Content-Type': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-        'Content-Disposition': `attachment; filename="${safeName}.pptx"`,
+        "Content-Type": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "Content-Disposition": `attachment; filename="${safeName}.pptx"`,
       },
     });
   } catch (error) {
-    console.error('PPTX generation error:', error);
-    return NextResponse.json(
-      { error: 'Failed to generate PPTX' },
-      { status: 500 }
-    );
+    console.error("PPTX generation error:", error);
+    return NextResponse.json({ error: "Failed to generate PPTX" }, { status: 500 });
   }
 }

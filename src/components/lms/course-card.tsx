@@ -13,8 +13,8 @@ interface CourseCardProps {
   showFavorite?: boolean;
   isFavorited?: boolean;
   onToggleFavorite?: (courseId: string) => void;
-  enrollmentProgress?: number;  // 0-100
-  estimatedMinutes?: number;   // e.g., 45
+  enrollmentProgress?: number; // 0-100
+  estimatedMinutes?: number; // e.g., 45
   difficulty?: "beginner" | "intermediate" | "advanced";
 }
 
@@ -32,8 +32,16 @@ const GRADIENT_PALETTE = [
 
 /** Reusable course card component for grid displays */
 const DIFFICULTY_CONFIG = {
-  beginner: { label: "Beginner", bg: "bg-emerald-500/90 text-white", border: "border-emerald-400/30" },
-  intermediate: { label: "Intermediate", bg: "bg-amber-500/90 text-white", border: "border-amber-400/30" },
+  beginner: {
+    label: "Beginner",
+    bg: "bg-emerald-500/90 text-white",
+    border: "border-emerald-400/30",
+  },
+  intermediate: {
+    label: "Intermediate",
+    bg: "bg-amber-500/90 text-white",
+    border: "border-amber-400/30",
+  },
   advanced: { label: "Advanced", bg: "bg-rose-500/90 text-white", border: "border-rose-400/30" },
 } as const;
 
@@ -68,7 +76,7 @@ export function CourseCard({
 
   return (
     <Card
-      className="lms-card-hover card-shine hover-scale card-depth-3d group cursor-pointer overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm transition-all duration-300 hover:shadow-lg hover:border-primary/20 hover-lift hover-glow shimmer-border press-effect"
+      className="lms-card-hover card-shine hover-scale card-depth-3d group border-border/50 bg-card hover:border-primary/20 hover-lift hover-glow shimmer-border press-effect cursor-pointer overflow-hidden rounded-xl border shadow-sm transition-all duration-300 hover:shadow-lg"
       onClick={() => openCourseDetail(course.id)}
       onKeyDown={handleKeyDown}
       role="button"
@@ -77,7 +85,7 @@ export function CourseCard({
       style={{ animationDelay: `${index * 60}ms` }}
     >
       {/* Cover Image */}
-      <div className="relative aspect-video card-img-zoom">
+      <div className="card-img-zoom relative aspect-video">
         {!imgError && course.coverImage ? (
           <img
             src={course.coverImage}
@@ -95,7 +103,12 @@ export function CourseCard({
             <div className="absolute inset-0 opacity-10">
               <svg className="h-full w-full" xmlns="http://www.w3.org/2000/svg">
                 <defs>
-                  <pattern id={`dots-${course.id}`} width="20" height="20" patternUnits="userSpaceOnUse">
+                  <pattern
+                    id={`dots-${course.id}`}
+                    width="20"
+                    height="20"
+                    patternUnits="userSpaceOnUse"
+                  >
                     <circle cx="2" cy="2" r="1" fill="white" />
                   </pattern>
                 </defs>
@@ -106,7 +119,7 @@ export function CourseCard({
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20 backdrop-blur-sm">
                 <BookOpen className="h-5 w-5 text-white" />
               </div>
-              <span className="text-lg font-bold text-white/90 drop-shadow-sm line-clamp-2 text-center px-3 leading-tight">
+              <span className="line-clamp-2 px-3 text-center text-lg leading-tight font-bold text-white/90 drop-shadow-sm">
                 {course.title.length > 30 ? course.title.slice(0, 30) + "..." : course.title}
               </span>
             </div>
@@ -117,7 +130,7 @@ export function CourseCard({
         <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-black/10 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
 
         {/* Quick-view shimmer on hover */}
-        <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-primary/0 via-primary/60 to-primary/0 scale-x-0 origin-left transition-transform duration-500 group-hover:scale-x-100" />
+        <div className="from-primary/0 via-primary/60 to-primary/0 absolute right-0 bottom-0 left-0 h-1 origin-left scale-x-0 bg-gradient-to-r transition-transform duration-500 group-hover:scale-x-100" />
 
         {/* Difficulty Badge */}
         {difficulty && (
@@ -135,13 +148,13 @@ export function CourseCard({
               e.stopPropagation();
               onToggleFavorite?.(course.id);
             }}
-            className="absolute top-2.5 right-2.5 flex h-8 w-8 items-center justify-center rounded-full bg-card/80 backdrop-blur-sm transition-all duration-200 hover:bg-card hover:scale-110 shadow-sm"
+            className="bg-card/80 hover:bg-card absolute top-2.5 right-2.5 flex h-8 w-8 items-center justify-center rounded-full shadow-sm backdrop-blur-sm transition-all duration-200 hover:scale-110"
             aria-label={isFavorited ? "Remove from favorites" : "Add to favorites"}
           >
             <Heart
               className={`h-4 w-4 transition-all duration-200 ${
                 isFavorited
-                  ? "fill-red-500 text-red-500 scale-110"
+                  ? "scale-110 fill-red-500 text-red-500"
                   : "text-muted-foreground/70 hover:text-red-400"
               }`}
             />
@@ -150,7 +163,7 @@ export function CourseCard({
 
         {/* Category Badge */}
         {course.category && (
-          <Badge className="absolute bottom-2.5 left-2.5 border-0 bg-primary/90 text-primary-foreground text-[11px] font-medium shadow-sm backdrop-blur-sm">
+          <Badge className="bg-primary/90 text-primary-foreground absolute bottom-2.5 left-2.5 border-0 text-[11px] font-medium shadow-sm backdrop-blur-sm">
             {course.category.name}
           </Badge>
         )}
@@ -158,40 +171,39 @@ export function CourseCard({
 
       {/* Card Content */}
       <CardContent className="card-content-reveal p-3.5">
-        <h3 className="font-semibold text-sm leading-snug line-clamp-2 text-foreground group-hover:text-primary transition-colors duration-200">
+        <h3 className="text-foreground group-hover:text-primary line-clamp-2 text-sm leading-snug font-semibold transition-colors duration-200">
           {course.title}
         </h3>
 
         {/* Language badge for non-English courses */}
-        <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
           {course.language && course.language !== "english" && (
-            <span className="inline-flex items-center gap-0.5 rounded-md bg-muted/60 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
+            <span className="bg-muted/60 text-muted-foreground inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[10px] font-medium tracking-wide uppercase">
               <span>{course.language.slice(0, 2)}</span>
             </span>
           )}
           {course._count && course._count.enrollments > 0 && (
-            <span className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground/70">
+            <span className="text-muted-foreground/70 inline-flex items-center gap-0.5 text-[10px]">
               <Users className="h-2.5 w-2.5" />
               {course._count.enrollments} enrolled
             </span>
           )}
         </div>
 
-        <div className="mt-2 flex items-center justify-between border-t border-border/30 pt-2.5">
+        <div className="border-border/30 mt-2 flex items-center justify-between border-t pt-2.5">
           {/* Rating */}
           <div className="flex items-center gap-1">
             <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
-            <span className="text-xs font-semibold text-foreground">
+            <span className="text-foreground text-xs font-semibold">
               {course.rating.toFixed(1)}
             </span>
           </div>
 
           {/* Student Count & Estimated Duration */}
-          <div className="flex items-center gap-2.5 text-muted-foreground">
+          <div className="text-muted-foreground flex items-center gap-2.5">
             {estimatedMinutes != null && estimatedMinutes > 0 && (
               <span className="inline-flex items-center gap-0.5 text-[11px] font-medium">
-                <Clock className="h-3 w-3" />
-                ~{estimatedMinutes} min
+                <Clock className="h-3 w-3" />~{estimatedMinutes} min
               </span>
             )}
             <div className="flex items-center gap-1">
@@ -206,9 +218,9 @@ export function CourseCard({
 
       {/* Progress Bar Overlay */}
       {enrollmentProgress != null && enrollmentProgress > 0 && (
-        <div className="h-[3px] w-full bg-muted/40">
+        <div className="bg-muted/40 h-[3px] w-full">
           <div
-            className="h-full w-full bg-gradient-to-r from-primary to-accent progress-fill-animate rounded-full"
+            className="from-primary to-accent progress-fill-animate h-full w-full rounded-full bg-gradient-to-r"
             style={{ width: `${Math.min(100, Math.max(0, enrollmentProgress))}%` }}
           />
         </div>
