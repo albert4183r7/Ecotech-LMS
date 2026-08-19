@@ -20,6 +20,9 @@ const STYLE_INSTRUCTIONS: Record<string, string> = {
   tech: 'Use a dark theme (dark slate/gray backgrounds), neon accent colors (cyan, green), monospace fonts for code.',
 };
 
+/** Per-slide generation timeout in milliseconds */
+const SLIDE_TIMEOUT_MS = 120_000; // 2 minutes per slide
+
 // ============================================
 // Types
 // ============================================
@@ -43,6 +46,28 @@ interface OutlineJson {
   slides: OutlineSlide[];
   referenceContext?: string;
   referenceSources?: { file: string; charCount: number }[];
+}
+
+// ============================================
+// Helper: safely enqueue SSE event
+// ============================================
+
+function safeEnqueue(
+  controller: ReadableStreamDefaultController<Uint8Array>,
+  encoder: TextEncoder,
+  event: string,
+  data: unknown,
+): void {
+  try {
+    controller.enqueue(
+      encoder.encode(
+        `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`,
+      ),
+    );
+  } catch (enqueueErr) {
+    // Stream may have been closed/errored by the client — log but don't crash
+    console.error(`[generate-slides] Failed to enqueue ${event} event:`, enqueueErr);
+  }
 }
 
 // ============================================
@@ -138,6 +163,25 @@ ${isChinese
 }
 
 // ============================================
+// Helper: per-slide timeout wrapper
+// ============================================
+
+function withTimeout<T>(
+  promise: Promise<T>,
+  ms: number,
+  label: string,
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`${label} timed out after ${ms / 1000}s`));
+    }, ms);
+    promise
+      .then((val) => { clearTimeout(timer); resolve(val); })
+      .catch((err) => { clearTimeout(timer); reject(err); });
+  });
+}
+
+// ============================================
 // POST /api/lessons/generate-slides
 // ============================================
 
@@ -152,11 +196,7 @@ export async function POST(request: NextRequest) {
       try {
         body = (await request.json()) as GenerateSlidesRequest;
       } catch {
-        controller.enqueue(
-          encoder.encode(
-            `event: error\ndata: ${JSON.stringify({ error: 'Invalid request body' })}\n\n`,
-          ),
-        );
+        safeEnqueue(controller, encoder, 'error', { error: 'Invalid request body' });
         controller.close();
         return;
       }
@@ -164,11 +204,7 @@ export async function POST(request: NextRequest) {
       const { lessonId, language } = body;
 
       if (!lessonId) {
-        controller.enqueue(
-          encoder.encode(
-            `event: error\ndata: ${JSON.stringify({ error: 'lessonId is required' })}\n\n`,
-          ),
-        );
+        safeEnqueue(controller, encoder, 'error', { error: 'lessonId is required' });
         controller.close();
         return;
       }
@@ -188,34 +224,24 @@ export async function POST(request: NextRequest) {
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Database error fetching lesson';
-        controller.enqueue(
-          encoder.encode(
-            `event: error\ndata: ${JSON.stringify({ error: message })}\n\n`,
-          ),
-        );
+        console.error('[generate-slides] DB fetch error:', message);
+        safeEnqueue(controller, encoder, 'error', { error: message });
         controller.close();
         return;
       }
 
       if (!lesson) {
-        controller.enqueue(
-          encoder.encode(
-            `event: error\ndata: ${JSON.stringify({ error: 'Lesson not found' })}\n\n`,
-          ),
-        );
+        safeEnqueue(controller, encoder, 'error', { error: 'Lesson not found' });
         controller.close();
         return;
       }
 
       const slides = lesson.slides;
       const totalSlides = slides.length;
+      console.log(`[generate-slides] Starting generation for lesson ${lessonId}: ${totalSlides} slides`);
 
       if (totalSlides === 0) {
-        controller.enqueue(
-          encoder.encode(
-            `event: error\ndata: ${JSON.stringify({ error: 'No slides with DRAFT_OUTLINE status found' })}\n\n`,
-          ),
-        );
+        safeEnqueue(controller, encoder, 'error', { error: 'No slides with DRAFT_OUTLINE status found' });
         controller.close();
         return;
       }
@@ -245,6 +271,7 @@ export async function POST(request: NextRequest) {
 
       for (let i = 0; i < totalSlides; i++) {
         const slide = slides[i];
+        console.log(`[generate-slides] Slide ${i + 1}/${totalSlides}: "${slide.title}" (id: ${slide.id})`);
 
         // Find matching outline entry by title
         const outlineEntry = outlineJson.slides?.find(
@@ -258,21 +285,17 @@ export async function POST(request: NextRequest) {
             where: { id: slide.id },
             data: { status: 'GENERATING' },
           });
-        } catch {
-          // Continue even if status update fails
+        } catch (dbErr) {
+          console.error(`[generate-slides] DB status update error for slide ${slide.id}:`, dbErr);
         }
 
         // Emit slide_start
-        controller.enqueue(
-          encoder.encode(
-            `event: slide_start\ndata: ${JSON.stringify({
-              slideId: slide.id,
-              slideTitle: slide.title,
-              slideIndex: i,
-              totalSlides,
-            })}\n\n`,
-          ),
-        );
+        safeEnqueue(controller, encoder, 'slide_start', {
+          slideId: slide.id,
+          slideTitle: slide.title,
+          slideIndex: i,
+          totalSlides,
+        });
 
         // Build user prompt for this slide with full lesson context
         const userPrompt = buildUserPrompt(
@@ -288,27 +311,40 @@ export async function POST(request: NextRequest) {
 
         // Stream HTML from AI
         try {
-          const rawSSEStream = await streamSlideHtml(userPrompt, systemPrompt);
+          console.log(`[generate-slides] Calling streamSlideHtml for slide ${i + 1}...`);
+          const rawSSEStream = await withTimeout(
+            streamSlideHtml(userPrompt, systemPrompt),
+            SLIDE_TIMEOUT_MS,
+            `streamSlideHtml slide ${i + 1}`,
+          );
+          console.log(`[generate-slides] Got stream for slide ${i + 1}, parsing...`);
+
           const textStream = parseSSEStream(rawSSEStream);
           const reader = textStream.getReader();
           let fullHtml = '';
+          let chunkCount = 0;
 
           while (true) {
-            const { done, value } = await reader.read();
+            const { done, value } = await withTimeout(
+              reader.read(),
+              SLIDE_TIMEOUT_MS,
+              `read chunk for slide ${i + 1}`,
+            );
             if (done) break;
 
             fullHtml += value;
+            chunkCount++;
 
-            // Emit chunk for this slide
-            controller.enqueue(
-              encoder.encode(
-                `event: chunk\ndata: ${JSON.stringify({
-                  slideId: slide.id,
-                  html: value,
-                })}\n\n`,
-              ),
-            );
+            // Emit chunk for this slide (throttle: every 5th chunk to reduce overhead)
+            if (chunkCount % 5 === 0) {
+              safeEnqueue(controller, encoder, 'chunk', {
+                slideId: slide.id,
+                html: value,
+              });
+            }
           }
+
+          console.log(`[generate-slides] Slide ${i + 1} stream done: ${fullHtml.length} chars, ${chunkCount} chunks`);
 
           // Sanitize and wrap the complete HTML
           const sanitized = sanitizeHtml(fullHtml);
@@ -321,20 +357,19 @@ export async function POST(request: NextRequest) {
           });
 
           slidesGenerated++;
+          console.log(`[generate-slides] Slide ${i + 1} COMPLETE (${slidesGenerated}/${totalSlides})`);
 
           // Emit slide_complete
-          controller.enqueue(
-            encoder.encode(
-              `event: slide_complete\ndata: ${JSON.stringify({
-                slideId: slide.id,
-                slideTitle: slide.title,
-                htmlBody: wrapped,
-              })}\n\n`,
-            ),
-          );
+          safeEnqueue(controller, encoder, 'slide_complete', {
+            slideId: slide.id,
+            slideTitle: slide.title,
+            htmlBody: wrapped,
+          });
         } catch (error) {
           const message =
             error instanceof Error ? error.message : 'Failed to generate slide HTML';
+
+          console.error(`[generate-slides] Slide ${i + 1} ERROR: ${message}`, error);
 
           // Update slide status to ERROR
           try {
@@ -342,33 +377,30 @@ export async function POST(request: NextRequest) {
               where: { id: slide.id },
               data: { status: 'ERROR' },
             });
-          } catch {
-            // Ignore
+          } catch (dbErr) {
+            console.error(`[generate-slides] DB error update failed for slide ${slide.id}:`, dbErr);
           }
 
-          // Emit slide_error but continue to next slide
-          controller.enqueue(
-            encoder.encode(
-              `event: slide_error\ndata: ${JSON.stringify({
-                slideId: slide.id,
-                error: message,
-              })}\n\n`,
-            ),
-          );
+          // Emit slide_error
+          safeEnqueue(controller, encoder, 'slide_error', {
+            slideId: slide.id,
+            error: message,
+          });
         }
       }
 
       // ---- All slides done ----
-      controller.enqueue(
-        encoder.encode(
-          `event: all_complete\ndata: ${JSON.stringify({
-            lessonId,
-            slidesGenerated,
-          })}\n\n`,
-        ),
-      );
+      console.log(`[generate-slides] All done. Generated ${slidesGenerated}/${totalSlides} slides`);
+      safeEnqueue(controller, encoder, 'all_complete', {
+        lessonId,
+        slidesGenerated,
+      });
 
-      controller.close();
+      try {
+        controller.close();
+      } catch {
+        // Stream may already be closed
+      }
     },
   });
 

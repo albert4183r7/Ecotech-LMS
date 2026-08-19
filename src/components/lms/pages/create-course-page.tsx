@@ -375,6 +375,22 @@ export function CreateCoursePage() {
     }
   }, [outlineTopic, outlineSlideCount, outlineStyle, outlineLanguage, referenceFiles, ensureCourseSaved, outlineLessons.length]);
 
+  // ---- Update lesson title (in outline modal) ----
+  const handleUpdateLessonTitle = async (lessonId: string, newTitle: string) => {
+    setOutlineLessons((prev) =>
+      prev.map((ol) => (ol.id === lessonId ? { ...ol, title: newTitle } : ol))
+    );
+    try {
+      await fetch(`/api/lessons/${lessonId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: newTitle }),
+      });
+    } catch {
+      // silent
+    }
+  };
+
   // ---- Update slide title (inline edit) ----
   const handleUpdateSlideTitle = async (slideId: string, newTitle: string) => {
     setOutlineEditingSlides((prev) =>
@@ -607,11 +623,17 @@ export function CreateCoursePage() {
                   ...prev,
                   [data.slideId]: { status: "error", error: data.error },
                 }));
+                toast.error(`Slide generation failed: ${data.error}`);
               }
 
               if (data.lessonId && data.slidesGenerated !== undefined) {
                 // all_complete event
-                toast.success(`All ${data.slidesGenerated} slides generated!`);
+                const totalForLesson = outlineLessons.find((ol) => ol.id === data.lessonId)?.slides.length || 0;
+                if (data.slidesGenerated === totalForLesson) {
+                  toast.success(`All ${data.slidesGenerated} slides generated!`);
+                } else {
+                  toast.warning(`${data.slidesGenerated} of ${totalForLesson} slides generated. Some slides failed.`);
+                }
               }
             } catch {
               // skip malformed JSON
@@ -622,9 +644,14 @@ export function CreateCoursePage() {
         if (err instanceof Error && err.name === "AbortError") {
           toast.info("Generation cancelled");
         } else {
+          console.error("[generate-slides] Stream error:", err);
           toast.error("Failed to generate slides. Please try again.");
         }
       } finally {
+        // If stream ended without all_complete, show partial result
+        if (slidesCompleted > 0 && slidesCompleted < (outlineLessons.find((ol) => ol.id === lessonId)?.slides.length || 0)) {
+          toast.warning(`Generation finished early: ${slidesCompleted} of ${outlineLessons.find((ol) => ol.id === lessonId)?.slides.length} slides generated. Check the dev console for details.`);
+        }
         setGeneratingLessonId(null);
         setCurrentGenSlideId(null);
         abortGenRef.current = null;
@@ -1148,6 +1175,27 @@ export function CreateCoursePage() {
             {/* ---- Editable Outline List ---- */}
             {!outlineGenerating && editingOutlineLesson && outlineEditingSlides.length > 0 && (
               <div className="space-y-3">
+                {/* Editable Lesson Title */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium text-muted-foreground">Lesson Title</Label>
+                  <Input
+                    value={outlineLessons.find((ol) => ol.id === editingOutlineLesson)?.title || ""}
+                    onChange={(e) => {
+                      const newTitle = e.target.value;
+                      setOutlineLessons((prev) =>
+                        prev.map((ol) => (ol.id === editingOutlineLesson ? { ...ol, title: newTitle } : ol))
+                      );
+                    }}
+                    onBlur={() => {
+                      const lesson = outlineLessons.find((ol) => ol.id === editingOutlineLesson);
+                      if (lesson && editingOutlineLesson) {
+                        handleUpdateLessonTitle(editingOutlineLesson, lesson.title);
+                      }
+                    }}
+                    className="h-9 text-sm"
+                    placeholder="Lesson title..."
+                  />
+                </div>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Label className="text-sm font-semibold text-foreground">

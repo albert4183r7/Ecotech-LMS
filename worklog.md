@@ -897,3 +897,105 @@ Stage Summary:
 - Critical gaps identified vs current LMS: ImageKit URL pattern, image transformations in edit, design guide natural language, element-level editing scope
 - Learning notes saved to /home/z/my-project/LEARNING-NOTES-REFERENCE.md
 - Demo app and YouTube NOT yet studied (tool outage)
+
+---
+
+## Task 2-a: Explore LMS Draft Course Viewing
+**Agent:** Explore | **Date:** $(date -u +"%Y-%m-%d %H:%M UTC")
+
+### 1. Navigation Store (`src/stores/lms-store.ts`)
+- SPA routing via Zustand `currentView` state — no Next.js file-system routing for pages
+- **10 views defined** in `ViewName` type: `auth | home | dashboard | courses | my-learning | profile | course-detail | classroom | create-course | settings`
+- `navigateTo(view)` sets `currentView`, resets `selectedCourseId`/`classroomState`, records `previousView`
+- `goBack()` returns to `previousView` or falls back to `"home"`
+- Role gating in `page.tsx`: `dashboard` is instructor-only (students → HomePage), `my-learning` is student-only (instructors → HomePage), `create-course` is instructor-only
+- Additional stores: `useCourseStore` (courses list, categories, filters), `useMyLearningStore` (enrollments, favorites), `useUserStore` (auth, role)
+
+### 2. All Route Files in `src/app/`
+- **Only one Next.js page**: `src/app/page.tsx` — a single `"use client"` SPA shell that renders views based on `currentView`
+- **No other `page.tsx` files** exist; all routing is client-side via Zustand
+- **37+ API route files** under `src/app/api/` (courses, enrollments, lessons, slides, auth, comments, ratings, notifications, etc.)
+
+### 3. Course Listing Pages — Draft Visibility
+| Page | API Call | Shows Drafts? |
+|------|----------|---------------|
+| **HomePage** | `GET /api/courses?tab=...` (no `creatorId`) | ❌ No — API defaults to `status: 'published'` |
+| **CoursesPage** | `GET /api/courses?category=...&sortBy=...` (no `creatorId`) | ❌ No — API defaults to `status: 'published'` |
+| **DashboardPage** (instructor) | `GET /api/courses?creatorId=${currentUserId}` | ✅ Yes — API skips status filter when `creatorId` present |
+
+- The DashboardPage's "My Courses" table shows all instructor courses (published + draft) with `StatusBadge` component (green "Published" / amber "Draft")
+
+### 4. Create Course Page — Post-Publish Navigation
+- **Publish flow** (`handleSave`, line 683-726):
+  1. Validates title and no active generation
+  2. Calls `PUT /api/courses/${courseId}` with `{ status: "published" }`
+  3. On success: `toast.success("Course published successfully!")` then `goBack()`
+  4. `goBack()` navigates to `previousView` (typically "dashboard" if instructor came from there, or "home")
+- **🔴 CRITICAL BUG**: `/api/courses/[id]/route.ts` only exports a `GET` handler — **no `PUT` handler exists**. The publish button will fail with a 405 Method Not Allowed error.
+
+### 5. "My Courses" / "Dashboard" / "Instructor Dashboard"
+- **YES — `DashboardPage` exists** at `src/components/lms/pages/dashboard-page.tsx`
+- Titled **"Instructor Dashboard"** in the page header
+- **Navbar**: "Dashboard" link appears only for instructors (injected at line 464 of `navbar.tsx`)
+- **Dashboard contents**:
+  - 4 stat cards: Total Courses, Total Students, Average Rating, Total Lessons
+  - Quick actions: "Create New Course" button, "Browse All Courses" button
+  - **"My Courses" table** with columns: Course (title + category + lesson count), Students, Rating, Status (Published/Draft badge), View action button
+  - Recent Student Activity feed
+  - Top-Rated Courses list
+- **No dedicated "My Courses" page exists** — draft viewing is only within the Dashboard
+- **No filtering by status** on the dashboard — all courses (published + draft) are listed together
+
+### 6. Course Model (`prisma/schema.prisma`)
+- `status String @default("published") // draft, published, archived`
+- **Three documented values**: `draft`, `published`, `archived`
+- **Inconsistency**: Schema default is `"published"`, but `POST /api/courses` explicitly sets `status: 'draft'` when creating
+- Status is a free-form `String` (no Prisma enum) — any value could be stored
+
+### 7. API Endpoints for Listing/Filtering Courses
+| Endpoint | Methods | Purpose |
+|----------|---------|---------|
+| `GET /api/courses` | GET, POST | List courses (filters: `category`, `sortBy`, `timeRange`, `search`, `tab`, `creatorId`). POST creates draft course. |
+| `GET /api/courses/[id]` | GET only | Single course detail with enrollment/favorite status. **Missing PUT/PATCH handler** |
+| `GET /api/enrollments` | GET | List enrollments; supports `?creatorId=` for instructor dashboard activity |
+| `GET /api/categories` | GET | List categories with course counts |
+| `GET /api/recommendations` | GET | AI-powered course recommendations |
+
+**Key API logic** (line 17-22 of `src/app/api/courses/route.ts`):
+```
+if (creatorId) {
+  where.creatorId = creatorId;  // Show ALL statuses
+} else {
+  where.status = 'published';   // Public: published only
+}
+```
+
+### Key Findings Summary
+1. ✅ Instructor Dashboard exists and shows draft courses in a "My Courses" table
+2. ✅ API correctly returns drafts when `creatorId` param is provided
+3. ❌ No separate "My Courses" page — drafts only visible in Dashboard
+4. ❌ No status filtering on Dashboard (can't filter to show only drafts)
+5. 🔴 **BUG**: `PUT /api/courses/[id]` handler is missing — publishing a course will fail
+6. ⚠️ Schema default (`published`) contradicts API create behavior (`draft`)
+7. ⚠️ No way to navigate back to a draft course to continue editing (no "edit" action in dashboard, no draft listing page)
+---
+Task ID: 1
+Agent: Main Agent
+Task: Fix lesson generation stuck at slide 2 + UI improvements
+
+Work Log:
+- Analyzed dev logs: generate-slides API returns 200 in ~30s but only generates 2 of 6 slides consistently
+- Root cause identified: `controller.enqueue()` calls for slide_start/slide_error events were NOT wrapped in try-catch, meaning if any enqueue threw (stream error/disconnect), the entire for loop would crash silently
+- Also identified: no per-slide timeout, so if AI SDK hung on a slide, generation would hang forever
+- Fixed generate-slides/route.ts: wrapped ALL controller.enqueue in safeEnqueue() helper, added 120s per-slide timeout via withTimeout(), added comprehensive console.error logging for every slide step
+- Fixed frontend: added toast.error for slide_error events, improved all_complete to show partial success warning, added console.error logging for stream errors
+- Verified: Task A (Topic→Prompt label) already done in previous session
+- Task B: Added editable lesson title field at top of outline modal with onBlur save to PUT /api/lessons/[id]
+- Task C: Investigated draft course viewing — found Instructor Dashboard already shows drafts in "My Courses" table. But discovered CRITICAL BUG: PUT /api/courses/[id] handler was MISSING, causing 405 on publish. Fixed by adding PUT handler.
+
+Stage Summary:
+- generate-slides/route.ts: Added safeEnqueue(), withTimeout(), comprehensive logging, per-slide error recovery
+- create-course-page.tsx: Added editable lesson title, better error toasts for generation
+- courses/[id]/route.ts: Added missing PUT handler (was causing publish to fail)
+- User can find drafts at: Instructor Dashboard → My Courses table (shows Published/Draft badges)
+- STILL NEEDS VERIFICATION: The actual AI error on slide 3+ — with logging added, next generation attempt will show the exact error in dev.log

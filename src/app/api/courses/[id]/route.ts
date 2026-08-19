@@ -111,3 +111,42 @@ export async function GET(
     );
   }
 }
+
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const body = await request.json();
+    const { title, description, categoryId, language, coverImage, status } = body;
+
+    const course = await db.course.findUnique({ where: { id } });
+    if (!course) {
+      return NextResponse.json(
+        { success: false, error: 'Course not found' },
+        { status: 404 }
+      );
+    }
+
+    const updated = await db.course.update({
+      where: { id },
+      data: {
+        ...(title !== undefined && { title }),
+        ...(description !== undefined && { description }),
+        ...(categoryId !== undefined && { categoryId }),
+        ...(language !== undefined && { language }),
+        ...(coverImage !== undefined && { coverImage }),
+        ...(status !== undefined && { status }),
+      },
+    });
+
+    return NextResponse.json({ success: true, data: updated });
+  } catch (error) {
+    console.error('Error updating course:', error);
+    return NextResponse.json(
+      { success: false, error: 'Failed to update course' },
+      { status: 500 }
+    );
+  }
+}
