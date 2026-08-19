@@ -963,7 +963,7 @@ export function MyLearningPage() {
   const fetchStats = useCallback(async () => {
     setLoadingStats(true);
     try {
-      const res = await fetch(`/api/user/${currentUserId}`);
+      const res = await fetch(`/api/users/${currentUserId}`);
       const json = await res.json();
       if (json.success) {
         setStats(json.data.stats);

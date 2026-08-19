@@ -59,7 +59,7 @@ function formatDate(date: Date): string {
 }
 
 /* ------------------------------------------------------------------ */
-/*  GET /api/progress-timeline?userId=xxx&courseId=xxx                  */
+/*  GET /api/progress/timeline?userId=xxx&courseId=xxx                  */
 /* ------------------------------------------------------------------ */
 
 export async function GET(request: NextRequest) {

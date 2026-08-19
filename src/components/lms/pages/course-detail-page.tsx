@@ -225,7 +225,7 @@ export function CourseDetailPage() {
         toast.error("No content available for download.");
         return;
       }
-      const res = await fetch("/api/generate-pptx", {
+      const res = await fetch("/api/courses/export-pptx", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ slides: lessonHtmlBodies, courseName: course.title }),

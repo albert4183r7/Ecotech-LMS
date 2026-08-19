@@ -514,7 +514,7 @@ export function ClassroomPage() {
     if (!localState || downloadingPptx) return;
     setDownloadingPptx(true);
     try {
-      const res = await fetch("/api/generate-pptx", {
+      const res = await fetch("/api/courses/export-pptx", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -553,7 +553,7 @@ export function ClassroomPage() {
     if (!localState || aiEditLoading || !aiEditInstruction.trim()) return;
     setAiEditLoading(true);
     try {
-      const res = await fetch("/api/generate-slide-inline-edit", {
+      const res = await fetch("/api/slides/inline-edit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

@@ -110,7 +110,7 @@ export function ProgressTimeline({
       return;
     }
     try {
-      const res = await fetch(`/api/progress-timeline?userId=${userId}&courseId=${courseId}`);
+      const res = await fetch(`/api/progress/timeline?userId=${userId}&courseId=${courseId}`);
       const json = await res.json();
       if (json.success) {
         setData(json.data);

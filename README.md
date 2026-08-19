@@ -11,14 +11,14 @@ generation.
 
 ## Stack
 
-| Layer | Choice |
-| --- | --- |
-| Framework | Next.js 16 (App Router), React 19, TypeScript 5 |
-| Styling | Tailwind CSS v4, shadcn/ui (Radix primitives) |
-| Data | Prisma 6 + SQLite |
-| State | Zustand (`src/stores/lms-store.ts`), TanStack Query |
-| LLM | `@google/genai` → Gemini |
-| Runtime | Node.js 20+ / npm |
+| Layer     | Choice                                              |
+| --------- | --------------------------------------------------- |
+| Framework | Next.js 16 (App Router), React 19, TypeScript 5     |
+| Styling   | Tailwind CSS v4, shadcn/ui (Radix primitives)       |
+| Data      | Prisma 6 + SQLite                                   |
+| State     | Zustand (`src/stores/lms-store.ts`), TanStack Query |
+| LLM       | `@google/genai` → Gemini                            |
+| Runtime   | Node.js 20+ / npm                                   |
 
 ## Features
 
@@ -37,16 +37,16 @@ generation.
 Two stages, both under `src/app/api/lessons/`:
 
 **1. Outline** (`generate-outline`) — takes a topic, slide count, visual style and any
-reference documents. Returns a validated structure where each slide carries the *content*
+reference documents. Returns a validated structure where each slide carries the _content_
 that will appear on it:
 
 ```jsonc
 {
   "slideNumber": 1,
-  "title": "...",           // max 80 chars
-  "keyPoints": ["..."],     // 2-5 statements shown on the slide verbatim
-  "terms": ["..."],         // specific names that must be mentioned
-  "layout": "..."           // how to arrange it visually
+  "title": "...", // max 80 chars
+  "keyPoints": ["..."], // 2-5 statements shown on the slide verbatim
+  "terms": ["..."], // specific names that must be mentioned
+  "layout": "...", // how to arrange it visually
 }
 ```
 
@@ -88,18 +88,20 @@ cp .env.example .env
 ```
 
 ```
-DATABASE_URL=file:./db/custom.db
+DATABASE_URL=file:../db/custom.db
 GEMINI_API_KEY=your-key-here
 ```
 
-> Keep `DATABASE_URL` **relative**. An absolute path from another machine will not resolve.
+> Prisma resolves a relative SQLite path from **`prisma/schema.prisma`**, not from the
+> project root — so `../db/custom.db` points at `db/custom.db` at the top level. A path
+> copied from another machine will not resolve.
 
 Optional overrides:
 
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `GEMINI_MODEL` | `gemini-flash-latest` | Model id. `gemini-pro-latest` gives better outlines at higher cost. |
-| `IMAGEKIT_URL_ENDPOINT` | unset | Enables AI-generated images in slides |
+| Variable                | Default               | Purpose                                                             |
+| ----------------------- | --------------------- | ------------------------------------------------------------------- |
+| `GEMINI_MODEL`          | `gemini-flash-latest` | Model id. `gemini-pro-latest` gives better outlines at higher cost. |
+| `IMAGEKIT_URL_ENDPOINT` | unset                 | Enables AI-generated images in slides                               |
 
 `gemini-flash-latest` is a rolling alias, so it tracks the current Flash model rather than
 pinning a version that goes stale.
@@ -142,17 +144,17 @@ the sanitiser blocks all external image URLs.
 
 ## Scripts
 
-| Script | Purpose |
-| --- | --- |
-| `npm run dev` | Dev server on port 3000 |
-| `npm run build` | Production build (standalone output) |
-| `npm run start` | Serve the production build |
-| `npm run lint` | ESLint |
-| `npm run db:generate` | Regenerate the Prisma client |
-| `npm run db:push` | Push schema to the database |
-| `npm run db:migrate` | Create and apply a migration |
-| `npm run db:reset` | Drop and recreate the database |
-| `npm run db:seed` | Load demo courses |
+| Script                | Purpose                              |
+| --------------------- | ------------------------------------ |
+| `npm run dev`         | Dev server on port 3000              |
+| `npm run build`       | Production build (standalone output) |
+| `npm run start`       | Serve the production build           |
+| `npm run lint`        | ESLint                               |
+| `npm run db:generate` | Regenerate the Prisma client         |
+| `npm run db:push`     | Push schema to the database          |
+| `npm run db:migrate`  | Create and apply a migration         |
+| `npm run db:reset`    | Drop and recreate the database       |
+| `npm run db:seed`     | Load demo courses                    |
 
 ## Project structure
 

@@ -917,7 +917,7 @@ export function ProfilePage() {
   const fetchProfile = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/user/${currentUserId}`);
+      const res = await fetch(`/api/users/${currentUserId}`);
       const json = await res.json();
       if (json.success) {
         setProfile(json.data);
