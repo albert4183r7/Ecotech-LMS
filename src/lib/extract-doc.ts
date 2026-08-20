@@ -178,13 +178,11 @@ export async function extractTextFromFile(filePath: string): Promise<string> {
     return "";
   }
 
-  try {
-    const text = await EXTRACTORS[docType](filePath);
-    return text.trim();
-  } catch (error) {
-    console.error(`[extract-doc] Failed to extract text from ${filePath}:`, error);
-    return "";
-  }
+  // Errors propagate: swallowing them here made a hard extraction failure
+  // indistinguishable from a document that genuinely contains no text, and the
+  // caller reported a broken parser as "is it a scanned image?".
+  const text = await EXTRACTORS[docType](filePath);
+  return text.trim();
 }
 
 /**

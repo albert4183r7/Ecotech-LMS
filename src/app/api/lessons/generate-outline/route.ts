@@ -145,6 +145,15 @@ export async function POST(request: NextRequest) {
       sources,
       failures: referenceFailures,
     } = await loadReference(body.referenceFileUrls, topic);
+    // Record what the plan is actually grounded in. Silence here previously
+    // hid a reference that had failed to parse.
+    if (body.referenceFileUrls?.length) {
+      console.log(
+        `[generate-outline] reference: ${sources.length} file(s) read, ${reference.length} chars used` +
+          (referenceFailures.length ? `, ${referenceFailures.length} unreadable` : ""),
+      );
+    }
+
     const styleInfo = SLIDE_STYLES.find((s) => s.value === style);
 
     let plan: PresentationPlan;
