@@ -43,7 +43,7 @@ import { DiscussionPanel } from "@/components/lms/discussion-panel";
 import { ProgressTimeline } from "@/components/lms/progress-timeline";
 import { StarRating } from "@/components/lms/star-rating";
 import type { CourseItem, LessonItem, ClassroomState } from "@/types/lms";
-import { buildClassroomState, toClassroomSlides } from "@/lib/classroom";
+import { buildClassroomState } from "@/lib/classroom";
 import { safeFileName, triggerDownload } from "@/lib/download";
 
 type LessonProgress = {
@@ -219,27 +219,13 @@ export function CourseDetailPage() {
       const decks: { name: string; blob: Blob }[] = [];
 
       for (const [index, lesson] of course.lessons.entries()) {
-        let slides: { title: string; htmlBody: string }[] = [];
-        try {
-          const res = await fetch(`/api/lessons/${lesson.id}`);
-          if (!res.ok) continue;
-          const json = await res.json();
-          // Every slide, not just the first: exporting slides[0] per lesson
-          // produced a deck with one slide per lesson.
-          slides = toClassroomSlides(json.success ? json.data.slides : []).map((slide) => ({
-            title: slide.title || lesson.title,
-            htmlBody: slide.htmlBody,
-          }));
-        } catch {
-          continue; // Skip lessons that fail to load
-        }
-        if (slides.length === 0) continue;
-
         const res = await fetch("/api/courses/export-pptx", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ slides, courseName: lesson.title }),
+          body: JSON.stringify({ lessonId: lesson.id, deckName: lesson.title }),
         });
+        // A lesson with nothing generated yet is skipped rather than failing
+        // the whole download.
         if (!res.ok) continue;
 
         // Numbered so the lesson order survives an alphabetical file listing.

@@ -596,23 +596,17 @@ export function ClassroomPage() {
     if (!localState || downloadingPptx) return;
     setDownloadingPptx(true);
     try {
-      const slides = localState.slides
-        .filter((slide) => slide.htmlBody)
-        .map((slide) => ({
-          title: slide.title || localState.lessonTitle,
-          htmlBody: slide.htmlBody,
-        }));
-      if (slides.length === 0) {
-        toast.error("This lesson has no slides to export.");
-        return;
-      }
       const res = await fetch("/api/courses/export-pptx", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ slides, courseName: localState.lessonTitle }),
+        body: JSON.stringify({
+          lessonId: localState.lessonId,
+          deckName: localState.lessonTitle,
+        }),
       });
       if (!res.ok) {
-        toast.error("Failed to generate PPT");
+        const json = await res.json().catch(() => null);
+        toast.error(json?.error || "Failed to generate PPT");
         return;
       }
       triggerDownload(await res.blob(), `${safeFileName(localState.lessonTitle)}.pptx`);

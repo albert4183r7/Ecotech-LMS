@@ -144,3 +144,90 @@
 .flex-shrink-0 {
   @apply shrink-0;
 }
+
+/* ── Template tokens ────────────────────────────────────────────────────────
+   The renderer names colour roles instead of literal colours, so the same
+   markup renders in any template. wrapSlideHtml writes the matching custom
+   properties onto :root; these classes are what consume them. A slide document
+   without a template block still renders, on the Ecotech defaults below. */
+:root {
+  --tpl-surface: #fafcfb;
+  --tpl-surface-alt: #f3f8f6;
+  --tpl-feature-from: #0e1e33;
+  --tpl-feature-via: #43699f;
+  --tpl-feature-to: #1e3a5f;
+  --tpl-heading: #1a1a1a;
+  --tpl-body: #56687a;
+  --tpl-muted: #7c8c9c;
+  --tpl-panel: #e7f2ee;
+  --tpl-panel-border: #c3e1d6;
+  --tpl-accent: #43699f;
+  --tpl-accent-soft: #d6ebe3;
+  --tpl-on-accent: #ffffff;
+  --tpl-icon-ink: #43699f;
+  --tpl-decor: #7bbba6;
+  --tpl-feature-decor: #7bbba6;
+  --tpl-connector: #7bbba6;
+  --tpl-feature-heading: #ffffff;
+  --tpl-feature-body: #d6ebe3;
+  --tpl-font-heading: Cambria, Georgia, "Times New Roman", serif;
+  --tpl-font-body: Calibri, Candara, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.tpl-surface {
+  background: linear-gradient(135deg, var(--tpl-surface) 0%, var(--tpl-surface-alt) 100%);
+  font-family: var(--tpl-font-body);
+}
+.tpl-feature {
+  background: linear-gradient(
+    135deg,
+    var(--tpl-feature-from) 0%,
+    var(--tpl-feature-via) 55%,
+    var(--tpl-feature-to) 100%
+  );
+  font-family: var(--tpl-font-body);
+}
+.tpl-heading {
+  color: var(--tpl-heading);
+  font-family: var(--tpl-font-heading);
+}
+.tpl-body {
+  color: var(--tpl-body);
+}
+.tpl-muted {
+  color: var(--tpl-muted);
+}
+.tpl-panel {
+  background-color: var(--tpl-panel);
+}
+.tpl-panel-border {
+  border-color: var(--tpl-panel-border);
+}
+.tpl-accent {
+  background-color: var(--tpl-accent);
+}
+.tpl-accent-soft {
+  background-color: var(--tpl-accent-soft);
+}
+.tpl-on-accent {
+  color: var(--tpl-on-accent);
+}
+.tpl-icon-ink {
+  color: var(--tpl-icon-ink);
+}
+.tpl-decor {
+  background-color: var(--tpl-decor);
+}
+.tpl-feature-decor {
+  background-color: var(--tpl-feature-decor);
+}
+.tpl-connector {
+  color: var(--tpl-connector);
+}
+.tpl-feature-heading {
+  color: var(--tpl-feature-heading);
+  font-family: var(--tpl-font-heading);
+}
+.tpl-feature-body {
+  color: var(--tpl-feature-body);
+}

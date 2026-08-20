@@ -50,7 +50,13 @@ import { useUserStore, useCourseStore } from "@/stores/lms-store";
 import { useNavigation } from "@/hooks/use-navigation";
 import type { CategoryItem } from "@/types/lms";
 import { toast } from "sonner";
-import { SLIDE_STYLES, MIN_SLIDES, MAX_SLIDES, DEFAULT_SLIDE_COUNT } from "@/lib/slide-styles";
+import {
+  SLIDE_STYLES,
+  DEFAULT_STYLE,
+  MIN_SLIDES,
+  MAX_SLIDES,
+  DEFAULT_SLIDE_COUNT,
+} from "@/lib/slide-styles";
 import {
   OutlineLessonCard,
   OutlineLessonCardProps,
@@ -178,7 +184,7 @@ export function CreateCoursePage() {
   // ---- Outline modal state ----
   const [outlineTopic, setOutlineTopic] = useState("");
   const [outlineSlideCount, setOutlineSlideCount] = useState(DEFAULT_SLIDE_COUNT);
-  const [outlineStyle, setOutlineStyle] = useState("professional");
+  const [outlineStyle, setOutlineStyle] = useState(DEFAULT_STYLE);
   const [outlineLanguage, setOutlineLanguage] = useState(language);
   const [outlineGenerating, setOutlineGenerating] = useState(false);
   const [editingOutlineLesson, setEditingOutlineLesson] = useState<string | null>(null);
@@ -299,7 +305,7 @@ export function CreateCoursePage() {
                 },
                 {
                   language: c.language || "english",
-                  style: parsedOutline?.style || "professional",
+                  style: parsedOutline?.style || DEFAULT_STYLE,
                   topic: parsedOutline?.topic || lesson.title,
                 },
               );
@@ -363,7 +369,7 @@ export function CreateCoursePage() {
   const handleOpenModal = () => {
     setOutlineTopic("");
     setOutlineSlideCount(DEFAULT_SLIDE_COUNT);
-    setOutlineStyle("professional");
+    setOutlineStyle(DEFAULT_STYLE);
     setOutlineLanguage(language);
     setOutlineGenerating(false);
     setEditingOutlineLesson(null);
@@ -1124,9 +1130,9 @@ export function CreateCoursePage() {
                 </div>
               </div>
 
-              {/* Style */}
+              {/* Template — drives the deck, the preview and the learn view alike */}
               <div className="space-y-2">
-                <Label className="text-sm font-medium">Design Style</Label>
+                <Label className="text-sm font-medium">Template</Label>
                 <Select
                   value={outlineStyle}
                   onValueChange={setOutlineStyle}

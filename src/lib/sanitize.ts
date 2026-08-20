@@ -1,4 +1,5 @@
 import DOMPurify from "isomorphic-dompurify";
+import { templateFor, templateCssVariables } from "@/lib/slides/template";
 
 // ============================================
 // HTML Sanitizer for AI-generated slide content
@@ -320,9 +321,19 @@ export function sanitizeHtml(rawHtml: string): string {
 export const SLIDE_WIDTH = 1280;
 export const SLIDE_HEIGHT = 720;
 
-/** Wrap sanitized HTML in a full slide document for iframe srcDoc or rendering. */
-export function wrapSlideHtml(bodyHtml: string, options?: { title?: string }): string {
+/**
+ * Wrap sanitized HTML in a full slide document for iframe srcDoc or rendering.
+ *
+ * The template is written in as custom properties rather than baked into the
+ * markup, so the same body renders in any template and a stored slide can be
+ * re-themed without regenerating it.
+ */
+export function wrapSlideHtml(
+  bodyHtml: string,
+  options?: { title?: string; templateId?: string },
+): string {
   const title = options?.title || "Slide";
+  const template = templateFor(options?.templateId);
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -332,6 +343,7 @@ export function wrapSlideHtml(bodyHtml: string, options?: { title?: string }): s
   <link rel="stylesheet" href="/slide-runtime.css" />
   <style>
     :root { --slide-w: ${SLIDE_WIDTH}px; --slide-h: ${SLIDE_HEIGHT}px; --slide-scale: 1; }
+    :root { ${templateCssVariables(template)} }
     * { box-sizing: border-box; }
     html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #ffffff; }
     .slide-stage {
@@ -343,8 +355,8 @@ export function wrapSlideHtml(bodyHtml: string, options?: { title?: string }): s
       width: var(--slide-w); height: var(--slide-h);
       flex: none; overflow: hidden; position: relative;
       transform: scale(var(--slide-scale)); transform-origin: center center;
-      background: #ffffff; color: #18181b;
-      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      background: var(--tpl-surface); color: var(--tpl-body);
+      font-family: var(--tpl-font-body);
     }
     /* Make the generated root fill the canvas. Declared after the stylesheet
        link so it also neutralises viewport-relative heights such as
@@ -387,10 +399,10 @@ export function isCanvasDocument(html: string): boolean {
  * one of those finds no canvas element and would otherwise report a perfectly
  * clean slide, which is a false pass.
  */
-export function ensureCanvasDocument(html: string, title?: string): string {
+export function ensureCanvasDocument(html: string, title?: string, templateId?: string): string {
   if (isCanvasDocument(html)) return html;
   const body = /<body[^>]*>([\s\S]*)<\/body>/i.exec(html)?.[1] ?? html;
-  return wrapSlideHtml(body, { title });
+  return wrapSlideHtml(body, { title, templateId });
 }
 
 function escapeHtml(str: string): string {

@@ -260,12 +260,18 @@ function summaryBody(t: SlideTheme, takeaways: string[]): string {
   return `<ul class="mt-10 flex flex-1 flex-col justify-center gap-4">${items}</ul>`;
 }
 
-/** Render one slide to the HTML fragment the canvas wraps. */
+/**
+ * Render one slide to the HTML fragment the canvas wraps.
+ *
+ * `templateId` selects the palette and type; the markup is identical across
+ * templates because colour roles are class names resolved by custom
+ * properties. `style` is the old name for the same thing and still works.
+ */
 export function renderSlideContent(
   content: SlideContent,
-  options: { style?: string; footer?: string } = {},
+  options: { templateId?: string; style?: string; footer?: string } = {},
 ): string {
-  const t = themeFor(options.style);
+  const t = themeFor(options.templateId ?? options.style);
   const foot = options.footer;
 
   switch (content.type) {
