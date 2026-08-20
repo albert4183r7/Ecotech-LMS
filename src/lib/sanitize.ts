@@ -322,6 +322,24 @@ export function wrapSlideHtml(bodyHtml: string, options?: { title?: string }): s
 </html>`;
 }
 
+/** True when a stored document already uses the current slide canvas. */
+export function isCanvasDocument(html: string): boolean {
+  return html.includes('id="slide-canvas"');
+}
+
+/**
+ * Guarantee a slide document renders on the current canvas.
+ *
+ * Slides generated before the canvas existed are plain documents. Measuring
+ * one of those finds no canvas element and would otherwise report a perfectly
+ * clean slide, which is a false pass.
+ */
+export function ensureCanvasDocument(html: string, title?: string): string {
+  if (isCanvasDocument(html)) return html;
+  const body = /<body[^>]*>([\s\S]*)<\/body>/i.exec(html)?.[1] ?? html;
+  return wrapSlideHtml(body, { title });
+}
+
 function escapeHtml(str: string): string {
   return str
     .replace(/&/g, "&amp;")

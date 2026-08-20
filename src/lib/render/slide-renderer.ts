@@ -175,10 +175,26 @@ export async function renderSlide(
 
     const png = (await page.screenshot({ type: "png" })) as Buffer;
 
+    if (measured === null) {
+      // Never report a document without a canvas as clean; that would let a
+      // broken slide pass evaluation unexamined.
+      return {
+        png,
+        faults: [
+          {
+            kind: "empty-canvas",
+            detail:
+              "no slide canvas found in the document, so its layout could not be measured; re-wrap it with wrapSlideHtml",
+          },
+        ],
+        fillRatio: 0,
+      };
+    }
+
     return {
       png,
-      faults: (measured?.faults ?? []) as LayoutFault[],
-      fillRatio: measured?.fillRatio ?? 0,
+      faults: measured.faults as LayoutFault[],
+      fillRatio: measured.fillRatio,
     };
   } finally {
     await context.close();

@@ -218,3 +218,193 @@ export async function* streamText(
     if (chunk.text) yield chunk.text;
   }
 }
+
+// ────────────────────────────────────────────────
+// Tool calling
+// ────────────────────────────────────────────────
+
+/** A tool invocation the model asked for. */
+export interface ToolCallRequest {
+  id: string;
+  name: string;
+  args: Record<string, unknown>;
+}
+
+/** One turn of the model: prose, tool calls, or both. */
+export interface ModelTurn {
+  text: string;
+  toolCalls: ToolCallRequest[];
+  usage: { input: number; output: number; total: number };
+}
+
+/** A conversation entry. `tool` carries results back to the model. */
+export type AgentMessage =
+  | { role: "user"; text: string }
+  | { role: "model"; text: string; toolCalls?: ToolCallRequest[] }
+  | { role: "tool"; name: string; result: unknown };
+
+/** An image supplied to the model, for visual evaluation. */
+export interface ImageInput {
+  mimeType: string;
+  /** Base64-encoded bytes. */
+  data: string;
+}
+
+interface GeminiPart {
+  text?: string;
+  inlineData?: { mimeType: string; data: string };
+  functionCall?: { name?: string; args?: Record<string, unknown> };
+  functionResponse?: { name: string; response: Record<string, unknown> };
+}
+
+/** Translate our message list into the SDK's content format. */
+function toContents(messages: AgentMessage[]): { role: string; parts: GeminiPart[] }[] {
+  return messages.map((m) => {
+    if (m.role === "tool") {
+      return {
+        role: "user",
+        parts: [
+          {
+            functionResponse: {
+              name: m.name,
+              // The SDK requires an object; wrap primitives and arrays.
+              response:
+                m.result !== null && typeof m.result === "object" && !Array.isArray(m.result)
+                  ? (m.result as Record<string, unknown>)
+                  : { result: m.result },
+            },
+          },
+        ],
+      };
+    }
+    if (m.role === "model") {
+      const parts: GeminiPart[] = [];
+      if (m.text) parts.push({ text: m.text });
+      for (const call of m.toolCalls ?? []) {
+        parts.push({ functionCall: { name: call.name, args: call.args } });
+      }
+      // A model turn must not be empty.
+      if (parts.length === 0) parts.push({ text: " " });
+      return { role: "model", parts };
+    }
+    return { role: "user", parts: [{ text: m.text }] };
+  });
+}
+
+/** A tool exposed to the model. `parameters` is a JSON Schema object. */
+export interface ToolDeclaration {
+  name: string;
+  description: string;
+  parameters: Record<string, unknown>;
+}
+
+/**
+ * One model turn with tools available.
+ *
+ * Returns whatever the model produced — prose, tool calls, or both. Deciding
+ * what to do next is the runtime's job, not this function's.
+ */
+export async function generateWithTools(params: {
+  messages: AgentMessage[];
+  tools: ToolDeclaration[];
+  systemInstruction?: string;
+  temperature?: number;
+  maxOutputTokens?: number;
+}): Promise<ModelTurn> {
+  const { messages, tools, systemInstruction, temperature = 0.3 } = params;
+
+  try {
+    const response = await getClient().models.generateContent({
+      model: LLM_MODEL,
+      contents: toContents(messages) as never,
+      config: {
+        systemInstruction,
+        temperature,
+        maxOutputTokens: params.maxOutputTokens ?? MAX_OUTPUT_TOKENS,
+        tools: tools.length
+          ? [
+              {
+                functionDeclarations: tools.map((t) => ({
+                  name: t.name,
+                  description: t.description,
+                  parametersJsonSchema: t.parameters,
+                })),
+              },
+            ]
+          : undefined,
+      },
+    });
+
+    const calls = (response.functionCalls ?? []).map((c, i) => ({
+      id: `${c.name ?? "tool"}_${i}`,
+      name: c.name ?? "",
+      args: (c.args ?? {}) as Record<string, unknown>,
+    }));
+
+    const meta = response.usageMetadata;
+    return {
+      text: response.text ?? "",
+      toolCalls: calls.filter((c) => c.name),
+      usage: {
+        input: meta?.promptTokenCount ?? 0,
+        output: meta?.candidatesTokenCount ?? 0,
+        total: meta?.totalTokenCount ?? 0,
+      },
+    };
+  } catch (err) {
+    throwFriendlyError(err, "generateWithTools");
+  }
+}
+
+/**
+ * Structured JSON with optional images in the prompt.
+ *
+ * Used by the visual evaluator, which has to look at a rendered slide rather
+ * than reason about its markup.
+ */
+export async function generateStructuredFromImages<T>(
+  prompt: string,
+  images: ImageInput[],
+  schema: z.ZodType<T>,
+  options?: { systemInstruction?: string; temperature?: number },
+): Promise<T> {
+  const responseJsonSchema = toGeminiJsonSchema(schema);
+  const parts: GeminiPart[] = [
+    { text: prompt },
+    ...images.map((img) => ({ inlineData: { mimeType: img.mimeType, data: img.data } })),
+  ];
+
+  let raw: string;
+  try {
+    const response = await getClient().models.generateContent({
+      model: LLM_MODEL,
+      contents: [{ role: "user", parts }] as never,
+      config: {
+        systemInstruction: options?.systemInstruction,
+        responseMimeType: "application/json",
+        responseJsonSchema,
+        temperature: options?.temperature ?? 0.2,
+        maxOutputTokens: MAX_OUTPUT_TOKENS,
+      },
+    });
+    raw = response.text ?? "";
+  } catch (err) {
+    throwFriendlyError(err, "generateStructuredFromImages");
+  }
+
+  const cleaned = raw
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```\s*$/, "")
+    .trim();
+
+  const parsed = schema.safeParse(JSON.parse(cleaned));
+  if (!parsed.success) {
+    throw new Error(
+      `[LLM Schema Error] generateStructuredFromImages — ${parsed.error.issues
+        .slice(0, 3)
+        .map((i) => `${i.path.join(".")}: ${i.message}`)
+        .join("; ")}`,
+    );
+  }
+  return parsed.data as T;
+}

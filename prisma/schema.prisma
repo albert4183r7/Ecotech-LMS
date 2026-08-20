@@ -11,23 +11,23 @@ datasource db {
 // User model for LMS
 // ============================================
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  password     String
-  name         String?
-  avatar       String?
-  role         String   @default("student") // student, instructor
-  department   String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id         String   @id @default(cuid())
+  email      String   @unique
+  password   String
+  name       String?
+  avatar     String?
+  role       String   @default("student") // student, instructor
+  department String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
-  enrollments  Enrollment[]
-  favorites    Favorite[]
-  createdCourses Course[] @relation("CourseCreator")
-  comments     Comment[]
-  notes        Note[]
-  ratings      Rating[]
-  notifications Notification[]
+  enrollments    Enrollment[]
+  favorites      Favorite[]
+  createdCourses Course[]       @relation("CourseCreator")
+  comments       Comment[]
+  notes          Note[]
+  ratings        Rating[]
+  notifications  Notification[]
 }
 
 // ============================================
@@ -37,35 +37,35 @@ model Category {
   id          String   @id @default(cuid())
   name        String   @unique
   description String?
-  color       String?  // Hex color code
+  color       String? // Hex color code
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  courses     Course[]
+  courses Course[]
 }
 
 // ============================================
 // Course model - main learning content unit
 // ============================================
 model Course {
-  id          String   @id @default(cuid())
-  title       String
-  description String?
-  coverImage  String?  // URL to cover image
-  rating      Float    @default(0)
-  studentCount Int     @default(0)
-  status      String   @default("published") // draft, published, archived
-  language    String   @default("english")  // english, chinese
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String   @id @default(cuid())
+  title        String
+  description  String?
+  coverImage   String? // URL to cover image
+  rating       Float    @default(0)
+  studentCount Int      @default(0)
+  status       String   @default("published") // draft, published, archived
+  language     String   @default("english") // english, chinese
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   categoryId  String?
-  category    Category? @relation(fields: [categoryId], references: [id])
+  category    Category?    @relation(fields: [categoryId], references: [id])
   creatorId   String?
-  creator     User?     @relation("CourseCreator", fields: [creatorId], references: [id])
+  creator     User?        @relation("CourseCreator", fields: [creatorId], references: [id])
   lessons     Lesson[]
   enrollments Enrollment[]
-  favorites    Favorite[]
+  favorites   Favorite[]
   comments    Comment[]
   notes       Note[]
   ratings     Rating[]
@@ -75,19 +75,20 @@ model Course {
 // Lesson model - chapters/lessons within a course
 // ============================================
 model Lesson {
-  id          String    @id @default(cuid())
+  id          String   @id @default(cuid())
   title       String
-  order       Int       @default(0)
-  outlineJson String?   // Raw AI outline JSON (topic, style, per-slide title+outline) for re-generation
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  order       Int      @default(0)
+  outlineJson String? // Raw AI outline JSON (topic, style, per-slide title+outline) for re-generation
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  courseId    String
-  course      Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  slides      Slide[]
-  progresses  Progress[]
-  comments    Comment[]
-  notes       Note[]
+  courseId   String
+  course     Course     @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  slides     Slide[]
+  agentRuns  AgentRun[]
+  progresses Progress[]
+  comments   Comment[]
+  notes      Note[]
 }
 
 // ============================================
@@ -95,15 +96,15 @@ model Lesson {
 // ============================================
 model Slide {
   id        String   @id @default(cuid())
-  title     String   // Slide title from outline
-  htmlBody  String   // Full HTML+Tailwind document for iframe srcDoc
+  title     String // Slide title from outline
+  htmlBody  String // Full HTML+Tailwind document for iframe srcDoc
   status    String   @default("DRAFT_OUTLINE") // DRAFT_OUTLINE | GENERATING | READY | ERROR
-  order     Int      // Ordering position within the lesson
+  order     Int // Ordering position within the lesson
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  lessonId  String
-  lesson    Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  lessonId String
+  lesson   Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
 
   @@unique([lessonId, order])
 }
@@ -117,34 +118,34 @@ model Comment {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  lessonId  String?
-  lesson    Lesson? @relation(fields: [lessonId], references: [id], onDelete: Cascade)
-  courseId  String
-  course    Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  userId    String
-  author    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  parentId  String?
-  parent    Comment? @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
-  replies   Comment[] @relation("CommentReplies")
+  lessonId String?
+  lesson   Lesson?   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  courseId String
+  course   Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  userId   String
+  author   User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parentId String?
+  parent   Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies  Comment[] @relation("CommentReplies")
 }
 
 // ============================================
 // Enrollment - tracks user enrollment in courses
 // ============================================
 model Enrollment {
-  id          String   @id @default(cuid())
-  status      String   @default("in_progress") // in_progress, completed, dropped
-  enrolledAt  DateTime @default(now())
+  id          String    @id @default(cuid())
+  status      String    @default("in_progress") // in_progress, completed, dropped
+  enrolledAt  DateTime  @default(now())
   completedAt DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  courseId    String
-  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courseId String
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
 
-  progresses  Progress[]
+  progresses Progress[]
 
   @@unique([userId, courseId])
 }
@@ -153,19 +154,19 @@ model Enrollment {
 // Note - user notes/bookmarks for course content
 // ============================================
 model Note {
-  id          String   @id @default(cuid())
-  content     String
-  isBookmarked Boolean @default(false)
-  slideNumber Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String   @id @default(cuid())
+  content      String
+  isBookmarked Boolean  @default(false)
+  slideNumber  Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  courseId    String
-  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  lessonId    String
-  lesson      Lesson    @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courseId String
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  lessonId String
+  lesson   Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
 
   @@index([userId, courseId])
 }
@@ -174,17 +175,17 @@ model Note {
 // Progress - tracks user progress per lesson
 // ============================================
 model Progress {
-  id          String   @id @default(cuid())
-  completed   Boolean  @default(false)
-  currentPage Int      @default(1)
+  id             String   @id @default(cuid())
+  completed      Boolean  @default(false)
+  currentPage    Int      @default(1)
   lastAccessedAt DateTime @default(now())
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   enrollmentId String
   enrollment   Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
   lessonId     String
-  lesson       Lesson    @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  lesson       Lesson     @relation(fields: [lessonId], references: [id], onDelete: Cascade)
 
   @@unique([enrollmentId, lessonId])
 }
@@ -193,13 +194,13 @@ model Progress {
 // Favorite - user bookmarked courses
 // ============================================
 model Favorite {
-  id          String   @id @default(cuid())
-  createdAt   DateTime @default(now())
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
 
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  courseId    String
-  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courseId String
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
 
   @@unique([userId, courseId])
 }
@@ -213,10 +214,10 @@ model Rating {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  courseId  String
-  course    Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courseId String
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
 
   @@unique([userId, courseId])
 }
@@ -229,11 +230,70 @@ model Notification {
   title     String
   message   String
   type      String   @default("info") // info, success, warning, course, system, achievement
-  read      Boolean @default(false)
+  read      Boolean  @default(false)
   link      String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ============================================
+// Agent runs
+// Every run and step is recorded so a generation can be audited, resumed,
+// and costed. Without this an agent failure is undiagnosable.
+// ============================================
+
+model AgentRun {
+  id          String   @id @default(cuid())
+  kind        String // lesson | deck
+  status      String   @default("RUNNING") // RUNNING | FINISHED | FAILED | STOPPED
+  stopReason  String? // finished | max-steps | token-budget | timeout | too-many-failures | error
+  objective   String
+  finalText   String?
+  totalTokens Int      @default(0)
+  durationMs  Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  lessonId String?
+  lesson   Lesson? @relation(fields: [lessonId], references: [id], onDelete: SetNull)
+
+  steps       AgentStep[]
+  evaluations Evaluation[]
+
+  @@index([lessonId])
+  @@index([status])
+}
+
+model AgentStep {
+  id        String   @id @default(cuid())
+  index     Int
+  text      String   @default("")
+  toolCalls String   @default("[]") // JSON: name, args, ok, error, ms
+  inTokens  Int      @default(0)
+  outTokens Int      @default(0)
+  createdAt DateTime @default(now())
+
+  runId String
+  run   AgentRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, index])
+}
+
+model Evaluation {
+  id        String   @id @default(cuid())
+  scope     String // content | pedagogy | visual
+  score     Int // 0-100
+  passed    Boolean
+  findings  String   @default("[]") // JSON: severity, slideId, problem, fix
+  createdAt DateTime @default(now())
+
+  runId String
+  run   AgentRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  slideId String?
+
+  @@index([runId])
 }
