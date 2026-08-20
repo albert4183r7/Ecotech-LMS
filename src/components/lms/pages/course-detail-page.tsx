@@ -44,6 +44,7 @@ import { ProgressTimeline } from "@/components/lms/progress-timeline";
 import { StarRating } from "@/components/lms/star-rating";
 import type { CourseItem, LessonItem, ClassroomState } from "@/types/lms";
 import { buildClassroomState, toClassroomSlides } from "@/lib/classroom";
+import { safeFileName, triggerDownload } from "@/lib/download";
 
 type LessonProgress = {
   lessonId: string;
@@ -202,58 +203,72 @@ export function CourseDetailPage() {
     }
   };
 
-  /** Download entire course as PPTX */
+  /**
+   * Download the course as one PowerPoint file per lesson.
+   *
+   * The previous version flattened every lesson's slides into a single deck,
+   * which lost the lesson boundaries entirely — a ten-lesson course arrived as
+   * one long file with no indication of where each lesson began. Each lesson is
+   * now built as its own .pptx; a course with more than one lesson is delivered
+   * as a zip so the browser still only handles one download.
+   */
   const handleDownloadCoursePptx = useCallback(async () => {
     if (!course || downloadingPptx) return;
     setDownloadingPptx(true);
     try {
-      // Fetch all lessons' HTML content
-      const lessonHtmlBodies: { title: string; htmlBody: string }[] = [];
-      for (const lesson of course.lessons) {
+      const decks: { name: string; blob: Blob }[] = [];
+
+      for (const [index, lesson] of course.lessons.entries()) {
+        let slides: { title: string; htmlBody: string }[] = [];
         try {
           const res = await fetch(`/api/lessons/${lesson.id}`);
           if (!res.ok) continue;
           const json = await res.json();
           // Every slide, not just the first: exporting slides[0] per lesson
           // produced a deck with one slide per lesson.
-          for (const slide of toClassroomSlides(json.success ? json.data.slides : [])) {
-            lessonHtmlBodies.push({
-              title: slide.title || lesson.title,
-              htmlBody: slide.htmlBody,
-            });
-          }
+          slides = toClassroomSlides(json.success ? json.data.slides : []).map((slide) => ({
+            title: slide.title || lesson.title,
+            htmlBody: slide.htmlBody,
+          }));
         } catch {
-          // Skip lessons that fail to load
+          continue; // Skip lessons that fail to load
         }
+        if (slides.length === 0) continue;
+
+        const res = await fetch("/api/courses/export-pptx", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ slides, courseName: lesson.title }),
+        });
+        if (!res.ok) continue;
+
+        // Numbered so the lesson order survives an alphabetical file listing.
+        const prefix = String(index + 1).padStart(2, "0");
+        decks.push({
+          name: `${prefix}-${safeFileName(lesson.title)}.pptx`,
+          blob: await res.blob(),
+        });
       }
-      if (lessonHtmlBodies.length === 0) {
+
+      if (decks.length === 0) {
         toast.error("No content available for download.");
         return;
       }
-      const res = await fetch("/api/courses/export-pptx", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ slides: lessonHtmlBodies, courseName: course.title }),
-      });
-      if (!res.ok) {
-        toast.error("Failed to generate PPT");
-        return;
+
+      const courseName = safeFileName(course.title);
+      if (decks.length === 1) {
+        triggerDownload(decks[0].blob, decks[0].name);
+      } else {
+        const JSZip = (await import("jszip")).default;
+        const zip = new JSZip();
+        for (const deck of decks) zip.file(deck.name, deck.blob);
+        triggerDownload(await zip.generateAsync({ type: "blob" }), `${courseName}-lessons.zip`);
       }
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      const safeName = course.title
-        .replace(/[^a-zA-Z0-9\s-]/g, "")
-        .replace(/\s+/g, "-")
-        .toLowerCase()
-        .slice(0, 60);
-      a.download = `${safeName}.pptx`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-      toast.success("Course PPT downloaded successfully!");
+      toast.success(
+        decks.length === 1
+          ? "Lesson PPT downloaded successfully!"
+          : `Downloaded ${decks.length} lesson decks.`,
+      );
     } catch {
       toast.error("Failed to download course PPT.");
     } finally {

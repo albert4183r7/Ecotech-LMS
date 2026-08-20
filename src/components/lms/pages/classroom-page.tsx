@@ -37,6 +37,7 @@ import { useNavigation } from "@/hooks/use-navigation";
 import { useClassroomState } from "@/hooks/use-classroom-state";
 import { useParams, useRouter } from "next/navigation";
 import { classroomPath } from "@/lib/routes";
+import { safeFileName, triggerDownload } from "@/lib/download";
 import type { ClassroomState } from "@/types/lms";
 import { StudyTimer } from "@/components/lms/study-timer";
 import {
@@ -100,6 +101,10 @@ export function ClassroomPage() {
   const [showAiEdit, setShowAiEdit] = useState(false);
   const [aiEditInstruction, setAiEditInstruction] = useState("");
   const [aiEditLoading, setAiEditLoading] = useState(false);
+
+  // ─── Slide viewport (measured by Fit Width) ───
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const slideWrapRef = useRef<HTMLDivElement>(null);
 
   // ─── Click-to-Edit State ──────────────────────
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -196,18 +201,38 @@ export function ClassroomPage() {
     [userId, localState],
   );
 
-  // Save progress when lesson changes
+  // Mark the lesson complete once its last slide has been reached.
+  //
+  // This used to fire on a 500ms timer as soon as the lesson opened, so simply
+  // landing on a lesson marked it finished — a two-lesson course reported
+  // itself complete the moment the second lesson loaded, before any of its
+  // slides had been seen.
+  const completedLessonsRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     if (!localState || !userId) return;
-    const timer = setTimeout(() => {
-      markLessonCompleted(localState.lessonId);
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [localState?.currentLessonIndex, userId, markLessonCompleted]);
+    const onLastSlide = localState.currentSlideIndex >= localState.slides.length - 1;
+    if (!onLastSlide) return;
+    if (completedLessonsRef.current.has(localState.lessonId)) return;
+    completedLessonsRef.current.add(localState.lessonId);
+    markLessonCompleted(localState.lessonId);
+  }, [
+    localState?.lessonId,
+    localState?.currentSlideIndex,
+    localState?.slides.length,
+    userId,
+    markLessonCompleted,
+  ]);
 
   // The slide currently on screen. Everything that used to read a single
   // htmlBody now goes through here.
   const currentSlide = localState?.slides[localState.currentSlideIndex] ?? null;
+
+  // Keep the edit target on the slide actually being viewed. The ref was only
+  // ever seeded with the first slide, so an element edit made on slide 3 was
+  // saved over slide 1.
+  useEffect(() => {
+    if (currentSlide?.id) currentSlideIdRef.current = currentSlide.id;
+  }, [currentSlide?.id]);
 
   /** Replace the on-screen slide's HTML, in state and on the server. */
   const applySlideHtml = useCallback((updatedHtmlBody: string) => {
@@ -442,21 +467,44 @@ export function ClassroomPage() {
   /** Zoom controls */
   const zoomIn = () => setZoom((z) => Math.min(z + ZOOM_STEP, MAX_ZOOM));
   const zoomOut = () => setZoom((z) => Math.max(z - ZOOM_STEP, MIN_ZOOM));
-  const zoomFit = () => setZoom(100);
+  const zoomReset = () => setZoom(100);
+
+  /**
+   * Scale the slide so its width matches the space available.
+   *
+   * Fit Width previously called the same setZoom(100) as Reset Zoom, so the
+   * button did nothing at all at the default zoom. offsetWidth is the layout
+   * width and ignores the transform, so measuring stays correct at any zoom.
+   */
+  const zoomFitWidth = useCallback(() => {
+    const viewport = viewportRef.current;
+    const slide = slideWrapRef.current;
+    if (!viewport || !slide) return;
+    const natural = slide.offsetWidth;
+    if (!natural) return;
+    const style = getComputedStyle(viewport);
+    const available =
+      viewport.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+    if (available <= 0) return;
+    const pct = Math.round((available / natural) * 100);
+    setZoom(Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, pct)));
+  }, []);
 
   // ─── Confetti on last lesson ─────────────────
   useEffect(() => {
     if (!localState) return;
     const totalLessons = localState.allLessonIds.length;
     const isOnLastLesson = totalLessons > 0 && localState.currentLessonIndex === totalLessons - 1;
-    if (isOnLastLesson && !confettiShownRef.current) {
+    // The course is finished at the end of the last lesson, not on reaching it.
+    const isOnLastSlide = localState.currentSlideIndex >= localState.slides.length - 1;
+    if (isOnLastLesson && isOnLastSlide && !confettiShownRef.current) {
       confettiShownRef.current = true;
       setShowConfetti(true);
       toast.success("🎉 You completed the course! Great job!");
       const timer = setTimeout(() => setShowConfetti(false), 3500);
       return () => clearTimeout(timer);
     }
-  }, [localState?.currentLessonIndex]);
+  }, [localState?.currentLessonIndex, localState?.currentSlideIndex, localState?.slides.length]);
 
   // Reset confetti flag when classroom state changes (new course)
   useEffect(() => {
@@ -471,37 +519,35 @@ export function ClassroomPage() {
     return () => clearTimeout(timer);
   }, [localState?.lessonId]);
 
-  // ─── Download as PPTX ─────────────────────────────
+  // ─── Download this lesson as PPTX ─────────────────
+  //
+  // Sending courseId exported every lesson in the course as one combined deck,
+  // which is not what a button inside a single lesson should do. It now sends
+  // the slides of the lesson on screen, so each lesson exports to its own file.
   const handleDownloadPptx = useCallback(async () => {
     if (!localState || downloadingPptx) return;
     setDownloadingPptx(true);
     try {
+      const slides = localState.slides
+        .filter((slide) => slide.htmlBody)
+        .map((slide) => ({
+          title: slide.title || localState.lessonTitle,
+          htmlBody: slide.htmlBody,
+        }));
+      if (slides.length === 0) {
+        toast.error("This lesson has no slides to export.");
+        return;
+      }
       const res = await fetch("/api/courses/export-pptx", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          courseId: localState.courseId,
-          courseName: localState.courseTitle,
-        }),
+        body: JSON.stringify({ slides, courseName: localState.lessonTitle }),
       });
       if (!res.ok) {
         toast.error("Failed to generate PPT");
         return;
       }
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      const safeName = localState.courseTitle
-        .replace(/[^a-zA-Z0-9\s-]/g, "")
-        .replace(/\s+/g, "-")
-        .toLowerCase()
-        .slice(0, 60);
-      a.download = `${safeName}.pptx`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+      triggerDownload(await res.blob(), `${safeFileName(localState.lessonTitle)}.pptx`);
       toast.success("PPT downloaded successfully!");
     } catch {
       toast.error("Failed to download PPT");
@@ -566,8 +612,15 @@ export function ClassroomPage() {
 
   const totalLessons = localState.allLessonIds.length;
   const currentIdx = localState.currentLessonIndex;
-  const isFirst = currentIdx === 0;
-  const isLast = totalLessons > 0 && currentIdx >= totalLessons - 1;
+  // Both buttons step slides first and only change lesson at a boundary, so
+  // they may only be disabled at the very ends of the whole course. Testing
+  // the lesson index alone disabled Previous for every slide of lesson 1 and
+  // disabled Next for every slide of the last lesson.
+  const isFirst = currentIdx === 0 && localState.currentSlideIndex === 0;
+  const isLast =
+    totalLessons > 0 &&
+    currentIdx >= totalLessons - 1 &&
+    localState.currentSlideIndex >= localState.slides.length - 1;
   const progressPercent =
     totalLessons > 1 ? Math.round(((currentIdx + 1) / totalLessons) * 100) : 100;
 
@@ -660,8 +713,12 @@ export function ClassroomPage() {
       {/* ─── Main Layout: Content + Desktop Notes Sidebar ── */}
       <div className="flex flex-1 overflow-hidden">
         {/* ─── Lesson Content Area ────────────────── */}
-        <div className="flex flex-1 flex-col items-center overflow-auto px-4 py-8 sm:px-6">
+        <div
+          ref={viewportRef}
+          className="flex flex-1 flex-col items-center overflow-auto px-4 py-8 sm:px-6"
+        >
           <div
+            ref={slideWrapRef}
             className="bg-card paper-texture w-full max-w-3xl overflow-hidden rounded-2xl border shadow-lg ring-1 ring-black/5 dark:ring-white/5"
             style={{
               transform: `scale(${zoom / 100})`,
@@ -776,7 +833,7 @@ export function ClassroomPage() {
 
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={zoomFit}>
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={zoomFitWidth}>
                   <Maximize2 className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
@@ -785,7 +842,7 @@ export function ClassroomPage() {
 
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={zoomFit}>
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={zoomReset}>
                   <RotateCcw className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
