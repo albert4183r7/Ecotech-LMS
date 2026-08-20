@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { createSession } from "@/lib/session";
 
 export async function POST(request: NextRequest) {
   try {
@@ -23,6 +24,10 @@ export async function POST(request: NextRequest) {
         { status: 401 },
       );
     }
+
+    // The signed cookie is what the API authorizes against from here on; the
+    // returned user is only for the UI to render with.
+    await createSession(user.id);
 
     return NextResponse.json({
       success: true,

@@ -14,6 +14,7 @@ import {
   UserPlus,
   Eye,
   Clock,
+  Trash2,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +22,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useUserStore, useCourseStore } from "@/stores/lms-store";
+import { DeleteCourseDialog } from "@/components/lms/delete-course-dialog";
 import { useNavigation } from "@/hooks/use-navigation";
 import { cn } from "@/lib/utils";
 
@@ -236,6 +238,12 @@ export function DashboardPage() {
   const { currentUserId } = useUserStore();
   const { openCourseDetail, navigateTo } = useNavigation();
   const { setEditingCourseId } = useCourseStore();
+  // The course awaiting delete confirmation, or null.
+  const [courseToDelete, setCourseToDelete] = useState<{
+    id: string;
+    title: string;
+    studentCount?: number;
+  } | null>(null);
   const [courses, setCourses] = useState<InstructorCourse[] | null>(null);
   const [activities, setActivities] = useState<StudentActivity[] | null>(null);
   const [loading, setLoading] = useState(true);
@@ -531,22 +539,66 @@ export function DashboardPage() {
                               </TooltipProvider>
                             </>
                           ) : (
-                            <TooltipProvider delayDuration={200}>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-8 w-8 p-0 opacity-0 transition-opacity group-hover:opacity-100"
-                                    onClick={() => openCourseDetail(course.id)}
-                                  >
-                                    <Eye className="h-4 w-4" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>View Course</TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
+                            <>
+                              <TooltipProvider delayDuration={200}>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-8 w-8 p-0 opacity-0 transition-opacity group-hover:opacity-100"
+                                      onClick={() => openCourseDetail(course.id)}
+                                    >
+                                      <Eye className="h-4 w-4" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>View Course</TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                              <TooltipProvider delayDuration={200}>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-8 w-8 p-0 opacity-0 transition-opacity group-hover:opacity-100"
+                                      onClick={() => {
+                                        setEditingCourseId(course.id);
+                                        navigateTo("create-course");
+                                      }}
+                                    >
+                                      <Compass className="h-4 w-4" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>Edit Course</TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            </>
                           )}
+
+                          {/* Delete is offered for drafts and published alike;
+                              the endpoint decides whether the caller may. */}
+                          <TooltipProvider delayDuration={200}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-destructive hover:text-destructive hover:bg-destructive/10 h-8 w-8 p-0 opacity-0 transition-opacity group-hover:opacity-100"
+                                  onClick={() =>
+                                    setCourseToDelete({
+                                      id: course.id,
+                                      title: course.title,
+                                      studentCount: course.studentCount,
+                                    })
+                                  }
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Delete Course</TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
                         </div>
                       </div>
                     ))}
@@ -702,6 +754,14 @@ export function DashboardPage() {
           </div>
         </div>
       ) : null}
+
+      <DeleteCourseDialog
+        course={courseToDelete}
+        onOpenChange={(open) => !open && setCourseToDelete(null)}
+        onDeleted={(courseId) =>
+          setCourses((prev) => prev?.filter((c) => c.id !== courseId) ?? prev)
+        }
+      />
     </div>
   );
 }

@@ -94,10 +94,15 @@ export const useUserStore = create<UserState>()(
       setCurrentUserId: (id) => set({ currentUserId: id }),
       setCurrentRole: (role) => set({ currentRole: role }),
       login: (id, role) => set({ isAuthenticated: true, currentUserId: id, currentRole: role }),
-      // Clearing the flag is enough — the app shell renders the auth screen
-      // whenever isAuthenticated is false, whatever route you are on.
-      logout: () =>
-        set({ isAuthenticated: false, currentUserId: "", currentRole: "student" as const }),
+      // Clearing the flag renders the auth screen whatever route you are on,
+      // but the server session has to go too — otherwise the API would still
+      // authorize requests for a user the UI considers signed out.
+      logout: () => {
+        void fetch("/api/auth/logout", { method: "POST" }).catch(() => {
+          /* the local sign-out stands regardless; the cookie expires anyway */
+        });
+        set({ isAuthenticated: false, currentUserId: "", currentRole: "student" as const });
+      },
     }),
     { name: "ecotech-user" },
   ),

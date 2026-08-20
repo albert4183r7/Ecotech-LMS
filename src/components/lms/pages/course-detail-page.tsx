@@ -16,6 +16,8 @@ import {
   Clock,
   PlayCircle,
   FileDown,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -37,7 +39,8 @@ import {
 } from "@/components/ui/accordion";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
-import { useUserStore } from "@/stores/lms-store";
+import { useUserStore, useCourseStore } from "@/stores/lms-store";
+import { DeleteCourseDialog } from "@/components/lms/delete-course-dialog";
 import { useNavigation } from "@/hooks/use-navigation";
 import { DiscussionPanel } from "@/components/lms/discussion-panel";
 import { ProgressTimeline } from "@/components/lms/progress-timeline";
@@ -55,6 +58,8 @@ type LessonProgress = {
 type CourseDetailData = CourseItem & {
   isEnrolled: boolean;
   isFavorited: boolean;
+  /** Decided server-side from the session, not from a client-supplied id. */
+  isOwner?: boolean;
   enrollmentsCount?: number;
   favoritesCount?: number;
 };
@@ -74,6 +79,8 @@ export function CourseDetailPage() {
   const [userRating, setUserRating] = useState<number | null>(null);
   const [ratingCount, setRatingCount] = useState(0);
   const [downloadingPptx, setDownloadingPptx] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const { setEditingCourseId } = useCourseStore();
 
   /** Fetch course detail from API */
   const fetchCourse = useCallback(async () => {
@@ -609,6 +616,32 @@ export function CourseDetailPage() {
             )}
             {course.isEnrolled ? "Continue Learning" : "Start Learning"}
           </Button>
+        ) : course.isOwner ? (
+          /* The course's own instructor manages it from here. Both actions
+             are re-checked server-side; this only decides what to offer. */
+          <div className="ml-auto flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="lg"
+              className="gap-2"
+              onClick={() => {
+                setEditingCourseId(course.id);
+                navigateTo("create-course");
+              }}
+            >
+              <Pencil className="h-4 w-4" />
+              Edit Course
+            </Button>
+            <Button
+              variant="outline"
+              size="lg"
+              className="text-destructive hover:text-destructive hover:bg-destructive/10 gap-2"
+              onClick={() => setConfirmingDelete(true)}
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete
+            </Button>
+          </div>
         ) : (
           <div className="ml-auto flex items-center gap-2 rounded-lg border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-700 dark:border-violet-800/60 dark:bg-violet-950/40 dark:text-violet-300">
             <BookOpen className="h-4 w-4" />
@@ -733,6 +766,12 @@ export function CourseDetailPage() {
           <span className="font-semibold">Google Chrome</span> browser.
         </p>
       </div>
+
+      <DeleteCourseDialog
+        course={confirmingDelete ? course : null}
+        onOpenChange={(open) => !open && setConfirmingDelete(false)}
+        onDeleted={() => navigateTo("dashboard")}
+      />
     </main>
   );
 }
