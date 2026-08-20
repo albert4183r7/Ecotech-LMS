@@ -30,11 +30,27 @@ export interface SlideGenState {
   error?: string;
 }
 
+/** A planned section of the presentation. One section owns several slides. */
+export interface OutlineSectionDraft {
+  id: string;
+  title: string;
+  summary: string;
+  subtopics: string[];
+  slideBudget: number;
+  order: number;
+}
+
 /** A lesson created via the outline flow (persisted in DB) */
 export interface OutlineLessonDraft {
   id: string;
   title: string;
+  subtitle?: string;
   slides: OutlineSlideDraft[];
+  sections?: OutlineSectionDraft[];
+  /** What the user asked for, to show the budget adds up. */
+  requestedSlideCount?: number;
+  /** Notes about merges or compression the plan had to make. */
+  adjustments?: string[];
   language: string;
   style: string;
   topic: string;
@@ -212,6 +228,56 @@ export function OutlineLessonCard({
                   }}
                 />
               </div>
+            </div>
+          )}
+
+          {/* ---- The plan the user is approving ---- */}
+          {lesson.sections && lesson.sections.length > 0 && (
+            <div className="border-border/40 bg-muted/30 space-y-2 rounded-md border p-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground text-[11px] font-semibold tracking-wide uppercase">
+                  Presentation plan
+                </span>
+                <Badge variant="secondary" className="h-5 text-[10px]">
+                  {lesson.sections.length} sections &middot; {lesson.slides.length} slides
+                </Badge>
+              </div>
+
+              {lesson.sections.map((section) => (
+                <div key={section.id} className="space-y-1">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="text-foreground text-xs font-medium">{section.title}</span>
+                    <span className="text-muted-foreground shrink-0 text-[11px]">
+                      {section.slideBudget} {section.slideBudget === 1 ? "slide" : "slides"}
+                    </span>
+                  </div>
+                  {section.subtopics.length > 0 && (
+                    <ul className="text-muted-foreground ml-3 list-disc space-y-0.5 text-[11px]">
+                      {section.subtopics.map((topic, i) => (
+                        <li key={i}>{topic}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              ))}
+
+              <div className="border-border/40 flex justify-between border-t pt-1.5 text-[11px] font-medium">
+                <span>Total</span>
+                <span>
+                  {lesson.slides.length}
+                  {lesson.requestedSlideCount && lesson.requestedSlideCount !== lesson.slides.length
+                    ? ` of ${lesson.requestedSlideCount} requested`
+                    : " slides"}
+                </span>
+              </div>
+
+              {lesson.adjustments && lesson.adjustments.length > 0 && (
+                <div className="text-muted-foreground space-y-0.5 text-[11px] italic">
+                  {lesson.adjustments.map((note, i) => (
+                    <p key={i}>{note}</p>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 

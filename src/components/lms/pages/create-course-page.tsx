@@ -74,6 +74,68 @@ const MAX_COURSE_DESC_LENGTH = 500;
 // Create Course Page Component
 // ============================================
 
+/** A section as returned by the outline endpoint. */
+interface OutlineSectionResponse {
+  id: string;
+  title: string;
+  summary: string;
+  subtopics: string[];
+  slideBudget: number;
+  order: number;
+}
+
+/** Build the reviewable draft from a phase-one response. */
+function toLessonDraft(
+  lessonData: {
+    id: string;
+    title: string;
+    subtitle?: string;
+    slides: { id: string; title: string; order: number }[];
+    sections?: OutlineSectionResponse[];
+    requestedSlideCount?: number;
+    adjustments?: string[];
+  },
+  meta: { language: string; style: string; topic: string },
+): { lesson: OutlineLessonDraft; slides: OutlineSlideDraft[] } {
+  const sections = lessonData.sections ?? [];
+  const byId = new Map(sections.map((sec) => [sec.id, sec]));
+
+  const slides: OutlineSlideDraft[] = lessonData.slides.map((s, i) => ({
+    id: `local_${Date.now()}_${i}`,
+    slideId: s.id,
+    title: s.title,
+    // The outline a slide answers to is now its section's summary.
+    outline:
+      byId.get((s as { sectionId?: string }).sectionId ?? "")?.summary ??
+      sections[0]?.summary ??
+      "",
+    order: s.order,
+  }));
+
+  return {
+    lesson: {
+      id: lessonData.id,
+      title: lessonData.title,
+      subtitle: lessonData.subtitle,
+      slides,
+      sections: sections.map((sec) => ({
+        id: sec.id,
+        title: sec.title,
+        summary: sec.summary,
+        subtopics: sec.subtopics ?? [],
+        slideBudget: sec.slideBudget,
+        order: sec.order,
+      })),
+      requestedSlideCount: lessonData.requestedSlideCount,
+      adjustments: lessonData.adjustments,
+      language: meta.language,
+      style: meta.style,
+      topic: meta.topic,
+    },
+    slides,
+  };
+}
+
 export function CreateCoursePage() {
   const {
     coverImage,
@@ -326,32 +388,19 @@ export function CreateCoursePage() {
         return;
       }
 
-      const lessonData = json.data;
-      const parsedOutline = JSON.parse(lessonData.outlineJson || "{}");
-      const slides: OutlineSlideDraft[] = lessonData.slides.map(
-        (s: { id: string; title: string; order: number }, i: number) => ({
-          id: `local_${Date.now()}_${i}`,
-          slideId: s.id,
-          title: s.title,
-          outline: parsedOutline.slides?.[i]?.outline || "",
-          order: s.order,
-        }),
-      );
-
-      const newLesson: OutlineLessonDraft = {
-        id: lessonData.id,
-        title: lessonData.title,
-        slides,
+      const { lesson: newLesson, slides } = toLessonDraft(json.data, {
         language: outlineLanguage,
         style: outlineStyle,
         topic: outlineTopic.trim(),
-      };
+      });
 
       setOutlineLessons((prev) => [...prev, newLesson]);
-      setEditingOutlineLesson(lessonData.id);
+      setEditingOutlineLesson(newLesson.id);
       setOutlineEditingSlides(slides);
       setOutlineGenerating(false);
-      toast.success(`Outline generated: ${slides.length} slides`);
+      toast.success(
+        `Plan ready: ${newLesson.sections?.length ?? 0} sections across ${slides.length} slides`,
+      );
     } catch {
       toast.error("Failed to generate outline. Please try again.");
       setOutlineGenerating(false);
@@ -471,25 +520,19 @@ export function CreateCoursePage() {
         setOutlineGenerating(false);
         return;
       }
-      const lessonData = json.data;
-      const parsedOutline = JSON.parse(lessonData.outlineJson || "{}");
-      const slides: OutlineSlideDraft[] = lessonData.slides.map(
-        (s: { id: string; title: string; order: number }, i: number) => ({
-          id: `local_${Date.now()}_${i}`,
-          slideId: s.id,
-          title: s.title,
-          outline: parsedOutline.slides?.[i]?.outline || "",
-          order: s.order,
-        }),
-      );
+      const { lesson: regenerated, slides } = toLessonDraft(json.data, {
+        language: outlineLanguage,
+        style: outlineStyle,
+        topic: outlineTopic.trim(),
+      });
       setOutlineEditingSlides(slides);
       setOutlineLessons((prev) =>
-        prev.map((ol) =>
-          ol.id === editingOutlineLesson ? { ...ol, title: lessonData.title, slides } : ol,
-        ),
+        prev.map((ol) => (ol.id === editingOutlineLesson ? { ...ol, ...regenerated } : ol)),
       );
       setOutlineGenerating(false);
-      toast.success("Outline regenerated");
+      toast.success(
+        `Plan regenerated: ${regenerated.sections?.length ?? 0} sections across ${slides.length} slides`,
+      );
     } catch {
       toast.error("Failed to regenerate outline");
       setOutlineGenerating(false);
