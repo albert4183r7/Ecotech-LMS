@@ -5,6 +5,7 @@ import {
   ZoomIn,
   ZoomOut,
   Maximize2,
+  MoveHorizontal,
   RotateCcw,
   ChevronLeft,
   ChevronRight,
@@ -36,7 +37,8 @@ import { useUserStore } from "@/stores/lms-store";
 import { useNavigation } from "@/hooks/use-navigation";
 import { useClassroomState } from "@/hooks/use-classroom-state";
 import { useParams, useRouter } from "next/navigation";
-import { classroomPath } from "@/lib/routes";
+import { classroomPath, courseDetailPath } from "@/lib/routes";
+import { SLIDE_WIDTH, SLIDE_HEIGHT } from "@/lib/sanitize";
 import { safeFileName, triggerDownload } from "@/lib/download";
 import type { ClassroomState } from "@/types/lms";
 import { StudyTimer } from "@/components/lms/study-timer";
@@ -52,9 +54,15 @@ import {
 } from "@/components/lms/classroom/confetti-celebration";
 import { useLessonNotes } from "@/hooks/use-lesson-notes";
 
-const MIN_ZOOM = 50;
+const MIN_ZOOM = 25;
 const MAX_ZOOM = 200;
 const ZOOM_STEP = 25;
+
+// Zoom is a percentage of the slide's authored size, so the wrapper can be
+// sized in real pixels. A CSS transform leaves the layout box unchanged, which
+// made the scroll container unable to reach anything a zoom pushed off-screen.
+const SLIDE_NATURAL_WIDTH = SLIDE_WIDTH;
+const SLIDE_NATURAL_HEIGHT = SLIDE_HEIGHT;
 
 export function ClassroomPage() {
   const { goBack } = useNavigation();
@@ -68,6 +76,9 @@ export function ClassroomPage() {
   const userId = useUserStore((s) => s.currentUserId);
   const [localState, setLocalState] = useState<ClassroomState | null>(null);
   const [zoom, setZoom] = useState(100);
+  // Set once the learner touches a zoom control, so an automatic fit never
+  // overrides a deliberate choice on the next resize.
+  const zoomIsUserChosenRef = useRef(false);
   const [navigating, setNavigating] = useState(false);
   const confettiShownRef = useRef(false);
   const [showConfetti, setShowConfetti] = useState(false);
@@ -144,26 +155,45 @@ export function ClassroomPage() {
   useEffect(() => {
     if (classroomState) {
       setLocalState({ ...classroomState });
-      setZoom(100);
+      zoomIsUserChosenRef.current = false;
       confettiShownRef.current = false;
       setShowConfetti(false);
     }
   }, [classroomState]);
 
   // ─── Lesson Navigation ─────────────────────────
-  // Moving between lessons changes the URL; useClassroomState reloads from it.
-  // This keeps the address bar correct and makes browser back work inside the
-  // classroom.
+  // Moving between lessons changes the URL; useClassroomState reloads from it,
+  // which keeps the address bar correct and makes a lesson link shareable.
+  //
+  // replace, not push: stepping through lessons used to stack a history entry
+  // per lesson, so leaving the classroom walked back through every lesson
+  // visited. Replacing keeps the classroom as a single history entry, so the
+  // browser's back button returns to wherever the learner entered from.
   const goToLesson = useCallback(
     (index: number) => {
       if (!localState || index < 0 || index >= localState.allLessonIds.length) return;
       const nextLessonId = localState.allLessonIds[index];
       if (nextLessonId === localState.lessonId) return;
       setNavigating(true);
-      router.push(classroomPath(nextLessonId));
+      router.replace(classroomPath(nextLessonId));
     },
     [localState, router],
   );
+
+  /**
+   * Leave the classroom for the course it belongs to.
+   *
+   * This was router.back(), which is only the course page when the learner
+   * arrived directly from it and has not moved between lessons since. Going to
+   * the course explicitly makes Close mean the same thing every time.
+   */
+  const closeClassroom = useCallback(() => {
+    if (localState?.courseId) {
+      router.push(courseDetailPath(localState.courseId));
+      return;
+    }
+    goBack();
+  }, [localState?.courseId, router, goBack]);
 
   // Clear the navigating flag once the new lesson has loaded.
   useEffect(() => {
@@ -277,7 +307,7 @@ export function ClassroomPage() {
       switch (e.key) {
         case "Escape":
           e.preventDefault();
-          goBack();
+          closeClassroom();
           break;
         case "ArrowLeft":
           e.preventDefault();
@@ -306,7 +336,7 @@ export function ClassroomPage() {
       document.removeEventListener("keydown", handleKeyDown);
       document.removeEventListener("lms:next-slide", handleCustomNextSlide);
     };
-  }, [goBack, goPrev, goNext]);
+  }, [closeClassroom, goPrev, goNext]);
 
   // ─── Iframe Click-to-Edit Listener ─────────────
   // Attaches a click listener to the iframe's document body.
@@ -464,31 +494,69 @@ export function ClassroomPage() {
     }
   }, [elementEdit, localState?.lessonTitle, attachIframeClickListener]);
 
-  /** Zoom controls */
-  const zoomIn = () => setZoom((z) => Math.min(z + ZOOM_STEP, MAX_ZOOM));
-  const zoomOut = () => setZoom((z) => Math.max(z - ZOOM_STEP, MIN_ZOOM));
-  const zoomReset = () => setZoom(100);
-
-  /**
-   * Scale the slide so its width matches the space available.
-   *
-   * Fit Width previously called the same setZoom(100) as Reset Zoom, so the
-   * button did nothing at all at the default zoom. offsetWidth is the layout
-   * width and ignores the transform, so measuring stays correct at any zoom.
-   */
-  const zoomFitWidth = useCallback(() => {
+  /** The space the slide has to live in, inside the viewport's padding. */
+  const measureViewport = useCallback((): { width: number; height: number } | null => {
     const viewport = viewportRef.current;
-    const slide = slideWrapRef.current;
-    if (!viewport || !slide) return;
-    const natural = slide.offsetWidth;
-    if (!natural) return;
+    if (!viewport) return null;
     const style = getComputedStyle(viewport);
-    const available =
+    const width =
       viewport.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
-    if (available <= 0) return;
-    const pct = Math.round((available / natural) * 100);
-    setZoom(Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, pct)));
+    const height =
+      viewport.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
+    return width > 0 && height > 0 ? { width, height } : null;
   }, []);
+
+  const clampZoom = (pct: number) => Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, Math.round(pct)));
+
+  /** Zoom at which the whole slide is visible, both dimensions. */
+  const fitAllZoom = useCallback((): number | null => {
+    const box = measureViewport();
+    if (!box) return null;
+    return clampZoom(
+      Math.min(box.width / SLIDE_NATURAL_WIDTH, box.height / SLIDE_NATURAL_HEIGHT) * 100,
+    );
+  }, [measureViewport]);
+
+  const chooseZoom = useCallback((next: number | ((current: number) => number)) => {
+    zoomIsUserChosenRef.current = true;
+    setZoom((current) => (typeof next === "function" ? next(current) : next));
+  }, []);
+
+  const zoomIn = () => chooseZoom((z) => Math.min(z + ZOOM_STEP, MAX_ZOOM));
+  const zoomOut = () => chooseZoom((z) => Math.max(z - ZOOM_STEP, MIN_ZOOM));
+
+  /** Back to the slide's authored size, whether or not it then fits. */
+  const zoomReset = () => chooseZoom(100);
+
+  /** Fill the available width, letting the slide run past the fold if it must. */
+  const zoomFitWidth = useCallback(() => {
+    const box = measureViewport();
+    if (!box) return;
+    chooseZoom(clampZoom((box.width / SLIDE_NATURAL_WIDTH) * 100));
+  }, [measureViewport, chooseZoom]);
+
+  /** Show the whole slide. */
+  const zoomFitAll = useCallback(() => {
+    const fit = fitAllZoom();
+    if (fit !== null) chooseZoom(fit);
+  }, [fitAllZoom, chooseZoom]);
+
+  // Open at a zoom that shows the entire slide, and keep that promise as the
+  // window resizes — but only while the learner has not chosen a zoom of their
+  // own, so a deliberate zoom is never yanked back on a resize.
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    const apply = () => {
+      if (zoomIsUserChosenRef.current) return;
+      const fit = fitAllZoom();
+      if (fit !== null) setZoom(fit);
+    };
+    apply();
+    const observer = new ResizeObserver(apply);
+    observer.observe(viewport);
+    return () => observer.disconnect();
+  }, [fitAllZoom, localState?.lessonId]);
 
   // ─── Confetti on last lesson ─────────────────
   useEffect(() => {
@@ -713,20 +781,25 @@ export function ClassroomPage() {
       {/* ─── Main Layout: Content + Desktop Notes Sidebar ── */}
       <div className="flex flex-1 overflow-hidden">
         {/* ─── Lesson Content Area ────────────────── */}
-        <div
-          ref={viewportRef}
-          className="flex flex-1 flex-col items-center overflow-auto px-4 py-8 sm:px-6"
-        >
+        {/*
+          The slide was capped at max-w-3xl (768px) and scaled with a CSS
+          transform, so a 1280px slide rendered at 60% — small enough to be
+          unreadable — and a transform leaves the layout box unchanged, so
+          nothing a zoom pushed off-screen could be scrolled to. The wrapper is
+          now sized in real pixels from the zoom, and the viewport centres it
+          and scrolls when it does not fit.
+        */}
+        <div ref={viewportRef} className="grid flex-1 place-items-center overflow-auto p-4 sm:p-6">
           <div
             ref={slideWrapRef}
-            className="bg-card paper-texture w-full max-w-3xl overflow-hidden rounded-2xl border shadow-lg ring-1 ring-black/5 dark:ring-white/5"
+            className="bg-card paper-texture overflow-hidden rounded-2xl border shadow-lg ring-1 ring-black/5 dark:ring-white/5"
             style={{
-              transform: `scale(${zoom / 100})`,
-              transformOrigin: "top center",
+              width: (SLIDE_NATURAL_WIDTH * zoom) / 100,
+              aspectRatio: `${SLIDE_NATURAL_WIDTH} / ${SLIDE_NATURAL_HEIGHT}`,
             }}
           >
             {navigating ? (
-              <div className="flex items-center justify-center py-32">
+              <div className="flex h-full items-center justify-center">
                 <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
               </div>
             ) : (
@@ -734,8 +807,7 @@ export function ClassroomPage() {
                 ref={iframeRef}
                 srcDoc={currentSlide?.htmlBody || ""}
                 sandbox="allow-same-origin allow-scripts"
-                className="w-full rounded-lg border-0"
-                style={{ aspectRatio: "16/9" }}
+                className="h-full w-full border-0"
                 title={`${localState.lessonTitle || "Slide"} content`}
               />
             )}
@@ -833,8 +905,17 @@ export function ClassroomPage() {
 
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={zoomFitWidth}>
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={zoomFitAll}>
                   <Maximize2 className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Fit Slide</TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={zoomFitWidth}>
+                  <MoveHorizontal className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent>Fit Width</TooltipContent>
@@ -846,7 +927,7 @@ export function ClassroomPage() {
                   <RotateCcw className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Reset Zoom</TooltipContent>
+              <TooltipContent>Actual Size (100%)</TooltipContent>
             </Tooltip>
 
             <Tooltip>
@@ -920,7 +1001,7 @@ export function ClassroomPage() {
               variant="ghost"
               size="sm"
               className="text-muted-foreground hover:text-foreground gap-1.5"
-              onClick={goBack}
+              onClick={closeClassroom}
             >
               <X className="h-4 w-4" />
               <span className="hidden sm:inline">Close</span>
