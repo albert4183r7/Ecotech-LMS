@@ -18,6 +18,7 @@ import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import type { LessonItem, ClassroomState } from "@/types/lms";
+import { buildClassroomState } from "@/lib/classroom";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -138,22 +139,16 @@ export function ProgressTimeline({
       const res = await fetch(`/api/lessons/${lesson.id}`);
       if (!res.ok) return;
       const json = await res.json();
-      const htmlBody =
-        json.success && json.data.slides?.length > 0
-          ? json.data.slides[0].htmlBody
-          : '<div class="flex items-center justify-center h-full"><p class="text-gray-500">No content available.</p></div>';
-      const allLessonIds = lessons.map((s) => s.id);
-      const currentLessonIndex = allLessonIds.indexOf(lesson.id);
-      const classroomState: ClassroomState = {
-        courseId: course.id,
-        courseTitle: course.title,
-        lessonId: lesson.id,
-        lessonTitle: lesson.title,
-        htmlBody,
-        allLessonIds,
-        currentLessonIndex,
-      };
-      openClassroom(classroomState);
+      openClassroom(
+        buildClassroomState({
+          courseId: course.id,
+          courseTitle: course.title,
+          lessonId: lesson.id,
+          lessonTitle: lesson.title,
+          slides: json.success ? json.data.slides : [],
+          allLessonIds: lessons.map((s) => s.id),
+        }),
+      );
     } catch {
       // Silently fail
     }

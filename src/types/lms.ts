@@ -117,12 +117,23 @@ export type HomeTab = "hot" | "new" | "recommended";
 export type MyLearningTab = "in-progress" | "completed" | "favorites";
 
 /** Classroom viewer state — uses htmlBody (iframe) from slides */
+/** One slide of the lesson being viewed. */
+export interface ClassroomSlide {
+  id: string;
+  title: string;
+  htmlBody: string; // Full HTML document for iframe srcDoc
+  order: number;
+}
+
 export interface ClassroomState {
   courseId: string;
   courseTitle: string;
   lessonId: string;
   lessonTitle: string;
-  htmlBody: string; // Full HTML document for iframe srcDoc
+  // Every slide in the lesson. The classroom previously held only the first
+  // slide's HTML, so a lesson of any length displayed a single slide.
+  slides: ClassroomSlide[];
+  currentSlideIndex: number;
   // Lesson navigation context
   allLessonIds: string[]; // ordered list of all lesson IDs in the course
   currentLessonIndex: number; // index into allLessonIds

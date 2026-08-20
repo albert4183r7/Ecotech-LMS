@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { ClassroomState } from "@/types/lms";
+import { buildClassroomState } from "@/lib/classroom";
 
 // ============================================
 // Classroom state, loaded from a lesson id
@@ -11,9 +12,6 @@ import type { ClassroomState } from "@/types/lms";
 // app — a refresh or a shared link had nothing to render. Loading from the id
 // in the URL is what makes the route real.
 // ============================================
-
-const EMPTY_SLIDE =
-  '<div class="flex items-center justify-center h-full"><p class="text-gray-500">No content available.</p></div>';
 
 export interface ClassroomLoad {
   state: ClassroomState | null;
@@ -69,20 +67,19 @@ export function useClassroomState(lessonId: string | undefined): ClassroomLoad {
         const course = courseJson.data;
 
         const allLessonIds: string[] = (course.lessons ?? []).map((l: { id: string }) => l.id);
-        const slide = lesson.slides?.length > 0 ? lesson.slides[0] : null;
+        const state = buildClassroomState({
+          courseId: lesson.courseId,
+          courseTitle: course.title ?? "",
+          lessonId: lesson.id,
+          lessonTitle: lesson.title ?? "",
+          slides: lesson.slides,
+          allLessonIds,
+        });
 
         if (cancelled) return;
         setLoad({
-          state: {
-            courseId: lesson.courseId,
-            courseTitle: course.title ?? "",
-            lessonId: lesson.id,
-            lessonTitle: lesson.title ?? "",
-            htmlBody: slide?.htmlBody || EMPTY_SLIDE,
-            allLessonIds,
-            currentLessonIndex: Math.max(0, allLessonIds.indexOf(lesson.id)),
-          },
-          slideId: slide?.id ?? null,
+          state,
+          slideId: state.slides[0]?.id || null,
           slideContext: buildSlideContext(lesson.outlineJson, lesson.title ?? ""),
           loading: false,
           error: null,

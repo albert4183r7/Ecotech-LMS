@@ -43,6 +43,7 @@ import { DiscussionPanel } from "@/components/lms/discussion-panel";
 import { ProgressTimeline } from "@/components/lms/progress-timeline";
 import { StarRating } from "@/components/lms/star-rating";
 import type { CourseItem, LessonItem, ClassroomState } from "@/types/lms";
+import { buildClassroomState, toClassroomSlides } from "@/lib/classroom";
 
 type LessonProgress = {
   lessonId: string;
@@ -213,10 +214,13 @@ export function CourseDetailPage() {
           const res = await fetch(`/api/lessons/${lesson.id}`);
           if (!res.ok) continue;
           const json = await res.json();
-          const htmlBody =
-            json.success && json.data.slides?.length > 0 ? json.data.slides[0].htmlBody : null;
-          if (htmlBody) {
-            lessonHtmlBodies.push({ title: lesson.title, htmlBody });
+          // Every slide, not just the first: exporting slides[0] per lesson
+          // produced a deck with one slide per lesson.
+          for (const slide of toClassroomSlides(json.success ? json.data.slides : [])) {
+            lessonHtmlBodies.push({
+              title: slide.title || lesson.title,
+              htmlBody: slide.htmlBody,
+            });
           }
         } catch {
           // Skip lessons that fail to load
@@ -277,22 +281,16 @@ export function CourseDetailPage() {
       const res = await fetch(`/api/lessons/${lesson.id}`);
       if (!res.ok) return;
       const json = await res.json();
-      const htmlBody =
-        json.success && json.data.slides?.length > 0
-          ? json.data.slides[0].htmlBody
-          : '<div class="flex items-center justify-center h-full"><p class="text-gray-500">No content available.</p></div>';
-      const allLessonIds = course.lessons.map((s) => s.id);
-      const currentLessonIndex = allLessonIds.indexOf(lesson.id);
-      const classroomState: ClassroomState = {
-        courseId: course.id,
-        courseTitle: course.title,
-        lessonId: lesson.id,
-        lessonTitle: lesson.title,
-        htmlBody,
-        allLessonIds,
-        currentLessonIndex,
-      };
-      openClassroom(classroomState);
+      openClassroom(
+        buildClassroomState({
+          courseId: course.id,
+          courseTitle: course.title,
+          lessonId: lesson.id,
+          lessonTitle: lesson.title,
+          slides: json.success ? json.data.slides : [],
+          allLessonIds: course.lessons.map((s) => s.id),
+        }),
+      );
     } catch {
       // Silently fail
     }

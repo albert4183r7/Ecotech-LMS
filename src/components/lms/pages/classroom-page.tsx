@@ -87,7 +87,7 @@ export function ClassroomPage() {
     userId,
     courseId: classroomState?.courseId,
     lessonId: classroomState?.lessonId,
-    slideNumber: (classroomState?.currentLessonIndex ?? 0) + 1,
+    slideNumber: (classroomState?.currentSlideIndex ?? 0) + 1,
     enabled: notesSidebarOpen,
   });
 
@@ -205,14 +205,43 @@ export function ClassroomPage() {
     return () => clearTimeout(timer);
   }, [localState?.currentLessonIndex, userId, markLessonCompleted]);
 
-  const goPrev = () => {
+  // The slide currently on screen. Everything that used to read a single
+  // htmlBody now goes through here.
+  const currentSlide = localState?.slides[localState.currentSlideIndex] ?? null;
+
+  /** Replace the on-screen slide's HTML, in state and on the server. */
+  const applySlideHtml = useCallback((updatedHtmlBody: string) => {
+    setLocalState((prev) => {
+      if (!prev) return prev;
+      const slides = prev.slides.map((slide, i) =>
+        i === prev.currentSlideIndex ? { ...slide, htmlBody: updatedHtmlBody } : slide,
+      );
+      return { ...prev, slides };
+    });
+  }, []);
+
+  /** Step through slides; at either end, move to the neighbouring lesson. */
+  const goPrev = useCallback(() => {
     if (!localState) return;
+    if (localState.currentSlideIndex > 0) {
+      setLocalState((prev) =>
+        prev ? { ...prev, currentSlideIndex: prev.currentSlideIndex - 1 } : prev,
+      );
+      return;
+    }
     goToLesson(localState.currentLessonIndex - 1);
-  };
-  const goNext = () => {
+  }, [localState, goToLesson]);
+
+  const goNext = useCallback(() => {
     if (!localState) return;
+    if (localState.currentSlideIndex < localState.slides.length - 1) {
+      setLocalState((prev) =>
+        prev ? { ...prev, currentSlideIndex: prev.currentSlideIndex + 1 } : prev,
+      );
+      return;
+    }
     goToLesson(localState.currentLessonIndex + 1);
-  };
+  }, [localState, goToLesson]);
 
   // ─── Keyboard shortcuts ──────────────────────────────────────
   useEffect(() => {
@@ -307,7 +336,7 @@ export function ClassroomPage() {
     // Small delay to ensure iframe has rendered the new srcDoc
     const timer = setTimeout(attachIframeClickListener, 300);
     return () => clearTimeout(timer);
-  }, [localState?.htmlBody, attachIframeClickListener]);
+  }, [currentSlide?.htmlBody, attachIframeClickListener]);
 
   // Close element edit toolbar on Escape
   useEffect(() => {
@@ -377,7 +406,7 @@ export function ClassroomPage() {
         const updatedHtmlBody = `<!DOCTYPE html>\n<html lang="en">\n<head>\n  <meta charset="UTF-8" />\n  <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n  <title>${safeTitle}</title>\n  <script src="https://cdn.tailwindcss.com"><\/script>\n  <style>\n    body { margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }\n    * { box-sizing: border-box; }\n  </style>\n</head>\n<body class="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">\n  ${bodyHtml}\n</body>\n</html>`;
 
         // Update local state
-        setLocalState((prev) => (prev ? { ...prev, htmlBody: updatedHtmlBody } : prev));
+        applySlideHtml(updatedHtmlBody);
 
         // Persist to database
         const slideId = currentSlideIdRef.current;
@@ -490,7 +519,7 @@ export function ClassroomPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          htmlBody: localState.htmlBody,
+          htmlBody: currentSlide?.htmlBody ?? "",
           instruction: aiEditInstruction.trim(),
           slideTitle: localState.lessonTitle,
         }),
@@ -502,7 +531,7 @@ export function ClassroomPage() {
       const json = await res.json();
       if (json.success && json.data?.htmlBody) {
         const newHtmlBody = json.data.htmlBody;
-        setLocalState((prev) => (prev ? { ...prev, htmlBody: newHtmlBody } : prev));
+        applySlideHtml(newHtmlBody);
         toast.success("AI edit applied");
         // Persist to database
         try {
@@ -613,12 +642,19 @@ export function ClassroomPage() {
           </div>
         </div>
 
-        {/* Lesson Counter */}
-        <span className="bg-primary/10 text-primary inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-sm tabular-nums">
-          <span className="font-semibold">Lesson {currentIdx + 1}</span>
-          <span className="text-primary/40 font-normal">of</span>
-          <span className="font-semibold">{totalLessons}</span>
-        </span>
+        {/* Position: slide within the lesson, and the lesson within the course */}
+        <div className="flex shrink-0 items-center gap-2">
+          <span className="bg-primary/10 text-primary inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm tabular-nums">
+            <span className="font-semibold">Slide {localState.currentSlideIndex + 1}</span>
+            <span className="text-primary/40 font-normal">of</span>
+            <span className="font-semibold">{localState.slides.length}</span>
+          </span>
+          {totalLessons > 1 && (
+            <span className="text-muted-foreground inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs tabular-nums">
+              Lesson {currentIdx + 1}/{totalLessons}
+            </span>
+          )}
+        </div>
       </header>
 
       {/* ─── Main Layout: Content + Desktop Notes Sidebar ── */}
@@ -639,7 +675,7 @@ export function ClassroomPage() {
             ) : (
               <iframe
                 ref={iframeRef}
-                srcDoc={localState.htmlBody || ""}
+                srcDoc={currentSlide?.htmlBody || ""}
                 sandbox="allow-same-origin allow-scripts"
                 className="w-full rounded-lg border-0"
                 style={{ aspectRatio: "16/9" }}
