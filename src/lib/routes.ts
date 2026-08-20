@@ -21,10 +21,13 @@ export const ROUTES: Record<Exclude<ViewName, "course-detail" | "classroom">, st
 
 export const courseDetailPath = (courseId: string) => `/courses/${courseId}`;
 export const classroomPath = (lessonId: string) => `/learn/${lessonId}`;
+/** Instructor review of a generated lesson, before it is published. */
+export const lessonPreviewPath = (lessonId: string) => `/preview/${lessonId}`;
 
 /** Reverse-map a pathname to the view name components still reason about. */
 export function viewFromPathname(pathname: string): ViewName {
   if (pathname.startsWith("/learn/")) return "classroom";
+  if (pathname.startsWith("/preview/")) return "create-course";
   if (/^\/courses\/[^/]+$/.test(pathname)) return "course-detail";
   if (pathname.startsWith("/courses")) return "courses";
   if (pathname.startsWith("/my-learning")) return "my-learning";

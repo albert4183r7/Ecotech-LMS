@@ -14,6 +14,17 @@ import { themeFor, type SlideTheme } from "./theme";
 // bordered boxes — without those a deck was a wall of identical rectangles.
 // ============================================
 
+/**
+ * Mark an element as the rendering of one content field.
+ *
+ * Inline editing addresses fields, not markup: a click reads this attribute to
+ * learn which field it selected, and the edit changes only that field. Without
+ * it the editor would have to guess from the DOM what it was looking at.
+ */
+function ed(path: string): string {
+  return ` data-path="${path}"`;
+}
+
 function esc(value: string): string {
   return value
     .replace(/&/g, "&amp;")
@@ -58,9 +69,9 @@ function header(t: SlideTheme, title: string, lead?: string, footer?: string): s
     <header class="relative shrink-0">
       <div class="flex items-center gap-3">
         <span class="${t.accent} block h-8 w-1.5 rounded-full"></span>
-        <h1 class="${t.heading} text-4xl font-bold tracking-tight">${esc(title)}</h1>
+        <h1 class="${t.heading} text-4xl font-bold tracking-tight"${ed("title")}>${esc(title)}</h1>
       </div>
-      ${lead ? `<p class="${t.body} mt-4 max-w-4xl text-xl leading-relaxed">${esc(lead)}</p>` : ""}
+      ${lead ? `<p class="${t.body} mt-4 max-w-4xl text-xl leading-relaxed"${ed("lead")}>${esc(lead)}</p>` : ""}
       ${footer ? `<p class="${t.muted} mt-2 text-sm">${esc(footer)}</p>` : ""}
     </header>`;
 }
@@ -85,12 +96,12 @@ function conceptBody(t: SlideTheme, points: IconPoint[]): string {
   const cols = points.length >= 4 ? "grid-cols-2" : "grid-cols-1";
   const cards = points
     .map(
-      (p) => `
+      (p, i) => `
       <div class="${t.panel} ${t.panelBorder} flex items-center gap-4 rounded-2xl border p-6 shadow-sm">
         ${chip(t, p.icon, `${p.heading} ${p.description}`)}
         <div class="flex flex-col gap-1.5">
-          <h3 class="${t.heading} text-2xl font-semibold">${esc(p.heading)}</h3>
-          <p class="${t.body} text-lg leading-relaxed">${esc(p.description)}</p>
+          <h3 class="${t.heading} text-2xl font-semibold"${ed(`points.${i}.heading`)}>${esc(p.heading)}</h3>
+          <p class="${t.body} text-lg leading-relaxed"${ed(`points.${i}.description`)}>${esc(p.description)}</p>
         </div>
       </div>`,
     )
@@ -105,18 +116,18 @@ function comparisonBody(
   const cols = columns.length === 3 ? "grid-cols-3" : "grid-cols-2";
   const blocks = columns
     .map(
-      (c) => `
+      (c, ci) => `
       <div class="${t.panel} ${t.panelBorder} flex flex-col overflow-hidden rounded-2xl border shadow-sm">
         <div class="${t.accentSoft} flex items-center gap-3 px-6 py-4">
           ${chip(t, c.icon, `${c.heading} ${c.points.join(" ")}`, "h-9 w-9")}
-          <h3 class="${t.heading} text-2xl font-semibold">${esc(c.heading)}</h3>
+          <h3 class="${t.heading} text-2xl font-semibold"${ed(`columns.${ci}.heading`)}>${esc(c.heading)}</h3>
         </div>
         <ul class="flex flex-1 flex-col justify-evenly gap-3 px-6 py-5">
           ${c.points
             .map(
-              (p) => `<li class="${t.body} flex gap-3 text-lg leading-snug">
+              (p, pi) => `<li class="${t.body} flex gap-3 text-lg leading-snug">
               <span class="${t.accent} mt-2 block h-2 w-2 shrink-0 rounded-full"></span>
-              <span>${esc(p)}</span></li>`,
+              <span${ed(`columns.${ci}.points.${pi}`)}>${esc(p)}</span></li>`,
             )
             .join("")}
         </ul>
@@ -146,8 +157,8 @@ function processBody(
         </div>
         <div class="${t.panel} ${t.panelBorder} flex flex-1 flex-col justify-center gap-2 rounded-2xl border p-5">
           <div class="${t.iconInk}">${iconSvg(s.icon, `${s.label} ${s.description}`, "h-5 w-5")}</div>
-          <h3 class="${t.heading} text-xl font-semibold">${esc(s.label)}</h3>
-          <p class="${t.body} text-base leading-relaxed">${esc(s.description)}</p>
+          <h3 class="${t.heading} text-xl font-semibold"${ed(`steps.${i}.label`)}>${esc(s.label)}</h3>
+          <p class="${t.body} text-base leading-relaxed"${ed(`steps.${i}.description`)}>${esc(s.description)}</p>
         </div>
       </div>`,
     )
@@ -163,14 +174,15 @@ function architectureBody(
   const node = (
     n: { label: string; description?: string; icon?: string },
     layout: "row" | "stack",
+    i: number,
   ) => `
     <div class="${t.panel} ${t.panelBorder} flex flex-1 justify-center ${
       layout === "row" ? "flex-col items-center text-center" : "items-center gap-4 text-left"
     } gap-2 rounded-2xl border-2 px-4 py-6 shadow-sm">
       ${chip(t, n.icon, `${n.label} ${n.description ?? ""}`, layout === "row" ? "h-10 w-10" : "h-11 w-11")}
       <div>
-        <div class="${t.heading} text-lg leading-tight font-semibold">${esc(n.label)}</div>
-        ${n.description ? `<div class="${t.muted} mt-1 text-sm leading-snug">${esc(n.description)}</div>` : ""}
+        <div class="${t.heading} text-lg leading-tight font-semibold"${ed(`nodes.${i}.label`)}>${esc(n.label)}</div>
+        ${n.description ? `<div class="${t.muted} mt-1 text-sm leading-snug"${ed(`nodes.${i}.description`)}>${esc(n.description)}</div>` : ""}
       </div>
     </div>`;
 
@@ -189,7 +201,7 @@ function architectureBody(
   // out left to right so it scales to six without shrinking the type.
   if (nodes.length > 4) {
     const row = nodes
-      .map((n, i) => node(n, "row") + (i < nodes.length - 1 ? arrow("right") : ""))
+      .map((n, i) => node(n, "row", i) + (i < nodes.length - 1 ? arrow("right") : ""))
       .join("");
     return `<div class="mt-10 flex flex-1 items-center">
       <div class="flex h-full max-h-64 w-full items-stretch gap-2">${row}</div>
@@ -197,7 +209,7 @@ function architectureBody(
   }
 
   const chain = nodes
-    .map((n, i) => node(n, "stack") + (i < nodes.length - 1 ? arrow("down") : ""))
+    .map((n, i) => node(n, "stack", i) + (i < nodes.length - 1 ? arrow("down") : ""))
     .join("");
   return `<div class="mt-8 flex flex-1 flex-col items-center justify-center">
     <div class="flex h-full w-full max-w-3xl flex-col justify-center gap-1">${chain}</div>
@@ -208,19 +220,19 @@ function caseStudyBody(
   t: SlideTheme,
   c: { situation: string; problem: string; action: string; outcome: string },
 ): string {
-  const cell = (label: string, icon: string, text: string, emphasise = false) => `
+  const cell = (label: string, icon: string, text: string, path: string, emphasise = false) => `
     <div class="${emphasise ? t.accentSoft : t.panel} ${t.panelBorder} flex flex-col gap-2 rounded-2xl border p-6 shadow-sm">
       <div class="flex items-center gap-2">
         <span class="${t.iconInk}">${iconSvg(icon, label, "h-5 w-5")}</span>
         <span class="${t.muted} text-sm font-bold tracking-widest uppercase">${label}</span>
       </div>
-      <p class="${t.body} text-lg leading-relaxed">${esc(text)}</p>
+      <p class="${t.body} text-lg leading-relaxed"${ed(path)}>${esc(text)}</p>
     </div>`;
   return `<div class="mt-10 grid flex-1 grid-cols-2 content-stretch gap-6">
-    ${cell("Situation", "compass", c.situation)}
-    ${cell("Problem", "alert", c.problem)}
-    ${cell("What the agent did", "settings", c.action)}
-    ${cell("Outcome", "trendUp", c.outcome, true)}
+    ${cell("Situation", "compass", c.situation, "situation")}
+    ${cell("Problem", "alert", c.problem, "problem")}
+    ${cell("What the agent did", "settings", c.action, "action")}
+    ${cell("Outcome", "trendUp", c.outcome, "outcome", true)}
   </div>`;
 }
 
@@ -232,13 +244,13 @@ function dataBody(
     stats.length >= 4 ? "grid-cols-4" : stats.length === 3 ? "grid-cols-3" : "grid-cols-2";
   const cards = stats
     .map(
-      (s) => `
+      (s, i) => `
       <div class="${t.panel} ${t.panelBorder} relative flex flex-col items-center justify-center gap-2 overflow-hidden rounded-2xl border p-8 text-center shadow-sm">
         <span class="${t.accent} absolute inset-x-0 top-0 h-1.5"></span>
         ${chip(t, s.icon, `${s.label} ${s.note ?? ""}`, "h-10 w-10")}
-        <div class="${t.heading} text-6xl font-bold tracking-tight">${esc(s.value)}</div>
-        <div class="${t.body} text-lg font-medium">${esc(s.label)}</div>
-        ${s.note ? `<div class="${t.muted} text-sm">${esc(s.note)}</div>` : ""}
+        <div class="${t.heading} text-6xl font-bold tracking-tight"${ed(`stats.${i}.value`)}>${esc(s.value)}</div>
+        <div class="${t.body} text-lg font-medium"${ed(`stats.${i}.label`)}>${esc(s.label)}</div>
+        ${s.note ? `<div class="${t.muted} text-sm"${ed(`stats.${i}.note`)}>${esc(s.note)}</div>` : ""}
       </div>`,
     )
     .join("");
@@ -253,7 +265,7 @@ function summaryBody(t: SlideTheme, takeaways: string[]): string {
       (x, i) => `
       <li class="${t.panel} ${t.panelBorder} flex items-start gap-4 rounded-2xl border px-5 py-4">
         <span class="${t.accent} ${t.onAccent} flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-base font-bold">${i + 1}</span>
-        <span class="${t.body} text-xl leading-relaxed">${esc(x)}</span>
+        <span class="${t.body} text-xl leading-relaxed"${ed(`takeaways.${i}`)}>${esc(x)}</span>
       </li>`,
     )
     .join("");
@@ -280,10 +292,10 @@ export function renderSlideContent(
         <div class="${t.feature} relative flex h-full w-full flex-col justify-center gap-6 overflow-hidden p-20">
           ${decor(t, "feature")}
           <div class="relative flex flex-col gap-6">
-            ${content.eyebrow ? `<span class="${t.featureBody} text-sm font-bold tracking-widest uppercase">${esc(content.eyebrow)}</span>` : ""}
-            <h1 class="${t.featureHeading} max-w-5xl text-7xl leading-none font-bold tracking-tight">${esc(content.title)}</h1>
+            ${content.eyebrow ? `<span class="${t.featureBody} text-sm font-bold tracking-widest uppercase"${ed("eyebrow")}>${esc(content.eyebrow)}</span>` : ""}
+            <h1 class="${t.featureHeading} max-w-5xl text-7xl leading-none font-bold tracking-tight"${ed("title")}>${esc(content.title)}</h1>
             <span class="${t.accent} block h-1.5 w-32 rounded-full"></span>
-            <p class="${t.featureBody} max-w-3xl text-2xl leading-relaxed">${esc(content.subtitle)}</p>
+            <p class="${t.featureBody} max-w-3xl text-2xl leading-relaxed"${ed("subtitle")}>${esc(content.subtitle)}</p>
           </div>
         </div>`;
 
@@ -292,9 +304,9 @@ export function renderSlideContent(
         <div class="${t.feature} relative flex h-full w-full flex-col items-center justify-center gap-6 overflow-hidden p-20 text-center">
           ${decor(t, "feature")}
           <div class="relative flex flex-col items-center gap-6">
-            <h1 class="${t.featureHeading} text-7xl font-bold tracking-tight">${esc(content.title)}</h1>
+            <h1 class="${t.featureHeading} text-7xl font-bold tracking-tight"${ed("title")}>${esc(content.title)}</h1>
             <span class="${t.accent} block h-1.5 w-24 rounded-full"></span>
-            ${content.subtitle ? `<p class="${t.featureBody} max-w-3xl text-2xl leading-relaxed">${esc(content.subtitle)}</p>` : ""}
+            ${content.subtitle ? `<p class="${t.featureBody} max-w-3xl text-2xl leading-relaxed"${ed("subtitle")}>${esc(content.subtitle)}</p>` : ""}
           </div>
         </div>`;
 

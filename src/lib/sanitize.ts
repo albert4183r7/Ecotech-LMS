@@ -271,6 +271,8 @@ export function sanitizeHtml(rawHtml: string): string {
       "width",
       "height",
       "aria-hidden",
+      // Names which content field an element renders, so a click can address it.
+      "data-path",
       // SVG geometry and presentation. All inert: they describe shapes only.
       "viewBox",
       "fill",

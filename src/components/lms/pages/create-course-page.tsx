@@ -47,6 +47,8 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { useUserStore, useCourseStore } from "@/stores/lms-store";
+import { useRouter } from "next/navigation";
+import { lessonPreviewPath } from "@/lib/routes";
 import { useNavigation } from "@/hooks/use-navigation";
 import type { CategoryItem } from "@/types/lms";
 import { toast } from "sonner";
@@ -208,6 +210,7 @@ export function CreateCoursePage() {
   }, [slideGenStates]);
 
   // ---- Load existing course when editing from dashboard ----
+  const router = useRouter();
   const { editingCourseId, setEditingCourseId } = useCourseStore();
   useEffect(() => {
     if (editingCourseId && !courseId) {
@@ -1048,6 +1051,7 @@ export function CreateCoursePage() {
                       onGenerateSlides={() => handleGenerateSlides(ol.id)}
                       onCancelGeneration={handleCancelGeneration}
                       onDelete={() => handleDeleteOutlineLesson(ol.id)}
+                      onPreview={() => router.push(lessonPreviewPath(ol.id))}
                     />
                   ))}
                 </div>

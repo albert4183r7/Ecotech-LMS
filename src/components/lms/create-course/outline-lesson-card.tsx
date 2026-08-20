@@ -76,6 +76,8 @@ export interface OutlineLessonCardProps {
   onGenerateSlides: () => void;
   onCancelGeneration: () => void;
   onDelete: () => void;
+  /** Open the full review screen for this lesson. */
+  onPreview?: () => void;
 }
 export function OutlineLessonCard({
   lesson,
@@ -92,6 +94,7 @@ export function OutlineLessonCard({
   onGenerateSlides,
   onCancelGeneration,
   onDelete,
+  onPreview,
 }: OutlineLessonCardProps) {
   const styleLabel = SLIDE_STYLES.find((s) => s.value === lesson.style)?.label || lesson.style;
   const hasReadySlides = lesson.slides.some(
@@ -335,13 +338,27 @@ export function OutlineLessonCard({
             </Button>
           )}
 
-          {/* View completed slides (show first slide preview) */}
+          {/* Generated: a thumbnail here, and the full review a click away.
+              The thumbnail alone showed only the first slide, which is not
+              enough to decide whether a lesson is fit to publish. */}
           {!isGenerating && hasReadySlides && (
             <div className="space-y-2">
-              <p className="text-muted-foreground text-xs font-medium">
-                {completedCount} slide{completedCount !== 1 ? "s" : ""} generated
-              </p>
-              {/* Show first completed slide as preview */}
+              <div className="flex items-center gap-2">
+                <p className="text-muted-foreground text-xs font-medium">
+                  {completedCount} slide{completedCount !== 1 ? "s" : ""} generated
+                </p>
+                {onPreview && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="ml-auto h-7 gap-1.5 text-xs"
+                    onClick={() => onPreview?.()}
+                  >
+                    <Eye className="h-3.5 w-3.5" />
+                    Preview &amp; edit
+                  </Button>
+                )}
+              </div>
               {lesson.slides.some((s) => s.slideId && slideGenStates[s.slideId]?.htmlBody) && (
                 <div className="border-border/40 overflow-hidden rounded-md border">
                   <iframe
