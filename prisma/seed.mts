@@ -1,4 +1,10 @@
-import { db } from '../src/lib/db'
+// A seed script is run directly by node, whose ESM resolver requires explicit
+// file extensions, so it cannot import the app's db module by its TypeScript
+// path. Owning the client here also keeps the app's query logging out of the
+// seed output and closes the connection deterministically.
+import { PrismaClient } from '@prisma/client'
+
+const db = new PrismaClient()
 
 // ============================================================
 // Helper: build a full HTML+Tailwind slide document

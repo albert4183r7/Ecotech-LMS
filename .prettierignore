@@ -3,4 +3,4 @@ node_modules
 db
 public/uploads
 package-lock.json
-prisma/seed.ts
+prisma/seed.mts
