@@ -85,6 +85,7 @@ model Lesson {
   courseId   String
   course     Course     @relation(fields: [courseId], references: [id], onDelete: Cascade)
   slides     Slide[]
+  sections   Section[]
   agentRuns  AgentRun[]
   progresses Progress[]
   comments   Comment[]
@@ -103,10 +104,19 @@ model Slide {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Semantic slide content, from which htmlBody is rendered. Optional so
+  // slides authored as raw HTML before this existed keep working.
+  contentJson String?
+
   lessonId String
   lesson   Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
 
+  // A section owns several slides.
+  sectionId String?
+  section   Section? @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+
   @@unique([lessonId, order])
+  @@index([sectionId])
 }
 
 // ============================================
@@ -296,4 +306,29 @@ model Evaluation {
   slideId String?
 
   @@index([runId])
+}
+
+// ============================================
+// Presentation sections
+//
+// A section is a logical part of the presentation, not a slide. The model
+// decides how many sections a subject needs; the user decides how many slides
+// they want. slideBudget is how many of those slides this section receives.
+// ============================================
+
+model Section {
+  id          String   @id @default(cuid())
+  title       String
+  summary     String   @default("")
+  subtopics   String   @default("[]") // JSON string[]
+  slideBudget Int      @default(1)
+  order       Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  lessonId String
+  lesson   Lesson  @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  slides   Slide[]
+
+  @@unique([lessonId, order])
 }
