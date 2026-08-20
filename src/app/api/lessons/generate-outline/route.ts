@@ -6,6 +6,7 @@ import {
   PresentationPlanSchema,
   balancePlan,
   buildSlideSlots,
+  repairPlan,
   MIN_SLIDES,
   MAX_SLIDES,
   type PresentationPlan,
@@ -69,6 +70,49 @@ async function loadReference(
   }
 }
 
+/** Below this, the plan reads as though the reference had not been supplied. */
+const GROUNDING_FLOOR = 0.12;
+
+const STOPWORDS = new Set(
+  (
+    "the a an and or but of to in on at by for from with as is are was were be been that which than " +
+    "into onto over under about this these those it its their his her you your we our they them not " +
+    "can will would should could may might must have has had do does did what when where who how why"
+  ).split(" "),
+);
+
+/** Distinctive words in a text: long-ish, not stopwords, lowercased. */
+function distinctiveTerms(text: string): Set<string> {
+  return new Set(
+    text
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter((w) => w.length > 4 && !STOPWORDS.has(w)),
+  );
+}
+
+/**
+ * How much of the plan's vocabulary comes from the reference.
+ *
+ * A crude overlap, deliberately: it only has to separate "the model read the
+ * document" from "the model wrote about the topic generically", and any term
+ * the plan shares with the source is evidence of the former.
+ */
+function measureGrounding(plan: PresentationPlan, reference: string): number {
+  const sourceTerms = distinctiveTerms(reference);
+  if (sourceTerms.size === 0) return 0;
+
+  const planText = plan.sections
+    .flatMap((s) => [s.title, s.summary, ...s.subtopics])
+    .concat(plan.title, plan.subtitle)
+    .join(" ");
+  const planTerms = [...distinctiveTerms(planText)];
+  if (planTerms.length === 0) return 0;
+
+  const shared = planTerms.filter((t) => sourceTerms.has(t)).length;
+  return shared / planTerms.length;
+}
+
 function buildPlannerPrompt(params: {
   topic: string;
   slideCount: number;
@@ -85,7 +129,7 @@ LANGUAGE: write everything in ${language}.
 VISUAL STYLE: ${styleLabel}.
 ${
   reference
-    ? `\nSOURCE MATERIAL. Ground the plan in this, and do not contradict it:\n<reference>\n${reference}\n</reference>\n`
+    ? `\nSOURCE MATERIAL — this is the substance of the presentation, not background reading:\n<reference>\n${reference}\n</reference>\n\nThe sections must come out of this document. Name the specific concepts, terms,\nfigures and examples it actually uses. A plan that would read the same without\nthis document has failed. Where the document and general knowledge disagree,\nthe document wins. Do not introduce major topics it never mentions.\n`
     : "\nNo source material was supplied. Plan from established knowledge of the subject, and do not promise figures you cannot support.\n"
 }
 Plan this presentation as a set of logical SECTIONS.
@@ -95,11 +139,15 @@ subject genuinely needs — usually between three and seven. Do not create one
 section per slide, and do not pad the count to match the slide budget.
 
 For each section give:
-- title: what this part of the presentation covers
-- summary: what the audience should understand once this section is done
-- subtopics: the specific points this section must teach. Be concrete enough
+- title: what this part of the presentation covers, at most 90 characters
+- summary: what the audience should understand once this section is done, at
+  most 400 characters
+- subtopics: 2 to 8 specific points this section must teach. Be concrete enough
   that the user can tell from reading them what the presentation will say.
   Write the actual points, not instructions like "explain the basics".
+  HARD LIMIT: each subtopic must be at most 160 characters. One point per
+  entry. If a point needs more room than that, it is really two points — split
+  it into two entries rather than writing a long one.
 - slideBudget: how many of the ${slideCount} slides this section needs,
   proportional to how much there is to teach. A dense section deserves more.
 
@@ -168,6 +216,10 @@ export async function POST(request: NextRequest) {
         }),
         PresentationPlanSchema,
         {
+          // Grounding the plan in a document makes the model write longer,
+          // more specific subtopics. Reshaping those to fit is cheaper and
+          // less destructive than spending a retry on them.
+          repair: repairPlan,
           systemInstruction:
             "You plan presentations. You decide the logical structure of a subject; the user decides how many slides they get. Never equate sections with slides.",
           temperature: 0.4,
@@ -177,6 +229,20 @@ export async function POST(request: NextRequest) {
       const message = error instanceof Error ? error.message : "AI service unavailable";
       console.error("[generate-outline] planning failed:", message);
       return NextResponse.json({ success: false, error: message }, { status: 502 });
+    }
+
+    // A reference that was read but ignored looks identical to no reference at
+    // all in the finished outline, so measure it rather than assume it.
+    const grounding = reference ? measureGrounding(plan, reference) : null;
+    if (grounding !== null) {
+      console.log(`[generate-outline] reference grounding: ${(grounding * 100).toFixed(0)}%`);
+      if (grounding < GROUNDING_FLOOR) {
+        console.warn(
+          `[generate-outline] the plan barely reflects the supplied reference ` +
+            `(${(grounding * 100).toFixed(0)}% of its distinctive terms appear). ` +
+            `The document may be off-topic for "${topic}", or mostly images.`,
+        );
+      }
     }
 
     // Reconcile the model's structure with the user's budget. Nothing is
@@ -195,6 +261,7 @@ export async function POST(request: NextRequest) {
       adjustments: balanced.adjustments,
       referenceContext: reference || undefined,
       referenceSources: sources.length ? sources : undefined,
+      referenceGrounding: grounding ?? undefined,
       referenceFailures: referenceFailures.length ? referenceFailures : undefined,
     };
 
@@ -271,6 +338,9 @@ export async function POST(request: NextRequest) {
         // than silently ignored.
         referenceUsed: sources.map((s) => s.file),
         referenceFailures,
+        // How much of the plan's vocabulary came from the reference, so a
+        // document that was read but not used is visible rather than assumed.
+        referenceGrounding: grounding ?? undefined,
         sections: sectionRows.map((row, i) => ({
           id: row.id,
           title: row.title,

@@ -126,15 +126,42 @@ export async function generateStructuredJSON<T>(
   const system = [
     options?.systemInstruction ?? "",
     "Reply with a single JSON object and nothing else — no prose, no code fences.",
-    "It must satisfy this JSON Schema exactly:",
+    "It must satisfy this JSON Schema exactly. Pay particular attention to every",
+    "minLength, maxLength, minimum, maximum and minItems/maxItems constraint: a",
+    "value one character over a maxLength is rejected outright.",
     JSON.stringify(jsonSchema),
   ]
     .filter(Boolean)
     .join("\n\n");
 
   let lastError: Error | null = null;
+  // Carries the previous attempt's output and the exact reason it was
+  // rejected. Without this a retry re-sent an identical request and failed the
+  // same way every time, which is what made a long-subtopic outline
+  // unrecoverable rather than merely unlucky.
+  let correction: { badOutput: string; issues: string } | null = null;
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    const messages: OpenAI.ChatCompletionMessageParam[] = [
+      { role: "system", content: system },
+      { role: "user", content: prompt },
+    ];
+    if (correction) {
+      messages.push({ role: "assistant", content: correction.badOutput });
+      messages.push({
+        role: "user",
+        content: [
+          "That response was rejected by schema validation:",
+          correction.issues,
+          "",
+          "Send the whole object again, corrected. Change only what the errors",
+          "name; keep everything else as you wrote it. Where a value is too long,",
+          "shorten it by rewriting it more tightly or by splitting it into",
+          "separate entries — do not simply cut it off mid-word.",
+        ].join("\n"),
+      });
+    }
+
     let rawContent: string;
     try {
       const response = await getClient().chat.completions.create({
@@ -142,10 +169,7 @@ export async function generateStructuredJSON<T>(
         max_tokens: MAX_OUTPUT_TOKENS,
         temperature: options?.temperature ?? 0.4,
         response_format: { type: "json_object" },
-        messages: [
-          { role: "system", content: system },
-          { role: "user", content: prompt },
-        ],
+        messages,
       });
       rawContent = response.choices[0]?.message?.content ?? "";
     } catch (err) {
@@ -187,9 +211,10 @@ export async function generateStructuredJSON<T>(
     if (result.success) return result.data as T;
 
     const issues = result.error.issues
-      .slice(0, 5)
+      .slice(0, 12)
       .map((i) => `  - ${i.path.join(".") || "(root)"}: ${i.message}`)
       .join("\n");
+    correction = { badOutput: JSON.stringify(parsed), issues };
     lastError = new Error(
       `[LLM Schema Error] generateStructuredJSON — response does not match the expected schema.\n\nValidation issues:\n${issues}\n\nReceived (first 500 chars):\n${JSON.stringify(parsed, null, 2).slice(0, 500)}`,
     );

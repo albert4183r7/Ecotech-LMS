@@ -45,6 +45,114 @@ export const PresentationPlanSchema = z.object({
 export type PlannedSection = z.infer<typeof PlannedSectionSchema>;
 export type PresentationPlan = z.infer<typeof PresentationPlanSchema>;
 
+// ────────────────────────────────────────────────
+// Repair
+//
+// Grounding the plan in a source document makes the model write longer, more
+// specific subtopics — which is the point, but it pushed them past the 160
+// character cap and failed validation outright. Raising the cap would only
+// move the problem and would let a paragraph masquerade as a bullet, so
+// over-long values are reshaped into ones the schema accepts instead.
+// ────────────────────────────────────────────────
+
+const SUBTOPIC_MAX = 160;
+const SUBTOPIC_MIN = 5;
+const SUMMARY_MAX = 400;
+const TITLE_MAX = 90;
+const MAX_SUBTOPICS = 8;
+
+/** Words that read as broken when a trimmed value ends on them. */
+const DANGLING =
+  /\s+(?:a|an|the|and|or|but|of|to|in|on|at|by|for|from|with|as|is|are|was|were|be|been|that|which|than|into|onto|over|under|about|instead|rather|because|so|its|their|his|her|this|these|those)$/i;
+
+/** Cut at the last word boundary that fits, so a value never ends mid-word or
+ *  on a word that leaves the reader waiting for the rest of the sentence. */
+function trimToWord(text: string, limit: number): string {
+  const clean = text.trim().replace(/\s+/g, " ");
+  if (clean.length <= limit) return clean;
+  const cut = clean.slice(0, limit);
+  const lastSpace = cut.lastIndexOf(" ");
+  let out = (lastSpace > limit * 0.6 ? cut.slice(0, lastSpace) : cut).replace(/[\s,;:—-]+$/, "");
+  // A trailing preposition or article can survive several times over
+  // ("... instead of on the"), so keep going until the value ends on a word
+  // that can carry the end of a point.
+  let guard = 0;
+  while (DANGLING.test(out) && guard++ < 6) {
+    out = out.replace(DANGLING, "").replace(/[\s,;:—-]+$/, "");
+  }
+  return out;
+}
+
+/**
+ * Turn one over-long subtopic into one or more that fit.
+ *
+ * Splitting on sentence and clause boundaries keeps every point the model
+ * made; only when a single clause is itself too long does anything get cut.
+ */
+function splitSubtopic(text: string): string[] {
+  const clean = text.trim().replace(/\s+/g, " ");
+  if (clean.length <= SUBTOPIC_MAX) return [clean];
+
+  // Sentences first, then clause separators, so the split lands somewhere
+  // that still reads as a complete point.
+  for (const pattern of [
+    /(?<=[.!?])\s+/,
+    /\s*[;·•]\s*/,
+    /\s+[–—]\s+/,
+    /,\s+(?=(?:and|which|so|because)\b)/i,
+  ]) {
+    const parts = clean
+      .split(pattern)
+      .map((p) => p.trim().replace(/^[,;\s]+/, ""))
+      .filter((p) => p.length >= SUBTOPIC_MIN);
+    if (parts.length > 1 && parts.every((p) => p.length <= SUBTOPIC_MAX)) return parts;
+    if (parts.length > 1)
+      return parts.flatMap((p) => (p.length > SUBTOPIC_MAX ? [trimToWord(p, SUBTOPIC_MAX)] : [p]));
+  }
+
+  return [trimToWord(clean, SUBTOPIC_MAX)];
+}
+
+/**
+ * Coerce a model response into the shape the schema accepts.
+ *
+ * Runs before validation, so a predictable overrun costs nothing instead of
+ * consuming a retry. Anything it cannot fix is left for the schema to reject.
+ */
+export function repairPlan(parsed: unknown): unknown {
+  if (!parsed || typeof parsed !== "object") return parsed;
+  const plan = parsed as Record<string, unknown>;
+
+  if (typeof plan.title === "string") plan.title = trimToWord(plan.title, 120);
+  if (typeof plan.subtitle === "string") plan.subtitle = trimToWord(plan.subtitle, 160);
+
+  if (!Array.isArray(plan.sections)) return plan;
+
+  plan.sections = plan.sections.map((raw) => {
+    if (!raw || typeof raw !== "object") return raw;
+    const section = raw as Record<string, unknown>;
+
+    if (typeof section.title === "string") section.title = trimToWord(section.title, TITLE_MAX);
+    if (typeof section.summary === "string") {
+      section.summary = trimToWord(section.summary, SUMMARY_MAX);
+    }
+
+    if (Array.isArray(section.subtopics)) {
+      const expanded = section.subtopics
+        .filter((t): t is string => typeof t === "string" && t.trim().length > 0)
+        .flatMap(splitSubtopic)
+        .filter((t) => t.length >= SUBTOPIC_MIN);
+      // Splitting can push a section past the item cap; keeping the first
+      // eight loses least, because the model orders points by importance.
+      section.subtopics = expanded.slice(0, MAX_SUBTOPICS);
+    }
+
+    return section;
+  });
+
+  return plan;
+}
+
 /** A plan whose budgets are guaranteed to sum to the requested slide count. */
 export interface BalancedPlan extends PresentationPlan {
   totalSlides: number;
