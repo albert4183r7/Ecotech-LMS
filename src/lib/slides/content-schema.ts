@@ -10,9 +10,13 @@ import { z } from "zod/v4";
 // type requires or it fails validation.
 // ============================================
 
+/** Name of a slide icon; see ICON_NAMES. Unknown names resolve to a fallback. */
+const Icon = z.string().max(24).optional().describe("Icon name that suits this item");
+
 const Point = z.object({
   heading: z.string().min(2).max(70).describe("A few words naming the idea"),
   description: z.string().min(15).max(260).describe("What it means, in a full sentence"),
+  icon: Icon,
 });
 
 export const TitleSlideSchema = z.object({
@@ -38,6 +42,7 @@ export const ComparisonSlideSchema = z.object({
       z.object({
         heading: z.string().min(2).max(50),
         points: z.array(z.string().min(8).max(160)).min(2).max(5),
+        icon: Icon,
       }),
     )
     .min(2)
@@ -53,6 +58,7 @@ export const ProcessSlideSchema = z.object({
       z.object({
         label: z.string().min(2).max(50),
         description: z.string().min(10).max(200),
+        icon: Icon,
       }),
     )
     .min(3)
@@ -68,6 +74,7 @@ export const ArchitectureSlideSchema = z.object({
       z.object({
         label: z.string().min(2).max(46),
         description: z.string().min(8).max(140).optional(),
+        icon: Icon,
       }),
     )
     .min(3)
@@ -94,6 +101,7 @@ export const DataSlideSchema = z.object({
         value: z.string().min(1).max(18).describe("The figure itself"),
         label: z.string().min(3).max(60),
         note: z.string().max(120).optional(),
+        icon: Icon,
       }),
     )
     .min(2)

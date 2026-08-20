@@ -23,12 +23,20 @@ export interface SlideTheme {
   /** Text colours for use on the feature background. */
   featureHeading: string;
   featureBody: string;
+  /** Foreground for an icon sitting in an accentSoft chip. */
+  iconInk: string;
+  /** Colour of the decorative shapes bled off the slide corners. */
+  decor: string;
+  /** Same, on a feature background. */
+  featureDecor: string;
+  /** Connector lines and arrows in a diagram. */
+  connector: string;
 }
 
 export const SLIDE_THEMES: Record<string, SlideTheme> = {
   professional: {
-    surface: "bg-white",
-    feature: "bg-slate-900",
+    surface: "bg-gradient-to-br from-white to-slate-100",
+    feature: "bg-gradient-to-br from-slate-900 via-slate-800 to-blue-900",
     heading: "text-slate-900",
     body: "text-slate-700",
     muted: "text-slate-500",
@@ -39,10 +47,14 @@ export const SLIDE_THEMES: Record<string, SlideTheme> = {
     onAccent: "text-white",
     featureHeading: "text-white",
     featureBody: "text-slate-300",
+    iconInk: "text-blue-600",
+    decor: "bg-blue-500",
+    featureDecor: "bg-blue-400",
+    connector: "text-blue-300",
   },
   minimal: {
     surface: "bg-white",
-    feature: "bg-neutral-900",
+    feature: "bg-gradient-to-br from-neutral-900 to-neutral-700",
     heading: "text-neutral-900",
     body: "text-neutral-600",
     muted: "text-neutral-400",
@@ -53,10 +65,14 @@ export const SLIDE_THEMES: Record<string, SlideTheme> = {
     onAccent: "text-white",
     featureHeading: "text-white",
     featureBody: "text-neutral-300",
+    iconInk: "text-neutral-900",
+    decor: "bg-neutral-400",
+    featureDecor: "bg-neutral-300",
+    connector: "text-neutral-300",
   },
   creative: {
-    surface: "bg-white",
-    feature: "bg-violet-700",
+    surface: "bg-gradient-to-br from-white to-violet-50",
+    feature: "bg-gradient-to-br from-violet-700 via-purple-700 to-fuchsia-700",
     heading: "text-violet-950",
     body: "text-slate-700",
     muted: "text-violet-400",
@@ -67,10 +83,14 @@ export const SLIDE_THEMES: Record<string, SlideTheme> = {
     onAccent: "text-white",
     featureHeading: "text-white",
     featureBody: "text-violet-200",
+    iconInk: "text-violet-600",
+    decor: "bg-violet-500",
+    featureDecor: "bg-fuchsia-400",
+    connector: "text-violet-300",
   },
   academic: {
-    surface: "bg-stone-50",
-    feature: "bg-stone-800",
+    surface: "bg-gradient-to-br from-stone-50 to-stone-100",
+    feature: "bg-gradient-to-br from-stone-800 to-emerald-950",
     heading: "text-stone-900",
     body: "text-stone-700",
     muted: "text-stone-500",
@@ -81,10 +101,14 @@ export const SLIDE_THEMES: Record<string, SlideTheme> = {
     onAccent: "text-white",
     featureHeading: "text-white",
     featureBody: "text-stone-300",
+    iconInk: "text-emerald-700",
+    decor: "bg-emerald-600",
+    featureDecor: "bg-emerald-400",
+    connector: "text-emerald-300",
   },
   tech: {
-    surface: "bg-slate-900",
-    feature: "bg-slate-950",
+    surface: "bg-gradient-to-br from-slate-900 to-slate-800",
+    feature: "bg-gradient-to-br from-slate-950 via-slate-900 to-cyan-950",
     heading: "text-white",
     body: "text-slate-300",
     muted: "text-slate-500",
@@ -95,6 +119,10 @@ export const SLIDE_THEMES: Record<string, SlideTheme> = {
     onAccent: "text-slate-950",
     featureHeading: "text-white",
     featureBody: "text-cyan-200",
+    iconInk: "text-cyan-400",
+    decor: "bg-cyan-500",
+    featureDecor: "bg-cyan-400",
+    connector: "text-cyan-500",
   },
 };
 

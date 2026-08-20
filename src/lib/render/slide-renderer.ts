@@ -155,6 +155,11 @@ export async function renderSlide(
           const rect = el.getBoundingClientRect();
           if (rect.width === 0 || rect.height === 0) continue;
 
+          // Decoration is marked aria-hidden and is clipped by the canvas.
+          // The renderer deliberately bleeds shapes off the edges, so counting
+          // them as out-of-bounds reported a fault on every well-formed slide.
+          if (el.closest('[aria-hidden="true"]')) continue;
+
           const text = (el.textContent ?? "").trim();
           if (text && el.children.length === 0) {
             const size = parseFloat(getComputedStyle(el).fontSize);

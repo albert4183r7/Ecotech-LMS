@@ -31,7 +31,8 @@ Built with Next.js 16 (App Router), Prisma + SQLite, and Claude.
 - **Courses & enrolment** — categories, ratings, favourites, cover images
 - **Learner tools** — per-lesson progress, notes, threaded comments
 - **Gamification** — XP, achievements, daily challenges, streaks, leaderboard
-- **PPTX export** — download a course as a PowerPoint file with the slide design preserved
+- **PPTX export** — download a lesson as a PowerPoint file with the slide design
+  preserved; a course exports one file per lesson, zipped together
 
 ---
 
@@ -64,6 +65,15 @@ satisfied by what came back, it degrades to a simpler layout rather than failing
 
 `src/lib/slides/render.ts` then lays that content out. Visual quality is owned by the
 renderer, not by the model, so a thin answer cannot become a slide full of empty space.
+
+Each layout draws icons, panels and connectors rather than plain text blocks: every
+content block carries an icon name, resolved against the set in
+`src/lib/slides/icons.ts` — an unknown or missing name falls back to one inferred from
+the block's own text, so a slide never renders without one. Icons are inline SVG,
+because a slide is rendered inside a sandboxed iframe and rasterised by headless
+Chromium, neither of which can be relied on to fetch an external asset. Themes in
+`src/lib/slides/theme.ts` supply the palette, the gradients and the colour of the
+decorative shapes bled off each slide's corners.
 
 ### The slide canvas
 
@@ -188,10 +198,11 @@ src/
 ├── hooks/
 ├── lib/
 │   ├── presentation-plan.ts           # section planning and slide allocation
-│   ├── slides/                        # content schema, draft narrowing, renderer, theme
+│   ├── slides/                        # content schema, draft narrowing, renderer, theme, icons
 │   ├── render/                        # Playwright rasterisation and layout extraction
 │   ├── agent/                         # tools, runtime, evaluators, persistence
 │   ├── classroom.ts                   # classroom state construction
+│   ├── download.ts                    # filename slugs and browser downloads
 │   ├── sanitize.ts                    # HTML allowlist and the slide canvas
 │   ├── extract-doc.ts                 # reference document extraction
 │   ├── llm.ts                         # LLM client (Claude via EcoAPI)

@@ -1,6 +1,7 @@
 import { generateStructuredJSON } from "@/lib/llm";
 import { contentWeight, type SlideContent } from "./content-schema";
 import { SlideDraftSchema, draftToContent } from "./draft";
+import { ICON_NAMES } from "./icons";
 
 // ============================================
 // Slide content generation
@@ -53,6 +54,9 @@ Rules:
 - Write every string in the requested language.
 - Every block needs a heading and either a body sentence or supporting items.
   A heading alone is not content.
+- Give every block an "icon": the name of the icon that best fits what the block
+  says. Pick from the list supplied below. The renderer draws it beside the
+  block, so a name that matches the meaning is worth more than a decorative one.
 - For a comparison, each block is one side. For a process or architecture, each
   block is one step or component in order. For a case study, use four blocks
   headed Situation, Problem, Action and Outcome. For a summary, put the
@@ -107,7 +111,7 @@ export async function generateSlideContent(brief: SlideBrief): Promise<SlideCont
     // A flat draft, not the typed union: Gemini's structured output does not
     // handle a top-level oneOf reliably, and every non-title slide failed.
     const draft = await generateStructuredJSON(buildPrompt(brief), SlideDraftSchema, {
-      systemInstruction: SYSTEM,
+      systemInstruction: `${SYSTEM}\n\nICON NAMES:\n${ICON_NAMES.join(", ")}`,
       temperature: attempt === 1 ? 0.6 : 0.8,
     });
     const content = draftToContent(draft);

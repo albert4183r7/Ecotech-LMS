@@ -41,6 +41,19 @@ const ALLOWED_TAGS = [
   "blockquote",
   "code",
   "pre",
+  // A narrow SVG subset, for the renderer's icons and diagram connectors.
+  // Without these the sanitizer stripped every icon and slides were text only.
+  // The dangerous parts of SVG — foreignObject, use, image, script and the
+  // animation elements — stay out of this list and are forbidden below.
+  "svg",
+  "g",
+  "path",
+  "circle",
+  "ellipse",
+  "rect",
+  "line",
+  "polyline",
+  "polygon",
 ];
 
 const FORBIDDEN_TAGS = [
@@ -56,7 +69,14 @@ const FORBIDDEN_TAGS = [
   "meta",
   "base",
   "noscript",
-  "svg",
+  // SVG elements that can load or execute something. The shape elements above
+  // are inert; these are not.
+  "foreignObject",
+  "use",
+  "image",
+  "animate",
+  "animateTransform",
+  "set",
 ];
 
 /** Check whether ImageKit is properly configured */
@@ -241,8 +261,41 @@ function browserSidePostProcess(html: string): string {
 export function sanitizeHtml(rawHtml: string): string {
   const config: DOMPurify.Config = {
     ALLOWED_TAGS,
-    ALLOWED_ATTR: ["class", "id", "href", "src", "alt", "width", "height"],
-    FORBIDDEN_TAGS,
+    ALLOWED_ATTR: [
+      "class",
+      "id",
+      "href",
+      "src",
+      "alt",
+      "width",
+      "height",
+      "aria-hidden",
+      // SVG geometry and presentation. All inert: they describe shapes only.
+      "viewBox",
+      "fill",
+      "stroke",
+      "stroke-width",
+      "stroke-linecap",
+      "stroke-linejoin",
+      "d",
+      "cx",
+      "cy",
+      "r",
+      "rx",
+      "ry",
+      "x",
+      "y",
+      "x1",
+      "y1",
+      "x2",
+      "y2",
+      "points",
+      "transform",
+    ],
+    // DOMPurify reads FORBID_TAGS. This was passed as FORBIDDEN_TAGS, which it
+    // ignores — harmless while ALLOWED_TAGS is an allowlist, but it meant the
+    // list did nothing, so anything added to the allowlist bypassed it.
+    FORBID_TAGS: FORBIDDEN_TAGS,
     ALLOW_COMMENTS: false,
     KEEP_CONTENT: true,
   };

@@ -98,6 +98,10 @@ export async function extractSlideLayout(wrappedHtml: string): Promise<SlideLayo
           // Ignore anything scrolled or positioned outside the slide.
           if (rect.right < base.left || rect.left > base.right) continue;
           if (rect.bottom < base.top || rect.top > base.bottom) continue;
+          // Skip decoration. The renderer's blurred corner shapes bleed off the
+          // canvas, so they would export at negative coordinates, and a blur has
+          // no equivalent in PPTX — they would arrive as hard-edged blocks.
+          if (el.closest('[aria-hidden="true"]')) continue;
 
           const cs = getComputedStyle(el);
 

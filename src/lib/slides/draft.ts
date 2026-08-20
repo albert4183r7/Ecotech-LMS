@@ -18,6 +18,11 @@ export const SlideBlockSchema = z.object({
   heading: z.string().max(70).optional().describe("A few words naming this part"),
   body: z.string().max(300).optional().describe("A full sentence explaining it"),
   items: z.array(z.string().max(180)).max(6).optional().describe("Short supporting points"),
+  icon: z
+    .string()
+    .max(24)
+    .optional()
+    .describe("Name of an icon that suits this part; see the list in the instructions"),
 });
 
 export const SLIDE_TYPES = [
@@ -56,6 +61,17 @@ export type SlideBlock = z.infer<typeof SlideBlockSchema>;
 const pad = (text: string, min: number, filler: string): string =>
   text.length >= min ? text : `${text} ${filler}`.slice(0, Math.max(min + 40, text.length + 40));
 
+/**
+ * An icon name the typed schema will accept.
+ *
+ * The schema caps it at 24 characters; an over-long invented name would fail
+ * validation and cost the slide its whole layout, when an unknown name is
+ * meant to fall back to a sensible icon instead.
+ */
+function blockIcon(block: SlideBlock): string | undefined {
+  return block.icon?.trim().slice(0, 24) || undefined;
+}
+
 /** Everything a block can contribute as prose. */
 function blockText(block: SlideBlock): string {
   if (block.body?.trim()) return block.body.trim();
@@ -63,11 +79,16 @@ function blockText(block: SlideBlock): string {
   return block.heading?.trim() ?? "";
 }
 
-function toPoints(blocks: SlideBlock[]): { heading: string; description: string }[] {
+function toPoints(blocks: SlideBlock[]): {
+  heading: string;
+  description: string;
+  icon?: string;
+}[] {
   const points = blocks
     .map((b) => ({
       heading: (b.heading ?? "").trim() || "Key point",
       description: pad(blockText(b), 15, "— explained on this slide."),
+      icon: blockIcon(b),
     }))
     .filter((p) => p.description.length >= 15);
 
@@ -149,6 +170,7 @@ export function draftToContent(
           points: (b.items?.length ? b.items : [b.body ?? ""])
             .filter((p) => p.trim().length >= 8)
             .slice(0, 5),
+          icon: blockIcon(b),
         }))
         .filter((c) => c.points.length >= 2);
       return attempt({ type: "comparison", title, lead, columns }) ?? conceptFallback();
@@ -159,6 +181,7 @@ export function draftToContent(
         .map((b) => ({
           label: (b.heading ?? "Step").slice(0, 50),
           description: pad(blockText(b), 10, "happens at this stage."),
+          icon: blockIcon(b),
         }))
         .slice(0, 6);
       return attempt({ type: "process", title, lead, steps }) ?? conceptFallback();
@@ -169,6 +192,7 @@ export function draftToContent(
         .map((b) => ({
           label: (b.heading ?? "Component").slice(0, 46),
           description: blockText(b).slice(0, 140) || undefined,
+          icon: blockIcon(b),
         }))
         .slice(0, 6);
       return attempt({ type: "architecture", title, lead, nodes }) ?? conceptFallback();
@@ -204,6 +228,7 @@ export function draftToContent(
                 label:
                   (b.heading ?? b.body ?? "").replace(match[1], "").trim().slice(0, 60) || "Figure",
                 note: b.body?.slice(0, 120),
+                icon: blockIcon(b),
               }
             : null;
         })
