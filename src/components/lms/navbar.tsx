@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
   GraduationCap,
+  ListChecks,
   Home,
   BookOpen,
   User,
@@ -48,6 +49,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Home", icon: <Home className="h-4 w-4" />, view: "home" },
   { label: "Courses", icon: <BookOpen className="h-4 w-4" />, view: "courses" },
   { label: "Learning Progress", icon: <GraduationCap className="h-4 w-4" />, view: "my-learning" },
+  { label: "Quiz", icon: <ListChecks className="h-4 w-4" />, view: "quizzes" },
   { label: "Profile", icon: <User className="h-4 w-4" />, view: "profile" },
   { label: "Settings", icon: <Settings className="h-4 w-4" />, view: "settings" },
 ];
@@ -63,6 +65,8 @@ function getViewLabel(view: ViewName): string {
       return "Courses";
     case "my-learning":
       return "Learning Progress";
+    case "quizzes":
+      return "Quiz";
     case "profile":
       return "Profile";
     case "course-detail":

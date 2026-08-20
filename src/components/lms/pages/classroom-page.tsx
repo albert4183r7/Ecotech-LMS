@@ -37,7 +37,7 @@ import { useUserStore } from "@/stores/lms-store";
 import { useNavigation } from "@/hooks/use-navigation";
 import { useClassroomState } from "@/hooks/use-classroom-state";
 import { useParams, useRouter } from "next/navigation";
-import { classroomPath, courseDetailPath } from "@/lib/routes";
+import { classroomPath, courseDetailPath, quizAttemptPath } from "@/lib/routes";
 import { SLIDE_WIDTH, SLIDE_HEIGHT } from "@/lib/sanitize";
 import { safeFileName, triggerDownload } from "@/lib/download";
 import type { ClassroomState } from "@/types/lms";
@@ -200,6 +200,33 @@ export function ClassroomPage() {
     setNavigating(false);
   }, [classroomState?.lessonId]);
 
+  // The quiz belonging to this lesson, if the learner may take it. A lesson
+  // without one (not generated, or the caller is its instructor) simply moves
+  // on to the next lesson as before.
+  const [lessonQuizId, setLessonQuizId] = useState<string | null>(null);
+  useEffect(() => {
+    const lessonId = classroomState?.lessonId;
+    if (!lessonId) return;
+    let cancelled = false;
+    setLessonQuizId(null);
+    (async () => {
+      try {
+        const res = await fetch(`/api/lessons/${lessonId}/quiz`);
+        if (!res.ok) return;
+        const json = await res.json();
+        if (cancelled) return;
+        if (json.success && json.data?.status === "READY" && !json.data.canEdit) {
+          setLessonQuizId(json.data.id);
+        }
+      } catch {
+        // No quiz simply means the lesson ends where it always did.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [classroomState?.lessonId]);
+
   /** Mark lesson as completed and save progress */
   const markLessonCompleted = useCallback(
     async (lessonId: string) => {
@@ -295,8 +322,14 @@ export function ClassroomPage() {
       );
       return;
     }
+    // The lesson is finished. Its quiz comes before the next lesson does —
+    // moving straight on would skip the check the lesson was building to.
+    if (lessonQuizId) {
+      router.push(quizAttemptPath(lessonQuizId));
+      return;
+    }
     goToLesson(localState.currentLessonIndex + 1);
-  }, [localState, goToLesson]);
+  }, [localState, goToLesson, lessonQuizId, router]);
 
   // ─── Keyboard shortcuts ──────────────────────────────────────
   useEffect(() => {

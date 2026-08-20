@@ -13,6 +13,7 @@ export type ViewName =
   | "course-detail"
   | "classroom"
   | "create-course"
+  | "quizzes"
   | "settings";
 
 /** Course data shape */
