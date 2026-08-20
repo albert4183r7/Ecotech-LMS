@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import PptxGenJS from "pptxgenjs";
 import { db } from "@/lib/db";
+import { extractSlideLayout, type SlideLayout } from "@/lib/render/slide-layout";
+import { ensureCanvasDocument } from "@/lib/sanitize";
 
 interface SlideHtmlBody {
   title: string;
@@ -169,6 +171,66 @@ function addHtmlSlide(
 }
 
 // ─── Main POST Handler ───────────────────────────
+// ============================================
+// Design-preserving slide construction
+//
+// The previous export ran stripHtml over the slide and re-typed the result
+// onto one fixed template, so every layout decision was discarded and the
+// download looked nothing like the slide on screen. This rebuilds the slide
+// from its real geometry, keeping text editable in PowerPoint rather than
+// flattening it to a picture.
+// ============================================
+
+/** 16:9 at pptxgenjs LAYOUT_16x9. */
+const DECK_W_IN = 10;
+const DECK_H_IN = 5.625;
+
+function addLayoutSlide(pptx: PptxGenJS, layout: SlideLayout, title: string) {
+  const s = pptx.addSlide();
+
+  // A slide's real background is usually painted by a full-bleed element
+  // rather than the canvas itself. Promote the last such fill to the slide
+  // background: without this a dark gradient slide exported as white, and its
+  // white text became invisible.
+  const fullBleed = layout.shapes.filter((sh) => sh.w > 0.98 && sh.h > 0.98);
+  s.background = { color: fullBleed.at(-1)?.fill ?? layout.background };
+
+  // Background blocks next, in DOM order, so text lands on top of them.
+  for (const shape of layout.shapes) {
+    // Full-bleed fills already became the slide background.
+    if (shape.w > 0.98 && shape.h > 0.98) continue;
+    s.addShape("roundRect", {
+      x: shape.x * DECK_W_IN,
+      y: shape.y * DECK_H_IN,
+      w: shape.w * DECK_W_IN,
+      h: shape.h * DECK_H_IN,
+      fill: { color: shape.fill },
+      line: { color: shape.fill, width: 0 },
+      rectRadius: Math.min(0.2, Math.max(0, shape.radius) * DECK_W_IN * shape.w),
+    });
+  }
+
+  for (const text of layout.texts) {
+    s.addText(text.text, {
+      x: text.x * DECK_W_IN,
+      y: text.y * DECK_H_IN,
+      w: Math.max(0.4, text.w * DECK_W_IN),
+      h: Math.max(0.2, text.h * DECK_H_IN),
+      fontSize: text.fontSize,
+      bold: text.bold,
+      italic: text.italic,
+      color: text.color,
+      align: text.align,
+      valign: "top",
+      margin: 0,
+      shrinkText: true,
+    });
+  }
+
+  if (!layout.texts.length) s.addNotes(`Slide "${title}" rendered no text.`);
+  return s;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as GeneratePptxRequest;
@@ -211,8 +273,14 @@ export async function POST(request: NextRequest) {
 
     for (let i = 0; i < resolvedSlides.length; i++) {
       const slide = resolvedSlides[i];
-      const content = extractContent(slide.htmlBody);
-      addHtmlSlide(pptx, slide.title, content, i + 1, totalSlides);
+      try {
+        const layout = await extractSlideLayout(ensureCanvasDocument(slide.htmlBody, slide.title));
+        addLayoutSlide(pptx, layout, slide.title);
+      } catch (err) {
+        // Never fail the whole download because one slide could not be read.
+        console.error(`[export-pptx] slide ${i + 1} layout failed, using text fallback:`, err);
+        addHtmlSlide(pptx, slide.title, extractContent(slide.htmlBody), i + 1, totalSlides);
+      }
     }
 
     const safeName = (courseName || "lesson")

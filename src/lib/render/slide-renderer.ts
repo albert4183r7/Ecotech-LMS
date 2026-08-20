@@ -52,6 +52,47 @@ async function slideCss(): Promise<string> {
   return cachedCss;
 }
 
+/**
+ * Open a slide document in a page, run `fn` against it, and always clean up.
+ *
+ * Shared by rendering and layout extraction so both load a slide identically:
+ * the design canvas as the viewport, the compiled stylesheet injected, and no
+ * network access.
+ */
+export async function chromiumPage<T>(
+  wrappedHtml: string,
+  fn: (page: import("playwright").Page) => Promise<T>,
+  options: { deviceScaleFactor?: number; timeoutMs?: number } = {},
+): Promise<T> {
+  const { deviceScaleFactor = 1, timeoutMs = 15_000 } = options;
+  const browser = await getBrowser();
+  const context = await browser.newContext({
+    viewport: { width: SLIDE_WIDTH, height: SLIDE_HEIGHT },
+    deviceScaleFactor,
+  });
+  const page = await context.newPage();
+
+  try {
+    await page.route("**/*", (route) => {
+      const url = route.request().url();
+      if (url.startsWith("data:") || url.startsWith("about:")) return route.continue();
+      return route.abort();
+    });
+
+    await page.setContent(wrappedHtml, { waitUntil: "load", timeout: timeoutMs });
+
+    // setContent gives the document an about:blank origin, so the stylesheet
+    // link never resolves to a fetchable URL. Inject the compiled CSS instead.
+    const css = await slideCss();
+    if (css) await page.addStyleTag({ content: css });
+    await page.waitForTimeout(150);
+
+    return await fn(page);
+  } finally {
+    await context.close();
+  }
+}
+
 /** A concrete layout fault measured from the DOM, not inferred by a model. */
 export interface LayoutFault {
   kind: "overflow-y" | "overflow-x" | "tiny-text" | "out-of-bounds" | "empty-canvas";
@@ -83,120 +124,96 @@ export async function renderSlide(
   options: RenderOptions = {},
 ): Promise<RenderResult> {
   const { deviceScaleFactor = 2, timeoutMs = 15_000 } = options;
-  const browser = await getBrowser();
-  const context = await browser.newContext({
-    viewport: { width: SLIDE_WIDTH, height: SLIDE_HEIGHT },
-    deviceScaleFactor,
-  });
-  const page = await context.newPage();
 
-  try {
-    // Rendering must not depend on anything off this machine.
-    await page.route("**/*", (route) => {
-      const url = route.request().url();
-      if (url.startsWith("data:") || url.startsWith("about:")) return route.continue();
-      return route.abort();
-    });
+  return chromiumPage(
+    wrappedHtml,
+    async (page) => {
+      const measured = await page.evaluate(() => {
+        const canvas = document.getElementById("slide-canvas");
+        if (!canvas) return null;
+        const faults: { kind: string; detail: string }[] = [];
 
-    await page.setContent(wrappedHtml, { waitUntil: "load", timeout: timeoutMs });
-
-    // setContent gives the document an about:blank origin, so the stylesheet
-    // link in the slide document never resolves to a fetchable URL. Inject the
-    // compiled CSS directly instead of relying on that request.
-    const css = await slideCss();
-    if (css) await page.addStyleTag({ content: css });
-
-    await page.waitForTimeout(150); // let layout and fonts settle
-
-    const measured = await page.evaluate(() => {
-      const canvas = document.getElementById("slide-canvas");
-      if (!canvas) return null;
-      const faults: { kind: string; detail: string }[] = [];
-
-      if (canvas.scrollHeight > canvas.clientHeight + 2) {
-        faults.push({
-          kind: "overflow-y",
-          detail: `content is ${canvas.scrollHeight - canvas.clientHeight}px taller than the slide and is being cut off`,
-        });
-      }
-      if (canvas.scrollWidth > canvas.clientWidth + 2) {
-        faults.push({
-          kind: "overflow-x",
-          detail: `content is ${canvas.scrollWidth - canvas.clientWidth}px wider than the slide`,
-        });
-      }
-
-      const bounds = canvas.getBoundingClientRect();
-      let painted = 0;
-      let tiniest = Infinity;
-      let outOfBounds = 0;
-
-      for (const el of Array.from(canvas.querySelectorAll<HTMLElement>("*"))) {
-        const rect = el.getBoundingClientRect();
-        if (rect.width === 0 || rect.height === 0) continue;
-
-        const text = (el.textContent ?? "").trim();
-        if (text && el.children.length === 0) {
-          const size = parseFloat(getComputedStyle(el).fontSize);
-          if (size > 0 && size < tiniest) tiniest = size;
-          painted += rect.width * rect.height;
+        if (canvas.scrollHeight > canvas.clientHeight + 2) {
+          faults.push({
+            kind: "overflow-y",
+            detail: `content is ${canvas.scrollHeight - canvas.clientHeight}px taller than the slide and is being cut off`,
+          });
         }
-        if (
-          rect.right > bounds.right + 2 ||
-          rect.left < bounds.left - 2 ||
-          rect.bottom > bounds.bottom + 2 ||
-          rect.top < bounds.top - 2
-        ) {
-          outOfBounds++;
+        if (canvas.scrollWidth > canvas.clientWidth + 2) {
+          faults.push({
+            kind: "overflow-x",
+            detail: `content is ${canvas.scrollWidth - canvas.clientWidth}px wider than the slide`,
+          });
         }
+
+        const bounds = canvas.getBoundingClientRect();
+        let painted = 0;
+        let tiniest = Infinity;
+        let outOfBounds = 0;
+
+        for (const el of Array.from(canvas.querySelectorAll<HTMLElement>("*"))) {
+          const rect = el.getBoundingClientRect();
+          if (rect.width === 0 || rect.height === 0) continue;
+
+          const text = (el.textContent ?? "").trim();
+          if (text && el.children.length === 0) {
+            const size = parseFloat(getComputedStyle(el).fontSize);
+            if (size > 0 && size < tiniest) tiniest = size;
+            painted += rect.width * rect.height;
+          }
+          if (
+            rect.right > bounds.right + 2 ||
+            rect.left < bounds.left - 2 ||
+            rect.bottom > bounds.bottom + 2 ||
+            rect.top < bounds.top - 2
+          ) {
+            outOfBounds++;
+          }
+        }
+
+        if (outOfBounds > 0) {
+          faults.push({
+            kind: "out-of-bounds",
+            detail: `${outOfBounds} element(s) extend past the slide edge`,
+          });
+        }
+        if (tiniest !== Infinity && tiniest < 14) {
+          faults.push({
+            kind: "tiny-text",
+            detail: `smallest text is ${tiniest.toFixed(0)}px at slide scale, which is unreadable when projected`,
+          });
+        }
+        if (!canvas.textContent?.trim()) {
+          faults.push({ kind: "empty-canvas", detail: "the slide renders no text at all" });
+        }
+
+        return { faults, fillRatio: Math.min(1, painted / (bounds.width * bounds.height)) };
+      });
+
+      const png = (await page.screenshot({ type: "png" })) as Buffer;
+
+      if (measured === null) {
+        // Never report a document without a canvas as clean; that would let a
+        // broken slide pass evaluation unexamined.
+        return {
+          png,
+          faults: [
+            {
+              kind: "empty-canvas" as const,
+              detail:
+                "no slide canvas found in the document, so its layout could not be measured; re-wrap it with wrapSlideHtml",
+            },
+          ],
+          fillRatio: 0,
+        };
       }
 
-      if (outOfBounds > 0) {
-        faults.push({
-          kind: "out-of-bounds",
-          detail: `${outOfBounds} element(s) extend past the slide edge`,
-        });
-      }
-      if (tiniest !== Infinity && tiniest < 14) {
-        faults.push({
-          kind: "tiny-text",
-          detail: `smallest text is ${tiniest.toFixed(0)}px at slide scale, which is unreadable when projected`,
-        });
-      }
-      if (!canvas.textContent?.trim()) {
-        faults.push({ kind: "empty-canvas", detail: "the slide renders no text at all" });
-      }
-
-      return {
-        faults,
-        fillRatio: Math.min(1, painted / (bounds.width * bounds.height)),
-      };
-    });
-
-    const png = (await page.screenshot({ type: "png" })) as Buffer;
-
-    if (measured === null) {
-      // Never report a document without a canvas as clean; that would let a
-      // broken slide pass evaluation unexamined.
       return {
         png,
-        faults: [
-          {
-            kind: "empty-canvas",
-            detail:
-              "no slide canvas found in the document, so its layout could not be measured; re-wrap it with wrapSlideHtml",
-          },
-        ],
-        fillRatio: 0,
+        faults: measured.faults as LayoutFault[],
+        fillRatio: measured.fillRatio,
       };
-    }
-
-    return {
-      png,
-      faults: measured.faults as LayoutFault[],
-      fillRatio: measured.fillRatio,
-    };
-  } finally {
-    await context.close();
-  }
+    },
+    { deviceScaleFactor, timeoutMs },
+  );
 }
