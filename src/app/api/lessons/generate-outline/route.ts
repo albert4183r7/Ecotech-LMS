@@ -38,23 +38,34 @@ const MAX_REFERENCE_CHARS = 12_000;
 async function loadReference(
   fileUrls: string[] | undefined,
   topic: string,
-): Promise<{ text: string; sources: { file: string; charCount: number }[] }> {
-  if (!fileUrls?.length) return { text: "", sources: [] };
+): Promise<{
+  text: string;
+  sources: { file: string; charCount: number }[];
+  failures: { file: string; reason: string }[];
+}> {
+  if (!fileUrls?.length) return { text: "", sources: [], failures: [] };
 
   const root = path.join(process.cwd(), "public");
   const paths = fileUrls
     .map((u) => path.join(root, u.replace(/^\//, "")))
     .filter((p) => path.normalize(p).startsWith(root));
 
-  if (paths.length === 0) return { text: "", sources: [] };
+  if (paths.length === 0) return { text: "", sources: [], failures: [] };
 
   try {
-    const { text, sources } = await extractTextFromFiles(paths);
-    if (!text.trim()) return { text: "", sources };
-    return { text: selectRelevantSections(text, topic, MAX_REFERENCE_CHARS), sources };
+    const { text, sources, failures } = await extractTextFromFiles(paths);
+    if (failures.length) {
+      console.warn(
+        `[generate-outline] ${failures.length} reference file(s) unreadable:`,
+        failures.map((f) => `${f.file} (${f.reason})`).join("; "),
+      );
+    }
+    if (!text.trim()) return { text: "", sources, failures };
+    return { text: selectRelevantSections(text, topic, MAX_REFERENCE_CHARS), sources, failures };
   } catch (error) {
-    console.error("[generate-outline] reference extraction failed:", error);
-    return { text: "", sources: [] };
+    const reason = error instanceof Error ? error.message : String(error);
+    console.error("[generate-outline] reference extraction failed:", reason);
+    return { text: "", sources: [], failures: [{ file: "reference", reason }] };
   }
 }
 
@@ -129,7 +140,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Course not found" }, { status: 404 });
     }
 
-    const { text: reference, sources } = await loadReference(body.referenceFileUrls, topic);
+    const {
+      text: reference,
+      sources,
+      failures: referenceFailures,
+    } = await loadReference(body.referenceFileUrls, topic);
     const styleInfo = SLIDE_STYLES.find((s) => s.value === style);
 
     let plan: PresentationPlan;
@@ -171,6 +186,7 @@ export async function POST(request: NextRequest) {
       adjustments: balanced.adjustments,
       referenceContext: reference || undefined,
       referenceSources: sources.length ? sources : undefined,
+      referenceFailures: referenceFailures.length ? referenceFailures : undefined,
     };
 
     // ---- Persist: lesson, sections, and one empty slide per planned slot ----
@@ -242,6 +258,10 @@ export async function POST(request: NextRequest) {
         requestedSlideCount: requestedSlides,
         totalSlides: slots.length,
         adjustments: balanced.adjustments,
+        // Surfaced so a reference that could not be read is visible rather
+        // than silently ignored.
+        referenceUsed: sources.map((s) => s.file),
+        referenceFailures,
         sections: sectionRows.map((row, i) => ({
           id: row.id,
           title: row.title,

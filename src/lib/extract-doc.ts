@@ -14,11 +14,18 @@ import path from "path";
 // ---- PDF ------------------------------------------------------------------
 
 async function extractPdfText(filePath: string): Promise<string> {
-  // Dynamic import because pdf-parse uses Node-specific APIs
-  const pdfParse = (await import("pdf-parse")).default;
+  // pdf-parse v2 removed the default-export function and exposes a PDFParse
+  // class. Calling the old default silently threw on every PDF, so uploaded
+  // PDF references were dropped without any sign to the user.
+  const { PDFParse } = await import("pdf-parse");
   const buffer = await readFile(filePath);
-  const data = await pdfParse(buffer);
-  return data.text || "";
+  const parser = new PDFParse({ data: buffer });
+  try {
+    const result = await parser.getText();
+    return result.text || "";
+  } finally {
+    await parser.destroy?.();
+  }
 }
 
 // ---- DOCX -----------------------------------------------------------------
@@ -184,25 +191,40 @@ export async function extractTextFromFile(filePath: string): Promise<string> {
  * Extract text from multiple document files and return a combined string.
  * Each document's content is prefixed with a header identifying its source.
  */
-export async function extractTextFromFiles(
-  filePaths: string[],
-): Promise<{ text: string; sources: { file: string; charCount: number }[] }> {
+export async function extractTextFromFiles(filePaths: string[]): Promise<{
+  text: string;
+  sources: { file: string; charCount: number }[];
+  failures: { file: string; reason: string }[];
+}> {
   const sources: { file: string; charCount: number }[] = [];
+  const failures: { file: string; reason: string }[] = [];
   const parts: string[] = [];
 
   for (const filePath of filePaths) {
-    const text = await extractTextFromFile(filePath);
-    if (text.length > 0) {
-      const fileName = path.basename(filePath);
-      sources.push({ file: fileName, charCount: text.length });
-      parts.push(`--- Document: ${fileName} ---\n${text}`);
+    const fileName = path.basename(filePath);
+    let text = "";
+    try {
+      text = await extractTextFromFile(filePath);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      console.error(`[extract-doc] ${fileName} could not be read: ${reason}`);
+      failures.push({ file: fileName, reason });
+      continue;
     }
+
+    if (text.trim().length === 0) {
+      // An empty result is a failure too: a scanned PDF with no text layer
+      // looks identical to a successful read of nothing.
+      console.warn(`[extract-doc] ${fileName} produced no text`);
+      failures.push({ file: fileName, reason: "no extractable text (is it a scanned image?)" });
+      continue;
+    }
+
+    sources.push({ file: fileName, charCount: text.length });
+    parts.push(`--- Document: ${fileName} ---\n${text}`);
   }
 
-  return {
-    text: parts.join("\n\n"),
-    sources,
-  };
+  return { text: parts.join("\n\n"), sources, failures };
 }
 
 /**

@@ -1,5 +1,6 @@
 import { generateStructuredJSON } from "@/lib/llm";
-import { SlideContentSchema, contentWeight, type SlideContent } from "./content-schema";
+import { contentWeight, type SlideContent } from "./content-schema";
+import { SlideDraftSchema, draftToContent } from "./draft";
 
 // ============================================
 // Slide content generation
@@ -28,8 +29,9 @@ export interface SlideBrief {
 
 const SYSTEM = `You write the content of one presentation slide.
 
-You return structured content, not HTML and not prose. Pick the slide "type"
-that suits what this slide has to teach:
+You return structured content, not HTML and not prose. Put the substance in
+"blocks"; each block is one part of the slide. Pick the "type" that suits what
+this slide has to teach:
 
 - concept: an idea broken into named parts
 - comparison: two or three things set against each other
@@ -48,7 +50,13 @@ Rules:
 - Statistics, percentages, currency amounts, dates and named studies may only be
   used when they appear in the supplied source material. With no source, make
   the point qualitatively.
-- Write every string in the requested language.`;
+- Write every string in the requested language.
+- Every block needs a heading and either a body sentence or supporting items.
+  A heading alone is not content.
+- For a comparison, each block is one side. For a process or architecture, each
+  block is one step or component in order. For a case study, use four blocks
+  headed Situation, Problem, Action and Outcome. For a summary, put the
+  takeaways in one block's items.`;
 
 function buildPrompt(brief: SlideBrief): string {
   const roleLine =
@@ -96,10 +104,13 @@ export async function generateSlideContent(brief: SlideBrief): Promise<SlideCont
   let last: SlideContent | null = null;
 
   for (let attempt = 1; attempt <= 2; attempt++) {
-    const content = await generateStructuredJSON(buildPrompt(brief), SlideContentSchema, {
+    // A flat draft, not the typed union: Gemini's structured output does not
+    // handle a top-level oneOf reliably, and every non-title slide failed.
+    const draft = await generateStructuredJSON(buildPrompt(brief), SlideDraftSchema, {
       systemInstruction: SYSTEM,
       temperature: attempt === 1 ? 0.6 : 0.8,
     });
+    const content = draftToContent(draft);
 
     last = content;
     const weight = contentWeight(content);

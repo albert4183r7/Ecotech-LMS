@@ -255,44 +255,65 @@ export function CreateCoursePage() {
         if (c.language) setLanguage(c.language);
         if (c.coverImage) setCoverImage(c.coverImage);
 
-        // Load lessons and their slides
+        // Load lessons with their sections and slides
         if (c.lessons && c.lessons.length > 0) {
+          const restoredStates: Record<string, SlideGenState> = {};
+
           const lessonDrafts: OutlineLessonDraft[] = c.lessons.map(
             (lesson: {
               id: string;
               title: string;
               outlineJson: string | null;
-              slides: {
+              sections?: OutlineSectionResponse[];
+              slides?: {
                 id: string;
                 title: string;
                 htmlBody: string;
                 status: string;
                 order: number;
+                sectionId: string | null;
               }[];
             }) => {
               const parsedOutline = lesson.outlineJson ? JSON.parse(lesson.outlineJson) : null;
-              const slides: OutlineSlideDraft[] = (lesson.slides || []).map(
-                (s: { id: string; title: string; order: number }, i: number) => ({
-                  id: `local_${Date.now()}_${i}`,
-                  slideId: s.id,
-                  title: s.title,
-                  outline: parsedOutline?.slides?.[i]?.outline || "",
-                  order: s.order,
-                }),
+              const lessonSlides = lesson.slides ?? [];
+
+              // Rebuild the preview map from stored HTML. It is only filled in
+              // during generation, so reopening a draft course previously left
+              // it empty and the preview button showed nothing.
+              for (const slide of lessonSlides) {
+                if (slide.status === "READY" && slide.htmlBody) {
+                  restoredStates[slide.id] = { status: "complete", htmlBody: slide.htmlBody };
+                } else if (slide.status === "ERROR") {
+                  restoredStates[slide.id] = { status: "error", error: "Generation failed" };
+                }
+              }
+
+              const { lesson: draft } = toLessonDraft(
+                {
+                  id: lesson.id,
+                  title: lesson.title,
+                  slides: lessonSlides,
+                  sections: lesson.sections,
+                  requestedSlideCount: parsedOutline?.slideCount,
+                  adjustments: parsedOutline?.adjustments,
+                },
+                {
+                  language: c.language || "english",
+                  style: parsedOutline?.style || "professional",
+                  topic: parsedOutline?.topic || lesson.title,
+                },
               );
+
               return {
-                id: lesson.id,
-                title: lesson.title,
-                slides,
-                language: c.language || "english",
-                style: parsedOutline?.style || "professional",
-                topic: parsedOutline?.topic || lesson.title,
-                allReady: (lesson.slides || []).some((s) => s.status === "READY"),
+                ...draft,
+                allReady:
+                  lessonSlides.length > 0 && lessonSlides.every((s) => s.status === "READY"),
               };
             },
           );
+
           setOutlineLessons(lessonDrafts);
-          // Auto-expand the first lesson
+          setSlideGenStates(restoredStates);
           if (lessonDrafts.length > 0) setExpandedOutlineLessonId(lessonDrafts[0].id);
         }
       } catch {

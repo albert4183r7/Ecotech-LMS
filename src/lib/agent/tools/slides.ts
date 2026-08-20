@@ -71,13 +71,14 @@ export const retrieveReference = defineTool({
 
     if (paths.length === 0) return { found: false, text: "", sources: [] };
 
-    const { text, sources } = await extractTextFromFiles(paths);
-    if (!text.trim()) return { found: false, text: "", sources };
+    const { text, sources, failures } = await extractTextFromFiles(paths);
+    if (!text.trim()) return { found: false, text: "", sources, failures };
 
     return {
       found: true,
       text: selectRelevantSections(text, query, maxChars ?? MAX_REFERENCE_CHARS),
       sources,
+      failures,
     };
   },
 });

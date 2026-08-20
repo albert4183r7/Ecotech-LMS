@@ -16,6 +16,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         },
         lessons: {
           orderBy: { order: "asc" },
+          include: {
+            sections: { orderBy: { order: "asc" } },
+            slides: { orderBy: { order: "asc" } },
+          },
         },
         _count: {
           select: {
@@ -79,6 +83,31 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         order: lesson.order,
         outlineJson: lesson.outlineJson,
         courseId: lesson.courseId,
+        // Sections and slides are needed to rebuild the outline view when a
+        // draft course is reopened. Without them the editor showed an empty
+        // lesson even though its slides were generated and stored.
+        sections: lesson.sections.map((section) => ({
+          id: section.id,
+          title: section.title,
+          summary: section.summary,
+          subtopics: (() => {
+            try {
+              return JSON.parse(section.subtopics) as string[];
+            } catch {
+              return [];
+            }
+          })(),
+          slideBudget: section.slideBudget,
+          order: section.order,
+        })),
+        slides: lesson.slides.map((slide) => ({
+          id: slide.id,
+          title: slide.title,
+          htmlBody: slide.htmlBody,
+          status: slide.status,
+          order: slide.order,
+          sectionId: slide.sectionId,
+        })),
         createdAt: lesson.createdAt,
         updatedAt: lesson.updatedAt,
       })),
