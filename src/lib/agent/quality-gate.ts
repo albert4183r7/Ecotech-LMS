@@ -3,6 +3,7 @@ import { extractSlideText } from "@/lib/lesson-outline";
 import { createRegistry, runTool, type ToolContext } from "./registry";
 import { reviseSlideHtml, saveSlide } from "./tools/slides";
 import { evaluateContent, evaluatePedagogy, type LessonSnapshot } from "./evaluators/content";
+import { evaluateSlideVisual } from "./evaluators/visual";
 import { passes, type EvaluationResult, type Finding } from "./evaluators/schema";
 import { recordEvaluation } from "./persistence";
 
@@ -193,4 +194,140 @@ export async function runQualityGate(options: GateOptions): Promise<GateReport> 
   }
 
   return { passed: false, passes: passReports, remaining };
+}
+
+// ============================================
+// Visual gate
+// ============================================
+
+export interface VisualSlideReport {
+  slideId: string;
+  position: number;
+  title: string;
+  attempts: number;
+  finalScore: number;
+  resolved: boolean;
+  remaining: string[];
+}
+
+export interface VisualGateReport {
+  passed: boolean;
+  slides: VisualSlideReport[];
+}
+
+/**
+ * Look at every slide and fix what looks wrong.
+ *
+ * Per slide rather than per lesson: a visual problem belongs to one slide, and
+ * rewriting a deck because slide 6 overflows would be wasteful and would risk
+ * the slides that were already fine.
+ */
+export async function runVisualGate(options: GateOptions): Promise<VisualGateReport> {
+  const maxAttempts = options.maxPasses ?? 2;
+  const registry = createRegistry([reviseSlideHtml, saveSlide]);
+  const ctx: ToolContext = {
+    runId: options.runId,
+    lessonId: options.lessonId,
+    language: "english",
+    scratch: {},
+  };
+
+  const slides = await db.slide.findMany({
+    where: { lessonId: options.lessonId },
+    orderBy: { order: "asc" },
+  });
+
+  const reports: VisualSlideReport[] = [];
+
+  for (const [i, slide] of slides.entries()) {
+    if (!slide.htmlBody) continue;
+
+    const report: VisualSlideReport = {
+      slideId: slide.id,
+      position: slide.order + 1,
+      title: slide.title,
+      attempts: 0,
+      finalScore: 0,
+      resolved: false,
+      remaining: [],
+    };
+
+    let html = slide.htmlBody;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      report.attempts = attempt;
+      await options.onProgress?.(`Looking at slide ${report.position} (attempt ${attempt})`);
+
+      const evaluation = await evaluateSlideVisual({
+        slideId: slide.id,
+        position: slide.order + 1,
+        title: slide.title,
+        html,
+        neighbours: {
+          previous: slides[i - 1]?.title,
+          next: slides[i + 1]?.title,
+        },
+      });
+
+      report.finalScore = evaluation.score;
+
+      await recordEvaluation({
+        runId: options.runId,
+        scope: "visual",
+        score: evaluation.score,
+        passed: passes(evaluation),
+        slideId: slide.id,
+        findings: evaluation.findings.map((f) => ({
+          severity: f.severity,
+          slideId: slide.id,
+          problem: f.problem,
+          fix: f.fix,
+        })),
+      });
+
+      if (passes(evaluation)) {
+        report.resolved = true;
+        break;
+      }
+
+      const blocking = evaluation.findings.filter((f) => f.severity === "blocking");
+      report.remaining = blocking.map((f) => f.problem);
+
+      // Out of attempts: leave the slide as it stands with its problems recorded.
+      if (attempt === maxAttempts) break;
+
+      const revised = await runTool(
+        registry,
+        "revise_slide_html",
+        {
+          slideId: slide.id,
+          findings: blocking.map((f) => `${f.problem} Fix: ${f.fix}`),
+        },
+        ctx,
+      );
+      if (!revised.ok) {
+        report.remaining.push(`revision failed: ${revised.error}`);
+        break;
+      }
+
+      const newHtml = (revised.value as { html: string }).html;
+      const saved = await runTool(
+        registry,
+        "save_slide",
+        { slideId: slide.id, html: newHtml },
+        ctx,
+      );
+      if (!saved.ok) {
+        report.remaining.push(`save failed: ${saved.error}`);
+        break;
+      }
+
+      const reloaded = await db.slide.findUnique({ where: { id: slide.id } });
+      html = reloaded?.htmlBody ?? newHtml;
+    }
+
+    reports.push(report);
+  }
+
+  return { passed: reports.every((r) => r.resolved), slides: reports };
 }
