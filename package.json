@@ -3,6 +3,7 @@
   "version": "0.2.1",
   "private": true,
   "scripts": {
+    "predev": "npm run build:slide-css",
     "dev": "next dev -p 3000",
     "build": "npm run build:slide-css && next build && node scripts/postbuild.mjs",
     "start": "node .next/standalone/server.js",
