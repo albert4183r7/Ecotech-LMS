@@ -1,68 +1,90 @@
 # Ecotech LMS
 
-A learning-management app where instructors describe a topic and the system generates a
-presentation-style lesson from it — an outline first, then a full HTML slide per outline
-entry. Learners enrol in courses, work through the slides, take notes, and earn XP.
+A learning-management app that turns a prompt into a presentation-style lesson. An
+instructor describes a topic, chooses a slide count and a language, and optionally
+uploads reference documents; the system plans the presentation as logical sections,
+shows that plan for review, and then generates every slide.
 
-Built with Next.js 16 (App Router), Prisma + SQLite, and Google Gemini for content
-generation.
+Built with Next.js 16 (App Router), Prisma + SQLite, and Google Gemini.
 
 ---
 
 ## Stack
 
-| Layer     | Choice                                              |
-| --------- | --------------------------------------------------- |
-| Framework | Next.js 16 (App Router), React 19, TypeScript 5     |
-| Styling   | Tailwind CSS v4, shadcn/ui (Radix primitives)       |
-| Data      | Prisma 6 + SQLite                                   |
-| State     | Zustand (`src/stores/lms-store.ts`), TanStack Query |
-| LLM       | `@google/genai` → Gemini                            |
-| Runtime   | Node.js 20+ / npm                                   |
+| Layer     | Choice                                                 |
+| --------- | ------------------------------------------------------ |
+| Framework | Next.js 16 (App Router), React 19, TypeScript 5        |
+| Styling   | Tailwind CSS v4, shadcn/ui (Radix primitives)          |
+| Data      | Prisma 6 + SQLite                                      |
+| State     | Zustand (`src/stores/lms-store.ts`)                    |
+| LLM       | `@google/genai` → Gemini                               |
+| Rendering | Playwright (headless Chromium) for slide rasterisation |
+| Export    | `pptxgenjs`                                            |
+| Runtime   | Node.js 20+ / npm                                      |
 
 ## Features
 
-- **AI lesson generation** — topic in, outline out, then one generated slide per entry
+- **Two-phase generation** — the model plans sections first; slides are only written after the plan is reviewed
+- **Slide budget** — the requested slide count is honoured exactly, including the title slide
+- **Reference grounding** — upload PDF, DOCX, PPTX, TXT, CSV, XLSX or MD to ground the content
 - **Slide editing** — whole-slide AI edits, plus click-to-edit on a single element
-- **Reference documents** — upload PDFs/DOCX to ground generated content
 - **Courses & enrolment** — categories, ratings, favourites, cover images
 - **Learner tools** — per-lesson progress, notes, threaded comments
 - **Gamification** — XP, achievements, daily challenges, streaks, leaderboard
-- **PPTX export** — download a generated lesson as a PowerPoint file
+- **PPTX export** — download a course as a PowerPoint file with the slide design preserved
 
 ---
 
-## How lesson generation works
+## How generation works
 
-Two stages, both under `src/app/api/lessons/`:
+### Phase one — plan the presentation
 
-**1. Outline** (`generate-outline`) — takes a topic, slide count, visual style and any
-reference documents. Returns a validated structure where each slide carries the _content_
-that will appear on it:
+`POST /api/lessons/generate-outline` takes the prompt, slide count, language and any
+reference files. The model returns **sections**, not slides: each with a summary, the
+specific subtopics it must teach, and a share of the slide budget.
 
-```jsonc
-{
-  "slideNumber": 1,
-  "title": "...", // max 80 chars
-  "keyPoints": ["..."], // 2-5 statements shown on the slide verbatim
-  "terms": ["..."], // specific names that must be mentioned
-  "layout": "...", // how to arrange it visually
-}
-```
+Sections are deliberately independent of slide count. The model decides how many
+sections a subject needs; `src/lib/presentation-plan.ts` then reconciles its budget
+with the user's request — redistributing slides, and merging sections only when there
+are fewer slides than sections. Nothing is ever dropped to make the numbers fit.
 
-The schema, repair logic and slide-count enforcement live in `src/lib/lesson-outline.ts`.
-It is deliberately strict: titles are capped, the requested slide count is enforced, and
-predictable model mistakes (swapped fields, legacy shapes) are repaired before validation
-rather than costing a retry.
+The plan is persisted as `Section` rows plus one empty `Slide` row per allocated slot,
+and shown in the outline preview with its per-section slide counts.
 
-**2. Slides** (`generate-slides`) — walks the outline and streams one HTML document per
-slide. Each prompt carries that slide's key points, its position in the deck, and a digest
-of what earlier slides already said, so content is neither invented nor repeated. Output is
-sanitised (`src/lib/sanitize.ts`) against a strict tag/attribute allowlist and stored as a
-full HTML document rendered in a sandboxed iframe.
+### Phase two — write the slides
 
-Generation runs in the background; slides move through
-`DRAFT_OUTLINE → GENERATING → READY` (or `ERROR`), and the UI polls for status.
+`POST /api/lessons/generate-slides` reads the approved sections from the database and
+generates each slide. It does not re-plan.
+
+Each slide is requested as **structured content**, never HTML. The model returns a flat
+draft — a type, a title and a uniform `blocks` array — which `src/lib/slides/draft.ts`
+narrows into typed content (`concept`, `comparison`, `process`, `architecture`,
+`caseStudy`, `data`, `summary`, `title`, `closing`). Where the chosen type cannot be
+satisfied by what came back, it degrades to a simpler layout rather than failing.
+
+`src/lib/slides/render.ts` then lays that content out. Visual quality is owned by the
+renderer, not by the model, so a thin answer cannot become a slide full of empty space.
+
+### The slide canvas
+
+Every slide is authored and rendered at a fixed **1280×720** canvas and scaled to fit
+its container (`wrapSlideHtml` in `src/lib/sanitize.ts`). Without a fixed canvas the
+same slide lays out differently in the classroom and in a preview, because the model's
+type and spacing values are measured against the viewport.
+
+Slide styling comes from `public/slide-runtime.css`, compiled from
+`src/styles/slide-runtime.css`. It is generated by `npm run build:slide-css`, which
+runs automatically before `dev` and `build`, and is not committed.
+
+### Agent layer
+
+`src/lib/agent/` contains a tool-calling runtime: a registry of Zod-typed tools, a loop
+with step, token and time limits, content and pedagogy critics, a visual critic that
+judges rendered slides, and run persistence (`AgentRun`, `AgentStep`, `Evaluation`).
+`POST /api/agent/runs` starts a run; `GET /api/agent/runs?lessonId=…` reports progress.
+
+This layer is functional but is **not** on the default generation path — the two phases
+above are. Start it on a throwaway lesson first.
 
 ---
 
@@ -77,11 +99,13 @@ Generation runs in the background; slides move through
 
 ```bash
 npm install
+npx playwright install chromium
 ```
 
-### 2. Configure environment
+Chromium is required for slide rendering, the visual critic and the PPTX export. If it
+cannot be downloaded, set `CHROMIUM_EXECUTABLE_PATH` to a Chrome already on the machine.
 
-Copy the example file and fill it in:
+### 2. Configure
 
 ```bash
 cp .env.example .env
@@ -92,31 +116,24 @@ DATABASE_URL=file:../db/custom.db
 GEMINI_API_KEY=your-key-here
 ```
 
-> Prisma resolves a relative SQLite path from **`prisma/schema.prisma`**, not from the
-> project root — so `../db/custom.db` points at `db/custom.db` at the top level. A path
-> copied from another machine will not resolve.
+> **The `..` is deliberate.** Prisma resolves a relative SQLite path from
+> `prisma/schema.prisma`, not the project root, so `file:./db/custom.db` would create
+> `prisma/db/custom.db` and leave the intended database untouched. See `db/README.md`.
 
-Optional overrides:
+| Variable                   | Default               | Purpose                                               |
+| -------------------------- | --------------------- | ----------------------------------------------------- |
+| `DATABASE_URL`             | —                     | SQLite path, relative to `prisma/`                    |
+| `GEMINI_API_KEY`           | —                     | Required for all generation                           |
+| `GEMINI_MODEL`             | `gemini-flash-latest` | `gemini-pro-latest` gives better plans at higher cost |
+| `CHROMIUM_EXECUTABLE_PATH` | unset                 | System Chromium for the renderer                      |
+| `IMAGEKIT_URL_ENDPOINT`    | unset                 | Enables AI-generated images in slides                 |
 
-| Variable                | Default               | Purpose                                                             |
-| ----------------------- | --------------------- | ------------------------------------------------------------------- |
-| `GEMINI_MODEL`          | `gemini-flash-latest` | Model id. `gemini-pro-latest` gives better outlines at higher cost. |
-| `IMAGEKIT_URL_ENDPOINT` | unset                 | Enables AI-generated images in slides                               |
-
-`gemini-flash-latest` is a rolling alias, so it tracks the current Flash model rather than
-pinning a version that goes stale.
-
-### 3. Set up the schema
+### 3. Database
 
 ```bash
 npm run db:generate
 npm run db:push
-```
-
-Optionally seed demo courses:
-
-```bash
-npm run db:seed
+npm run db:seed   # optional demo content
 ```
 
 ### 4. Run
@@ -125,82 +142,72 @@ npm run db:seed
 npm run dev
 ```
 
-App runs at [http://localhost:3000](http://localhost:3000).
-
-### Optional: image generation
-
-To let slides include AI-generated images, add ImageKit credentials to `.env`:
-
-```
-IMAGEKIT_URL_ENDPOINT=https://ik.imagekit.io/your_id
-IMAGEKIT_PUBLIC_KEY=...
-IMAGEKIT_PRIVATE_KEY=...
-```
-
-Without these, the generator is instructed to build visuals from CSS and Unicode only, and
-the sanitiser blocks all external image URLs.
-
 ---
 
 ## Scripts
 
-| Script                | Purpose                              |
-| --------------------- | ------------------------------------ |
-| `npm run dev`         | Dev server on port 3000              |
-| `npm run build`       | Production build (standalone output) |
-| `npm run start`       | Serve the production build           |
-| `npm run lint`        | ESLint                               |
-| `npm run db:generate` | Regenerate the Prisma client         |
-| `npm run db:push`     | Push schema to the database          |
-| `npm run db:migrate`  | Create and apply a migration         |
-| `npm run db:reset`    | Drop and recreate the database       |
-| `npm run db:seed`     | Load demo courses                    |
+| Script                            | Purpose                                                     |
+| --------------------------------- | ----------------------------------------------------------- |
+| `npm run dev`                     | Dev server on port 3000 (builds the slide stylesheet first) |
+| `npm run build`                   | Production build, standalone output                         |
+| `npm run start`                   | Serve the production build                                  |
+| `npm run lint`                    | ESLint                                                      |
+| `npm run format` / `format:check` | Prettier                                                    |
+| `npm run build:slide-css`         | Compile the slide stylesheet                                |
+| `npm run db:push`                 | Push schema to the database                                 |
+| `npm run db:generate`             | Regenerate the Prisma client                                |
+| `npm run db:migrate`              | Create and apply a migration                                |
+| `npm run db:reset`                | Drop and recreate the database                              |
+| `npm run db:seed`                 | Load demo courses                                           |
 
 ## Project structure
 
 ```
 src/
 ├── app/
-│   ├── api/                 # Route handlers
-│   │   └── lessons/         # Outline + slide generation
-│   ├── layout.tsx
-│   └── page.tsx             # SPA shell; pages swap via Zustand
-├── components/lms/pages/    # Screen components (classroom, create-course, …)
+│   ├── api/
+│   │   ├── lessons/generate-outline   # phase one: plan sections
+│   │   ├── lessons/generate-slides    # phase two: write slides
+│   │   ├── slides/inline-edit         # AI edit of a whole slide
+│   │   ├── slides/element-edit        # AI edit of one element
+│   │   ├── courses/export-pptx        # design-preserving PowerPoint export
+│   │   └── agent/runs                 # agent run control and progress
+│   └── page.tsx                       # SPA shell
+├── components/lms/                    # screens and feature components
+├── hooks/
 ├── lib/
-│   ├── ai.ts                # System prompts + streaming helpers
-│   ├── llm.ts               # Structured JSON + text generation
-│   ├── lesson-outline.ts    # Outline schema, repair, prior-slide context
-│   ├── sanitize.ts          # HTML allowlist + iframe wrapper
-│   ├── extract-doc.ts       # PDF/DOCX text extraction
-│   └── db.ts                # Prisma client singleton
-├── stores/                  # Zustand state
+│   ├── presentation-plan.ts           # section planning and slide allocation
+│   ├── slides/                        # content schema, draft narrowing, renderer, theme
+│   ├── render/                        # Playwright rasterisation and layout extraction
+│   ├── agent/                         # tools, runtime, evaluators, persistence
+│   ├── classroom.ts                   # classroom state construction
+│   ├── sanitize.ts                    # HTML allowlist and the slide canvas
+│   ├── extract-doc.ts                 # reference document extraction
+│   ├── llm.ts                         # Gemini client
+│   └── ai.ts                          # system prompts
 └── types/
 ```
 
-The frontend is a single-page shell: `app/page.tsx` renders one screen at a time based on
-Zustand navigation state, rather than using file-based routes.
-
 ## Data model
 
-`User`, `Category`, `Course`, `Lesson`, `Slide`, `Enrollment`, `Progress`, `Note`,
-`Comment`, `Rating`, `Favorite`, `Notification` — see `prisma/schema.prisma`.
+`User`, `Category`, `Course`, `Lesson`, `Section`, `Slide`, `Enrollment`, `Progress`,
+`Note`, `Comment`, `Rating`, `Favorite`, `Notification`, `AgentRun`, `AgentStep`,
+`Evaluation` — see `prisma/schema.prisma`.
+
+A `Lesson` owns `Section`s; a `Section` owns several `Slide`s. Sections are the unit of
+planning, slides are the unit of display.
 
 ---
 
 ## Known limitations
 
-Worth knowing before building on this:
-
 - **Authentication is not production-ready.** `api/auth/login` compares passwords in
-  plaintext and there is no session middleware; user IDs are passed from the client.
+  plaintext and there is no session middleware; user IDs come from the client.
 - **Type errors are ignored at build time** (`typescript.ignoreBuildErrors` in
-  `next.config.ts`). The repo does not currently typecheck clean — run `npx tsc --noEmit`
-  to see the backlog.
-- **Slides do not scale to their container.** The generated document has no fixed canvas,
-  so the same slide renders differently in the classroom and in a small preview.
-- **Failed slides cannot be retried.** Only `DRAFT_OUTLINE` slides are picked up, so a
-  slide left in `ERROR` stays there.
-- **Background generation is not durable.** It is fire-and-forget within a route handler;
-  if the process restarts mid-run, remaining slides stay pending.
-- **Generated content is ungrounded unless you supply reference documents.** The prompts
-  forbid inventing statistics, but without a source the model still writes from memory.
+  `next.config.ts`). Run `npx tsc --noEmit` to see the outstanding backlog.
+- **Generation is fire-and-forget** within a route handler. A pass picks up slides left
+  in `ERROR` or stale in `GENERATING`, so failures are recoverable, but there is no
+  queue and a restart mid-run leaves slides pending until the next attempt.
+- **AI image generation is config-gated.** Without `IMAGEKIT_URL_ENDPOINT` the sanitizer
+  blocks external images and slides are built from CSS and type alone.
+- **No test suite.**

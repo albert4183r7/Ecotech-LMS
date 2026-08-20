@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { runLessonAgent } from "@/lib/agent/agents/lesson-agent";
-import type { StoredOutline } from "@/lib/lesson-outline";
+import type { StoredOutline } from "@/lib/presentation-plan";
 
 // ============================================
 // POST /api/agent/runs   start an agent run

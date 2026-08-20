@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { extractSlideText } from "@/lib/lesson-outline";
+import { extractSlideText } from "@/lib/slides/text";
 import { createRegistry, runTool, type ToolContext } from "./registry";
 import { reviseSlideHtml, saveSlide } from "./tools/slides";
 import { evaluateContent, evaluatePedagogy, type LessonSnapshot } from "./evaluators/content";

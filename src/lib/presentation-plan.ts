@@ -198,3 +198,18 @@ export function buildSlideSlots(plan: BalancedPlan): SlideSlot[] {
   if (slots.length > 1) slots[slots.length - 1].role = "closing";
   return slots;
 }
+
+/** The plan as persisted in `Lesson.outlineJson`. */
+export interface StoredOutline {
+  topic?: string;
+  style?: string;
+  slideCount?: number;
+  language?: string;
+  title?: string;
+  subtitle?: string;
+  sections?: PlannedSection[];
+  adjustments?: string[];
+  referenceContext?: string;
+  referenceSources?: { file: string; charCount: number }[];
+  referenceFailures?: { file: string; reason: string }[];
+}

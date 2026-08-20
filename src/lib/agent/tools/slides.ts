@@ -10,7 +10,7 @@ import {
   INLINE_EDIT_SYSTEM_PROMPT,
 } from "@/lib/ai";
 import { sanitizeHtml, wrapSlideHtml, ensureCanvasDocument } from "@/lib/sanitize";
-import { extractSlideText } from "@/lib/lesson-outline";
+import { extractSlideText } from "@/lib/slides/text";
 import { extractTextFromFiles, selectRelevantSections } from "@/lib/extract-doc";
 import { renderSlide } from "@/lib/render/slide-renderer";
 
