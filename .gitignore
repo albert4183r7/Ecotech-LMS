@@ -63,5 +63,8 @@ server.log
 public/slide-runtime.css
 
 # local development database — never version this, it overwrites other machines
-db/*.db
-db/*.db-journal
+# Prisma resolves a relative DATABASE_URL from prisma/schema.prisma, so a
+# misconfigured path creates prisma/db/ instead of db/. Ignore both.
+**/*.db
+**/*.db-journal
+**/*.db-wal
