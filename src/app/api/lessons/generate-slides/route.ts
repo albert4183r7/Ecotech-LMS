@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { isRetryable, SLIDE_ATTEMPTS } from "@/lib/slide-status";
 import { streamSlideHtml, collectStream, SLIDE_HTML_SYSTEM_PROMPT } from "@/lib/ai";
 import { sanitizeHtml, wrapSlideHtml } from "@/lib/sanitize";
 import {
@@ -232,7 +233,7 @@ async function generateAllSlides(lessonId: string, language?: string): Promise<v
 
   const deck = lesson.slides;
   const totalSlides = deck.length;
-  const pending = deck.filter((s) => s.status === "DRAFT_OUTLINE");
+  const pending = deck.filter((s) => isRetryable(s.status, s.updatedAt));
 
   if (pending.length === 0) {
     console.log(`[generate-slides] Lesson ${lessonId}: nothing pending`);
@@ -298,30 +299,44 @@ async function generateAllSlides(lessonId: string, language?: string): Promise<v
       referenceContext,
     });
 
-    try {
-      console.log(`[generate-slides] Calling streamSlideHtml for slide ${label}...`);
-      const fullHtml = await withTimeout(
-        collectStream(streamSlideHtml(userPrompt, systemPrompt)),
-        SLIDE_TIMEOUT_MS,
-        `generate slide ${label}`,
-      );
+    let lastError = "";
+    let done = false;
 
-      console.log(`[generate-slides] Slide ${label} stream done: ${fullHtml.length} chars`);
+    for (let attempt = 1; attempt <= SLIDE_ATTEMPTS && !done; attempt++) {
+      try {
+        console.log(`[generate-slides] Slide ${label}, attempt ${attempt}/${SLIDE_ATTEMPTS}...`);
+        const fullHtml = await withTimeout(
+          collectStream(streamSlideHtml(userPrompt, systemPrompt)),
+          SLIDE_TIMEOUT_MS,
+          `generate slide ${label}`,
+        );
 
-      const sanitized = sanitizeHtml(fullHtml);
-      const wrapped = wrapSlideHtml(sanitized, { title: slide.title });
+        const sanitized = sanitizeHtml(fullHtml);
+        if (!sanitized.trim()) throw new Error("model returned no usable HTML");
 
-      await db.slide.update({
-        where: { id: slide.id },
-        data: { htmlBody: wrapped, status: "READY" },
-      });
+        const wrapped = wrapSlideHtml(sanitized, { title: slide.title });
 
-      covered.push({ title: slide.title, text: extractSlideText(sanitized) });
+        await db.slide.update({
+          where: { id: slide.id },
+          data: { htmlBody: wrapped, status: "READY" },
+        });
 
-      console.log(`[generate-slides] Slide ${label} COMPLETE`);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to generate slide HTML";
-      console.error(`[generate-slides] Slide ${label} ERROR: ${message}`);
+        covered.push({ title: slide.title, text: extractSlideText(sanitized) });
+        console.log(`[generate-slides] Slide ${label} COMPLETE (${fullHtml.length} chars)`);
+        done = true;
+      } catch (error) {
+        lastError = error instanceof Error ? error.message : "Failed to generate slide HTML";
+        console.error(`[generate-slides] Slide ${label} attempt ${attempt} failed: ${lastError}`);
+        // Back off briefly before a second attempt; a rate limit or a blip is
+        // the common cause and an immediate retry tends to hit it again.
+        if (attempt < SLIDE_ATTEMPTS) await new Promise((r) => setTimeout(r, 2000 * attempt));
+      }
+    }
+
+    if (!done) {
+      // Leave it in ERROR. The next pass picks ERROR slides up, so this is
+      // recoverable rather than terminal.
+      console.error(`[generate-slides] Slide ${label} exhausted attempts: ${lastError}`);
       try {
         await db.slide.update({ where: { id: slide.id }, data: { status: "ERROR" } });
       } catch {
@@ -350,7 +365,7 @@ export async function POST(request: NextRequest) {
     const lesson = await db.lesson.findUnique({
       where: { id: lessonId },
       include: {
-        slides: { where: { status: "DRAFT_OUTLINE" }, orderBy: { order: "asc" } },
+        slides: { orderBy: { order: "asc" } },
       },
     });
 
@@ -358,14 +373,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Lesson not found" }, { status: 404 });
     }
 
-    if (lesson.slides.length === 0) {
+    const retryable = lesson.slides.filter((s) => isRetryable(s.status, s.updatedAt));
+
+    if (retryable.length === 0) {
       return NextResponse.json(
-        { success: false, error: "No slides with DRAFT_OUTLINE status found" },
+        { success: false, error: "Every slide in this lesson is already generated" },
         { status: 400 },
       );
     }
 
-    const totalSlides = lesson.slides.length;
+    const totalSlides = retryable.length;
 
     // Start generation in background (fire-and-forget)
     generateAllSlides(lessonId, language).catch((err) => {

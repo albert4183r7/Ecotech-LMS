@@ -259,7 +259,15 @@ export function sanitizeHtml(rawHtml: string): string {
   return clean;
 }
 
-/** Wrap sanitized HTML in a full slide document for iframe srcDoc */
+/** Slide design canvas. Every slide is authored and rendered at this exact
+ *  size, then scaled to fit whatever box it is displayed in. Without a fixed
+ *  canvas the same slide lays out differently in the classroom and in a small
+ *  preview, because the model's absolute type and spacing values are measured
+ *  against the viewport. */
+export const SLIDE_WIDTH = 1280;
+export const SLIDE_HEIGHT = 720;
+
+/** Wrap sanitized HTML in a full slide document for iframe srcDoc or rendering. */
 export function wrapSlideHtml(bodyHtml: string, options?: { title?: string }): string {
   const title = options?.title || "Slide";
   return `<!DOCTYPE html>
@@ -268,14 +276,48 @@ export function wrapSlideHtml(bodyHtml: string, options?: { title?: string }): s
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>${escapeHtml(title)}</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/slide-runtime.css" />
   <style>
-    body { margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
+    :root { --slide-w: ${SLIDE_WIDTH}px; --slide-h: ${SLIDE_HEIGHT}px; --slide-scale: 1; }
     * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #ffffff; }
+    .slide-stage {
+      position: fixed; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      overflow: hidden;
+    }
+    .slide-canvas {
+      width: var(--slide-w); height: var(--slide-h);
+      flex: none; overflow: hidden; position: relative;
+      transform: scale(var(--slide-scale)); transform-origin: center center;
+      background: #ffffff; color: #18181b;
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    /* Make the generated root fill the canvas. Declared after the stylesheet
+       link so it also neutralises viewport-relative heights such as
+       min-h-screen, which would otherwise stretch past the canvas. */
+    .slide-canvas > * { width: 100%; height: 100%; min-height: 0; }
   </style>
 </head>
-<body class="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">
-  ${bodyHtml}
+<body>
+  <div class="slide-stage">
+    <div class="slide-canvas" id="slide-canvas">
+      ${bodyHtml}
+    </div>
+  </div>
+  <script>
+    (function () {
+      var root = document.documentElement;
+      function fit() {
+        root.style.setProperty(
+          "--slide-scale",
+          String(Math.min(window.innerWidth / ${SLIDE_WIDTH}, window.innerHeight / ${SLIDE_HEIGHT}))
+        );
+      }
+      fit();
+      window.addEventListener("resize", fit);
+    })();
+  </script>
 </body>
 </html>`;
 }
