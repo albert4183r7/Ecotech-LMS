@@ -9,7 +9,7 @@ export const SLIDE_ATTEMPTS = 2;
 
 /** A slide stuck in GENERATING for longer than this is assumed abandoned by a
  *  process that died mid-run, and is reclaimed on the next pass. */
-export const STALE_GENERATING_MS = 5 * 60_000;
+const STALE_GENERATING_MS = 5 * 60_000;
 
 /**
  * Whether a generation pass should pick this slide up.

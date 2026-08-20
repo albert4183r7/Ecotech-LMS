@@ -180,35 +180,3 @@ export async function requireLessonOwner(
   if (lesson.course.creatorId !== user.id) throw new AuthorizationError("Lesson not found.", 404);
   return { user, courseId: lesson.courseId };
 }
-
-/**
- * The signed-in user, who must be enrolled in a published course.
- *
- * Both halves matter: an enrolment in a course that has been unpublished does
- * not grant access to it, and neither does being able to see a published
- * course you never enrolled in.
- */
-export async function requireEnrolledStudent(
-  courseId: string,
-): Promise<{ user: SessionUser; enrollmentId: string }> {
-  const user = await requireUser();
-
-  const course = await db.course.findUnique({
-    where: { id: courseId },
-    select: { status: true },
-  });
-  if (!course) throw new AuthorizationError("Course not found.", 404);
-  if (course.status !== "published") {
-    throw new AuthorizationError("This course is not published.", 403);
-  }
-
-  const enrollment = await db.enrollment.findUnique({
-    where: { userId_courseId: { userId: user.id, courseId } },
-    select: { id: true },
-  });
-  if (!enrollment) {
-    throw new AuthorizationError("You are not enrolled in this course.", 403);
-  }
-
-  return { user, enrollmentId: enrollment.id };
-}

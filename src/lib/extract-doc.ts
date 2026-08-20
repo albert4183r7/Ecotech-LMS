@@ -159,7 +159,7 @@ const EXTRACTORS: Record<SupportedDocType, (filePath: string) => Promise<string>
  * Extract text from a document file.
  * Returns the extracted text content, or empty string with a logged warning for unsupported formats.
  */
-export async function extractTextFromFile(filePath: string): Promise<string> {
+async function extractTextFromFile(filePath: string): Promise<string> {
   const ext = path.extname(filePath).toLowerCase();
   const docType = EXTENSION_MAP[ext];
 
@@ -330,23 +330,4 @@ export function selectRelevantSections(text: string, topic: string, maxChars: nu
 /** Escape special regex characters in a string */
 function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-/**
- * Smart context selection: uses relevance-based selection when topic is provided,
- * falls back to head+tail truncation when no topic is available.
- */
-export function truncateTextForContext(text: string, maxChars: number, topic?: string): string {
-  if (text.length <= maxChars) return text;
-
-  if (topic && topic.trim().length > 0) {
-    return selectRelevantSections(text, topic, maxChars);
-  }
-
-  // Fallback: keep first 70% and last 30%
-  const headLen = Math.floor(maxChars * 0.7);
-  const tailLen = maxChars - headLen;
-  return (
-    text.slice(0, headLen) + "\n\n[... content truncated for length ...]\n\n" + text.slice(-tailLen)
-  );
 }

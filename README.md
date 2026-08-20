@@ -31,8 +31,12 @@ Built with Next.js 16 (App Router), Prisma + SQLite, and Claude.
 - **Courses & enrolment** — categories, ratings, favourites, cover images
 - **Learner tools** — per-lesson progress, notes, threaded comments
 - **Gamification** — XP, achievements, daily challenges, streaks, leaderboard
-- **PPTX export** — download a lesson as a PowerPoint file with the slide design
-  preserved; a course exports one file per lesson, zipped together
+- **PPTX export** — download a lesson as a PowerPoint file built from the same slide
+  model and template as the web view; a course exports one file per lesson, zipped
+- **Lesson preview** — instructors review the outline, every slide and the lesson's quiz
+  before publishing, and edit any text on a slide by clicking it
+- **Quizzes** — every generated lesson gets its own multiple-choice quiz, grounded in that
+  lesson alone, scored automatically when a student submits
 
 ---
 
@@ -74,6 +78,36 @@ because a slide is rendered inside a sandboxed iframe and rasterised by headless
 Chromium, neither of which can be relied on to fetch an external asset. Themes in
 `src/lib/slides/theme.ts` supply the palette, the gradients and the colour of the
 decorative shapes bled off each slide's corners.
+
+### Templates
+
+A template is data — hex colours, font stacks, a point scale — in
+`src/lib/slides/template.ts`. The default is the Ecotech house deck, entered from the
+supplied `.pptx`. One template drives every representation of a slide: the web renderer
+resolves colour roles through CSS custom properties, and the PowerPoint renderer in
+`src/lib/slides/pptx.ts` reads the same values directly. Both consume the same
+`SlideContent`, so the exported deck, the instructor preview, the published lesson and
+the student view cannot drift apart.
+
+```
+        SlideContent + SlideTemplate
+                    │
+          ┌─────────┴─────────┐
+          ▼                   ▼
+   render.ts (web)      pptx.ts (PowerPoint)
+```
+
+### Quizzes
+
+Generating a lesson generates its quiz — one per lesson, written from that lesson's
+finished slides and nothing else. Each question must quote the sentence supporting its
+correct answer, and that quote is stored so grounding stays auditable. Every question is
+checked mechanically (one correct option, distinct choices, a quote that appears in the
+lesson) and then judged against the lesson by the model; failures are regenerated with
+the reason quoted back, and anything still ungrounded after two passes is dropped rather
+than shipped. Correct answers are stripped server-side for anyone who is not the course's
+instructor, and students reach a quiz only when the course is published _and_ they are
+enrolled.
 
 ### The slide canvas
 
@@ -133,6 +167,7 @@ ECOAPI_API_KEY=your-key-here
 | Variable                   | Default                        | Purpose                                              |
 | -------------------------- | ------------------------------ | ---------------------------------------------------- |
 | `DATABASE_URL`             | —                              | SQLite path, relative to `prisma/`                   |
+| `SESSION_SECRET`           | —                              | Signs session cookies; 32+ chars, required in prod   |
 | `ECOAPI_API_KEY`           | —                              | Required for all generation                          |
 | `ECOAPI_BASE_URL`          | `https://www.ecoapi.ai/api/v1` | Gateway root; must have `/chat/completions` under it |
 | `CLAUDE_MODEL`             | `claude-opus-5`                | Any model id the gateway lists                       |
@@ -198,7 +233,9 @@ src/
 ├── hooks/
 ├── lib/
 │   ├── presentation-plan.ts           # section planning and slide allocation
-│   ├── slides/                        # content schema, draft narrowing, renderer, theme, icons
+│   ├── slides/                        # content schema, renderer, template, PPTX renderer, icons
+│   ├── quiz/                          # generation, grounding validation, access, persistence
+│   ├── session.ts                     # signed cookie sessions and authorization helpers
 │   ├── render/                        # Playwright rasterisation and layout extraction
 │   ├── agent/                         # tools, runtime, evaluators, persistence
 │   ├── classroom.ts                   # classroom state construction
