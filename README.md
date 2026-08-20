@@ -5,7 +5,7 @@ instructor describes a topic, chooses a slide count and a language, and optional
 uploads reference documents; the system plans the presentation as logical sections,
 shows that plan for review, and then generates every slide.
 
-Built with Next.js 16 (App Router), Prisma + SQLite, and Google Gemini.
+Built with Next.js 16 (App Router), Prisma + SQLite, and Claude.
 
 ---
 
@@ -17,7 +17,7 @@ Built with Next.js 16 (App Router), Prisma + SQLite, and Google Gemini.
 | Styling   | Tailwind CSS v4, shadcn/ui (Radix primitives)          |
 | Data      | Prisma 6 + SQLite                                      |
 | State     | Zustand (`src/stores/lms-store.ts`)                    |
-| LLM       | `@google/genai` → Gemini                               |
+| LLM       | Claude, via the EcoAPI OpenAI-compatible gateway       |
 | Rendering | Playwright (headless Chromium) for slide rasterisation |
 | Export    | `pptxgenjs`                                            |
 | Runtime   | Node.js 20+ / npm                                      |
@@ -93,7 +93,7 @@ above are. Start it on a throwaway lesson first.
 ### Prerequisites
 
 - Node.js 20 or newer
-- A [Google Gemini API key](https://aistudio.google.com/apikey)
+- An [EcoAPI key](https://www.ecoapi.ai/api) for Claude access
 
 ### 1. Install
 
@@ -113,20 +113,31 @@ cp .env.example .env
 
 ```
 DATABASE_URL=file:../db/custom.db
-GEMINI_API_KEY=your-key-here
+ECOAPI_API_KEY=your-key-here
 ```
 
 > **The `..` is deliberate.** Prisma resolves a relative SQLite path from
 > `prisma/schema.prisma`, not the project root, so `file:./db/custom.db` would create
 > `prisma/db/custom.db` and leave the intended database untouched. See `db/README.md`.
 
-| Variable                   | Default               | Purpose                                               |
-| -------------------------- | --------------------- | ----------------------------------------------------- |
-| `DATABASE_URL`             | —                     | SQLite path, relative to `prisma/`                    |
-| `GEMINI_API_KEY`           | —                     | Required for all generation                           |
-| `GEMINI_MODEL`             | `gemini-flash-latest` | `gemini-pro-latest` gives better plans at higher cost |
-| `CHROMIUM_EXECUTABLE_PATH` | unset                 | System Chromium for the renderer                      |
-| `IMAGEKIT_URL_ENDPOINT`    | unset                 | Enables AI-generated images in slides                 |
+| Variable                   | Default                        | Purpose                                              |
+| -------------------------- | ------------------------------ | ---------------------------------------------------- |
+| `DATABASE_URL`             | —                              | SQLite path, relative to `prisma/`                   |
+| `ECOAPI_API_KEY`           | —                              | Required for all generation                          |
+| `ECOAPI_BASE_URL`          | `https://www.ecoapi.ai/api/v1` | Gateway root; must have `/chat/completions` under it |
+| `CLAUDE_MODEL`             | `claude-opus-5`                | Any model id the gateway lists                       |
+| `CLAUDE_MAX_TOKENS`        | `16000`                        | Ceiling for one generation                           |
+| `CHROMIUM_EXECUTABLE_PATH` | unset                          | System Chromium for the renderer                     |
+| `IMAGEKIT_URL_ENDPOINT`    | unset                          | Enables AI-generated images in slides                |
+
+The app talks to Claude through the [EcoAPI](https://www.ecoapi.ai/api) gateway, which
+serves an OpenAI-compatible surface — hence the `openai` client in `src/lib/llm.ts`
+pointed at a non-OpenAI base URL. The model is Claude; only the wire format is OpenAI's.
+
+**Switching back to Gemini.** The previous Gemini implementation is kept verbatim at the
+bottom of `src/lib/llm.ts`, commented out. Uncomment it, delete the block above it,
+reinstall `@google/genai`, and set `GEMINI_API_KEY` / `GEMINI_MODEL` instead of the
+EcoAPI variables. `.env.example` keeps both sets for the same reason.
 
 ### 3. Database
 
@@ -183,7 +194,7 @@ src/
 │   ├── classroom.ts                   # classroom state construction
 │   ├── sanitize.ts                    # HTML allowlist and the slide canvas
 │   ├── extract-doc.ts                 # reference document extraction
-│   ├── llm.ts                         # Gemini client
+│   ├── llm.ts                         # LLM client (Claude via EcoAPI)
 │   └── ai.ts                          # system prompts
 └── types/
 ```

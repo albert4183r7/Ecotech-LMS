@@ -1,8 +1,10 @@
-import { getClient, LLM_MODEL } from "./llm";
+import { streamText } from "./llm";
 
 // ============================================
-// AI Client — Gemini streaming wrapper
-// Used for slide HTML generation
+// AI Client — slide HTML generation
+//
+// Streams through the shared LLM client in ./llm, so the provider (currently
+// Claude via the EcoAPI gateway) is chosen in exactly one place.
 // ============================================
 
 /** ImageKit URL endpoint (server-side only, never expose to client) */
@@ -118,7 +120,7 @@ CRITICAL RULES:
 7. ${buildEditImageRule()}
 8. Do NOT add any wrapper divs or container elements that weren't in the original — replace only the element itself.`;
 
-/** Ceiling for a single slide's HTML. Also covers thinking tokens on 2.5+. */
+/** Ceiling for a single slide's HTML. */
 const SLIDE_MAX_OUTPUT_TOKENS = 16384;
 
 /** Stream slide HTML, yielding text chunks as they arrive. */
@@ -126,19 +128,11 @@ export async function* streamSlideHtml(
   userPrompt: string,
   systemPrompt?: string,
 ): AsyncGenerator<string, void, undefined> {
-  const stream = await getClient().models.generateContentStream({
-    model: LLM_MODEL,
-    contents: userPrompt,
-    config: {
-      systemInstruction: systemPrompt || SLIDE_HTML_SYSTEM_PROMPT,
-      temperature: 0.8,
-      maxOutputTokens: SLIDE_MAX_OUTPUT_TOKENS,
-    },
+  yield* streamText(userPrompt, {
+    systemPrompt: systemPrompt || SLIDE_HTML_SYSTEM_PROMPT,
+    temperature: 0.8,
+    maxTokens: SLIDE_MAX_OUTPUT_TOKENS,
   });
-
-  for await (const chunk of stream) {
-    if (chunk.text) yield chunk.text;
-  }
 }
 
 /** Collect a slide stream into a single string. */
@@ -150,17 +144,15 @@ export async function collectStream(
   return out;
 }
 
-/** Non-streaming text generation. */
+/** One-shot text generation: the whole response as a single string. */
 export async function generateText(userPrompt: string, systemPrompt: string): Promise<string> {
-  const response = await getClient().models.generateContent({
-    model: LLM_MODEL,
-    contents: userPrompt,
-    config: {
-      systemInstruction: systemPrompt,
+  // Streamed and collected rather than requested whole: a full slide's HTML is
+  // long enough that a non-streaming request can hit the gateway's timeout.
+  return collectStream(
+    streamText(userPrompt, {
+      systemPrompt,
       temperature: 0.7,
-      maxOutputTokens: SLIDE_MAX_OUTPUT_TOKENS,
-    },
-  });
-
-  return response.text ?? "";
+      maxTokens: SLIDE_MAX_OUTPUT_TOKENS,
+    }),
+  );
 }
