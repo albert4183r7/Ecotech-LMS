@@ -23,6 +23,7 @@ model User {
 
   enrollments    Enrollment[]
   favorites      Favorite[]
+  quizAttempts   QuizAttempt[]
   createdCourses Course[]       @relation("CourseCreator")
   comments       Comment[]
   notes          Note[]
@@ -86,6 +87,7 @@ model Lesson {
   course     Course     @relation(fields: [courseId], references: [id], onDelete: Cascade)
   slides     Slide[]
   sections   Section[]
+  quiz       Quiz?
   agentRuns  AgentRun[]
   progresses Progress[]
   comments   Comment[]
@@ -155,7 +157,8 @@ model Enrollment {
   courseId String
   course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
 
-  progresses Progress[]
+  progresses   Progress[]
+  quizAttempts QuizAttempt[]
 
   @@unique([userId, courseId])
 }
@@ -331,4 +334,133 @@ model Section {
   slides   Slide[]
 
   @@unique([lessonId, order])
+}
+
+// ============================================
+// Quiz
+//
+// Every lesson gets exactly one quiz, generated with the lesson rather than as
+// a separate action, and grounded only in that lesson's own content. The
+// one-to-one relation is enforced by the unique lessonId: a lesson cannot
+// accumulate quizzes by being regenerated.
+// ============================================
+
+model Quiz {
+  id        String   @id @default(cuid())
+  title     String
+  /**
+   * DRAFT | READY | ERROR — mirrors the slide lifecycle.
+   */
+  status    String   @default("DRAFT")
+  /**
+   * Why generation failed, when status is ERROR.
+   */
+  error     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  lessonId String @unique
+  lesson   Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  questions Question[]
+  attempts  QuizAttempt[]
+}
+
+model Question {
+  id          String   @id @default(cuid())
+  prompt      String
+  /**
+   * Shown after submission. Optional; the agent writes one when it helps.
+   */
+  explanation String?
+  /**
+   * Image URL when the agent judged one pedagogically useful.
+   */
+  imageUrl    String?
+  /**
+   * The sentence from the lesson that supports the correct answer.
+   * Recorded at generation time so grounding is auditable afterwards rather
+   * than merely asserted: an instructor reviewing the quiz can see exactly
+   * what the question was drawn from.
+   */
+  sourceQuote String?
+  order       Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  quizId String
+  quiz   Quiz   @relation(fields: [quizId], references: [id], onDelete: Cascade)
+
+  options Option[]
+  answers StudentAnswer[]
+
+  @@unique([quizId, order])
+}
+
+model Option {
+  id        String  @id @default(cuid())
+  text      String
+  isCorrect Boolean @default(false)
+  order     Int
+
+  questionId String
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  chosenBy StudentAnswer[]
+
+  @@unique([questionId, order])
+}
+
+// ============================================
+// Quiz attempts
+//
+// Scored on submission, never by hand. The attempt hangs off the enrolment as
+// well as the user so it sits inside the progress architecture that already
+// exists rather than beside it.
+// ============================================
+
+model QuizAttempt {
+  id           String   @id @default(cuid())
+  /**
+   * Percentage, 0-100.
+   */
+  score        Int
+  correctCount Int
+  totalCount   Int
+  submittedAt  DateTime @default(now())
+
+  quizId String
+  quiz   Quiz   @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /**
+   * Null only if the enrolment is later removed; the attempt still stands.
+   */
+  enrollmentId String?
+  enrollment   Enrollment? @relation(fields: [enrollmentId], references: [id], onDelete: SetNull)
+
+  answers StudentAnswer[]
+
+  @@index([userId, quizId])
+  @@index([quizId])
+}
+
+model StudentAnswer {
+  id        String  @id @default(cuid())
+  isCorrect Boolean
+
+  attemptId String
+  attempt   QuizAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+
+  questionId String
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  /**
+   * Null when the question was left unanswered.
+   */
+  selectedOptionId String?
+  selectedOption   Option? @relation(fields: [selectedOptionId], references: [id], onDelete: SetNull)
+
+  @@unique([attemptId, questionId])
 }

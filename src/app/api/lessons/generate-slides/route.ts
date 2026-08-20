@@ -6,6 +6,7 @@ import { renderSlideContent } from "@/lib/slides/render";
 import { generateSlideContent, summariseForContext, type SlideBrief } from "@/lib/slides/generate";
 import type { SlideContent } from "@/lib/slides/content-schema";
 import { readLessonTemplateId } from "@/lib/slides/lesson-template";
+import { generateAndSaveQuiz } from "@/lib/quiz/persist";
 
 // ============================================
 // POST /api/lessons/generate-slides   — phase two
@@ -237,6 +238,24 @@ async function generateAllSlides(lessonId: string, languageOverride?: string): P
         .join(", ")}`,
     );
   }
+
+  // ---- The quiz is part of generating a lesson, not a separate action ----
+  //
+  // It runs last because it is written from the finished slides: the quiz has
+  // to be grounded in what the lesson actually says, which is not known until
+  // the slides exist. A lesson with no ready slides has nothing to quiz on, so
+  // the attempt is skipped rather than failed.
+  if (ready.length > 0) {
+    const result = await generateAndSaveQuiz(lessonId);
+    if (result.status === "ERROR") {
+      // Recorded on the quiz row, so the instructor sees it and can retry
+      // without regenerating slides that came out fine.
+      console.warn(`[generate-slides] lesson ${lessonId}: quiz not generated — ${result.error}`);
+    }
+  } else {
+    console.warn(`[generate-slides] lesson ${lessonId}: no ready slides, skipping quiz`);
+  }
+
   console.log(`[generate-slides] lesson ${lessonId} finished`);
 }
 
