@@ -47,8 +47,8 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { useUserStore, useCourseStore } from "@/stores/lms-store";
-import { useRouter } from "next/navigation";
-import { lessonPreviewPath } from "@/lib/routes";
+import { useRouter, useSearchParams } from "next/navigation";
+import { lessonPreviewPath, ROUTES } from "@/lib/routes";
 import { useNavigation } from "@/hooks/use-navigation";
 import type { CategoryItem } from "@/types/lms";
 import { toast } from "sonner";
@@ -173,7 +173,28 @@ export function CreateCoursePage() {
   const [description, setDescription] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [language, setLanguage] = useState("english");
-  const [courseId, setCourseId] = useState<string | null>(null);
+  const router = useRouter();
+
+  // The draft's id lives in the URL.
+  //
+  // It used to live only in component state, so leaving the page for the
+  // lesson preview unmounted the component and destroyed it — coming back gave
+  // an empty Create Course form even though the course was saved. A query
+  // parameter survives navigation, refresh and the browser's back button.
+  const searchParams = useSearchParams();
+  const courseId = searchParams.get("courseId");
+
+  /** Record the draft in the URL, replacing rather than pushing so Back still
+   *  leaves the create page rather than stepping through its own saves. */
+  const setCourseId = useCallback(
+    (id: string | null) => {
+      if (!id || id === courseId) return;
+      const next = new URLSearchParams(searchParams.toString());
+      next.set("courseId", id);
+      router.replace(`${ROUTES["create-course"]}?${next.toString()}`);
+    },
+    [courseId, searchParams, router],
+  );
 
   // ---- UI state ----
   const [categories, setCategories] = useState<CategoryItem[]>([]);
@@ -199,6 +220,9 @@ export function CreateCoursePage() {
   // ---- Slide generation state ----
   const [generatingLessonId, setGeneratingLessonId] = useState<string | null>(null);
   const [slideGenStates, setSlideGenStates] = useState<Record<string, SlideGenState>>({});
+  // Which stage of the generation workflow is running, so the UI can say
+  // "writing the quiz" rather than appearing to hang after the last slide.
+  const [genStage, setGenStage] = useState<"idle" | "slides" | "quiz">("idle");
   const [currentGenSlideId, setCurrentGenSlideId] = useState<string | null>(null);
   const [genProgress, setGenProgress] = useState({ current: 0, total: 0 });
   const abortGenRef = useRef<AbortController | null>(null);
@@ -210,14 +234,13 @@ export function CreateCoursePage() {
   }, [slideGenStates]);
 
   // ---- Load existing course when editing from dashboard ----
-  const router = useRouter();
   const { editingCourseId, setEditingCourseId } = useCourseStore();
   useEffect(() => {
     if (editingCourseId && !courseId) {
       setCourseId(editingCourseId);
       setEditingCourseId(null);
     }
-  }, [editingCourseId, courseId, setEditingCourseId]);
+  }, [editingCourseId, courseId, setEditingCourseId, setCourseId]);
 
   // ---- Refs ----
 
@@ -591,6 +614,7 @@ export function CreateCoursePage() {
       });
       setSlideGenStates(initialStates);
       setGeneratingLessonId(lessonId);
+      setGenStage("slides");
       setCurrentGenSlideId(null);
       setGenProgress({ current: 0, total: lesson.slides.length });
       setExpandedOutlineLessonId(lessonId);
@@ -613,6 +637,7 @@ export function CreateCoursePage() {
         if (!json.success) {
           toast.error(json.error || "Failed to start slide generation");
           setGeneratingLessonId(null);
+          setGenStage("idle");
           return;
         }
 
@@ -681,21 +706,48 @@ export function CreateCoursePage() {
             errorCount = newErrors;
             setGenProgress({ current: newCompleted + newErrors, total: totalSlides });
 
-            // Check if all slides are done
-            const allDone = newCompleted + newErrors >= totalSlides;
+            // Slides are only the first stage. The quiz is written from them
+            // afterwards, in the same server-side workflow, so declaring
+            // success here left the instructor on a preview with no quiz and
+            // a button suggesting they generate it by hand.
+            const slidesDone = newCompleted + newErrors >= totalSlides;
+            const quiz = pollJson.data.quiz as {
+              status: string;
+              questionCount: number;
+              error: string | null;
+            } | null;
+            const quizSettled = quiz?.status === "READY" || quiz?.status === "ERROR";
+            // A lesson whose slides all failed never starts a quiz, so waiting
+            // for one would hang the UI.
+            const quizExpected = newCompleted > 0;
+            const allDone = slidesDone && (!quizExpected || quizSettled);
+
+            if (slidesDone && !quizSettled && quizExpected) {
+              setGenStage("quiz");
+            }
+
             if (allDone && !stopped) {
               stopped = true;
               if (pollInterval) clearInterval(pollInterval);
               setGeneratingLessonId(null);
+              setGenStage("idle");
               setCurrentGenSlideId(null);
+              setGenStage("idle");
               abortGenRef.current = null;
 
               if (newErrors > 0) {
                 toast.warning(
                   `${newCompleted} of ${totalSlides} slides generated. ${newErrors} failed.`,
                 );
+              } else if (quiz?.status === "ERROR") {
+                toast.warning(
+                  `All ${newCompleted} slides generated, but the quiz could not be built. You can retry it from the preview.`,
+                );
               } else {
-                toast.success(`All ${newCompleted} slides generated!`);
+                toast.success(
+                  `All ${newCompleted} slides generated` +
+                    (quiz?.questionCount ? `, with a ${quiz.questionCount}-question quiz.` : "."),
+                );
               }
 
               setOutlineLessons((prev) =>
@@ -721,12 +773,14 @@ export function CreateCoursePage() {
             stopped = true;
             if (pollInterval) clearInterval(pollInterval);
             setGeneratingLessonId(null);
+            setGenStage("idle");
             setCurrentGenSlideId(null);
           },
         } as unknown as AbortController;
       } catch {
         toast.error("Failed to generate slides. Please try again.");
         setGeneratingLessonId(null);
+        setGenStage("idle");
         setCurrentGenSlideId(null);
         abortGenRef.current = null;
       }
@@ -737,6 +791,7 @@ export function CreateCoursePage() {
   const handleCancelGeneration = () => {
     abortGenRef.current?.abort();
     setGeneratingLessonId(null);
+    setGenStage("idle");
     setCurrentGenSlideId(null);
     toast.info("Generation will continue in background. Refresh to see updated slides.");
   };
@@ -1031,6 +1086,7 @@ export function CreateCoursePage() {
                       slideGenStates={slideGenStates}
                       currentGenSlideId={currentGenSlideId}
                       genProgress={genProgress}
+                      genStage={ol.id === generatingLessonId ? genStage : "idle"}
                       onToggleExpand={() =>
                         setExpandedOutlineLessonId((prev) => (prev === ol.id ? null : ol.id))
                       }

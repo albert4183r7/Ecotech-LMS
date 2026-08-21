@@ -11,6 +11,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         slides: {
           orderBy: { order: "asc" },
         },
+        // The quiz is the last stage of generating a lesson, so the client
+        // needs its state to know whether the workflow has actually finished.
+        quiz: {
+          select: { id: true, status: true, error: true, _count: { select: { questions: true } } },
+        },
       },
     });
 
@@ -34,6 +39,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         createdAt: slide.createdAt,
         updatedAt: slide.updatedAt,
       })),
+      quiz: lesson.quiz
+        ? {
+            id: lesson.quiz.id,
+            status: lesson.quiz.status,
+            error: lesson.quiz.error,
+            questionCount: lesson.quiz._count.questions,
+          }
+        : null,
       createdAt: lesson.createdAt,
       updatedAt: lesson.updatedAt,
     };

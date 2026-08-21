@@ -69,6 +69,8 @@ export interface OutlineLessonCardProps {
   slideGenStates: Record<string, SlideGenState>;
   currentGenSlideId: string | null;
   genProgress: { current: number; total: number };
+  /** Which stage of the workflow is running, so the label matches the work. */
+  genStage?: "idle" | "slides" | "quiz";
   onToggleExpand: () => void;
   onEditOutline: () => void;
   onUpdateSlideTitle: (slideId: string, newTitle: string) => void;
@@ -87,6 +89,7 @@ export function OutlineLessonCard({
   slideGenStates,
   currentGenSlideId,
   genProgress,
+  genStage,
   onToggleExpand,
   onEditOutline,
   onUpdateSlideTitle,
@@ -150,7 +153,9 @@ export function OutlineLessonCard({
             ) : isGenerating ? (
               <span className="bg-primary/10 text-primary inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium">
                 <Loader2 className="h-2.5 w-2.5 animate-spin" />
-                Generating {genProgress.current}/{genProgress.total}
+                {genStage === "quiz"
+                  ? "Writing the quiz"
+                  : `Generating ${genProgress.current}/${genProgress.total}`}
               </span>
             ) : hasReadySlides ? (
               <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
