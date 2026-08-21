@@ -27,7 +27,6 @@ export interface RunnerQuestion {
   id: string;
   prompt: string;
   order: number;
-  imageUrl: string | null;
   options: RunnerOption[];
 }
 
@@ -180,14 +179,6 @@ export function QuizRunner({ quiz, onContinue, continueLabel = "Continue" }: Qui
                       <XCircle className="h-5 w-5 shrink-0 text-rose-500" />
                     ))}
                 </div>
-
-                {question.imageUrl && (
-                  <img
-                    src={question.imageUrl}
-                    alt=""
-                    className="max-h-56 rounded-lg border object-contain"
-                  />
-                )}
 
                 <div className="space-y-1.5">
                   {options.map((option, n) => {

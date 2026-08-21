@@ -47,11 +47,7 @@ Rules for the wrong options:
 
 Cover different parts of the lesson rather than asking the same thing several
 ways, and vary what you ask for: a definition, a consequence, an ordering, a
-distinction the lesson draws.
-
-IMAGES: set needsImage only when a question genuinely cannot work as text —
-identifying a component in a diagram, reading a chart. Most questions do not
-need one. Never request an image for decoration.`;
+distinction the lesson draws.`;
 
 function buildPrompt(source: LessonSource, count: number): string {
   return `LESSON: ${source.lessonTitle}

@@ -1,59 +1,72 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
+import { handleRoute, ok, fail } from "@/lib/api-response";
+import { requireLessonOwner } from "@/lib/session";
 
 // ============================================
-// PUT /api/slides/[id] — Update a single slide
+// /api/slides/[id]
+//
+// The outline editor's two operations: rename a planned slide, and remove one.
+// Both had no authorization at all, so any signed-in caller could retitle or
+// delete a slide in anyone's course.
+//
+// htmlBody is deliberately not writable here. Slide markup is produced by the
+// renderer from structured content; letting a client post arbitrary HTML made
+// the stored slide and its contentJson disagree, and was the write path the
+// removed AI-edit endpoints used. Content changes go through
+// /api/slides/[id]/edit-field, which edits one field and re-renders.
 // ============================================
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
+  return handleRoute("slides.PUT", async () => {
     const { id } = await params;
-    const body = await request.json();
-    const { title, order, htmlBody, status } = body;
 
-    const slide = await db.slide.findUnique({ where: { id } });
-    if (!slide) {
-      return NextResponse.json({ success: false, error: "Slide not found" }, { status: 404 });
+    const slide = await db.slide.findUnique({
+      where: { id },
+      select: { id: true, lessonId: true },
+    });
+    if (!slide) return fail("Slide not found.", 404);
+
+    await requireLessonOwner(slide.lessonId);
+
+    const body = await request.json();
+    const { title, order } = body;
+
+    if (title !== undefined && (typeof title !== "string" || !title.trim())) {
+      return fail("title must be a non-empty string.", 400);
+    }
+    if (order !== undefined && !Number.isInteger(order)) {
+      return fail("order must be an integer.", 400);
     }
 
     const updated = await db.slide.update({
       where: { id },
       data: {
-        ...(title !== undefined && { title }),
+        ...(title !== undefined && { title: title.trim().slice(0, 90) }),
         ...(order !== undefined && { order }),
-        ...(htmlBody !== undefined && { htmlBody }),
-        ...(status !== undefined && { status }),
       },
     });
 
-    return NextResponse.json({ success: true, data: updated });
-  } catch (error) {
-    console.error("Error updating slide:", error);
-    return NextResponse.json({ success: false, error: "Failed to update slide" }, { status: 500 });
-  }
+    return ok(updated);
+  });
 }
 
-// ============================================
-// DELETE /api/slides/[id] — Delete a slide
-// ============================================
-
 export async function DELETE(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  try {
+  return handleRoute("slides.DELETE", async () => {
     const { id } = await params;
 
-    const slide = await db.slide.findUnique({ where: { id } });
-    if (!slide) {
-      return NextResponse.json({ success: false, error: "Slide not found" }, { status: 404 });
-    }
+    const slide = await db.slide.findUnique({
+      where: { id },
+      select: { id: true, lessonId: true },
+    });
+    if (!slide) return fail("Slide not found.", 404);
 
+    await requireLessonOwner(slide.lessonId);
     await db.slide.delete({ where: { id } });
 
-    return NextResponse.json({ success: true, data: { id } });
-  } catch (error) {
-    console.error("Error deleting slide:", error);
-    return NextResponse.json({ success: false, error: "Failed to delete slide" }, { status: 500 });
-  }
+    return ok({ id });
+  });
 }

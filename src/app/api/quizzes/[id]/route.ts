@@ -23,7 +23,6 @@ const EditSchema = z.object({
         id: z.string().min(1),
         prompt: z.string().min(10).max(400).optional(),
         explanation: z.string().max(400).nullable().optional(),
-        imageUrl: z.string().max(500).nullable().optional(),
         options: z
           .array(
             z.object({
@@ -94,7 +93,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           data: {
             ...(question.prompt !== undefined && { prompt: question.prompt }),
             ...(question.explanation !== undefined && { explanation: question.explanation }),
-            ...(question.imageUrl !== undefined && { imageUrl: question.imageUrl }),
           },
         });
         for (const option of question.options ?? []) {

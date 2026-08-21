@@ -22,7 +22,6 @@ export interface QuizQuestionView {
   id: string;
   prompt: string;
   order: number;
-  imageUrl: string | null;
   options: QuizOptionView[];
   /** Instructor view only. */
   explanation?: string | null;
@@ -72,7 +71,6 @@ export function toQuizView(quiz: QuizWithRelations, reveal: boolean): QuizView {
       id: question.id,
       prompt: question.prompt,
       order: question.order,
-      imageUrl: question.imageUrl,
       ...(reveal ? { explanation: question.explanation, sourceQuote: question.sourceQuote } : {}),
       options: question.options.map((option) => ({
         id: option.id,

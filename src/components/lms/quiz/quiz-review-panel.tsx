@@ -32,7 +32,6 @@ export interface QuizPreviewQuestion {
   prompt: string;
   explanation: string | null;
   sourceQuote: string | null;
-  imageUrl: string | null;
   order: number;
   options: QuizPreviewOption[];
 }
@@ -188,14 +187,6 @@ export function QuizReviewPanel({ lessonId, quiz, onChanged }: QuizReviewPanelPr
                   />
                 ) : (
                   <p className="text-foreground font-medium">{shown.prompt}</p>
-                )}
-
-                {shown.imageUrl && (
-                  <img
-                    src={shown.imageUrl}
-                    alt=""
-                    className="max-h-48 rounded-lg border object-contain"
-                  />
                 )}
 
                 <ul className="space-y-1.5">

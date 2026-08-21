@@ -374,10 +374,6 @@ model Question {
    */
   explanation String?
   /**
-   * Image URL when the agent judged one pedagogically useful.
-   */
-  imageUrl    String?
-  /**
    * The sentence from the lesson that supports the correct answer.
    * Recorded at generation time so grounding is auditable afterwards rather
    * than merely asserted: an instructor reviewing the quiz can see exactly

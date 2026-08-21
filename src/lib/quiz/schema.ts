@@ -32,15 +32,6 @@ export const DraftQuestionSchema = z.object({
     .min(10)
     .max(300)
     .describe("The sentence from the lesson that supports the correct answer, quoted"),
-  needsImage: z
-    .boolean()
-    .optional()
-    .describe("True only when the question genuinely depends on seeing something"),
-  imagePrompt: z
-    .string()
-    .max(200)
-    .optional()
-    .describe("What the image should show, when needsImage is true"),
 });
 
 export const DraftQuizSchema = z.object({

@@ -77,7 +77,6 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
               prompt: question.prompt,
               explanation: question.explanation,
               sourceQuote: question.sourceQuote,
-              imageUrl: question.imageUrl,
               order: question.order,
               options: question.options.map((option) => ({
                 id: option.id,
