@@ -163,7 +163,11 @@ export async function renderSlide(
           const text = (el.textContent ?? "").trim();
           if (text && el.children.length === 0) {
             const size = parseFloat(getComputedStyle(el).fontSize);
-            if (size > 0 && size < tiniest) tiniest = size;
+            // Deck furniture — the template's own 10pt page number — is not
+            // content, and holding it to a content readability floor reported
+            // a fault on every faithfully rendered slide.
+            const isFurniture = el.getAttribute("data-path") === "__footer";
+            if (size > 0 && size < tiniest && !isFurniture) tiniest = size;
             painted += rect.width * rect.height;
           }
           if (

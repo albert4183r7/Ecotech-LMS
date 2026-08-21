@@ -182,7 +182,9 @@ async function generateAllSlides(lessonId: string, languageOverride?: string): P
 
         // Layout is ours, not the model's, so a slide cannot come back unstyled
         // or empty.
-        const html = sanitizeHtml(renderSlideContent(content, { templateId }));
+        const html = sanitizeHtml(
+          renderSlideContent(content, { templateId, slideNumber: position + 1 }),
+        );
         if (!html.trim()) throw new Error("rendered slide was empty after sanitising");
 
         const title =

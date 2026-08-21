@@ -167,6 +167,82 @@ function isValidImgSrc(src: string): boolean {
 
 /** Regex-based second pass: enforce URL policies & strip on* / style attrs.
    This replaces the DOM-based second pass so it works on the server too. */
+
+// ============================================
+// Inline style filtering
+//
+// The renderer positions every box at the fraction the .pptx template places
+// it at. Those values come from the template, not from a fixed scale, so they
+// cannot be expressed as utility classes and have to travel as inline style.
+//
+// Both sanitiser passes used to delete every style attribute outright, which
+// was right when a model wrote the markup. Now the renderer writes it, so the
+// declarations are filtered instead: only these properties survive, and only
+// with values that cannot fetch or execute anything.
+// ============================================
+
+const STYLE_PROPERTIES = new Set([
+  "position",
+  "left",
+  "top",
+  "right",
+  "bottom",
+  "inset",
+  "width",
+  "height",
+  "min-width",
+  "min-height",
+  "max-width",
+  "max-height",
+  "font-size",
+  "line-height",
+  "font-weight",
+  "font-family",
+  "font-style",
+  "text-align",
+  "text-transform",
+  "letter-spacing",
+  "white-space",
+  "overflow",
+  "overflow-wrap",
+  "word-break",
+  "display",
+  "flex-direction",
+  "justify-content",
+  "align-items",
+  "gap",
+  "padding",
+  "margin",
+  "border-radius",
+  "border",
+  "border-color",
+  "border-width",
+  "opacity",
+  "filter",
+  "transform",
+  "z-index",
+]);
+
+/** Values that could fetch, execute, or escape the declaration. */
+const UNSAFE_VALUE = /url\(|expression\(|javascript:|behaviour:|behavior:|@import|[<>{}\\]/i;
+
+/** Keep only allowlisted declarations with inert values. */
+export function filterInlineStyle(value: string): string {
+  return value
+    .split(";")
+    .map((declaration) => {
+      const colon = declaration.indexOf(":");
+      if (colon < 0) return "";
+      const property = declaration.slice(0, colon).trim().toLowerCase();
+      const propertyValue = declaration.slice(colon + 1).trim();
+      if (!STYLE_PROPERTIES.has(property)) return "";
+      if (!propertyValue || UNSAFE_VALUE.test(propertyValue)) return "";
+      return `${property}:${propertyValue}`;
+    })
+    .filter(Boolean)
+    .join(";");
+}
+
 function serverSidePostProcess(html: string): string {
   // 1. Validate and remove invalid href on <a> tags
   html = html.replace(
@@ -197,8 +273,11 @@ function serverSidePostProcess(html: string): string {
   // 3. Strip on* event handler attributes
   html = html.replace(/\s+on\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "");
 
-  // 4. Strip inline style attributes
-  html = html.replace(/\s+style\s*=\s*("[^"]*"|'[^']*')/gi, "");
+  // 4. Filter inline style down to inert layout declarations
+  html = html.replace(/\s+style\s*=\s*("([^"]*)"|'([^']*)')/gi, (_m, _q, dq, sq) => {
+    const filtered = filterInlineStyle(dq ?? sq ?? "");
+    return filtered ? ` style="${filtered}"` : "";
+  });
 
   // 5. Sign ImageKit URLs server-side (only when configured)
   if (typeof require === "function" && isImageKitConfigured()) {
@@ -249,7 +328,9 @@ function browserSidePostProcess(html: string): string {
           el.removeAttribute(attr.name);
         }
         if (attr.name === "style") {
-          el.removeAttribute(attr.name);
+          const filtered = filterInlineStyle(attr.value);
+          if (filtered) el.setAttribute("style", filtered);
+          else el.removeAttribute("style");
         }
       }
     }
@@ -273,6 +354,14 @@ export function sanitizeHtml(rawHtml: string): string {
       "aria-hidden",
       // Names which content field an element renders, so a click can address it.
       "data-path",
+      // Names the template layout a slide was drawn with, for diagnostics.
+      "data-layout",
+      // Slide geometry. The renderer positions every box at the fraction the
+      // template places it at, which cannot be expressed as utility classes
+      // because the values come from the .pptx rather than a fixed scale.
+      // DOMPurify parses and filters declarations when style is allowed, so
+      // url(), expression() and behaviour properties do not survive.
+      "style",
       // SVG geometry and presentation. All inert: they describe shapes only.
       "viewBox",
       "fill",

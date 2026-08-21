@@ -231,3 +231,34 @@
 .tpl-feature-body {
   color: var(--tpl-feature-body);
 }
+
+/* ── Template layout primitives ─────────────────────────────────────────────
+   The renderer positions every box at the fraction the .pptx template places
+   it at, so the web slide and the exported deck share one geometry. These are
+   the only structural rules it needs; everything else is a colour token. */
+.tpl-slide {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+.tpl-decor-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.tpl-panel-el {
+  position: absolute;
+}
+.tpl-box {
+  position: absolute;
+  /* A long word must break rather than run past the box it was measured for. */
+  overflow-wrap: break-word;
+  word-break: break-word;
+  hyphens: auto;
+  white-space: pre-wrap;
+}
+.tpl-ink-accent {
+  color: var(--tpl-accent);
+}

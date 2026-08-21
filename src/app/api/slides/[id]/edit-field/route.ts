@@ -111,7 +111,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         ?.outlineJson ?? null,
     );
 
-    const html = sanitizeHtml(renderSlideContent(written.content, { templateId }));
+    const html = sanitizeHtml(
+      renderSlideContent(written.content, { templateId, slideNumber: slide.order + 1 }),
+    );
     const title =
       "title" in written.content && written.content.title
         ? written.content.title.slice(0, 90)

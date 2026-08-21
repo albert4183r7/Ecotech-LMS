@@ -1,7 +1,8 @@
 import { generateStructuredJSON } from "@/lib/llm";
 import { contentWeight, type SlideContent } from "./content-schema";
 import { SlideDraftSchema, draftToContent } from "./draft";
-import { ICON_NAMES } from "./icons";
+import { LAYOUTS } from "./template-layouts";
+import { contentLimitsFor } from "./layout-select";
 
 // ============================================
 // Slide content generation
@@ -54,9 +55,9 @@ Rules:
 - Write every string in the requested language.
 - Every block needs a heading and either a body sentence or supporting items.
   A heading alone is not content.
-- Give every block an "icon": the name of the icon that best fits what the block
-  says. Pick from the list supplied below. The renderer draws it beside the
-  block, so a name that matches the meaning is worth more than a decorative one.
+- Write to the length the layout allows. The limits below are not style advice:
+  the template's boxes are a fixed size, and text past them is cut. Aim comfortably
+  under each limit rather than at it.
 - For a comparison, each block is one side. For a process or architecture, each
   block is one step or component in order. For a case study, use four blocks
   headed Situation, Problem, Action and Outcome. For a summary, put the
@@ -96,6 +97,34 @@ function buildPrompt(brief: SlideBrief): string {
     .join("\n");
 }
 
+/**
+ * What the template's boxes can actually hold, for this slide.
+ *
+ * Derived from the layout geometry rather than asserted, so the limits the
+ * generator is given and the limits the renderer enforces are the same
+ * numbers. Without this the model wrote to the schema's maxima, which are
+ * larger than the template's boxes, and the surplus was trimmed at render.
+ */
+function layoutBudget(brief: SlideBrief): string {
+  // The generator has not chosen a type yet, so quote the limits of every
+  // layout it might land in, keyed by type.
+  const lines: string[] = ["CONTENT LIMITS — the template's boxes are this size:"];
+
+  for (const definition of LAYOUTS) {
+    for (const type of definition.supports) {
+      const items = Math.min(Math.max(3, definition.capacity.min), definition.capacity.max);
+      const limits = contentLimitsFor(type, items);
+      if (limits.length === 0) continue;
+      lines.push(
+        `- ${type} (${definition.capacity.min}-${definition.capacity.max} items): ${limits.join("; ")}`,
+      );
+      break;
+    }
+  }
+
+  return lines.join("\n");
+}
+
 /** Content thinner than this is treated as a failed generation. */
 const MIN_CONTENT_WEIGHT = 120;
 
@@ -111,7 +140,7 @@ export async function generateSlideContent(brief: SlideBrief): Promise<SlideCont
     // A flat draft, not the typed union: Gemini's structured output does not
     // handle a top-level oneOf reliably, and every non-title slide failed.
     const draft = await generateStructuredJSON(buildPrompt(brief), SlideDraftSchema, {
-      systemInstruction: `${SYSTEM}\n\nICON NAMES:\n${ICON_NAMES.join(", ")}`,
+      systemInstruction: `${SYSTEM}\n\n${layoutBudget(brief)}`,
       temperature: attempt === 1 ? 0.6 : 0.8,
     });
     const content = draftToContent(draft);
