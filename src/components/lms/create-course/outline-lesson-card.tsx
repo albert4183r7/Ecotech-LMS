@@ -154,7 +154,7 @@ export function OutlineLessonCard({
               <span className="bg-primary/10 text-primary inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium">
                 <Loader2 className="h-2.5 w-2.5 animate-spin" />
                 {genStage === "quiz"
-                  ? "Writing the quiz"
+                  ? "Reviewing and writing the quiz"
                   : `Generating ${genProgress.current}/${genProgress.total}`}
               </span>
             ) : hasReadySlides ? (

@@ -7,6 +7,7 @@ import { generateSlideContent, summariseForContext, type SlideBrief } from "@/li
 import type { SlideContent } from "@/lib/slides/content-schema";
 import { readLessonTemplateId } from "@/lib/slides/lesson-template";
 import { generateAndSaveQuiz } from "@/lib/quiz/persist";
+import { runQualityGate } from "@/lib/agent/quality-gate";
 
 // ============================================
 // POST /api/lessons/generate-slides   — phase two
@@ -239,6 +240,34 @@ async function generateAllSlides(lessonId: string, languageOverride?: string): P
         .map((s) => `"${s.title}"`)
         .join(", ")}`,
     );
+  }
+
+  // ---- Review what was generated, and revise what fails ----
+  //
+  // The workflow decides that slides are followed by review and review by the
+  // quiz. The gate decides only what is wrong and how to say it better; it
+  // never chooses what happens next. Bounded passes, and a failure to evaluate
+  // leaves the slides as they are rather than failing the lesson.
+  if (ready.length > 0) {
+    try {
+      const gate = await runQualityGate({
+        lessonId,
+        audience: plan.topic,
+        referenceText: plan.referenceContext,
+        onProgress: (message) => console.log(`[generate-slides] ${message}`),
+      });
+      const revised = gate.passes.reduce((n, p) => n + p.revisedSlides.length, 0);
+      console.log(
+        `[generate-slides] lesson ${lessonId}: review ${gate.passed ? "passed" : "did not pass"}` +
+          ` after ${gate.passes.length} pass(es), ${revised} slide(s) revised` +
+          (gate.remaining.length ? `, ${gate.remaining.length} finding(s) outstanding` : ""),
+      );
+    } catch (error) {
+      console.warn(
+        `[generate-slides] lesson ${lessonId}: review skipped —`,
+        error instanceof Error ? error.message : error,
+      );
+    }
   }
 
   // ---- The quiz is part of generating a lesson, not a separate action ----

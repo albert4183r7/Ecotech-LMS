@@ -1,38 +1,35 @@
 import { db } from "@/lib/db";
-import { extractSlideText } from "@/lib/slides/text";
-import { createRegistry, runTool, type ToolContext } from "./registry";
-import { reviseSlideHtml, saveSlide } from "./tools/slides";
 import { evaluateContent, evaluatePedagogy, type LessonSnapshot } from "./evaluators/content";
-import { evaluateSlideVisual } from "./evaluators/visual";
-import { passes, type EvaluationResult, type Finding } from "./evaluators/schema";
+import { passes, blockingFindings, type EvaluationResult, type Finding } from "./evaluators/schema";
 import { recordEvaluation } from "./persistence";
+import { SlideContentSchema, type SlideContent } from "@/lib/slides/content-schema";
+import { generateSlideContent, type SlideBrief } from "@/lib/slides/generate";
+import { renderSlideContent } from "@/lib/slides/render";
+import { readLessonTemplateId } from "@/lib/slides/lesson-template";
+import { sanitizeHtml, wrapSlideHtml } from "@/lib/sanitize";
 
 // ============================================
 // Quality gate
 //
-// Evaluate, revise only what failed, evaluate again. The cap matters as much
-// as the loop: without one a lesson the model cannot fix would be rewritten
-// forever.
+// Evaluate the finished lesson, revise only the slides a reviewer faulted,
+// evaluate again. The bound matters as much as the loop: without one, a lesson
+// the model cannot fix would be rewritten forever.
+//
+// This is the "how" inside a deterministic stage. The workflow decides that
+// slides are followed by review and review by the quiz; the critics decide
+// what is wrong, and the generator decides how to say it better. Nothing here
+// chooses what happens next.
+//
+// It previously operated on raw slide HTML through the agent's tool registry.
+// Slides are structured content now, so a revision regenerates the content and
+// re-renders it through the template rather than asking a model to rewrite
+// markup.
 // ============================================
 
-export interface GatePassReport {
-  pass: number;
-  content: { score: number; blocking: number };
-  pedagogy: { score: number; blocking: number };
-  revisedSlides: string[];
-  revisionErrors: string[];
-}
-
-export interface GateReport {
-  passed: boolean;
-  passes: GatePassReport[];
-  /** Findings still outstanding when the gate gave up. */
-  remaining: Finding[];
-}
-
 export interface GateOptions {
-  runId: string;
   lessonId: string;
+  /** Persists evaluations against an agent run, when one is recording. */
+  runId?: string;
   audience?: string;
   referenceText?: string;
   /** Evaluate-and-revise cycles. Two is usually enough; more rarely converges. */
@@ -40,294 +37,310 @@ export interface GateOptions {
   onProgress?: (message: string) => void | Promise<void>;
 }
 
-async function snapshot(lessonId: string, opts: GateOptions): Promise<LessonSnapshot> {
+export interface GatePassReport {
+  pass: number;
+  content: { score: number; blocking: number };
+  pedagogy: { score: number; blocking: number };
+  revisedSlides: number[];
+  revisionErrors: string[];
+}
+
+export interface GateReport {
+  passed: boolean;
+  passes: GatePassReport[];
+  /** Findings still outstanding when the gate stopped. */
+  remaining: Finding[];
+}
+
+/** Flatten one slide's structured content into the text a critic reads. */
+function contentToText(content: SlideContent): string {
+  switch (content.type) {
+    case "title":
+    case "closing":
+      return [content.title, "subtitle" in content ? content.subtitle : ""]
+        .filter(Boolean)
+        .join(". ");
+    case "concept":
+      return [content.lead, ...content.points.map((p) => `${p.heading}: ${p.description}`)]
+        .filter(Boolean)
+        .join(" ");
+    case "comparison":
+      return [content.lead, ...content.columns.map((c) => `${c.heading}: ${c.points.join("; ")}`)]
+        .filter(Boolean)
+        .join(" ");
+    case "process":
+      return [content.lead, ...content.steps.map((s) => `${s.label}: ${s.description}`)]
+        .filter(Boolean)
+        .join(" ");
+    case "architecture":
+      return [
+        content.lead,
+        ...content.nodes.map((n) => `${n.label}${n.description ? `: ${n.description}` : ""}`),
+      ]
+        .filter(Boolean)
+        .join(" ");
+    case "caseStudy":
+      return `Situation: ${content.situation} Problem: ${content.problem} Action: ${content.action} Outcome: ${content.outcome}`;
+    case "data":
+      return [
+        content.lead,
+        ...content.stats.map((s) => `${s.value} ${s.label}${s.note ? ` (${s.note})` : ""}`),
+      ]
+        .filter(Boolean)
+        .join(" ");
+    case "summary":
+      return content.takeaways.join(" ");
+  }
+}
+
+interface SlideRow {
+  id: string;
+  title: string;
+  order: number;
+  contentJson: string | null;
+  sectionId: string | null;
+}
+
+function parseContent(row: SlideRow): SlideContent | null {
+  if (!row.contentJson) return null;
+  const parsed = SlideContentSchema.safeParse(JSON.parse(row.contentJson));
+  return parsed.success ? parsed.data : null;
+}
+
+async function snapshot(
+  lessonId: string,
+  options: GateOptions,
+): Promise<{ snapshot: LessonSnapshot; rows: SlideRow[]; title: string } | null> {
   const lesson = await db.lesson.findUnique({
     where: { id: lessonId },
-    include: { slides: { orderBy: { order: "asc" } } },
+    select: {
+      title: true,
+      slides: {
+        where: { status: "READY" },
+        orderBy: { order: "asc" },
+        select: { id: true, title: true, order: true, contentJson: true, sectionId: true },
+      },
+    },
   });
-  if (!lesson) throw new Error(`Lesson ${lessonId} not found`);
+  if (!lesson || lesson.slides.length === 0) return null;
+
+  const slides = lesson.slides
+    .map((row) => {
+      const content = parseContent(row);
+      return content
+        ? { position: row.order + 1, title: row.title, text: contentToText(content) }
+        : null;
+    })
+    .filter((s): s is NonNullable<typeof s> => s !== null);
 
   return {
+    snapshot: {
+      title: lesson.title,
+      audience: options.audience,
+      slides,
+      referenceText: options.referenceText,
+    },
+    rows: lesson.slides,
     title: lesson.title,
-    audience: opts.audience,
-    referenceText: opts.referenceText,
-    slides: lesson.slides
-      .filter((s) => s.htmlBody)
-      .map((s) => ({
-        position: s.order + 1,
-        title: s.title,
-        text: extractSlideText(s.htmlBody).slice(0, 1500),
-      })),
   };
 }
 
-/** Group blocking findings by the slide they concern. Position 0 is lesson-wide. */
+/** Blocking findings grouped by the slide position they name. */
 export function groupBlocking(results: EvaluationResult[]): Map<number, Finding[]> {
   const grouped = new Map<number, Finding[]>();
   for (const result of results) {
-    for (const finding of result.findings) {
-      if (finding.severity !== "blocking") continue;
-      const list = grouped.get(finding.slidePosition) ?? [];
-      list.push(finding);
-      grouped.set(finding.slidePosition, list);
+    for (const finding of blockingFindings(result)) {
+      // Position 0 means the lesson as a whole; those cannot be fixed by
+      // regenerating one slide, so they are reported rather than acted on.
+      if (finding.slidePosition <= 0) continue;
+      const existing = grouped.get(finding.slidePosition) ?? [];
+      existing.push(finding);
+      grouped.set(finding.slidePosition, existing);
     }
   }
   return grouped;
 }
 
-export async function runQualityGate(options: GateOptions): Promise<GateReport> {
-  const maxPasses = options.maxPasses ?? 2;
-  const registry = createRegistry([reviseSlideHtml, saveSlide]);
-  const ctx: ToolContext = {
-    runId: options.runId,
-    lessonId: options.lessonId,
-    language: "english",
-    scratch: {},
+/** Rebuild one slide from its brief, telling the generator what was wrong. */
+async function reviseSlide(params: {
+  lessonId: string;
+  row: SlideRow;
+  findings: Finding[];
+  deckSize: number;
+  language: string;
+  templateId: string;
+  referenceText?: string;
+  lessonTitle: string;
+}): Promise<void> {
+  const section = params.row.sectionId
+    ? await db.section.findUnique({
+        where: { id: params.row.sectionId },
+        select: { title: true, summary: true, subtopics: true },
+      })
+    : null;
+
+  const brief: SlideBrief = {
+    position: params.row.order + 1,
+    totalSlides: params.deckSize,
+    presentationTitle: params.lessonTitle,
+    presentationSubtitle: "",
+    sectionTitle: section?.title ?? params.lessonTitle,
+    sectionSummary: section?.summary ?? "",
+    subtopics: section ? (JSON.parse(section.subtopics) as string[]) : [],
+    role:
+      params.row.order === 0
+        ? "cover"
+        : params.row.order === params.deckSize - 1
+          ? "closing"
+          : "content",
+    language: params.language,
+    referenceText: params.referenceText,
+    revisionNotes: params.findings.map((f) => `${f.problem} — ${f.fix}`),
   };
 
-  const passReports: GatePassReport[] = [];
+  const content = await generateSlideContent(brief);
+  const html = sanitizeHtml(
+    renderSlideContent(content, { templateId: params.templateId, slideNumber: brief.position }),
+  );
+  const title = "title" in content && content.title ? content.title.slice(0, 90) : params.row.title;
+
+  await db.slide.update({
+    where: { id: params.row.id },
+    data: {
+      contentJson: JSON.stringify(content),
+      htmlBody: wrapSlideHtml(html, { title, templateId: params.templateId }),
+      title,
+    },
+  });
+}
+
+/**
+ * Run the gate over a generated lesson.
+ *
+ * Never throws: a lesson that cannot be evaluated is reported as unreviewed
+ * rather than failing generation that otherwise succeeded.
+ */
+export async function runQualityGate(options: GateOptions): Promise<GateReport> {
+  const maxPasses = options.maxPasses ?? 2;
+  const reports: GatePassReport[] = [];
   let remaining: Finding[] = [];
 
+  const lesson = await db.lesson.findUnique({
+    where: { id: options.lessonId },
+    select: { outlineJson: true },
+  });
+  const templateId = readLessonTemplateId(lesson?.outlineJson ?? null);
+  const language =
+    (() => {
+      try {
+        return (JSON.parse(lesson?.outlineJson ?? "{}") as { language?: string }).language;
+      } catch {
+        return undefined;
+      }
+    })() ?? "english";
+
   for (let pass = 1; pass <= maxPasses; pass++) {
-    const lesson = await snapshot(options.lessonId, options);
-    if (lesson.slides.length === 0) {
-      return { passed: false, passes: passReports, remaining: [] };
+    const taken = await snapshot(options.lessonId, options);
+    if (!taken) {
+      return { passed: false, passes: reports, remaining };
     }
 
-    await options.onProgress?.(`Evaluating lesson (pass ${pass})`);
+    let content: EvaluationResult;
+    let pedagogy: EvaluationResult;
+    try {
+      [content, pedagogy] = await Promise.all([
+        evaluateContent(taken.snapshot),
+        evaluatePedagogy(taken.snapshot),
+      ]);
+    } catch (error) {
+      // The critics being unavailable must not fail a lesson whose slides
+      // generated correctly.
+      console.warn(
+        `[quality-gate] lesson ${options.lessonId}: evaluation unavailable —`,
+        error instanceof Error ? error.message : error,
+      );
+      return { passed: false, passes: reports, remaining };
+    }
 
-    // Both critics look at the same snapshot, so run them together.
-    const [content, pedagogy] = await Promise.all([
-      evaluateContent(lesson),
-      evaluatePedagogy(lesson),
-    ]);
-
-    await Promise.all([
-      recordEvaluation({
-        runId: options.runId,
-        scope: "content",
-        score: content.score,
-        passed: passes(content),
-        findings: content.findings.map((f) => ({
-          severity: f.severity,
-          problem: f.problem,
-          fix: f.fix,
-        })),
-      }),
-      recordEvaluation({
-        runId: options.runId,
-        scope: "pedagogy",
-        score: pedagogy.score,
-        passed: passes(pedagogy),
-        findings: pedagogy.findings.map((f) => ({
-          severity: f.severity,
-          problem: f.problem,
-          fix: f.fix,
-        })),
-      }),
-    ]);
+    if (options.runId) {
+      await Promise.all([
+        recordEvaluation({
+          runId: options.runId,
+          scope: "content",
+          score: content.score,
+          passed: passes(content),
+          findings: content.findings,
+        }),
+        recordEvaluation({
+          runId: options.runId,
+          scope: "pedagogy",
+          score: pedagogy.score,
+          passed: passes(pedagogy),
+          findings: pedagogy.findings,
+        }),
+      ]).catch(() => undefined);
+    }
 
     const blocking = groupBlocking([content, pedagogy]);
+    remaining = [...blocking.values()].flat();
+
     const report: GatePassReport = {
       pass,
-      content: { score: content.score, blocking: blocking.size },
-      pedagogy: { score: pedagogy.score, blocking: 0 },
+      content: { score: content.score, blocking: blockingFindings(content).length },
+      pedagogy: { score: pedagogy.score, blocking: blockingFindings(pedagogy).length },
       revisedSlides: [],
       revisionErrors: [],
     };
 
-    const clean = passes(content) && passes(pedagogy);
-    if (clean) {
-      passReports.push(report);
-      return { passed: true, passes: passReports, remaining: [] };
-    }
-
-    remaining = [...content.findings, ...pedagogy.findings].filter(
-      (f) => f.severity === "blocking",
+    await options.onProgress?.(
+      `review pass ${pass}: content ${content.score}, pedagogy ${pedagogy.score}, ` +
+        `${blocking.size} slide(s) to revise`,
     );
 
-    // Last pass: report what is left rather than revising with no chance to check.
+    if (passes(content) && passes(pedagogy)) {
+      reports.push(report);
+      return { passed: true, passes: reports, remaining: [] };
+    }
+
+    // Nothing actionable at slide level — further passes would re-evaluate an
+    // unchanged lesson and reach the same verdict.
+    if (blocking.size === 0) {
+      reports.push(report);
+      return { passed: false, passes: reports, remaining };
+    }
+
+    // Last pass: report rather than revise, since there is no pass left to
+    // check the revision.
     if (pass === maxPasses) {
-      passReports.push(report);
+      reports.push(report);
       break;
     }
 
-    const slides = await db.slide.findMany({
-      where: { lessonId: options.lessonId },
-      orderBy: { order: "asc" },
-      select: { id: true, order: true },
-    });
-
+    const byPosition = new Map(taken.rows.map((row) => [row.order + 1, row]));
     for (const [position, findings] of blocking) {
-      // A lesson-wide finding has no single slide to rewrite.
-      if (position === 0) continue;
-      const slide = slides.find((s) => s.order + 1 === position);
-      if (!slide) continue;
-
-      const instructions = findings.map((f) => `${f.problem} Fix: ${f.fix}`);
-      await options.onProgress?.(`Revising slide ${position}`);
-
-      const revised = await runTool(
-        registry,
-        "revise_slide_html",
-        { slideId: slide.id, findings: instructions },
-        ctx,
-      );
-      if (!revised.ok) {
-        report.revisionErrors.push(`slide ${position}: ${revised.error}`);
-        continue;
+      const row = byPosition.get(position);
+      if (!row) continue;
+      try {
+        await reviseSlide({
+          lessonId: options.lessonId,
+          row,
+          findings,
+          deckSize: taken.rows.length,
+          language,
+          templateId,
+          referenceText: options.referenceText,
+          lessonTitle: taken.title,
+        });
+        report.revisedSlides.push(position);
+      } catch (error) {
+        report.revisionErrors.push(
+          `slide ${position}: ${error instanceof Error ? error.message : "revision failed"}`,
+        );
       }
-
-      const html = (revised.value as { html: string }).html;
-      const saved = await runTool(registry, "save_slide", { slideId: slide.id, html }, ctx);
-      if (!saved.ok) {
-        report.revisionErrors.push(`slide ${position}: ${saved.error}`);
-        continue;
-      }
-      report.revisedSlides.push(slide.id);
-    }
-
-    passReports.push(report);
-
-    // Nothing could be revised, so another evaluation would return the same.
-    if (report.revisedSlides.length === 0) break;
-  }
-
-  return { passed: false, passes: passReports, remaining };
-}
-
-// ============================================
-// Visual gate
-// ============================================
-
-export interface VisualSlideReport {
-  slideId: string;
-  position: number;
-  title: string;
-  attempts: number;
-  finalScore: number;
-  resolved: boolean;
-  remaining: string[];
-}
-
-export interface VisualGateReport {
-  passed: boolean;
-  slides: VisualSlideReport[];
-}
-
-/**
- * Look at every slide and fix what looks wrong.
- *
- * Per slide rather than per lesson: a visual problem belongs to one slide, and
- * rewriting a deck because slide 6 overflows would be wasteful and would risk
- * the slides that were already fine.
- */
-export async function runVisualGate(options: GateOptions): Promise<VisualGateReport> {
-  const maxAttempts = options.maxPasses ?? 2;
-  const registry = createRegistry([reviseSlideHtml, saveSlide]);
-  const ctx: ToolContext = {
-    runId: options.runId,
-    lessonId: options.lessonId,
-    language: "english",
-    scratch: {},
-  };
-
-  const slides = await db.slide.findMany({
-    where: { lessonId: options.lessonId },
-    orderBy: { order: "asc" },
-  });
-
-  const reports: VisualSlideReport[] = [];
-
-  for (const [i, slide] of slides.entries()) {
-    if (!slide.htmlBody) continue;
-
-    const report: VisualSlideReport = {
-      slideId: slide.id,
-      position: slide.order + 1,
-      title: slide.title,
-      attempts: 0,
-      finalScore: 0,
-      resolved: false,
-      remaining: [],
-    };
-
-    let html = slide.htmlBody;
-
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      report.attempts = attempt;
-      await options.onProgress?.(`Looking at slide ${report.position} (attempt ${attempt})`);
-
-      const evaluation = await evaluateSlideVisual({
-        slideId: slide.id,
-        position: slide.order + 1,
-        title: slide.title,
-        html,
-        neighbours: {
-          previous: slides[i - 1]?.title,
-          next: slides[i + 1]?.title,
-        },
-      });
-
-      report.finalScore = evaluation.score;
-
-      await recordEvaluation({
-        runId: options.runId,
-        scope: "visual",
-        score: evaluation.score,
-        passed: passes(evaluation),
-        slideId: slide.id,
-        findings: evaluation.findings.map((f) => ({
-          severity: f.severity,
-          slideId: slide.id,
-          problem: f.problem,
-          fix: f.fix,
-        })),
-      });
-
-      if (passes(evaluation)) {
-        report.resolved = true;
-        break;
-      }
-
-      const blocking = evaluation.findings.filter((f) => f.severity === "blocking");
-      report.remaining = blocking.map((f) => f.problem);
-
-      // Out of attempts: leave the slide as it stands with its problems recorded.
-      if (attempt === maxAttempts) break;
-
-      const revised = await runTool(
-        registry,
-        "revise_slide_html",
-        {
-          slideId: slide.id,
-          findings: blocking.map((f) => `${f.problem} Fix: ${f.fix}`),
-        },
-        ctx,
-      );
-      if (!revised.ok) {
-        report.remaining.push(`revision failed: ${revised.error}`);
-        break;
-      }
-
-      const newHtml = (revised.value as { html: string }).html;
-      const saved = await runTool(
-        registry,
-        "save_slide",
-        { slideId: slide.id, html: newHtml },
-        ctx,
-      );
-      if (!saved.ok) {
-        report.remaining.push(`save failed: ${saved.error}`);
-        break;
-      }
-
-      const reloaded = await db.slide.findUnique({ where: { id: slide.id } });
-      html = reloaded?.htmlBody ?? newHtml;
     }
 
     reports.push(report);
   }
 
-  return { passed: reports.every((r) => r.resolved), slides: reports };
+  return { passed: false, passes: reports, remaining };
 }

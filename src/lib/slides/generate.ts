@@ -27,6 +27,13 @@ export interface SlideBrief {
   /** What earlier slides already said, so nothing is repeated. */
   alreadyCovered?: string;
   referenceText?: string;
+  /**
+   * Problems a reviewer found with this slide's previous attempt.
+   *
+   * Present only on a revision. Quoting the specific fault is what makes a
+   * second attempt different from a re-roll of the first.
+   */
+  revisionNotes?: string[];
 }
 
 const SYSTEM = `You write the content of one presentation slide.
@@ -90,6 +97,13 @@ function buildPrompt(brief: SlideBrief): string {
     brief.referenceText
       ? `\nSOURCE MATERIAL. Every figure must come from here:\n<reference>\n${brief.referenceText.slice(0, 6000)}\n</reference>`
       : "\nNo source material was supplied, so use no statistics.",
+    brief.revisionNotes?.length
+      ? `\nA REVIEWER REJECTED YOUR PREVIOUS VERSION OF THIS SLIDE:\n${brief.revisionNotes
+          .map((note) => `- ${note}`)
+          .join(
+            "\n",
+          )}\n\nWrite it again, fixing exactly these problems. Keep what was not criticised.`
+      : "",
     "",
     `LANGUAGE: write all text in ${brief.language}.`,
   ]
