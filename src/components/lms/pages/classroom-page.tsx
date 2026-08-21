@@ -12,6 +12,7 @@ import {
   X,
   Loader2,
   StickyNote,
+  Sparkles,
   Bookmark,
   BookmarkCheck,
   Trash2,
@@ -22,6 +23,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { LessonAssistant } from "@/components/lms/classroom/lesson-assistant";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import {
@@ -87,6 +89,9 @@ export function ClassroomPage() {
 
   // ─── Notes Sidebar State ──────────────────────
   const [notesSidebarOpen, setNotesSidebarOpen] = useState(false);
+  // The two side panels share the same column, so opening one closes the
+  // other rather than splitting the slide's width three ways.
+  const [assistantOpen, setAssistantOpen] = useState(false);
 
   const {
     notes,
@@ -122,6 +127,17 @@ export function ClassroomPage() {
     mq.addEventListener("change", handler);
     return () => mq.removeEventListener("change", handler);
   }, []);
+
+  // The side panels take the right edge, where the study timer and the
+  // keyboard button are pinned. Publishing the open panel's width lets those
+  // move clear instead of landing on the panel's own controls.
+  useEffect(() => {
+    const width = assistantOpen ? "24rem" : notesSidebarOpen ? "20rem" : "0px";
+    document.documentElement.style.setProperty("--rail-offset", isMobile ? "0px" : width);
+    return () => {
+      document.documentElement.style.removeProperty("--rail-offset");
+    };
+  }, [assistantOpen, notesSidebarOpen, isMobile]);
 
   // Keep a working copy of classroomState
   useEffect(() => {
@@ -529,6 +545,32 @@ export function ClassroomPage() {
         </SheetContent>
       </Sheet>
 
+      {/* ─── Mobile Assistant Sheet ───────────────── */}
+      <Sheet
+        open={assistantOpen && isMobile}
+        onOpenChange={(open) => {
+          if (!open) setAssistantOpen(false);
+        }}
+      >
+        <SheetContent side="right" className="flex w-full flex-col p-0 sm:max-w-sm">
+          <SheetHeader className="px-4 pt-4 pb-2">
+            <SheetTitle className="flex items-center gap-2 text-base">
+              <Sparkles className="h-4 w-4" />
+              Lesson Assistant
+            </SheetTitle>
+            <SheetDescription>Ask about {localState.lessonTitle}</SheetDescription>
+          </SheetHeader>
+          <div className="min-h-0 flex-1">
+            <LessonAssistant
+              key={localState.lessonId}
+              lessonId={localState.lessonId}
+              lessonTitle={localState.lessonTitle}
+              currentSlideNumber={localState.currentSlideIndex + 1}
+            />
+          </div>
+        </SheetContent>
+      </Sheet>
+
       {/* ─── Confetti Celebration Overlay ─────── */}
       {showConfetti && <ConfettiCelebration />}
 
@@ -655,6 +697,39 @@ export function ClassroomPage() {
               onDelete={deleteNote}
               onToggleBookmark={toggleBookmark}
               endRef={notesEndRef}
+            />
+          </div>
+        </aside>
+
+        {/* ─── Desktop AI Assistant (slide-in panel) ── */}
+        <aside
+          className={`bg-card hidden shrink-0 flex-col overflow-hidden border-l transition-all duration-300 ease-in-out lg:flex ${
+            assistantOpen ? "w-96 opacity-100" : "w-0 border-l-0 opacity-0"
+          }`}
+          aria-label="Lesson assistant"
+        >
+          <div className="flex h-full w-96 flex-col">
+            <div className="flex items-center justify-between border-b px-4 py-3">
+              <div className="flex items-center gap-2">
+                <Sparkles className="text-primary h-4 w-4" />
+                <span className="text-sm font-semibold">Lesson Assistant</span>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={() => setAssistantOpen(false)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            {/* Keyed by lesson: moving on starts a new conversation rather
+                than carrying the last lesson's answers into this one. */}
+            <LessonAssistant
+              key={localState.lessonId}
+              lessonId={localState.lessonId}
+              lessonTitle={localState.lessonTitle}
+              currentSlideNumber={localState.currentSlideIndex + 1}
             />
           </div>
         </aside>
@@ -788,15 +863,34 @@ export function ClassroomPage() {
             </Button>
           </div>
 
-          {/* Close + Notes Toggle */}
+          {/* Close + Assistant + Notes Toggle */}
           <div className="flex items-center gap-3">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant={assistantOpen ? "secondary" : "ghost"}
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => {
+                    setAssistantOpen((v) => !v);
+                    setNotesSidebarOpen(false);
+                  }}
+                >
+                  <Sparkles className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Ask about this lesson</TooltipContent>
+            </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   variant={notesSidebarOpen ? "secondary" : "ghost"}
                   size="icon"
                   className="h-8 w-8"
-                  onClick={() => setNotesSidebarOpen((v) => !v)}
+                  onClick={() => {
+                    setNotesSidebarOpen((v) => !v);
+                    setAssistantOpen(false);
+                  }}
                 >
                   <StickyNote className="h-4 w-4" />
                 </Button>

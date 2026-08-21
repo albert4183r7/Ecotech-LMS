@@ -18,6 +18,12 @@ import { repairQuiz, DraftQuizSchema } from "../src/lib/quiz/schema";
 import { templateFor, SLIDE_TEMPLATES } from "../src/lib/slides/template";
 import { readLessonTemplateId } from "../src/lib/slides/lesson-template";
 import { LAYOUTS } from "../src/lib/slides/template-layouts";
+import {
+  buildLessonContext,
+  buildSystemPrompt,
+  MAX_LESSON_CHARS,
+} from "../src/lib/assistant/lesson-tutor";
+import type { LessonSource } from "../src/lib/quiz/lesson-source";
 import { safeFileName } from "../src/lib/download";
 import type { SlideContent } from "../src/lib/slides/content-schema";
 import type { LessonSource } from "../src/lib/quiz/lesson-source";
@@ -154,6 +160,66 @@ add("template vars written into the slide document", () =>
   // used to be set to the navy, which is the heading colour.
   wrapSlideHtml("<div></div>", { templateId: "ecotech" }).includes("--tpl-accent: #7BBBA6"),
 );
+
+// ── Lesson assistant scope ──────────────────────────────────────────────────
+const tutorSource: LessonSource = {
+  lessonId: "lesson_1",
+  lessonTitle: "Introduction to Computer Systems",
+  courseId: "course_1",
+  courseTitle: "Computing Foundations",
+  slideCount: 3,
+  slides: [
+    { number: 1, title: "What a computer is", text: "A computer stores and processes data." },
+    { number: 2, title: "Memory", text: "RAM holds the data a program is working on right now." },
+    { number: 3, title: "Storage", text: "A disk keeps data when the power is off." },
+  ],
+  text: "",
+};
+
+add("the assistant sees only the lesson it was given", () => {
+  const context = buildLessonContext(tutorSource, 2);
+  return (
+    context.includes("RAM holds the data") &&
+    context.includes("A disk keeps data") &&
+    !context.includes("lesson_2")
+  );
+});
+add("the context marks the slide the learner is on", () => {
+  const context = buildLessonContext(tutorSource, 2);
+  const marked = context.split("\n").find((l) => l.includes("looking at this one"));
+  return Boolean(marked?.includes("Slide 2"));
+});
+add("a long lesson keeps a window around the current slide", () => {
+  // Far more material than the budget allows, with the learner in the middle:
+  // what survives must surround them, not be the first N slides.
+  const big: LessonSource = {
+    ...tutorSource,
+    slides: Array.from({ length: 60 }, (_, i) => ({
+      number: i + 1,
+      title: `Slide ${i + 1}`,
+      text: `Body ${i + 1}. ` + "x".repeat(600),
+    })),
+  };
+  const context = buildLessonContext(big, 30);
+  return (
+    context.length <= MAX_LESSON_CHARS + 400 &&
+    context.includes("Body 30.") &&
+    !context.includes("Body 1.") &&
+    context.includes("slide(s) of this lesson are not included")
+  );
+});
+add("the system prompt states the lesson boundary", () => {
+  const prompt = buildSystemPrompt(tutorSource, buildLessonContext(tutorSource, 1));
+  return (
+    prompt.includes("Introduction to Computer Systems") &&
+    prompt.includes("Computing Foundations") &&
+    /ONLY answer using the lesson content/i.test(prompt) &&
+    /do not use general world knowledge/i.test(prompt) &&
+    /a different lesson/i.test(prompt) &&
+    /Never invent lesson content/i.test(prompt) &&
+    prompt.includes("Nothing beyond this content is available to you.")
+  );
+});
 
 const source: LessonSource = {
   lessonId: "l",

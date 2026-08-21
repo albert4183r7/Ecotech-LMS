@@ -332,8 +332,11 @@ export function StudyTimer() {
       <button
         type="button"
         onClick={() => setIsExpanded(true)}
+        // right-4 plus whatever rail is open, so the classroom's side panels
+        // do not end up with this button sitting on their controls.
+        style={{ right: "calc(1rem + var(--rail-offset, 0px))" }}
         className={cn(
-          "fixed right-4 bottom-20 z-40 flex items-center gap-2 rounded-full border px-3.5 py-2.5 shadow-lg transition-all duration-300",
+          "fixed bottom-20 z-40 flex items-center gap-2 rounded-full border px-3.5 py-2.5 shadow-lg transition-all duration-300",
           "bg-card/90 border-border/60 backdrop-blur-md",
           "press-effect hover:scale-105 hover:shadow-xl",
           state.isRunning ? "study-timer-pulse" : "",
@@ -355,8 +358,9 @@ export function StudyTimer() {
   return (
     <div
       ref={containerRef}
+      style={{ right: "calc(1rem + var(--rail-offset, 0px))" }}
       className={cn(
-        "fixed right-4 bottom-20 z-40 w-72 overflow-hidden rounded-2xl border shadow-2xl transition-all duration-300",
+        "fixed bottom-20 z-40 w-72 overflow-hidden rounded-2xl border shadow-2xl transition-all duration-300",
         "bg-card/95 border-border/60 backdrop-blur-xl",
         flashComplete && "study-timer-complete",
       )}

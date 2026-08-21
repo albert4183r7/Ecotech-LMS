@@ -202,8 +202,9 @@ export function KeyboardShortcuts() {
         type="button"
         onClick={toggleDialog}
         aria-label="Keyboard shortcuts"
+        style={{ right: "calc(1.5rem + var(--rail-offset, 0px))" }}
         className={cn(
-          "fixed right-6 bottom-6 z-40",
+          "fixed bottom-6 z-40",
           "flex h-10 w-10 items-center justify-center",
           "bg-primary text-primary-foreground rounded-full",
           "shadow-md hover:shadow-lg",

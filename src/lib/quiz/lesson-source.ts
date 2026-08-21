@@ -12,11 +12,22 @@ import { SlideContentSchema, type SlideContent } from "@/lib/slides/content-sche
 // the learner never saw is exactly the failure this guards against.
 // ============================================
 
+/** One slide's words, kept separately so a caller can point at one of them. */
+export interface LessonSourceSlide {
+  /** 1-based, as the learner sees it. */
+  number: number;
+  title: string;
+  text: string;
+}
+
 export interface LessonSource {
   lessonId: string;
   lessonTitle: string;
+  courseId: string;
+  courseTitle: string;
   /** Everything the lesson teaches, slide by slide, as plain text. */
   text: string;
+  slides: LessonSourceSlide[];
   slideCount: number;
 }
 
@@ -93,6 +104,8 @@ export async function loadLessonSource(lessonId: string): Promise<LessonSource |
     select: {
       id: true,
       title: true,
+      courseId: true,
+      course: { select: { title: true } },
       slides: {
         where: { status: "READY" },
         orderBy: { order: "asc" },
@@ -102,7 +115,7 @@ export async function loadLessonSource(lessonId: string): Promise<LessonSource |
   });
   if (!lesson || lesson.slides.length === 0) return null;
 
-  const parts: string[] = [];
+  const slides: LessonSourceSlide[] = [];
   for (const slide of lesson.slides) {
     let body = "";
     if (slide.contentJson) {
@@ -110,15 +123,20 @@ export async function loadLessonSource(lessonId: string): Promise<LessonSource |
       if (parsed.success) body = contentToText(parsed.data);
     }
     if (!body) body = extractSlideText(slide.htmlBody);
-    if (body.trim()) parts.push(`--- Slide ${slide.order + 1}: ${slide.title} ---\n${body.trim()}`);
+    if (body.trim()) {
+      slides.push({ number: slide.order + 1, title: slide.title, text: body.trim() });
+    }
   }
 
-  if (parts.length === 0) return null;
+  if (slides.length === 0) return null;
 
   return {
     lessonId: lesson.id,
     lessonTitle: lesson.title,
-    text: parts.join("\n\n"),
+    courseId: lesson.courseId,
+    courseTitle: lesson.course.title,
+    text: slides.map((s) => `--- Slide ${s.number}: ${s.title} ---\n${s.text}`).join("\n\n"),
+    slides,
     slideCount: lesson.slides.length,
   };
 }
