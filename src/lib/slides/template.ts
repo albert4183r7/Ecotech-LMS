@@ -88,7 +88,7 @@ const SYSTEM_FALLBACK = `system-ui, -apple-system, "Segoe UI", sans-serif`;
 export const ECOTECH_TEMPLATE: SlideTemplate = {
   id: "ecotech",
   label: "Ecotech",
-  description: "The Ecotech house deck — deep blue and mint on a soft off-white",
+  description: "The Ecotech house deck — navy and mint on white, as the template file sets it",
   deck: { widthIn: 13.333, heightIn: 7.5 },
   fonts: {
     heading: "Cambria",
@@ -96,28 +96,37 @@ export const ECOTECH_TEMPLATE: SlideTemplate = {
     headingStack: `Cambria, Georgia, "Times New Roman", serif`,
     bodyStack: `Calibri, Candara, ${SYSTEM_FALLBACK}`,
   },
+  // Every value is read from the template file itself. Three were wrong
+  // before and the deck showed it: the slides are white, not off-white; the
+  // navy 43699F is the *heading* colour and the mint 7BBBA6 the accent, which
+  // were the other way round; and there are no dark gradient slides at all —
+  // all twelve template slides are white. The gradient below is the one the
+  // template really uses, on its emphasis card and its takeaway band, not as
+  // a slide background.
   palette: {
-    surface: "FAFCFB",
+    surface: "FFFFFF",
     surfaceAlt: "F3F8F6",
-    featureFrom: "0E1E33",
+    featureFrom: "43699F",
     featureVia: "43699F",
-    featureTo: "1E3A5F",
-    heading: "1A1A1A",
+    featureTo: "7BBBA6",
+    heading: "43699F",
     body: "56687A",
-    muted: "7C8C9C",
-    panel: "E7F2EE",
-    panelBorder: "C3E1D6",
-    accent: "43699F",
-    accentSoft: "D6EBE3",
+    muted: "56687A",
+    panel: "F3F8F6",
+    panelBorder: "E7F2EE",
+    accent: "7BBBA6",
+    accentSoft: "E7F2EE",
     onAccent: "FFFFFF",
     iconInk: "43699F",
     decor: "7BBBA6",
     featureDecor: "7BBBA6",
-    connector: "7BBBA6",
+    connector: "E7F2EE",
     featureHeading: "FFFFFF",
-    featureBody: "D6EBE3",
+    featureBody: "E7F2EE",
   },
-  type: { display: 44, title: 30, heading: 18, body: 14, small: 11, eyebrow: 10 },
+  // Measured from the template: 54pt title slide, 30pt slide titles, 18pt
+  // row headings, 13.5pt lead copy, 12pt captions, 12pt eyebrows.
+  type: { display: 54, title: 30, heading: 18, body: 13.5, small: 12, eyebrow: 12 },
 };
 
 /** Build a template from a palette, keeping the shared defaults in one place. */

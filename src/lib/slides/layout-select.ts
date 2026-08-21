@@ -62,9 +62,19 @@ function hasLead(content: SlideContent): boolean {
  * still renders, in the closest layout that exists, with a warning recorded so
  * the mismatch is visible instead of silent.
  */
-export function selectLayout(content: SlideContent): LayoutChoice {
+export function selectLayout(content: SlideContent, position?: number): LayoutChoice {
   const items = itemCountOf(content);
-  const candidates = layoutsFor(content.type, items);
+  let candidates = layoutsFor(content.type, items);
+
+  // The template has two layouts for a title: slide 1 opens the deck, slide 3
+  // divides it. Which one a title slide gets is its position, not a judgement
+  // — so the first slide is the title slide and any later one is a section
+  // divider, exactly as the template uses them.
+  if (content.type === "title") {
+    const wanted = position === undefined || position <= 1 ? "title" : "section";
+    const chosen = candidates.filter((l) => l.id === wanted);
+    if (chosen.length > 0) candidates = chosen;
+  }
 
   if (candidates.length > 0) {
     // Prefer the tightest fit — the layout whose capacity the content fills
@@ -103,9 +113,11 @@ const SLOT_NAMES: Partial<Record<SlideContent["type"], Record<string, string>>> 
   architecture: { "item.N.primary": "nodes.N.label", "item.N.secondary": "nodes.N.description" },
   concept: { "item.N.primary": "points.N.heading", "item.N.secondary": "points.N.description" },
   data: { "item.N.primary": "stats.N.value", "item.N.secondary": "stats.N.label" },
+  // A case study runs through the template's four-step process layout, so its
+  // four passages address that layout's step slots.
   caseStudy: {
-    "__caseValue.N": "situation / problem / action / outcome (each)",
-    "__caseLabel.N": "",
+    "item.N.primary": "the stage name (Situation, Problem, Action, Outcome)",
+    "item.N.secondary": "situation / problem / action / outcome (each)",
   },
 };
 

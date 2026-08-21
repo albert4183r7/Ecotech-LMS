@@ -28,6 +28,17 @@ export const TitleSlideSchema = z.object({
 
 export const ConceptSlideSchema = z.object({
   type: z.literal("concept"),
+  /**
+   * The mint section label the template prints above every content slide's
+   * title ("02 · FOUNDATIONS"). The slot exists in the template; without a
+   * field for it the slide rendered with the label missing and a gap where
+   * the template puts it.
+   */
+  eyebrow: z
+    .string()
+    .max(40)
+    .optional()
+    .describe("Short section label above the title, e.g. the part of the lesson this belongs to"),
   title: z.string().min(3).max(90),
   lead: z.string().min(20).max(280).optional().describe("A sentence framing the slide"),
   points: z.array(Point).min(2).max(5),
@@ -35,6 +46,17 @@ export const ConceptSlideSchema = z.object({
 
 export const ComparisonSlideSchema = z.object({
   type: z.literal("comparison"),
+  /**
+   * The mint section label the template prints above every content slide's
+   * title ("02 · FOUNDATIONS"). The slot exists in the template; without a
+   * field for it the slide rendered with the label missing and a gap where
+   * the template puts it.
+   */
+  eyebrow: z
+    .string()
+    .max(40)
+    .optional()
+    .describe("Short section label above the title, e.g. the part of the lesson this belongs to"),
   title: z.string().min(3).max(90),
   lead: z.string().min(20).max(280).optional(),
   columns: z
@@ -51,6 +73,17 @@ export const ComparisonSlideSchema = z.object({
 
 export const ProcessSlideSchema = z.object({
   type: z.literal("process"),
+  /**
+   * The mint section label the template prints above every content slide's
+   * title ("02 · FOUNDATIONS"). The slot exists in the template; without a
+   * field for it the slide rendered with the label missing and a gap where
+   * the template puts it.
+   */
+  eyebrow: z
+    .string()
+    .max(40)
+    .optional()
+    .describe("Short section label above the title, e.g. the part of the lesson this belongs to"),
   title: z.string().min(3).max(90),
   lead: z.string().min(20).max(280).optional(),
   steps: z
@@ -67,6 +100,17 @@ export const ProcessSlideSchema = z.object({
 
 export const ArchitectureSlideSchema = z.object({
   type: z.literal("architecture"),
+  /**
+   * The mint section label the template prints above every content slide's
+   * title ("02 · FOUNDATIONS"). The slot exists in the template; without a
+   * field for it the slide rendered with the label missing and a gap where
+   * the template puts it.
+   */
+  eyebrow: z
+    .string()
+    .max(40)
+    .optional()
+    .describe("Short section label above the title, e.g. the part of the lesson this belongs to"),
   title: z.string().min(3).max(90),
   lead: z.string().min(20).max(280).optional(),
   nodes: z
@@ -84,6 +128,17 @@ export const ArchitectureSlideSchema = z.object({
 
 export const CaseStudySlideSchema = z.object({
   type: z.literal("caseStudy"),
+  /**
+   * The mint section label the template prints above every content slide's
+   * title ("02 · FOUNDATIONS"). The slot exists in the template; without a
+   * field for it the slide rendered with the label missing and a gap where
+   * the template puts it.
+   */
+  eyebrow: z
+    .string()
+    .max(40)
+    .optional()
+    .describe("Short section label above the title, e.g. the part of the lesson this belongs to"),
   title: z.string().min(3).max(90),
   situation: z.string().min(20).max(300),
   problem: z.string().min(20).max(300),
@@ -93,6 +148,17 @@ export const CaseStudySlideSchema = z.object({
 
 export const DataSlideSchema = z.object({
   type: z.literal("data"),
+  /**
+   * The mint section label the template prints above every content slide's
+   * title ("02 · FOUNDATIONS"). The slot exists in the template; without a
+   * field for it the slide rendered with the label missing and a gap where
+   * the template puts it.
+   */
+  eyebrow: z
+    .string()
+    .max(40)
+    .optional()
+    .describe("Short section label above the title, e.g. the part of the lesson this belongs to"),
   title: z.string().min(3).max(90),
   lead: z.string().min(20).max(280).optional(),
   stats: z
@@ -111,6 +177,17 @@ export const DataSlideSchema = z.object({
 
 export const SummarySlideSchema = z.object({
   type: z.literal("summary"),
+  /**
+   * The mint section label the template prints above every content slide's
+   * title ("02 · FOUNDATIONS"). The slot exists in the template; without a
+   * field for it the slide rendered with the label missing and a gap where
+   * the template puts it.
+   */
+  eyebrow: z
+    .string()
+    .max(40)
+    .optional()
+    .describe("Short section label above the title, e.g. the part of the lesson this belongs to"),
   title: z.string().min(3).max(90),
   takeaways: z.array(z.string().min(15).max(200)).min(3).max(6),
 });

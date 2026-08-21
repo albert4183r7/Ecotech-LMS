@@ -17,6 +17,7 @@ import { checkMechanically } from "../src/lib/quiz/validator";
 import { repairQuiz, DraftQuizSchema } from "../src/lib/quiz/schema";
 import { templateFor, SLIDE_TEMPLATES } from "../src/lib/slides/template";
 import { readLessonTemplateId } from "../src/lib/slides/lesson-template";
+import { LAYOUTS } from "../src/lib/slides/template-layouts";
 import { safeFileName } from "../src/lib/download";
 import type { SlideContent } from "../src/lib/slides/content-schema";
 import type { LessonSource } from "../src/lib/quiz/lesson-source";
@@ -69,6 +70,13 @@ add(
     readLessonTemplateId(null) === "ecotech",
 );
 
+const titleSlide: SlideContent = {
+  type: "title",
+  eyebrow: "Module one",
+  title: "Introduction to Logical Reasoning",
+  subtitle: "What deductive and inductive arguments are, and how to tell them apart.",
+};
+
 const concept: SlideContent = {
   type: "concept",
   title: "A title that is long enough",
@@ -113,14 +121,38 @@ add("dangerous css declarations are still stripped", () => {
 });
 add("slides carry the template layout they were drawn with", () => {
   const html = renderSlideContent(concept, { templateId: "ecotech" });
-  return /data-layout="cards"/.test(html);
+  return /data-layout="options"/.test(html);
+});
+add("every layout is a slide that exists in the template file", () => {
+  // The registry drew three layouts the .pptx does not contain. Every id here
+  // names a real slide in it, so a regression that reintroduces an invented
+  // layout fails rather than shipping.
+  const fromTemplate = new Set([
+    "title",
+    "section",
+    "agenda",
+    "rows",
+    "options",
+    "comparison",
+    "metrics",
+    "process",
+    "closing",
+  ]);
+  return LAYOUTS.every((l) => fromTemplate.has(l.id));
+});
+add("a mid-deck title becomes the template's section divider", () => {
+  const first = renderSlideContent(titleSlide, { templateId: "ecotech", slideNumber: 1 });
+  const later = renderSlideContent(titleSlide, { templateId: "ecotech", slideNumber: 6 });
+  return /data-layout="title"/.test(first) && /data-layout="section"/.test(later);
 });
 add(
   "script inside svg is stripped",
   () => !/script/i.test(sanitizeHtml("<svg><script>alert(1)</script></svg>")),
 );
 add("template vars written into the slide document", () =>
-  wrapSlideHtml("<div></div>", { templateId: "ecotech" }).includes("--tpl-accent: #43699F"),
+  // The mint the template uses for eyebrows, stat values and decoration. It
+  // used to be set to the navy, which is the heading colour.
+  wrapSlideHtml("<div></div>", { templateId: "ecotech" }).includes("--tpl-accent: #7BBBA6"),
 );
 
 const source: LessonSource = {
@@ -241,7 +273,8 @@ for (const [name, fn] of checks) {
     console.log("   threw:", e instanceof Error ? e.message : e);
   }
   console.log(`${ok ? "  ok  " : "FAIL  "} ${name}`);
-  ok ? pass++ : fail++;
+  if (ok) pass++;
+  else fail++;
 }
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

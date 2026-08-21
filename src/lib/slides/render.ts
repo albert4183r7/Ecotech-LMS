@@ -51,8 +51,11 @@ const INK_CLASS: Record<ResolvedBox["ink"], string> = {
 
 const PANEL_FILL: Record<Panel["fill"], string> = {
   panel: "tpl-panel",
+  surface: "tpl-panel-surface",
   accent: "tpl-accent",
   accentSoft: "tpl-accent-soft",
+  heading: "tpl-fill-heading",
+  gradient: "tpl-fill-gradient",
   none: "",
 };
 
@@ -62,7 +65,8 @@ function renderPanel(panel: Panel): string {
       ? "border-radius:9999px;"
       : `border-radius:${(panel.radius * CANVAS_W).toFixed(1)}px;`;
   const border = panel.kind === "card" ? "border:1px solid var(--tpl-panel-border);" : "";
-  return `<div class="tpl-panel-el ${PANEL_FILL[panel.fill]}" style="${place(panel)}${radius}${border}"></div>`;
+  const alpha = panel.alpha !== undefined ? `opacity:${panel.alpha};` : "";
+  return `<div class="tpl-panel-el ${PANEL_FILL[panel.fill]}" style="${place(panel)}${radius}${border}${alpha}"></div>`;
 }
 
 function renderBox(box: ResolvedBox): string {
@@ -92,17 +96,6 @@ function renderBox(box: ResolvedBox): string {
   return `<div class="tpl-box ${INK_CLASS[box.ink]}" style="${style}" data-path="${box.path}">${esc(box.text)}</div>`;
 }
 
-/** Decorative corner shapes, as the template's feature slides carry them. */
-function decor(feature: boolean): string {
-  const colour = feature ? "tpl-feature-decor" : "tpl-decor";
-  const opacity = feature ? "0.22" : "0.06";
-  return `
-    <div class="tpl-decor-layer" aria-hidden="true">
-      <div class="${colour}" style="position:absolute;left:78%;top:-18%;width:34%;height:60%;border-radius:9999px;opacity:${opacity};filter:blur(40px);"></div>
-      <div class="${colour}" style="position:absolute;left:-8%;top:70%;width:26%;height:48%;border-radius:9999px;opacity:${opacity};filter:blur(40px);"></div>
-    </div>`;
-}
-
 export interface RenderOptions {
   templateId?: string;
   /** Retained for callers that still pass the old name. */
@@ -119,12 +112,20 @@ export interface RenderOptions {
 export function renderSlideContent(content: SlideContent, options: RenderOptions = {}): string {
   const resolved = resolveSlide(content, { slideNumber: options.slideNumber });
 
-  const surface = resolved.feature ? "tpl-feature" : "tpl-surface";
-  const panels = resolved.panels.map(renderPanel).join("");
+  // Decorative shapes first, so the template's screened-back circles sit
+  // behind its cards and type rather than over them.
+  const decor = resolved.panels
+    .filter((p) => p.kind === "decor")
+    .map(renderPanel)
+    .join("");
+  const panels = resolved.panels
+    .filter((p) => p.kind !== "decor")
+    .map(renderPanel)
+    .join("");
   const boxes = resolved.boxes.map(renderBox).join("");
 
-  return `<div class="tpl-slide ${surface}" data-layout="${resolved.layoutId}">
-    ${decor(resolved.feature)}
+  return `<div class="tpl-slide tpl-surface" data-layout="${resolved.layoutId}">
+    ${decor}
     ${panels}
     ${boxes}
   </div>`;

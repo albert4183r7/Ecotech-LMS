@@ -27,7 +27,6 @@ export interface ResolvedBox extends Placeholder {
 
 export interface ResolvedSlide {
   layoutId: string;
-  feature: boolean;
   panels: Panel[];
   boxes: ResolvedBox[];
   /** Problems worth surfacing rather than hiding. */
@@ -96,6 +95,16 @@ function itemField(
         ? { text: stat.value, path: `stats.${index}.value` }
         : { text: stat.label, path: `stats.${index}.label` };
     }
+    // A case study is four ordered stages, which is what the template's
+    // process layout draws. The stage names are the layout's, the passages
+    // are the content's.
+    case "caseStudy": {
+      const field = (["situation", "problem", "action", "outcome"] as const)[index];
+      if (!field) return undefined;
+      return slot === "primary"
+        ? { text: CASE_LABELS[index], path: `__caseLabel.${index}` }
+        : { text: content[field], path: field };
+    }
     default:
       return undefined;
   }
@@ -156,13 +165,17 @@ function fit(
 }
 
 export interface ResolveOptions {
-  /** Shown in the template's page-number position. */
+  /**
+   * Shown in the template's page-number position, and used to tell the
+   * deck's opening title slide from a mid-deck section divider — the
+   * template has a layout for each.
+   */
   slideNumber?: number;
 }
 
 /** Resolve a slide's content into positioned, fitted boxes. */
 export function resolveSlide(content: SlideContent, options: ResolveOptions = {}): ResolvedSlide {
-  const choice = selectLayout(content);
+  const choice = selectLayout(content, options.slideNumber);
   const warnings: string[] = [];
   if (choice.overflowWarning) warnings.push(choice.overflowWarning);
 
@@ -201,7 +214,6 @@ export function resolveSlide(content: SlideContent, options: ResolveOptions = {}
 
   return {
     layoutId: choice.layout.id,
-    feature: choice.layout.feature,
     panels: choice.layout.panels,
     boxes,
     warnings,

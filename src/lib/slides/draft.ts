@@ -39,6 +39,11 @@ export const SLIDE_TYPES = [
 
 export const SlideDraftSchema = z.object({
   type: z.enum(SLIDE_TYPES).describe("The shape that suits what this slide teaches"),
+  eyebrow: z
+    .string()
+    .max(40)
+    .optional()
+    .describe("Short label naming the part of the lesson this slide belongs to"),
   title: z.string().min(3).max(90),
   subtitle: z.string().max(180).optional().describe("Used by title and closing slides"),
   lead: z.string().max(280).optional().describe("One sentence framing the slide"),
@@ -117,9 +122,16 @@ export function draftToContent(
   draft: SlideDraft,
   fallbackType: SlideType = "concept",
 ): SlideContent {
-  const { title, lead, blocks } = draft;
+  const { title, lead, blocks, eyebrow } = draft;
+  // The eyebrow goes on whichever branch wins, rather than being threaded
+  // through every candidate: it is the same field on all of them, and the
+  // schema drops it on the two types that have no such slot.
   const attempt = (candidate: unknown): SlideContent | null => {
-    const parsed = SlideContentSchema.safeParse(candidate);
+    const withLabel =
+      eyebrow && eyebrow.trim() && candidate && typeof candidate === "object"
+        ? { eyebrow: eyebrow.trim(), ...candidate }
+        : candidate;
+    const parsed = SlideContentSchema.safeParse(withLabel);
     return parsed.success ? parsed.data : null;
   };
 

@@ -47,19 +47,27 @@ export interface Placeholder extends Box {
   ink: "heading" | "body" | "muted" | "accent" | "onAccent" | "featureHeading" | "featureBody";
 }
 
-/** A filled region the template draws behind content — cards, bands, rules. */
+/**
+ * A filled region the template draws behind content — cards, bands, rules.
+ *
+ * The fills are the ones the template file actually uses: tinted cards
+ * (F3F8F6), white cards, mint and navy badges, hairline dividers in E7F2EE,
+ * and one navy-to-mint gradient that it applies to its emphasis card and its
+ * takeaway band. `decor` is the tinted circle composition its title, section
+ * and closing slides carry.
+ */
 export interface Panel extends Box {
-  kind: "card" | "band" | "rule" | "badge" | "divider";
-  fill: "panel" | "accent" | "accentSoft" | "none";
+  kind: "card" | "band" | "rule" | "badge" | "divider" | "decor";
+  fill: "panel" | "surface" | "accent" | "accentSoft" | "heading" | "gradient" | "none";
   radius: number;
+  /** Opacity, for the decorative shapes the template screens back. */
+  alpha?: number;
 }
 
 export interface RenderedLayout {
   id: string;
   panels: Panel[];
   placeholders: Placeholder[];
-  /** Feature layouts paint the full-bleed gradient instead of the surface. */
-  feature: boolean;
 }
 
 // ────────────────────────────────────────────────
@@ -177,6 +185,24 @@ function header(hasLead: boolean): { panels: Panel[]; placeholders: Placeholder[
   return { panels: [], placeholders };
 }
 
+/**
+ * The tinted circle composition the template's title, section and closing
+ * slides carry. Positions and opacities are the file's own — these are real
+ * shapes on those slides, not an effect invented to dress them up.
+ */
+function decorCircles(spec: Array<[number, number, number, number, number]>): Panel[] {
+  return spec.map(([x, y, w, h, alpha]) => ({
+    kind: "decor" as const,
+    x,
+    y,
+    w,
+    h,
+    fill: "accent" as const,
+    radius: 0.5,
+    alpha,
+  }));
+}
+
 // ────────────────────────────────────────────────
 // Layout definitions
 // ────────────────────────────────────────────────
@@ -192,7 +218,14 @@ export interface LayoutDefinition {
   build: (itemCount: number, options: { hasLead: boolean }) => RenderedLayout;
 }
 
-/** Template slide 1 — the opening title. */
+/**
+ * Template slide 1 — the opening title.
+ *
+ * White, with three screened-back mint circles bleeding off the edges, a mint
+ * eyebrow, a 54pt navy Cambria title, a slate subtitle, a short mint rule and
+ * a byline. It was being drawn as a dark gradient slide with white type; the
+ * template has no dark slide anywhere in it.
+ */
 const TITLE_LAYOUT: LayoutDefinition = {
   id: "title",
   name: "Title",
@@ -201,8 +234,14 @@ const TITLE_LAYOUT: LayoutDefinition = {
   capacity: { min: 0, max: 0 },
   build: () => ({
     id: "title",
-    feature: true,
-    panels: [{ kind: "rule", x: MARGIN_X, y: 0.82, w: 0.105, h: 0.006, fill: "accent", radius: 1 }],
+    panels: [
+      ...decorCircles([
+        [0.72, -0.293, 0.488, 0.867, 0.15],
+        [0.795, 0.48, 0.315, 0.56, 0.25],
+        [-0.12, 0.72, 0.27, 0.48, 0.2],
+      ]),
+      { kind: "rule", x: MARGIN_X, y: 0.82, w: 0.105, h: 0.006, fill: "accent", radius: 1 },
+    ],
     placeholders: [
       {
         path: "eyebrow",
@@ -214,7 +253,7 @@ const TITLE_LAYOUT: LayoutDefinition = {
         fontPt: 12,
         align: "left",
         bold: true,
-        ink: "featureBody",
+        ink: "accent",
       },
       {
         path: "title",
@@ -226,7 +265,7 @@ const TITLE_LAYOUT: LayoutDefinition = {
         fontPt: 54,
         align: "left",
         bold: true,
-        ink: "featureHeading",
+        ink: "heading",
       },
       {
         path: "subtitle",
@@ -238,13 +277,13 @@ const TITLE_LAYOUT: LayoutDefinition = {
         fontPt: 16,
         align: "left",
         bold: false,
-        ink: "featureBody",
+        ink: "body",
       },
     ],
   }),
 };
 
-/** Template slide 12 — the close. */
+/** Template slide 12 — the close: white, two circles, 48pt navy Cambria. */
 const CLOSING_LAYOUT: LayoutDefinition = {
   id: "closing",
   name: "Closing",
@@ -253,8 +292,13 @@ const CLOSING_LAYOUT: LayoutDefinition = {
   capacity: { min: 0, max: 0 },
   build: () => ({
     id: "closing",
-    feature: true,
-    panels: [{ kind: "rule", x: 0.068, y: 0.627, w: 0.105, h: 0.006, fill: "accent", radius: 1 }],
+    panels: [
+      ...decorCircles([
+        [-0.15, 0.533, 0.488, 0.867, 0.2],
+        [0.735, -0.333, 0.413, 0.733, 0.15],
+      ]),
+      { kind: "rule", x: 0.068, y: 0.627, w: 0.105, h: 0.006, fill: "accent", radius: 1 },
+    ],
     placeholders: [
       {
         path: "title",
@@ -266,7 +310,7 @@ const CLOSING_LAYOUT: LayoutDefinition = {
         fontPt: 48,
         align: "left",
         bold: true,
-        ink: "featureHeading",
+        ink: "heading",
       },
       {
         path: "subtitle",
@@ -278,17 +322,86 @@ const CLOSING_LAYOUT: LayoutDefinition = {
         fontPt: 15,
         align: "left",
         bold: false,
-        ink: "featureBody",
+        ink: "body",
       },
     ],
   }),
 };
 
-/** Template slide 4 — numbered cards side by side. */
-const CARDS_LAYOUT: LayoutDefinition = {
-  id: "cards",
-  name: "Option cards",
-  purpose: "Two to four parallel ideas, each with a short explanation",
+/**
+ * Template slide 3 — the section divider.
+ *
+ * The same furniture as the title slide at a smaller scale, with its own
+ * indent: the template sets this one at x=0.0675 rather than the 0.045 its
+ * content slides use.
+ */
+const SECTION_LAYOUT: LayoutDefinition = {
+  id: "section",
+  name: "Section divider",
+  purpose: "Open a new part of the lesson",
+  supports: ["title"],
+  capacity: { min: 0, max: 0 },
+  build: () => ({
+    id: "section",
+    panels: decorCircles([
+      [-0.18, -0.267, 0.45, 0.8, 0.15],
+      [0.788, 0.533, 0.413, 0.733, 0.2],
+    ]),
+    placeholders: [
+      {
+        path: "eyebrow",
+        role: "eyebrow",
+        x: 0.0675,
+        y: 0.413,
+        w: 0.45,
+        h: 0.053,
+        fontPt: 13,
+        align: "left",
+        bold: true,
+        ink: "accent",
+      },
+      {
+        path: "title",
+        role: "display",
+        x: 0.0638,
+        y: 0.467,
+        w: 0.787,
+        h: 0.16,
+        fontPt: 44,
+        align: "left",
+        bold: true,
+        ink: "heading",
+      },
+      {
+        path: "subtitle",
+        role: "lead",
+        x: 0.0675,
+        y: 0.607,
+        w: 0.6,
+        h: 0.067,
+        fontPt: 15,
+        align: "left",
+        bold: false,
+        ink: "body",
+      },
+      FOOTER,
+    ],
+  }),
+};
+
+/**
+ * Template slide 4 — three numbered cards side by side.
+ *
+ * The template's own composition: tinted round cards on the content band, a
+ * white circular badge carrying the number in navy Cambria, a 17pt heading
+ * and 12pt body. Its sample marks the third card "Recommended" with a navy
+ * gradient fill; lesson points have no such ranking, so the row is drawn
+ * evenly rather than inventing an emphasis the content does not carry.
+ */
+const OPTIONS_LAYOUT: LayoutDefinition = {
+  id: "options",
+  name: "Numbered cards",
+  purpose: "Two or three parallel ideas, each with a short explanation",
   supports: ["concept"],
   capacity: { min: 2, max: 3 },
   build: (count, { hasLead }) => {
@@ -305,7 +418,7 @@ const CARDS_LAYOUT: LayoutDefinition = {
         y: cell.y + 0.054,
         w: 0.052,
         h: 0.093,
-        fill: "accent",
+        fill: "surface",
         radius: 0.5,
       });
       placeholders.push(
@@ -319,7 +432,7 @@ const CARDS_LAYOUT: LayoutDefinition = {
           fontPt: 20,
           align: "center",
           bold: true,
-          ink: "onAccent",
+          ink: "heading",
         },
         {
           path: `points.${i}.heading`,
@@ -348,11 +461,66 @@ const CARDS_LAYOUT: LayoutDefinition = {
       );
     });
 
-    return { id: "cards", feature: false, panels, placeholders };
+    return { id: "options", panels, placeholders };
   },
 };
 
-/** Template slide 2 — a numbered list with dividers. */
+/**
+ * The row block from template slide 2.
+ *
+ * The template stacks four of them at a pitch of 0.1533 starting at y=0.3133:
+ * a tinted circular badge in the margin, an 18pt Cambria heading, a 12.5pt
+ * line under it, and a hairline rule closing the row. Past four rows the pitch
+ * compresses to keep the last row on the slide; at three or fewer it stays at
+ * the template's own spacing rather than stretching to fill the band.
+ */
+const ROW = {
+  top: 0.3133,
+  pitch: 0.1533,
+  headingH: 0.0533,
+  gap: 0.052,
+  textX: 0.1125,
+  bottom: 0.9,
+};
+
+function rowPitch(count: number): number {
+  if (count <= 1) return ROW.pitch;
+  const blockH = ROW.headingH + ROW.gap;
+  return Math.min(ROW.pitch, (ROW.bottom - ROW.top - blockH) / (count - 1));
+}
+
+/** Badge, divider and their placement for one row of the slide-2 structure. */
+function rowFurniture(index: number, count: number, y: number, pitch: number) {
+  const panels: Panel[] = [
+    { kind: "badge", x: MARGIN_X, y, w: 0.0465, h: 0.0827, fill: "panel", radius: 0.5 },
+  ];
+  if (index < count - 1) {
+    panels.push({
+      kind: "divider",
+      x: ROW.textX,
+      y: y + pitch - 0.038,
+      w: 0.6225,
+      h: 0.0015,
+      fill: "accentSoft",
+      radius: 0,
+    });
+  }
+  const badge: Placeholder = {
+    path: `__index.${index}`,
+    role: "badge",
+    x: MARGIN_X,
+    y,
+    w: 0.0465,
+    h: 0.0827,
+    fontPt: 16,
+    align: "center",
+    bold: true,
+    ink: "heading",
+  };
+  return { panels, badge };
+}
+
+/** Template slide 2 — the numbered row list, one line per item. */
 const AGENDA_LAYOUT: LayoutDefinition = {
   id: "agenda",
   name: "Numbered list",
@@ -361,60 +529,83 @@ const AGENDA_LAYOUT: LayoutDefinition = {
   capacity: { min: 3, max: 6 },
   build: (count, { hasLead }) => {
     const base = header(hasLead);
-    const band = rows(count, hasLead ? 0.313 : 0.27, 0.9, 0.012);
+    const pitch = rowPitch(count);
     const panels: Panel[] = [...base.panels];
     const placeholders: Placeholder[] = [...base.placeholders, FOOTER];
 
-    band.forEach((row, i) => {
-      panels.push({
-        kind: "badge",
-        x: MARGIN_X,
-        y: row.y,
-        w: 0.046,
-        h: Math.min(0.083, row.h),
-        fill: "accent",
-        radius: 0.5,
+    for (let i = 0; i < count; i++) {
+      const y = ROW.top + i * pitch;
+      const { panels: furniture, badge } = rowFurniture(i, count, y, pitch);
+      panels.push(...furniture);
+      placeholders.push(badge, {
+        path: `takeaways.${i}`,
+        role: "body",
+        x: ROW.textX,
+        y: y - 0.004,
+        w: 0.82,
+        h: Math.min(pitch - 0.02, ROW.headingH + ROW.gap),
+        fontPt: 15,
+        align: "left",
+        bold: false,
+        ink: "body",
       });
-      if (i < count - 1) {
-        panels.push({
-          kind: "divider",
-          x: 0.113,
-          y: row.y + row.h,
-          w: 0.623,
-          h: 0.002,
-          fill: "panel",
-          radius: 0,
-        });
-      }
+    }
+
+    return { id: "agenda", panels, placeholders };
+  },
+};
+
+/**
+ * Template slide 2 again, carrying the heading-and-description pair its own
+ * sample rows use. Four or five concepts do not fit the card row of slide 4,
+ * and this is the structure the template provides for them.
+ */
+const ROWS_LAYOUT: LayoutDefinition = {
+  id: "rows",
+  name: "Numbered rows",
+  purpose: "Four or five ideas, each a heading with a line of explanation",
+  supports: ["concept"],
+  capacity: { min: 4, max: 5 },
+  build: (count, { hasLead }) => {
+    const base = header(hasLead);
+    const pitch = rowPitch(count);
+    const panels: Panel[] = [...base.panels];
+    const placeholders: Placeholder[] = [...base.placeholders, FOOTER];
+
+    for (let i = 0; i < count; i++) {
+      const y = ROW.top + i * pitch;
+      const { panels: furniture, badge } = rowFurniture(i, count, y, pitch);
+      panels.push(...furniture);
       placeholders.push(
+        badge,
         {
-          path: `__index.${i}`,
-          role: "badge",
-          x: MARGIN_X,
-          y: row.y,
-          w: 0.046,
-          h: Math.min(0.083, row.h),
-          fontPt: 16,
-          align: "center",
+          path: `points.${i}.heading`,
+          role: "heading",
+          x: ROW.textX,
+          y: y - 0.004,
+          w: 0.6,
+          h: ROW.headingH,
+          fontPt: 18,
+          align: "left",
           bold: true,
-          ink: "onAccent",
+          ink: "heading",
         },
         {
-          path: `takeaways.${i}`,
+          path: `points.${i}.description`,
           role: "body",
-          x: 0.113,
-          y: row.y,
-          w: 0.82,
-          h: row.h,
-          fontPt: 15,
+          x: ROW.textX,
+          y: y + ROW.headingH - 0.006,
+          w: 0.72,
+          h: Math.max(0.04, pitch - ROW.headingH - 0.03),
+          fontPt: 12.5,
           align: "left",
           bold: false,
           ink: "body",
         },
       );
-    });
+    }
 
-    return { id: "agenda", feature: false, panels, placeholders };
+    return { id: "rows", panels, placeholders };
   },
 };
 
@@ -486,7 +677,7 @@ const COMPARISON_LAYOUT: LayoutDefinition = {
       }
     });
 
-    return { id: "comparison", feature: false, panels, placeholders };
+    return { id: "comparison", panels, placeholders };
   },
 };
 
@@ -506,16 +697,9 @@ const METRICS_LAYOUT: LayoutDefinition = {
     const placeholders: Placeholder[] = [...base.placeholders, FOOTER];
 
     cells.forEach((cell, i) => {
-      panels.push({ kind: "card", ...cell, fill: "panel", radius: 0.02 });
-      panels.push({
-        kind: "rule",
-        x: cell.x,
-        y: cell.y,
-        w: cell.w,
-        h: 0.008,
-        fill: "accent",
-        radius: 0.01,
-      });
+      // White card, hairline border, no accent rule — the rule was an
+      // addition, and the template does not draw one.
+      panels.push({ kind: "card", ...cell, fill: "surface", radius: 0.02 });
       placeholders.push(
         {
           path: `stats.${i}.value`,
@@ -527,7 +711,7 @@ const METRICS_LAYOUT: LayoutDefinition = {
           fontPt: 34,
           align: "left",
           bold: true,
-          ink: "heading",
+          ink: "accent",
         },
         {
           path: `stats.${i}.label`,
@@ -549,9 +733,10 @@ const METRICS_LAYOUT: LayoutDefinition = {
       kind: "band",
       x: MARGIN_X,
       y: 0.58,
-      w: 0.907,
-      h: 0.207,
-      fill: "accentSoft",
+      w: 0.9075,
+      h: 0.2067,
+      // Navy-to-mint, as the template fills it, with white type over it.
+      fill: "gradient",
       radius: 0.02,
     });
     placeholders.push(
@@ -565,32 +750,39 @@ const METRICS_LAYOUT: LayoutDefinition = {
         fontPt: 11,
         align: "left",
         bold: true,
-        ink: "accent",
+        ink: "featureBody",
       },
       {
         path: "lead",
         role: "lead",
         x: 0.075,
         y: 0.66,
-        w: 0.818,
+        w: 0.8175,
         h: 0.107,
         fontPt: 15,
         align: "left",
         bold: false,
-        ink: "heading",
+        ink: "featureHeading",
       },
     );
 
-    return { id: "metrics", feature: false, panels, placeholders };
+    return { id: "metrics", panels, placeholders };
   },
 };
 
-/** Template slide 7 — a numbered process across the slide. */
+/**
+ * Template slide 7 — a numbered process across the slide.
+ *
+ * Navy circular badges with white numerals, a mint hairline reaching to the
+ * next step, a 15pt Cambria label and 11.5pt body beneath. Also carries a
+ * case study, whose situation, problem, action and outcome are four ordered
+ * steps and which the template has no separate layout for.
+ */
 const PROCESS_LAYOUT: LayoutDefinition = {
   id: "process",
   name: "Process",
   purpose: "An ordered sequence of three to five stages",
-  supports: ["process", "architecture"],
+  supports: ["process", "architecture", "caseStudy"],
   capacity: { min: 3, max: 6 },
   build: (count, { hasLead }) => {
     const base = header(hasLead);
@@ -617,7 +809,7 @@ const PROCESS_LAYOUT: LayoutDefinition = {
         y: cell.y,
         w: 0.041,
         h: 0.073,
-        fill: "accent",
+        fill: "heading",
         radius: 0.5,
       });
       if (i < count - 1) {
@@ -671,143 +863,20 @@ const PROCESS_LAYOUT: LayoutDefinition = {
       );
     });
 
-    return { id: "process", feature: false, panels, placeholders };
-  },
-};
-
-/** Template slide 5's row structure, reused for a case study's four parts. */
-const CASE_LAYOUT: LayoutDefinition = {
-  id: "case",
-  name: "Labelled rows",
-  purpose: "A few labelled passages, such as a case study",
-  supports: ["caseStudy"],
-  capacity: { min: 4, max: 4 },
-  build: (count, { hasLead }) => {
-    const base = header(hasLead);
-    const band = rows(count, 0.3, 0.9, 0.014);
-    const panels: Panel[] = [...base.panels];
-    const placeholders: Placeholder[] = [...base.placeholders, FOOTER];
-
-    band.forEach((row, i) => {
-      if (i % 2 === 0) {
-        panels.push({ kind: "band", ...row, fill: "panel", radius: 0.012 });
-      }
-      placeholders.push(
-        {
-          path: `__caseLabel.${i}`,
-          role: "label",
-          x: row.x + 0.014,
-          y: row.y,
-          w: 0.14,
-          h: row.h,
-          fontPt: 12,
-          align: "left",
-          bold: true,
-          ink: "accent",
-        },
-        {
-          path: `__caseValue.${i}`,
-          role: "body",
-          x: row.x + 0.17,
-          y: row.y,
-          w: row.w - 0.19,
-          h: row.h,
-          fontPt: 12,
-          align: "left",
-          bold: false,
-          ink: "body",
-        },
-      );
-    });
-
-    return { id: "case", feature: false, panels, placeholders };
-  },
-};
-
-/**
- * The agenda row structure, carrying a heading and a description per row.
- *
- * A concept slide with four or five points does not fit the template's
- * three-up card row, and squeezing it in is what clipped content. The same
- * template geometry laid out as rows holds them at full size instead.
- */
-const CONCEPT_ROWS_LAYOUT: LayoutDefinition = {
-  id: "concept-rows",
-  name: "Point rows",
-  purpose: "Four or five ideas, each with a short explanation",
-  supports: ["concept"],
-  capacity: { min: 4, max: 5 },
-  build: (count, { hasLead }) => {
-    const base = header(hasLead);
-    const band = rows(count, hasLead ? 0.3 : 0.26, 0.9, 0.014);
-    const panels: Panel[] = [...base.panels];
-    const placeholders: Placeholder[] = [...base.placeholders, FOOTER];
-
-    band.forEach((row, i) => {
-      panels.push({ kind: "card", ...row, fill: "panel", radius: 0.014 });
-      panels.push({
-        kind: "badge",
-        x: row.x + 0.016,
-        y: row.y + row.h / 2 - 0.037,
-        w: 0.041,
-        h: 0.073,
-        fill: "accent",
-        radius: 0.5,
-      });
-      placeholders.push(
-        {
-          path: `__index.${i}`,
-          role: "badge",
-          x: row.x + 0.016,
-          y: row.y + row.h / 2 - 0.037,
-          w: 0.041,
-          h: 0.073,
-          fontPt: 14,
-          align: "center",
-          bold: true,
-          ink: "onAccent",
-        },
-        {
-          path: `points.${i}.heading`,
-          role: "heading",
-          x: row.x + 0.075,
-          y: row.y + 0.012,
-          w: 0.28,
-          h: row.h - 0.024,
-          fontPt: 15,
-          align: "left",
-          bold: true,
-          ink: "heading",
-        },
-        {
-          path: `points.${i}.description`,
-          role: "body",
-          x: row.x + 0.365,
-          y: row.y + 0.012,
-          w: row.w - 0.385,
-          h: row.h - 0.024,
-          fontPt: 12,
-          align: "left",
-          bold: false,
-          ink: "body",
-        },
-      );
-    });
-
-    return { id: "concept-rows", feature: false, panels, placeholders };
+    return { id: "process", panels, placeholders };
   },
 };
 
 export const LAYOUTS: LayoutDefinition[] = [
   TITLE_LAYOUT,
   CLOSING_LAYOUT,
-  CARDS_LAYOUT,
-  CONCEPT_ROWS_LAYOUT,
+  SECTION_LAYOUT,
+  OPTIONS_LAYOUT,
+  ROWS_LAYOUT,
   AGENDA_LAYOUT,
   COMPARISON_LAYOUT,
   METRICS_LAYOUT,
   PROCESS_LAYOUT,
-  CASE_LAYOUT,
 ];
 
 export function layoutById(id: string): LayoutDefinition | undefined {

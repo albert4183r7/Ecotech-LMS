@@ -41,10 +41,19 @@ function panelFill(palette: TemplatePalette, fill: Panel["fill"]): string | null
   switch (fill) {
     case "panel":
       return palette.panel;
+    case "surface":
+      return palette.surface;
     case "accent":
       return palette.accent;
     case "accentSoft":
       return palette.accentSoft;
+    case "heading":
+      return palette.heading;
+    // pptxgenjs has no gradient fill, so the template's navy-to-mint band is
+    // laid in as its darker stop. The white type over it keeps its contrast,
+    // which a mid-gradient average would not.
+    case "gradient":
+      return palette.featureFrom;
     case "none":
       return null;
   }
@@ -74,9 +83,15 @@ function drawPanel(slide: PptxGenJS.Slide, t: SlideTemplate, panel: Panel): void
   const frame = inches(t, panel);
   // A pill in the template is a pill here; a card keeps its measured radius.
   const shape = panel.radius >= 0.5 ? "ellipse" : "roundRect";
+  // Alpha is expressed as pptxgenjs transparency, which counts the other way.
+  const fill =
+    panel.alpha !== undefined
+      ? { color: colour, transparency: Math.round((1 - panel.alpha) * 100) }
+      : { color: colour };
+
   slide.addShape(shape, {
     ...frame,
-    fill: { color: colour },
+    fill,
     line:
       panel.kind === "card"
         ? { color: t.palette.panelBorder, width: 1 }
@@ -113,22 +128,6 @@ function drawBox(slide: PptxGenJS.Slide, t: SlideTemplate, box: ResolvedBox): vo
   });
 }
 
-/** Soft corner shapes, echoing the web renderer's decorative layer. */
-function drawDecor(slide: PptxGenJS.Slide, t: SlideTemplate, feature: boolean): void {
-  const colour = feature ? t.palette.featureDecor : t.palette.decor;
-  const transparency = feature ? 80 : 94;
-  for (const frame of [
-    { x: 0.78, y: -0.18, w: 0.34, h: 0.6 },
-    { x: -0.08, y: 0.7, w: 0.26, h: 0.48 },
-  ]) {
-    slide.addShape("ellipse", {
-      ...inches(t, frame),
-      fill: { color: colour, transparency },
-      line: { color: colour, width: 0 },
-    });
-  }
-}
-
 /**
  * Render one slide's content onto a new PowerPoint slide.
  *
@@ -144,22 +143,17 @@ export function addContentSlide(
   const resolved = resolveSlide(content, { slideNumber: options.slideNumber });
   const slide = pptx.addSlide();
 
-  // pptxgenjs cannot fill a background with a gradient, so a feature slide
-  // takes the gradient's dominant stop and a band of the second, which is the
-  // closest PowerPoint equivalent of what the web slide paints.
-  if (resolved.feature) {
-    slide.background = { color: template.palette.featureFrom };
-    slide.addShape("rect", {
-      ...inches(template, { x: 0, y: 0.55, w: 1, h: 0.45 }),
-      fill: { color: template.palette.featureVia, transparency: 55 },
-      line: { color: template.palette.featureVia, width: 0 },
-    });
-  } else {
-    slide.background = { color: template.palette.surface };
-  }
+  // Every slide in the template is white. The decorative circles its title,
+  // section and closing slides carry come through as panels, drawn first so
+  // they sit behind the content.
+  slide.background = { color: template.palette.surface };
 
-  drawDecor(slide, template, resolved.feature);
-  for (const panel of resolved.panels) drawPanel(slide, template, panel);
+  for (const panel of resolved.panels) {
+    if (panel.kind === "decor") drawPanel(slide, template, panel);
+  }
+  for (const panel of resolved.panels) {
+    if (panel.kind !== "decor") drawPanel(slide, template, panel);
+  }
   for (const box of resolved.boxes) drawBox(slide, template, box);
 
   return { warnings: resolved.warnings };

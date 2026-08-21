@@ -151,40 +151,32 @@
    properties onto :root; these classes are what consume them. A slide document
    without a template block still renders, on the Ecotech defaults below. */
 :root {
-  --tpl-surface: #fafcfb;
+  --tpl-surface: #ffffff;
   --tpl-surface-alt: #f3f8f6;
-  --tpl-feature-from: #0e1e33;
+  --tpl-feature-from: #43699f;
   --tpl-feature-via: #43699f;
-  --tpl-feature-to: #1e3a5f;
-  --tpl-heading: #1a1a1a;
+  --tpl-feature-to: #7bbba6;
+  --tpl-heading: #43699f;
   --tpl-body: #56687a;
-  --tpl-muted: #7c8c9c;
-  --tpl-panel: #e7f2ee;
-  --tpl-panel-border: #c3e1d6;
-  --tpl-accent: #43699f;
-  --tpl-accent-soft: #d6ebe3;
+  --tpl-muted: #56687a;
+  --tpl-panel: #f3f8f6;
+  --tpl-panel-border: #e7f2ee;
+  --tpl-accent: #7bbba6;
+  --tpl-accent-soft: #e7f2ee;
   --tpl-on-accent: #ffffff;
   --tpl-icon-ink: #43699f;
   --tpl-decor: #7bbba6;
   --tpl-feature-decor: #7bbba6;
-  --tpl-connector: #7bbba6;
+  --tpl-connector: #e7f2ee;
   --tpl-feature-heading: #ffffff;
-  --tpl-feature-body: #d6ebe3;
+  --tpl-feature-body: #e7f2ee;
   --tpl-font-heading: Cambria, Georgia, "Times New Roman", serif;
   --tpl-font-body: Calibri, Candara, system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
 .tpl-surface {
-  background: linear-gradient(135deg, var(--tpl-surface) 0%, var(--tpl-surface-alt) 100%);
-  font-family: var(--tpl-font-body);
-}
-.tpl-feature {
-  background: linear-gradient(
-    135deg,
-    var(--tpl-feature-from) 0%,
-    var(--tpl-feature-via) 55%,
-    var(--tpl-feature-to) 100%
-  );
+  /* Flat, as every slide in the template is. */
+  background: var(--tpl-surface);
   font-family: var(--tpl-font-body);
 }
 .tpl-heading {
@@ -209,6 +201,16 @@
 .tpl-accent-soft {
   background-color: var(--tpl-accent-soft);
 }
+.tpl-panel-surface {
+  background-color: var(--tpl-surface);
+}
+.tpl-fill-heading {
+  background-color: var(--tpl-heading);
+}
+/* The one gradient in the template: its emphasis card and takeaway band. */
+.tpl-fill-gradient {
+  background: linear-gradient(120deg, var(--tpl-feature-from) 0%, var(--tpl-feature-to) 100%);
+}
 .tpl-on-accent {
   color: var(--tpl-on-accent);
 }
@@ -217,9 +219,6 @@
 }
 .tpl-decor {
   background-color: var(--tpl-decor);
-}
-.tpl-feature-decor {
-  background-color: var(--tpl-feature-decor);
 }
 .tpl-connector {
   color: var(--tpl-connector);
