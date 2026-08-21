@@ -1,4 +1,4 @@
-import DOMPurify from "isomorphic-dompurify";
+import DOMPurify, { type Config } from "isomorphic-dompurify";
 import { templateFor, templateCssVariables } from "@/lib/slides/template";
 
 // ============================================
@@ -341,7 +341,7 @@ function browserSidePostProcess(html: string): string {
 
 /** Sanitize AI-generated HTML for safe iframe rendering */
 export function sanitizeHtml(rawHtml: string): string {
-  const config: DOMPurify.Config = {
+  const config: Config & { RETURN_TRUSTED_TYPE: false } = {
     ALLOWED_TAGS,
     ALLOWED_ATTR: [
       "class",
@@ -388,8 +388,15 @@ export function sanitizeHtml(rawHtml: string): string {
     // ignores — harmless while ALLOWED_TAGS is an allowlist, but it meant the
     // list did nothing, so anything added to the allowlist bypassed it.
     FORBID_TAGS: FORBIDDEN_TAGS,
-    ALLOW_COMMENTS: false,
+    // ALLOW_COMMENTS used to be set here. DOMPurify has no such option, so it
+    // never did anything; it typechecked only because the Config type was
+    // being resolved as any. Comments are dropped regardless, because
+    // ALLOWED_TAGS is an allowlist and does not contain "#comment".
     KEEP_CONTENT: true,
+    // Stated so the overload resolves to string. Left off, a widened Config
+    // matched the TrustedHTML overload first and every caller downstream was
+    // handed a type it could not concatenate or post-process.
+    RETURN_TRUSTED_TYPE: false,
   };
 
   // First pass: DOMPurify with base config (removes forbidden tags)

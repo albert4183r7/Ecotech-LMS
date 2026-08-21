@@ -130,14 +130,14 @@ function FeedSkeleton() {
 // Main Component
 // ─────────────────────────────────────────────────────
 
-export function SocialFeed({ userId }: { userId: string }) {
+export function SocialFeed() {
   const [activities, setActivities] = useState<SocialActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchFeed = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/social-feed?userId=${encodeURIComponent(userId)}&limit=10`);
+      const res = await fetch("/api/social-feed?limit=10");
       const json = await res.json();
       if (json.success) {
         setActivities(json.data as SocialActivityItem[]);
@@ -147,7 +147,7 @@ export function SocialFeed({ userId }: { userId: string }) {
     } finally {
       setLoading(false);
     }
-  }, [userId]);
+  }, []);
 
   useEffect(() => {
     fetchFeed();

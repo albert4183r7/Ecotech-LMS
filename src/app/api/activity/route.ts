@@ -140,7 +140,10 @@ export async function GET(request: NextRequest) {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - weeks * 7);
 
-    let dailyData: DayEntry[];
+    // Seeded rather than left unassigned: the real-data branch may not run at
+    // all, and the compiler could not see that the mock fallback below always
+    // fills it.
+    let dailyData: DayEntry[] = [];
     let useRealData = false;
 
     try {

@@ -99,9 +99,12 @@ export async function GET(request: NextRequest) {
 
     // Strategy 2: If completed a course, recommend "Next Steps" in the same category
     if (completedCourseTitles.length > 0) {
-      const completedCategories = enrollments
-        .filter((e) => e.status === "completed" && e.course.categoryId)
-        .map((e) => e.course.categoryId);
+      // flatMap rather than filter+map so the nulls are gone from the type as
+      // well as the values; `categoryId: { in: (string | null)[] }` does not
+      // typecheck, and the resulting error cost this query its `category`.
+      const completedCategories = enrollments.flatMap((e) =>
+        e.status === "completed" && e.course.categoryId ? [e.course.categoryId] : [],
+      );
 
       const nextStepCourses = await db.course.findMany({
         where: {

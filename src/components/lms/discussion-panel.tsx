@@ -204,7 +204,7 @@ export function DiscussionPanel({ courseId, lessonId, userId }: DiscussionPanelP
   /** Delete a comment */
   const handleDelete = async (commentId: string) => {
     try {
-      const res = await fetch(`/api/comments/${commentId}?userId=${userId}`, { method: "DELETE" });
+      const res = await fetch(`/api/comments/${commentId}`, { method: "DELETE" });
       const json = await res.json();
       if (json.success) {
         toast.success("Comment deleted.");

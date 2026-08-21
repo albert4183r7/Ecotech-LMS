@@ -17,15 +17,7 @@ import {
 import { useEffect, useState } from "react";
 import type { ActivityDayEntry, Activity30Data, EnrollmentData } from "@/types/lms";
 
-export function StreakCalendar({
-  streak,
-  bestStreak,
-  userId,
-}: {
-  streak: number;
-  bestStreak: number;
-  userId: string;
-}) {
+export function StreakCalendar({ streak, bestStreak }: { streak: number; bestStreak: number }) {
   const [activityMap, setActivityMap] = useState<Map<string, number>>(new Map());
   const [days, setDays] = useState<Array<{ date: string; day: string; isToday: boolean }>>([]);
   const [maxMinutes, setMaxMinutes] = useState(1);
@@ -33,7 +25,7 @@ export function StreakCalendar({
   useEffect(() => {
     async function fetchActivity() {
       try {
-        const res = await fetch(`/api/activity?userId=${userId}&weeks=5`);
+        const res = await fetch("/api/activity?weeks=5");
         const json = await res.json();
         if (json.success) {
           // Build 30-day grid from the response
@@ -69,7 +61,7 @@ export function StreakCalendar({
       }
     }
     fetchActivity();
-  }, [userId]);
+  }, []);
 
   function getIntensity(date: string): number {
     const mins = activityMap.get(date) || 0;

@@ -122,7 +122,7 @@ export function ProfilePage() {
   useEffect(() => {
     async function fetchEnrollments() {
       try {
-        const res = await fetch("/api/enrollments?userId=" + currentUserId);
+        const res = await fetch("/api/enrollments");
         const json = await res.json();
         if (json.success && json.data) {
           setEnrollments(json.data);
@@ -146,7 +146,7 @@ export function ProfilePage() {
   useEffect(() => {
     async function fetchStreak() {
       try {
-        const res = await fetch(`/api/activity?userId=${currentUserId}&weeks=5`);
+        const res = await fetch("/api/activity?weeks=5");
         const json = await res.json();
         if (json.success && json.data) {
           setStreakData(json.data.streak);
@@ -470,11 +470,7 @@ export function ProfilePage() {
           {/* XP Display + Streak Calendar */}
           <div className="grid gap-6 md:grid-cols-2">
             <XPDisplay totalXP={totalXP} level={level} progressToNext={progressToNext} />
-            <StreakCalendar
-              streak={streakData.current}
-              bestStreak={streakData.longest}
-              userId={currentUserId}
-            />
+            <StreakCalendar streak={streakData.current} bestStreak={streakData.longest} />
           </div>
 
           {/* Skills & Badges Grid */}
@@ -493,7 +489,7 @@ export function ProfilePage() {
           <XpBarFull />
 
           {/* Weekly Activity Chart */}
-          <ActivityChart userId={profile.id} />
+          <ActivityChart />
 
           {/* Team Leaderboard */}
           <TeamLeaderboardCard />

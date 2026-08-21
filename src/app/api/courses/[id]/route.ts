@@ -2,14 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { unlink } from "node:fs/promises";
 import path from "node:path";
 import { db } from "@/lib/db";
-import { requireCourseOwner, getSessionUser } from "@/lib/session";
+import { requireCourseOwner, requireUser, AuthorizationError } from "@/lib/session";
 import { handleRoute, ok } from "@/lib/api-response";
 
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get("userId");
+    // Enrolment, favourite and ownership all follow the session, never a
+    // client-supplied id: the page's buttons have to match what the API would
+    // actually allow, and someone else's enrolment is not ours to report.
+    const sessionUser = await requireUser();
+    const userId = sessionUser.id;
 
     const course = await db.course.findUnique({
       where: { id },
@@ -38,33 +41,27 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ success: false, error: "Course not found" }, { status: 404 });
     }
 
-    // Check if user is enrolled
-    let isEnrolled = false;
-    let enrollment = null;
-    if (userId) {
-      enrollment = await db.enrollment.findUnique({
-        where: {
-          userId_courseId: { userId, courseId: id },
-        },
-      });
-      isEnrolled = !!enrollment;
+    const isOwner = course.creatorId === userId;
+
+    // A course nobody has published is the instructor's private draft. Anyone
+    // else is told it does not exist rather than that it exists and is closed,
+    // so ids cannot be enumerated for unpublished work.
+    if (!isOwner && course.status !== "published") {
+      return NextResponse.json({ success: false, error: "Course not found" }, { status: 404 });
     }
 
-    // Check if user has favorited
-    // Ownership is decided from the session, never from a client-supplied id,
-    // so the buttons the page offers match what the API would actually allow.
-    const sessionUser = await getSessionUser();
-    const isOwner = Boolean(sessionUser && course.creatorId === sessionUser.id);
+    const [enrollment, favorite] = await Promise.all([
+      db.enrollment.findUnique({ where: { userId_courseId: { userId, courseId: id } } }),
+      db.favorite.findUnique({ where: { userId_courseId: { userId, courseId: id } } }),
+    ]);
+    const isEnrolled = !!enrollment;
+    const isFavorited = !!favorite;
 
-    let isFavorited = false;
-    if (userId) {
-      const favorite = await db.favorite.findUnique({
-        where: {
-          userId_courseId: { userId, courseId: id },
-        },
-      });
-      isFavorited = !!favorite;
-    }
+    // The syllabus — lesson and slide titles — is what the course page is for,
+    // so it is public to any signed-in browser. The slides themselves are the
+    // thing you enrol to get, so their bodies go only to the instructor and to
+    // enrolled students.
+    const mayReadContent = isOwner || isEnrolled;
 
     const formattedCourse = {
       id: course.id,
@@ -112,7 +109,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         slides: lesson.slides.map((slide) => ({
           id: slide.id,
           title: slide.title,
-          htmlBody: slide.htmlBody,
+          htmlBody: mayReadContent ? slide.htmlBody : "",
           status: slide.status,
           order: slide.order,
           sectionId: slide.sectionId,
@@ -137,6 +134,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     return NextResponse.json({ success: true, data: formattedCourse });
   } catch (error) {
+    if (error instanceof AuthorizationError) {
+      return NextResponse.json({ success: false, error: error.message }, { status: error.status });
+    }
     console.error("Error fetching course:", error);
     return NextResponse.json({ success: false, error: "Failed to fetch course" }, { status: 500 });
   }

@@ -287,6 +287,15 @@ export function CoursesPage() {
                     color: ((c.category as Record<string, unknown>).color as string) ?? null,
                   }
                 : null,
+              creator: c.creator
+                ? {
+                    id: (c.creator as Record<string, unknown>).id as string,
+                    name: ((c.creator as Record<string, unknown>).name as string) ?? null,
+                    avatar: ((c.creator as Record<string, unknown>).avatar as string) ?? null,
+                  }
+                : null,
+              // The list endpoint returns lesson counts, not lessons; the cards
+              // do not render them.
               lessons: [],
               createdAt: (c.createdAt as string) ?? "",
               updatedAt: (c.updatedAt as string) ?? "",

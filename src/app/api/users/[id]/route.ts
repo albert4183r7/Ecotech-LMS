@@ -1,9 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { requireUser, AuthorizationError } from "@/lib/session";
 
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
+
+    // This returns an account's email and its full learning history, so it is
+    // yours to read and nobody else's. It had no check at all, which made
+    // every user's profile readable by id, signed in or not.
+    const sessionUser = await requireUser();
+    if (sessionUser.id !== id) {
+      return NextResponse.json({ success: false, error: "User not found" }, { status: 404 });
+    }
 
     const user = await db.user.findUnique({
       where: { id },
@@ -76,6 +85,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       },
     });
   } catch (error) {
+    if (error instanceof AuthorizationError) {
+      return NextResponse.json({ success: false, error: error.message }, { status: error.status });
+    }
     console.error("Error fetching user profile:", error);
     return NextResponse.json(
       { success: false, error: "Failed to fetch user profile" },

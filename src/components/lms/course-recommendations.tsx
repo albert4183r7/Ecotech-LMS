@@ -51,7 +51,7 @@ export function CourseRecommendations() {
   useEffect(() => {
     async function fetchRecommendations() {
       try {
-        const res = await fetch(`/api/recommendations?userId=${currentUserId}`);
+        const res = await fetch("/api/recommendations");
         const json = await res.json();
         if (json.success) {
           setRecommendations(json.data);

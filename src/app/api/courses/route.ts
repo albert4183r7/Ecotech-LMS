@@ -15,9 +15,15 @@ export async function GET(request: NextRequest) {
     // Build where clause
     const where: Record<string, unknown> = {};
 
-    // When filtering by creatorId (instructor dashboard), show all statuses including drafts
+    const user = await requireUser();
+
+    // The instructor dashboard lists its own courses in every status, drafts
+    // included. Asking for someone else's creatorId used to return their
+    // drafts too, so anyone could read another instructor's unpublished work
+    // by naming them; other people's courses are now published-only.
     if (creatorId) {
       where.creatorId = creatorId;
+      if (creatorId !== user.id) where.status = "published";
     } else {
       where.status = "published";
     }
@@ -85,6 +91,7 @@ export async function GET(request: NextRequest) {
       orderBy,
       include: {
         category: true,
+        creator: { select: { id: true, name: true, avatar: true } },
         _count: {
           select: {
             lessons: true,
@@ -112,6 +119,9 @@ export async function GET(request: NextRequest) {
             description: course.category.description,
             color: course.category.color,
           }
+        : null,
+      creator: course.creator
+        ? { id: course.creator.id, name: course.creator.name, avatar: course.creator.avatar }
         : null,
       lessonsCount: course._count.lessons,
       enrollmentsCount: course._count.enrollments,

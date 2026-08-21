@@ -5,21 +5,19 @@ import { requireUser, AuthorizationError } from "@/lib/session";
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const userId = searchParams.get("userId");
-    const creatorId = searchParams.get("creatorId");
+    const wantsRoster = searchParams.get("creatorId") !== null;
 
-    if (!userId && !creatorId) {
-      return NextResponse.json(
-        { success: false, error: "userId or creatorId is required" },
-        { status: 400 },
-      );
-    }
+    // Both shapes are about the caller: your own enrolments, or the roster of
+    // the courses you teach. The ids used to come from the query string, so
+    // anyone could read another student's enrolments or another instructor's
+    // student list by naming them.
+    const user = await requireUser();
+    const userId = user.id;
 
-    // When creatorId is provided, fetch enrollments for courses created by that instructor
-    if (creatorId) {
+    if (wantsRoster) {
       const enrollments = await db.enrollment.findMany({
         where: {
-          course: { creatorId },
+          course: { creatorId: userId },
         },
         include: {
           user: {

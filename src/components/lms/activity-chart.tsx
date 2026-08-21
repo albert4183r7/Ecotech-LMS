@@ -143,14 +143,14 @@ function ActivityBar({
 /*  Main Component                                                     */
 /* ------------------------------------------------------------------ */
 
-export function ActivityChart({ userId }: { userId: string }) {
+export function ActivityChart() {
   const [data, setData] = useState<ActivityData | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function fetchActivity() {
       try {
-        const res = await fetch(`/api/activity?userId=${encodeURIComponent(userId)}&weeks=12`);
+        const res = await fetch("/api/activity?weeks=12");
         const json = await res.json();
         if (json.success) {
           setData(json.data);
@@ -162,7 +162,7 @@ export function ActivityChart({ userId }: { userId: string }) {
       }
     }
     fetchActivity();
-  }, [userId]);
+  }, []);
 
   if (loading || !data) {
     return <ActivityChartSkeleton />;

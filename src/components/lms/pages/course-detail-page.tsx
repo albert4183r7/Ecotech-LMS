@@ -306,7 +306,7 @@ export function CourseDetailPage() {
 
   /** Render star rating */
   const renderStars = (rating: number) => {
-    const stars = [];
+    const stars: React.ReactElement[] = [];
     for (let i = 1; i <= 5; i++) {
       stars.push(
         <Star
