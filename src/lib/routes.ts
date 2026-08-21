@@ -17,7 +17,6 @@ export const ROUTES: Record<Exclude<ViewName, "course-detail" | "classroom">, st
   profile: "/profile",
   "create-course": "/create",
   quizzes: "/quizzes",
-  settings: "/settings",
 };
 
 export const courseDetailPath = (courseId: string) => `/courses/${courseId}`;
@@ -38,6 +37,5 @@ export function viewFromPathname(pathname: string): ViewName {
   if (pathname.startsWith("/dashboard")) return "dashboard";
   if (pathname.startsWith("/profile")) return "profile";
   if (pathname.startsWith("/create")) return "create-course";
-  if (pathname.startsWith("/settings")) return "settings";
   return "home";
 }

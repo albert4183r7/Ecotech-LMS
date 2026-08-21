@@ -13,8 +13,7 @@ export type ViewName =
   | "course-detail"
   | "classroom"
   | "create-course"
-  | "quizzes"
-  | "settings";
+  | "quizzes";
 
 /** Course data shape */
 export interface CourseItem {
@@ -141,33 +140,8 @@ export interface ClassroomState {
 }
 
 // ============================================
-// Profile / activity
-//
-// These were referenced by the profile screens but never declared, so the
-// files did not typecheck. Shapes taken from /api/activity and
-// /api/enrollments.
+// Enrollments
 // ============================================
-
-/** One cell in the streak calendar grid. */
-export interface ActivityDayEntry {
-  date: string;
-  day: string;
-  isToday: boolean;
-}
-
-/** A single day's tracked study time. */
-export interface ActivityDayData {
-  date: string;
-  minutes: number;
-}
-
-/** Response payload of GET /api/activity. */
-export interface Activity30Data {
-  weeklyData: ActivityDayData[];
-  dailyData: ActivityDayData[];
-  streak: { current: number; longest: number };
-  totalMinutes: number;
-}
 
 /** An enrollment as returned by GET /api/enrollments. */
 export interface EnrollmentData {

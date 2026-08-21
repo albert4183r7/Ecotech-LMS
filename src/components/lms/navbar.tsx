@@ -51,7 +51,6 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Learning Progress", icon: <GraduationCap className="h-4 w-4" />, view: "my-learning" },
   { label: "Quiz", icon: <ListChecks className="h-4 w-4" />, view: "quizzes" },
   { label: "Profile", icon: <User className="h-4 w-4" />, view: "profile" },
-  { label: "Settings", icon: <Settings className="h-4 w-4" />, view: "settings" },
 ];
 
 /** Get human-readable label for any view including detail views */
@@ -77,8 +76,6 @@ function getViewLabel(view: ViewName): string {
       return "Create Course";
     case "dashboard":
       return "Dashboard";
-    case "settings":
-      return "Settings";
     default:
       return "";
   }
