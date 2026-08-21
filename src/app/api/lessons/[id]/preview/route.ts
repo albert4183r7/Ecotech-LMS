@@ -4,6 +4,7 @@ import { handleRoute, ok } from "@/lib/api-response";
 import { requireLessonOwner } from "@/lib/session";
 import { readLessonTemplateId } from "@/lib/slides/lesson-template";
 import { templateFor } from "@/lib/slides/template";
+import { ensureCanvasDocument } from "@/lib/sanitize";
 
 // ============================================
 // GET /api/lessons/[id]/preview
@@ -59,7 +60,10 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       slides: lesson.slides.map((slide) => ({
         id: slide.id,
         title: slide.title,
-        htmlBody: slide.htmlBody,
+        // Render-ready rather than as-stored: a slide that predates the canvas
+        // is re-wrapped and re-sanitized here, so the page can drop it into an
+        // iframe without deciding for itself whether the stored HTML is safe.
+        htmlBody: ensureCanvasDocument(slide.htmlBody, slide.title, templateId ?? undefined),
         status: slide.status,
         order: slide.order,
         sectionId: slide.sectionId,

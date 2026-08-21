@@ -277,7 +277,7 @@ export function HomePage() {
     let cancelled = false;
     async function fetchEnrollments() {
       try {
-        const res = await fetch(`/api/enrollments?userId=${currentUserId}`);
+        const res = await fetch("/api/enrollments");
         const json = await res.json();
         if (!cancelled && json.success) {
           const inProgress = json.data

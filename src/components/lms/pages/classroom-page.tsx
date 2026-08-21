@@ -72,6 +72,8 @@ export function ClassroomPage() {
     state: classroomState,
     slideId: loadedSlideId,
     slideContext: loadedSlideContext,
+    loading: classroomLoading,
+    error: classroomError,
   } = useClassroomState(routeLessonId);
   const userId = useUserStore((s) => s.currentUserId);
   const [localState, setLocalState] = useState<ClassroomState | null>(null);
@@ -202,7 +204,7 @@ export function ClassroomPage() {
     async (lessonId: string) => {
       if (!userId || !localState) return;
       try {
-        const enrollRes = await fetch(`/api/enrollments?userId=${userId}`);
+        const enrollRes = await fetch("/api/enrollments");
         const enrollJson = await enrollRes.json();
         if (enrollJson.success && Array.isArray(enrollJson.data)) {
           const enrollment = enrollJson.data.find(
@@ -447,11 +449,35 @@ export function ClassroomPage() {
     }
   }, [localState, downloadingPptx]);
 
+  // ─── Load failure ───────────────────────────────
+  // The hook has always reported why a lesson could not be loaded; this page
+  // ignored it and showed the spinner below forever. A lesson that was
+  // deleted, unpublished, or that the learner is no longer enrolled in now
+  // says so and offers the way out, instead of hanging.
+  if (classroomError) {
+    return (
+      <div className="bg-muted/30 flex h-screen flex-col items-center justify-center gap-4 px-6 text-center">
+        <p className="text-muted-foreground text-lg">{classroomError}</p>
+        <p className="text-muted-foreground/80 max-w-md text-sm">
+          The lesson may have been removed, or it may belong to a course you are not enrolled in.
+        </p>
+        <Button variant="outline" onClick={goBack}>
+          Go back
+        </Button>
+      </div>
+    );
+  }
+
   // ─── No state guard ─────────────────────────────
+  // Still loading, or loaded into nothing: either way there is no lesson to
+  // draw yet, and the error branch above has already handled failure.
   if (!localState) {
     return (
-      <div className="bg-muted/30 flex h-screen items-center justify-center">
+      <div className="bg-muted/30 flex h-screen flex-col items-center justify-center gap-3">
         <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
+        {!classroomLoading && (
+          <p className="text-muted-foreground text-sm">Preparing this lesson…</p>
+        )}
       </div>
     );
   }
@@ -584,7 +610,12 @@ export function ClassroomPage() {
               <iframe
                 ref={iframeRef}
                 srcDoc={currentSlide?.htmlBody || ""}
-                sandbox="allow-same-origin allow-scripts"
+                // No allow-same-origin: nothing here reads into the frame, and
+                // the pair "allow-same-origin allow-scripts" would put slide
+                // content on the app's own origin, where a script in it could
+                // read the session cookie and call the API as the learner.
+                // allow-scripts alone still runs the wrapper's fit script.
+                sandbox="allow-scripts"
                 className="h-full w-full border-0"
                 title={`${localState.lessonTitle || "Slide"} content`}
               />

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireUser, AuthorizationError } from "@/lib/session";
+import { authFailure } from "@/lib/api-response";
 
 /**
  * GET /api/comments?courseId=xxx&lessonId=xxx
@@ -8,6 +9,9 @@ import { requireUser, AuthorizationError } from "@/lib/session";
  */
 export async function GET(request: NextRequest) {
   try {
+    // Discussion is for people signed in to the course, not for the open web.
+    await requireUser();
+
     const { searchParams } = new URL(request.url);
     const courseId = searchParams.get("courseId");
     const lessonId = searchParams.get("lessonId");
@@ -41,6 +45,8 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: comments });
   } catch (error) {
+    const denied = authFailure(error);
+    if (denied) return denied;
     console.error("GET /api/comments error:", error);
     return NextResponse.json(
       { success: false, error: "Failed to fetch comments" },
@@ -62,6 +68,8 @@ export async function POST(request: NextRequest) {
     try {
       actingUserId = (await requireUser()).id;
     } catch (error) {
+      const denied = authFailure(error);
+      if (denied) return denied;
       if (error instanceof AuthorizationError) {
         return NextResponse.json(
           { success: false, error: error.message },
@@ -124,6 +132,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: comment }, { status: 201 });
   } catch (error) {
+    const denied = authFailure(error);
+    if (denied) return denied;
     console.error("POST /api/comments error:", error);
     return NextResponse.json(
       { success: false, error: "Failed to create comment" },

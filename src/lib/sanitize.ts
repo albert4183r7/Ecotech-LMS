@@ -496,11 +496,18 @@ export function isCanvasDocument(html: string): boolean {
  * Slides generated before the canvas existed are plain documents. Measuring
  * one of those finds no canvas element and would otherwise report a perfectly
  * clean slide, which is a false pass.
+ *
+ * The extracted body is sanitized on the way through. Every current write path
+ * sanitizes before storing, but a document that is not already a canvas
+ * document did not come from one of them — the seeded lessons, for instance,
+ * carry a <script src="https://cdn.tailwindcss.com"> the sanitizer would never
+ * have let through. Cleaning here means a slide is safe because of what the
+ * renderer does, not because of what every historical writer remembered to do.
  */
 export function ensureCanvasDocument(html: string, title?: string, templateId?: string): string {
   if (isCanvasDocument(html)) return html;
   const body = /<body[^>]*>([\s\S]*)<\/body>/i.exec(html)?.[1] ?? html;
-  return wrapSlideHtml(body, { title, templateId });
+  return wrapSlideHtml(sanitizeHtml(body), { title, templateId });
 }
 
 function escapeHtml(str: string): string {

@@ -277,7 +277,7 @@ export function CreateCoursePage() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`/api/courses/${courseId}?userId=${currentUserId}`);
+        const res = await fetch(`/api/courses/${courseId}`);
         const json = await res.json();
         if (!json.success || cancelled) return;
         const c = json.data;

@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireUser, AuthorizationError } from "@/lib/session";
+import { authFailure } from "@/lib/api-response";
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const courseId = searchParams.get("courseId");
-    const userId = searchParams.get("userId");
+    // "Your rating" is the session's rating. Reading it from the query string
+    // reported someone else's score as the caller's own.
+    const userId = (await requireUser()).id;
 
     if (!courseId) {
       return NextResponse.json({ success: false, error: "courseId is required" }, { status: 400 });
@@ -20,21 +23,18 @@ export async function GET(request: NextRequest) {
     const average =
       count > 0 ? Number((ratings.reduce((sum, r) => sum + r.score, 0) / count).toFixed(1)) : 0;
 
-    let userRating: number | null = null;
-    if (userId) {
-      const existing = await db.rating.findUnique({
-        where: { userId_courseId: { userId, courseId } },
-      });
-      if (existing) {
-        userRating = existing.score;
-      }
-    }
+    const existing = await db.rating.findUnique({
+      where: { userId_courseId: { userId, courseId } },
+    });
+    const userRating: number | null = existing?.score ?? null;
 
     return NextResponse.json({
       success: true,
       data: { average, count, userRating },
     });
   } catch (error) {
+    const denied = authFailure(error);
+    if (denied) return denied;
     console.error("Error fetching ratings:", error);
     return NextResponse.json({ success: false, error: "Failed to fetch ratings" }, { status: 500 });
   }
@@ -48,6 +48,8 @@ export async function POST(request: NextRequest) {
     try {
       actingUserId = (await requireUser()).id;
     } catch (error) {
+      const denied = authFailure(error);
+      if (denied) return denied;
       if (error instanceof AuthorizationError) {
         return NextResponse.json(
           { success: false, error: error.message },
@@ -111,6 +113,8 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
+    const denied = authFailure(error);
+    if (denied) return denied;
     console.error("Error upserting rating:", error);
     return NextResponse.json({ success: false, error: "Failed to submit rating" }, { status: 500 });
   }

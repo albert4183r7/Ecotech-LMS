@@ -1,17 +1,32 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireUser, AuthorizationError } from "@/lib/session";
+import { authFailure } from "@/lib/api-response";
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const enrollmentId = searchParams.get("enrollmentId");
 
+    // Progress belongs to an enrolment, and an enrolment to a person. Reading
+    // it needs both: a session, and that session owning the enrolment. The
+    // enrolment id was previously taken on trust, so anyone could read another
+    // student's progress through a course.
+    const actingUserId = (await requireUser()).id;
+
     if (!enrollmentId) {
       return NextResponse.json(
         { success: false, error: "enrollmentId is required" },
         { status: 400 },
       );
+    }
+
+    const enrollment = await db.enrollment.findUnique({
+      where: { id: enrollmentId },
+      select: { userId: true },
+    });
+    if (!enrollment || enrollment.userId !== actingUserId) {
+      return NextResponse.json({ success: false, error: "Enrollment not found" }, { status: 404 });
     }
 
     const progresses = await db.progress.findMany({
@@ -26,6 +41,8 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: progresses });
   } catch (error) {
+    const denied = authFailure(error);
+    if (denied) return denied;
     console.error("Error fetching progress:", error);
     return NextResponse.json(
       { success: false, error: "Failed to fetch progress" },
@@ -40,6 +57,8 @@ export async function POST(request: NextRequest) {
     try {
       actingUserId = (await requireUser()).id;
     } catch (error) {
+      const denied = authFailure(error);
+      if (denied) return denied;
       if (error instanceof AuthorizationError) {
         return NextResponse.json(
           { success: false, error: error.message },
@@ -98,6 +117,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: progress });
   } catch (error) {
+    const denied = authFailure(error);
+    if (denied) return denied;
     console.error("Error saving progress:", error);
     return NextResponse.json({ success: false, error: "Failed to save progress" }, { status: 500 });
   }

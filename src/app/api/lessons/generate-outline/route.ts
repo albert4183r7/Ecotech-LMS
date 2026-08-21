@@ -169,7 +169,29 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as GenerateOutlineRequest;
     const { courseId, topic, slideCount, style, language = "english", existingLessonId } = body;
 
-    if (!courseId || !topic || !slideCount || !style) {
+    if (!courseId) {
+      return NextResponse.json({ success: false, error: "courseId is required" }, { status: 400 });
+    }
+
+    // Only the course's own instructor may add lessons to it. Without this
+    // any caller could create lessons in anyone's course and spend the
+    // account's generation budget doing it. Checked before the rest of the
+    // request's shape, so a caller with no business here learns nothing
+    // about what this endpoint expects.
+    try {
+      await requireCourseOwner(courseId);
+      if (existingLessonId) await requireLessonOwner(existingLessonId);
+    } catch (error) {
+      if (error instanceof AuthorizationError) {
+        return NextResponse.json(
+          { success: false, error: error.message },
+          { status: error.status },
+        );
+      }
+      throw error;
+    }
+
+    if (!topic || !slideCount || !style) {
       return NextResponse.json(
         { success: false, error: "courseId, topic, slideCount, and style are required" },
         { status: 400 },
@@ -183,22 +205,6 @@ export async function POST(request: NextRequest) {
     }
 
     const requestedSlides = Math.max(MIN_SLIDES, Math.min(MAX_SLIDES, Math.round(slideCount)));
-
-    // Only the course's own instructor may add lessons to it. Without this
-    // any caller could create lessons in anyone's course and spend the
-    // account's generation budget doing it.
-    try {
-      await requireCourseOwner(courseId);
-      if (existingLessonId) await requireLessonOwner(existingLessonId);
-    } catch (error) {
-      if (error instanceof AuthorizationError) {
-        return NextResponse.json(
-          { success: false, error: error.message },
-          { status: error.status },
-        );
-      }
-      throw error;
-    }
 
     const course = await db.course.findUnique({ where: { id: courseId } });
     if (!course) {

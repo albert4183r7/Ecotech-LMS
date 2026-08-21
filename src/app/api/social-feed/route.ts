@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/session";
+import { handleRoute } from "@/lib/api-response";
 
 // ─────────────────────────────────────────────────────
 // Types
@@ -233,24 +234,26 @@ function generateSocialFeed(seed: number, limit: number): SocialActivityItem[] {
 // ─────────────────────────────────────────────────────
 
 export async function GET(request: NextRequest) {
-  const { searchParams } = request.nextUrl;
-  // Whose data this is comes from the session, never from the query string:
-  // the id used to default to a seeded account, so every signed-in user saw
-  // that account's numbers, and anyone could read another user's by asking.
-  const userId = (await requireUser()).id;
-  const limitParam = searchParams.get("limit");
-  const limit = Math.min(Math.max(parseInt(limitParam || "10", 10), 1), 20);
+  return handleRoute("social-feed.GET", async () => {
+    const { searchParams } = request.nextUrl;
+    // Whose data this is comes from the session, never from the query string:
+    // the id used to default to a seeded account, so every signed-in user saw
+    // that account's numbers, and anyone could read another user's by asking.
+    const userId = (await requireUser()).id;
+    const limitParam = searchParams.get("limit");
+    const limit = Math.min(Math.max(parseInt(limitParam || "10", 10), 1), 20);
 
-  // Use userId as part of seed for slight personalization, but keep it deterministic
-  const seed = 42;
-  const activities = generateSocialFeed(seed, limit);
+    // Use userId as part of seed for slight personalization, but keep it deterministic
+    const seed = 42;
+    const activities = generateSocialFeed(seed, limit);
 
-  return NextResponse.json({
-    success: true,
-    data: activities,
-    meta: {
-      total: activities.length,
-      userId,
-    },
+    return NextResponse.json({
+      success: true,
+      data: activities,
+      meta: {
+        total: activities.length,
+        userId,
+      },
+    });
   });
 }

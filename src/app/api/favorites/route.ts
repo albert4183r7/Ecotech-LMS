@@ -1,15 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireUser, AuthorizationError } from "@/lib/session";
+import { authFailure } from "@/lib/api-response";
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get("userId");
-
-    if (!userId) {
-      return NextResponse.json({ success: false, error: "userId is required" }, { status: 400 });
-    }
+    // Your own favourites. The id used to come from the query string with no
+    // check at all, so any caller could read anyone's saved courses.
+    const userId = (await requireUser()).id;
 
     const favorites = await db.favorite.findMany({
       where: { userId },
@@ -54,6 +52,8 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: formattedFavorites });
   } catch (error) {
+    const denied = authFailure(error);
+    if (denied) return denied;
     console.error("Error fetching favorites:", error);
     return NextResponse.json(
       { success: false, error: "Failed to fetch favorites" },
@@ -70,6 +70,8 @@ export async function POST(request: NextRequest) {
     try {
       actingUserId = (await requireUser()).id;
     } catch (error) {
+      const denied = authFailure(error);
+      if (denied) return denied;
       if (error instanceof AuthorizationError) {
         return NextResponse.json(
           { success: false, error: error.message },
@@ -122,6 +124,8 @@ export async function POST(request: NextRequest) {
       { status: 201 },
     );
   } catch (error) {
+    const denied = authFailure(error);
+    if (denied) return denied;
     console.error("Error toggling favorite:", error);
     return NextResponse.json(
       { success: false, error: "Failed to toggle favorite" },

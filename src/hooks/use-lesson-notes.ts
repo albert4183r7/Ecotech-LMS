@@ -40,7 +40,7 @@ export function useLessonNotes({
     if (!userId || !courseId || !lessonId) return;
     try {
       const res = await fetch(
-        `/api/notes?userId=${userId}&courseId=${courseId}&lessonId=${lessonId}`,
+        `/api/notes?courseId=${encodeURIComponent(courseId)}&lessonId=${encodeURIComponent(lessonId)}`,
       );
       if (!res.ok) return;
       const json = await res.json();

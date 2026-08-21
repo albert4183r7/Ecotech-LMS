@@ -256,7 +256,7 @@ export function MyLearningPage() {
   const fetchEnrollments = useCallback(async () => {
     setLoadingEnrollments(true);
     try {
-      const res = await fetch(`/api/enrollments?userId=${currentUserId}`);
+      const res = await fetch("/api/enrollments");
       const json = await res.json();
       if (json.success) {
         setEnrollmentsState(json.data);
@@ -272,7 +272,7 @@ export function MyLearningPage() {
   const fetchFavorites = useCallback(async () => {
     setLoadingFavorites(true);
     try {
-      const res = await fetch(`/api/favorites?userId=${currentUserId}`);
+      const res = await fetch("/api/favorites");
       const json = await res.json();
       if (json.success) {
         setFavoritesState(json.data);

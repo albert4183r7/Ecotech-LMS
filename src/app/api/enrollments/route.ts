@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { authFailure } from "@/lib/api-response";
 import { db } from "@/lib/db";
 import { requireUser, AuthorizationError } from "@/lib/session";
 
@@ -100,6 +101,8 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: formattedEnrollments });
   } catch (error) {
+    const denied = authFailure(error);
+    if (denied) return denied;
     console.error("Error fetching enrollments:", error);
     return NextResponse.json(
       { success: false, error: "Failed to fetch enrollments" },
@@ -180,6 +183,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: enrollment }, { status: 201 });
   } catch (error) {
+    const denied = authFailure(error);
+    if (denied) return denied;
     console.error("Error creating enrollment:", error);
     return NextResponse.json(
       { success: false, error: "Failed to enroll in course" },

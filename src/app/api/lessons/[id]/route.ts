@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireLessonOwner, requireLessonReader, AuthorizationError } from "@/lib/session";
 import { handleRoute, ok, fail } from "@/lib/api-response";
+import { ensureCanvasDocument } from "@/lib/sanitize";
+import { readLessonTemplateId } from "@/lib/slides/lesson-template";
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -31,6 +33,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ success: false, error: "Lesson not found" }, { status: 404 });
     }
 
+    const lessonTemplateId = readLessonTemplateId(lesson.outlineJson);
+
     const formattedLesson = {
       id: lesson.id,
       title: lesson.title,
@@ -40,7 +44,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       slides: lesson.slides.map((slide) => ({
         id: slide.id,
         title: slide.title,
-        htmlBody: slide.htmlBody,
+        // Render-ready rather than as-stored. Everything written today is
+        // sanitized before it lands, but the classroom drops this straight
+        // into an iframe, and it should not be the only thing standing
+        // between a stored document and the browser.
+        htmlBody: ensureCanvasDocument(slide.htmlBody, slide.title, lessonTemplateId ?? undefined),
         status: slide.status,
         order: slide.order,
         lessonId: slide.lessonId,

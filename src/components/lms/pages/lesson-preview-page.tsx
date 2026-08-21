@@ -346,6 +346,9 @@ export function LessonPreviewPage() {
                 <iframe
                   ref={iframeRef}
                   srcDoc={current.htmlBody}
+                  // Click-to-edit reads the frame's document to find which
+                  // field was clicked, which needs same-origin. The document
+                  // itself arrives sanitized from the preview endpoint.
                   sandbox="allow-same-origin allow-scripts"
                   className="w-full border-0"
                   style={{ aspectRatio: "16 / 9" }}

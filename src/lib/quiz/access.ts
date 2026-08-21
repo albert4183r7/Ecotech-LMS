@@ -97,8 +97,13 @@ export interface QuizAccess {
  * The instructor path and the student path are both checked here rather than
  * at each route, because they must never diverge: a student reaching a quiz
  * requires the course to be published AND an enrolment, and neither alone is
- * enough. Unauthorized access is reported as not-found so the endpoint does not
- * confirm which quizzes exist.
+ * enough.
+ *
+ * A quiz the caller has no business knowing about is reported as not-found, so
+ * the endpoint does not confirm which quizzes exist. The one exception is a
+ * published course the caller simply has not enrolled in: its lessons are
+ * already listed publicly, so there is nothing to conceal, and 403 with "you
+ * are not enrolled" tells the student what to do about it.
  */
 export async function resolveQuizAccess(where: {
   quizId?: string;

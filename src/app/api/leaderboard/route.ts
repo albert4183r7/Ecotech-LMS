@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { authFailure } from "@/lib/api-response";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/session";
 
@@ -100,10 +101,10 @@ function calcScore(completedCourses: number, avgProgress: number): number {
 // ------------------------------------------------------------------
 
 export async function GET() {
-  // "You" on the board is the signed-in user; it used to be a hardcoded seed
-  // account, so every viewer saw the same person highlighted as themselves.
-  const currentUserId = (await requireUser()).id;
   try {
+    // "You" on the board is the signed-in user; it used to be a hardcoded seed
+    // account, so every viewer saw the same person highlighted as themselves.
+    const currentUserId = (await requireUser()).id;
     // Fetch the real current user's stats from the database
     const user = await db.user.findUnique({
       where: { id: currentUserId },
@@ -181,6 +182,8 @@ export async function GET() {
       data: allEntries,
     });
   } catch (error) {
+    const denied = authFailure(error);
+    if (denied) return denied;
     console.error("Error fetching leaderboard:", error);
     return NextResponse.json(
       { success: false, error: "Failed to fetch leaderboard" },

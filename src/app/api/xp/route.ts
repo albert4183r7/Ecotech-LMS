@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { authFailure } from "@/lib/api-response";
 import { requireUser, AuthorizationError } from "@/lib/session";
 
 // ------------------------------------------------------------------
@@ -161,6 +162,8 @@ export async function GET(request: Request) {
       } satisfies XpResponse,
     });
   } catch (error) {
+    const denied = authFailure(error);
+    if (denied) return denied;
     console.error("Error fetching XP:", error);
     return NextResponse.json({ success: false, error: "Failed to fetch XP data" }, { status: 500 });
   }
@@ -231,6 +234,8 @@ export async function POST(request: Request) {
       },
     });
   } catch (error) {
+    const denied = authFailure(error);
+    if (denied) return denied;
     console.error("Error adding XP:", error);
     return NextResponse.json({ success: false, error: "Failed to add XP" }, { status: 500 });
   }

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { authFailure } from "@/lib/api-response";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/session";
 
@@ -234,6 +235,8 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(response);
   } catch (error) {
+    const denied = authFailure(error);
+    if (denied) return denied;
     console.error("[Progress Timeline API] Error:", error);
     return NextResponse.json(
       { success: false, error: "Failed to load progress timeline" },

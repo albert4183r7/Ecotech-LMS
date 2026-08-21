@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { authFailure } from "@/lib/api-response";
 import { requireUser } from "@/lib/session";
 
 // ------------------------------------------------------------------
@@ -205,6 +206,8 @@ export async function GET(request: Request) {
       },
     });
   } catch (error) {
+    const denied = authFailure(error);
+    if (denied) return denied;
     console.error("Error fetching challenges:", error);
     return NextResponse.json(
       { success: false, error: "Failed to fetch challenges" },

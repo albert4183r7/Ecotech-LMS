@@ -307,11 +307,19 @@ export function Navbar() {
   // Fetch notifications from API
   // ============================================
   useEffect(() => {
+    // Nothing to fetch on the sign-in screen: the endpoint needs a session, so
+    // asking without one only produced a 401 in the console every page load.
+    if (!isAuthenticated) {
+      setNotifications([]);
+      setNotificationsLoading(false);
+      return;
+    }
+
     let cancelled = false;
     async function fetchNotifications() {
       setNotificationsLoading(true);
       try {
-        const res = await fetch(`/api/notifications?userId=${encodeURIComponent(currentUserId)}`);
+        const res = await fetch("/api/notifications");
         if (!res.ok) throw new Error("Failed to fetch");
         const data = await res.json();
         if (!cancelled) {
@@ -329,7 +337,7 @@ export function Navbar() {
     return () => {
       cancelled = true;
     };
-  }, [currentUserId]);
+  }, [currentUserId, isAuthenticated]);
 
   // Close mobile menu and search on view change
   useEffect(() => {
@@ -455,7 +463,11 @@ export function Navbar() {
     }
   }, [navigateTo]);
 
-  /** Get initials from user name for avatar */
+  /**
+   * Get initials from user name for avatar. Fed the display name, not the id:
+   * every seeded student id begins "user_student_", so the avatar read "US"
+   * for all of them.
+   */
   const getInitials = (name: string) => {
     if (name.includes("_")) {
       const parts = name.split("_");
@@ -809,7 +821,7 @@ export function Navbar() {
                           : "bg-primary/10 text-primary",
                       )}
                     >
-                      {getInitials(currentUserId)}
+                      {getInitials(displayName)}
                     </AvatarFallback>
                   </Avatar>
                   <span
@@ -893,7 +905,7 @@ export function Navbar() {
             <span className="relative">
               <Avatar className="border-primary/20 h-9 w-9 border-2">
                 <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
-                  {getInitials(currentUserId)}
+                  {getInitials(displayName)}
                 </AvatarFallback>
               </Avatar>
               <span

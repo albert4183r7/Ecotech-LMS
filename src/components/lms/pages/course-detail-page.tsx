@@ -88,9 +88,12 @@ export function CourseDetailPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/courses/${selectedCourseId}?userId=${userId}`);
-      if (!res.ok) throw new Error("Failed to load course");
+      const res = await fetch(`/api/courses/${selectedCourseId}`);
       const json = await res.json();
+      // The server distinguishes a course that does not exist from one this
+      // account may not see; both read as "Course not found" here, and its
+      // message is more useful than a blanket "failed to load".
+      if (!res.ok) throw new Error(json?.error || "Failed to load course");
       if (json.success) {
         setCourse(json.data);
       } else {
@@ -111,7 +114,7 @@ export function CourseDetailPage() {
   const fetchRatingData = useCallback(async () => {
     if (!selectedCourseId) return;
     try {
-      const res = await fetch(`/api/ratings?courseId=${selectedCourseId}&userId=${userId}`);
+      const res = await fetch(`/api/ratings?courseId=${encodeURIComponent(selectedCourseId)}`);
       if (res.ok) {
         const json = await res.json();
         if (json.success) {
@@ -133,7 +136,7 @@ export function CourseDetailPage() {
   const fetchLessonProgress = useCallback(async () => {
     if (!userId || !course?.isEnrolled) return;
     try {
-      const enrollRes = await fetch(`/api/enrollments?userId=${userId}`);
+      const enrollRes = await fetch("/api/enrollments");
       const enrollJson = await enrollRes.json();
       if (enrollJson.success && Array.isArray(enrollJson.data)) {
         const enrollment = enrollJson.data.find(

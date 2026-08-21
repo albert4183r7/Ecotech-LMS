@@ -39,3 +39,15 @@ export async function handleRoute(
     return fail("Something went wrong. Please try again.", 500);
   }
 }
+
+/**
+ * The response for a thrown AuthorizationError, or null when it is not one.
+ *
+ * handleRoute is the shape to prefer, but several handlers own their own
+ * try/catch and used to answer a refusal with 500 — telling the client the
+ * server had broken when in fact the session had expired, so the page showed
+ * "something went wrong" instead of asking the user to sign in again.
+ */
+export function authFailure(error: unknown): NextResponse | null {
+  return error instanceof AuthorizationError ? fail(error.message, error.status) : null;
+}

@@ -34,12 +34,28 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const body = (await request.json()) as SubmitRequest;
     const answers = body?.answers ?? {};
-    if (typeof answers !== "object") {
+    // An array passes `typeof === "object"`, so the old check let a
+    // wrongly-shaped submission through to be scored as three blanks. A
+    // student who answered would have been told they got nothing right, with
+    // no error anywhere to say why.
+    if (typeof answers !== "object" || answers === null || Array.isArray(answers)) {
       return fail("answers must be an object of questionId to optionId.", 400);
     }
 
-    // Score from the database, question by question, ignoring anything in the
-    // request that does not correspond to a real option of that question.
+    // Skipping a question is allowed — leaving its key out. Naming a question
+    // or an option that is not part of this quiz is not: it means the client
+    // and the quiz disagree, and scoring that silently produces a wrong mark.
+    const questionsById = new Map(quiz.questions.map((q) => [q.id, q]));
+    for (const [questionId, optionId] of Object.entries(answers)) {
+      const question = questionsById.get(questionId);
+      if (!question) return fail(`Question ${questionId} is not part of this quiz.`, 400);
+      if (typeof optionId !== "string" || !question.options.some((o) => o.id === optionId)) {
+        return fail(`Option ${String(optionId)} is not an answer to question ${questionId}.`, 400);
+      }
+    }
+
+    // Score from the database, question by question. Which option was chosen
+    // comes from the request; whether it was right never does.
     const graded = quiz.questions.map((question) => {
       const selectedOptionId = answers[question.id] ?? null;
       const selected = question.options.find((o) => o.id === selectedOptionId) ?? null;
