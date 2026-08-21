@@ -8,32 +8,35 @@ import { AnnouncementBanner } from "@/components/lms/announcement-banner";
 import { AuthPage } from "@/components/lms/pages/auth-page";
 import { FloatingActions } from "@/components/lms/floating-actions";
 import { KeyboardShortcuts } from "@/components/lms/keyboard-shortcuts";
+import { SessionSync } from "@/components/lms/session-sync";
 
 /** Chrome shared by every signed-in page, plus the auth gate. */
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useUserStore((s) => s.isAuthenticated);
 
-  if (!isAuthenticated) {
-    return (
-      <div className="bg-background flex min-h-screen flex-col">
-        <Navbar />
-        <main className="flex-1">
-          <AuthPage />
-        </main>
-        <Footer />
-      </div>
-    );
-  }
-
+  // Kept outside the branch so reconciling the session does not unmount the
+  // component that is doing the reconciling.
   return (
     <div className="bg-background flex min-h-screen flex-col">
+      <SessionSync />
       <Navbar />
-      <AnnouncementBanner />
-      <main className="page-transition flex-1">{children}</main>
-      <Footer />
-      <FloatingActions />
-      <KeyboardShortcuts />
-      <OnboardingTour />
+      {isAuthenticated ? (
+        <>
+          <AnnouncementBanner />
+          <main className="page-transition flex-1">{children}</main>
+          <Footer />
+          <FloatingActions />
+          <KeyboardShortcuts />
+          <OnboardingTour />
+        </>
+      ) : (
+        <>
+          <main className="flex-1">
+            <AuthPage />
+          </main>
+          <Footer />
+        </>
+      )}
     </div>
   );
 }

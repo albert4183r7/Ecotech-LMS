@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { requireUser, AuthorizationError } from "@/lib/session";
 
 export async function GET(request: NextRequest) {
   try {
@@ -125,14 +126,34 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { title, description, categoryId, language, creatorId, coverImage, lessons } = body;
+    // The creator is whoever is signed in. It used to come from the request
+    // body, so a caller could create a course owned by someone else — and
+    // ownership is what every later authorization check reads.
+    let creatorId: string;
+    try {
+      const user = await requireUser();
+      if (user.role !== "instructor") {
+        return NextResponse.json(
+          { success: false, error: "Only instructors can create courses." },
+          { status: 403 },
+        );
+      }
+      creatorId = user.id;
+    } catch (error) {
+      if (error instanceof AuthorizationError) {
+        return NextResponse.json(
+          { success: false, error: error.message },
+          { status: error.status },
+        );
+      }
+      throw error;
+    }
 
-    if (!title || !creatorId) {
-      return NextResponse.json(
-        { success: false, error: "Title and creatorId are required" },
-        { status: 400 },
-      );
+    const body = await request.json();
+    const { title, description, categoryId, language, coverImage, lessons } = body;
+
+    if (!title) {
+      return NextResponse.json({ success: false, error: "Title is required" }, { status: 400 });
     }
 
     const course = await db.course.create({

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { requireLessonOwner, requireUser, AuthorizationError } from "@/lib/session";
 import { runLessonAgent } from "@/lib/agent/agents/lesson-agent";
 import type { StoredOutline } from "@/lib/presentation-plan";
 
@@ -20,6 +21,19 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as StartRunRequest;
     if (!body.lessonId) {
       return NextResponse.json({ success: false, error: "lessonId is required" }, { status: 400 });
+    }
+
+    // An agent run writes to the lesson and spends generation budget.
+    try {
+      await requireLessonOwner(body.lessonId);
+    } catch (error) {
+      if (error instanceof AuthorizationError) {
+        return NextResponse.json(
+          { success: false, error: error.message },
+          { status: error.status },
+        );
+      }
+      throw error;
     }
 
     const lesson = await db.lesson.findUnique({
@@ -107,6 +121,18 @@ export async function GET(request: NextRequest) {
 
   if (!run) {
     return NextResponse.json({ success: false, error: "Run not found" }, { status: 404 });
+  }
+
+  // A run carries the lesson's generated text and its evaluations, so reading
+  // one is reading the instructor's unpublished work.
+  try {
+    if (run.lessonId) await requireLessonOwner(run.lessonId);
+    else await requireUser();
+  } catch (error) {
+    if (error instanceof AuthorizationError) {
+      return NextResponse.json({ success: false, error: "Run not found" }, { status: 404 });
+    }
+    throw error;
   }
 
   return NextResponse.json({

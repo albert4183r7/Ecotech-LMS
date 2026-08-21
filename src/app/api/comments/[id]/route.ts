@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { requireUser, AuthorizationError } from "@/lib/session";
 
 /**
  * DELETE /api/comments/[id]
@@ -12,12 +13,21 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get("userId");
-
-    if (!userId) {
-      return NextResponse.json({ success: false, error: "userId is required" }, { status: 400 });
+    let actingUserId: string;
+    try {
+      actingUserId = (await requireUser()).id;
+    } catch (error) {
+      if (error instanceof AuthorizationError) {
+        return NextResponse.json(
+          { success: false, error: error.message },
+          { status: error.status },
+        );
+      }
+      throw error;
     }
+
+    // The owner is the signed-in user, not whoever the query string names.
+    const userId = actingUserId;
 
     // Find the comment and verify ownership
     const comment = await db.comment.findUnique({

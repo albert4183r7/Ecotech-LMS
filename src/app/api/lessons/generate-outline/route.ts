@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import path from "path";
 import { db } from "@/lib/db";
+import { requireCourseOwner, requireLessonOwner, AuthorizationError } from "@/lib/session";
 import { generateStructuredJSON } from "@/lib/llm";
 import {
   PresentationPlanSchema,
@@ -182,6 +183,22 @@ export async function POST(request: NextRequest) {
     }
 
     const requestedSlides = Math.max(MIN_SLIDES, Math.min(MAX_SLIDES, Math.round(slideCount)));
+
+    // Only the course's own instructor may add lessons to it. Without this
+    // any caller could create lessons in anyone's course and spend the
+    // account's generation budget doing it.
+    try {
+      await requireCourseOwner(courseId);
+      if (existingLessonId) await requireLessonOwner(existingLessonId);
+    } catch (error) {
+      if (error instanceof AuthorizationError) {
+        return NextResponse.json(
+          { success: false, error: error.message },
+          { status: error.status },
+        );
+      }
+      throw error;
+    }
 
     const course = await db.course.findUnique({ where: { id: courseId } });
     if (!course) {

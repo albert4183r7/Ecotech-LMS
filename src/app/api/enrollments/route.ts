@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { requireUser, AuthorizationError } from "@/lib/session";
 
 export async function GET(request: NextRequest) {
   try {
@@ -111,14 +112,27 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { userId, courseId } = body;
+    let actingUserId: string;
+    try {
+      actingUserId = (await requireUser()).id;
+    } catch (error) {
+      if (error instanceof AuthorizationError) {
+        return NextResponse.json(
+          { success: false, error: error.message },
+          { status: error.status },
+        );
+      }
+      throw error;
+    }
 
-    if (!userId || !courseId) {
-      return NextResponse.json(
-        { success: false, error: "userId and courseId are required" },
-        { status: 400 },
-      );
+    const body = await request.json();
+    const { courseId } = body;
+    // You enrol yourself. The id used to come from the body, so any caller
+    // could enrol anyone in anything.
+    const userId = actingUserId;
+
+    if (!courseId) {
+      return NextResponse.json({ success: false, error: "courseId is required" }, { status: 400 });
     }
 
     // Check if course exists

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { requireUser, AuthorizationError } from "@/lib/session";
 
 export async function GET(request: NextRequest) {
   try {
@@ -35,6 +36,19 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    let actingUserId: string;
+    try {
+      actingUserId = (await requireUser()).id;
+    } catch (error) {
+      if (error instanceof AuthorizationError) {
+        return NextResponse.json(
+          { success: false, error: error.message },
+          { status: error.status },
+        );
+      }
+      throw error;
+    }
+
     const body = await request.json();
     const { enrollmentId, lessonId, currentPage, completed } = body;
 
@@ -45,11 +59,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify enrollment exists
+    // The enrolment has to be the caller's, or anyone could rewrite another
+    // learner's progress by guessing an id.
     const enrollment = await db.enrollment.findUnique({
       where: { id: enrollmentId },
+      select: { userId: true },
     });
-    if (!enrollment) {
+    if (!enrollment || enrollment.userId !== actingUserId) {
       return NextResponse.json({ success: false, error: "Enrollment not found" }, { status: 404 });
     }
 

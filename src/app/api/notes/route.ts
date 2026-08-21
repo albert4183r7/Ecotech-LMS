@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { requireUser, AuthorizationError } from "@/lib/session";
 
 /**
  * GET /api/notes?userId=xxx&courseId=xxx&lessonId=xxx
@@ -8,7 +9,20 @@ import { db } from "@/lib/db";
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const userId = searchParams.get("userId");
+    // Notes are private, so the list is always the caller's own regardless of
+    // any userId in the query.
+    let userId: string;
+    try {
+      userId = (await requireUser()).id;
+    } catch (error) {
+      if (error instanceof AuthorizationError) {
+        return NextResponse.json(
+          { success: false, error: error.message },
+          { status: error.status },
+        );
+      }
+      throw error;
+    }
     const courseId = searchParams.get("courseId");
     const lessonId = searchParams.get("lessonId");
 
@@ -39,10 +53,26 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { userId, courseId, lessonId, content, slideNumber, isBookmarked } = body;
+    // The acting user is the signed-in one. Taking it from the request let a
+    // caller create or change rows belonging to anybody.
+    let actingUserId: string;
+    try {
+      actingUserId = (await requireUser()).id;
+    } catch (error) {
+      if (error instanceof AuthorizationError) {
+        return NextResponse.json(
+          { success: false, error: error.message },
+          { status: error.status },
+        );
+      }
+      throw error;
+    }
 
-    if (!content?.trim() || !userId || !courseId || !lessonId) {
+    const body = await request.json();
+    const { courseId, lessonId, content, slideNumber, isBookmarked } = body;
+    const userId = actingUserId;
+
+    if (!content?.trim() || !courseId || !lessonId) {
       return NextResponse.json(
         { success: false, error: "content, userId, courseId, and lessonId are required" },
         { status: 400 },
@@ -92,6 +122,19 @@ export async function POST(request: NextRequest) {
  */
 export async function PUT(request: NextRequest) {
   try {
+    let actingUserId: string;
+    try {
+      actingUserId = (await requireUser()).id;
+    } catch (error) {
+      if (error instanceof AuthorizationError) {
+        return NextResponse.json(
+          { success: false, error: error.message },
+          { status: error.status },
+        );
+      }
+      throw error;
+    }
+
     const body = await request.json();
     const { id, content, isBookmarked } = body;
 
@@ -100,7 +143,9 @@ export async function PUT(request: NextRequest) {
     }
 
     const note = await db.note.findUnique({ where: { id } });
-    if (!note) {
+    // Reported as not-found rather than forbidden, so the endpoint does not
+    // confirm that another learner's note exists.
+    if (!note || note.userId !== actingUserId) {
       return NextResponse.json({ success: false, error: "Note not found" }, { status: 404 });
     }
 
@@ -125,6 +170,19 @@ export async function PUT(request: NextRequest) {
  */
 export async function DELETE(request: NextRequest) {
   try {
+    let actingUserId: string;
+    try {
+      actingUserId = (await requireUser()).id;
+    } catch (error) {
+      if (error instanceof AuthorizationError) {
+        return NextResponse.json(
+          { success: false, error: error.message },
+          { status: error.status },
+        );
+      }
+      throw error;
+    }
+
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
 
@@ -133,7 +191,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     const note = await db.note.findUnique({ where: { id } });
-    if (!note) {
+    if (!note || note.userId !== actingUserId) {
       return NextResponse.json({ success: false, error: "Note not found" }, { status: 404 });
     }
 

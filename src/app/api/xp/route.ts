@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireUser, AuthorizationError } from "@/lib/session";
 
 // ------------------------------------------------------------------
 //  Types
@@ -169,17 +170,33 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    // The acting user is the signed-in one. Taking it from the request let a
+    // caller create or change rows belonging to anybody.
+    let actingUserId: string;
+    try {
+      actingUserId = (await requireUser()).id;
+    } catch (error) {
+      if (error instanceof AuthorizationError) {
+        return NextResponse.json(
+          { success: false, error: error.message },
+          { status: error.status },
+        );
+      }
+      throw error;
+    }
+
     const body = await request.json();
-    const { userId, xp, reason, type } = body as {
-      userId?: string;
+    const { xp, reason, type } = body as {
       xp?: number;
       reason?: string;
       type?: string;
     };
 
-    if (!userId || !xp || xp <= 0) {
+    const userId = actingUserId;
+
+    if (!xp || xp <= 0) {
       return NextResponse.json(
-        { success: false, error: "userId and positive xp are required" },
+        { success: false, error: "A positive xp amount is required" },
         { status: 400 },
       );
     }

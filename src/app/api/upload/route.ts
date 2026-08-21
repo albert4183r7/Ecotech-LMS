@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireUser, AuthorizationError } from "@/lib/session";
 import { writeFile } from "fs/promises";
 import path from "path";
 import { randomUUID } from "crypto";
@@ -31,6 +32,20 @@ function getExt(filename: string): string {
 
 export async function POST(req: NextRequest) {
   try {
+    // Writing files to the server needs a signed-in user; this endpoint was
+    // open to anyone who could reach it.
+    try {
+      await requireUser();
+    } catch (error) {
+      if (error instanceof AuthorizationError) {
+        return NextResponse.json(
+          { success: false, error: error.message },
+          { status: error.status },
+        );
+      }
+      throw error;
+    }
+
     const type = req.nextUrl.searchParams.get("type");
     if (type !== "cover" && type !== "doc") {
       return NextResponse.json(

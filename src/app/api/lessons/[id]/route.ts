@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { requireLessonOwner } from "@/lib/session";
+import { handleRoute, ok, fail } from "@/lib/api-response";
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -59,15 +61,16 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 }
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
+  return handleRoute("lessons.PUT", async () => {
     const { id } = await params;
+    // Only the instructor whose course this lesson belongs to.
+    await requireLessonOwner(id);
+
     const body = await request.json();
     const { title, order, outlineJson } = body;
 
     const lesson = await db.lesson.findUnique({ where: { id } });
-    if (!lesson) {
-      return NextResponse.json({ success: false, error: "Lesson not found" }, { status: 404 });
-    }
+    if (!lesson) return fail("Lesson not found.", 404);
 
     const updated = await db.lesson.update({
       where: { id },
@@ -78,31 +81,29 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       },
     });
 
-    return NextResponse.json({ success: true, data: updated });
-  } catch (error) {
-    console.error("Error updating lesson:", error);
-    return NextResponse.json({ success: false, error: "Failed to update lesson" }, { status: 500 });
-  }
+    return ok(updated);
+  });
 }
 
 export async function DELETE(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  try {
+  return handleRoute("lessons.DELETE", async () => {
     const { id } = await params;
+    await requireLessonOwner(id);
 
     const lesson = await db.lesson.findUnique({ where: { id } });
-    if (!lesson) {
-      return NextResponse.json({ success: false, error: "Lesson not found" }, { status: 404 });
-    }
+    if (!lesson) return fail("Lesson not found.", 404);
 
-    // Slides are cascade-deleted by the relation
-    await db.lesson.delete({ where: { id } });
+    // Sections, slides and the quiz are cascade-deleted by their relations;
+    // agent runs are SetNull and would otherwise point at a lesson that has
+    // gone, so they are removed with it.
+    await db.$transaction(async (tx) => {
+      await tx.agentRun.deleteMany({ where: { lessonId: id } });
+      await tx.lesson.delete({ where: { id } });
+    });
 
-    return NextResponse.json({ success: true, data: { id } });
-  } catch (error) {
-    console.error("Error deleting lesson:", error);
-    return NextResponse.json({ success: false, error: "Failed to delete lesson" }, { status: 500 });
-  }
+    return ok({ id });
+  });
 }

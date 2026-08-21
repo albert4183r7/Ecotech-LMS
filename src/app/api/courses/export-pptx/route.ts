@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import PptxGenJS from "pptxgenjs";
 import { db } from "@/lib/db";
+import { AuthorizationError, requireUser } from "@/lib/session";
 import { SlideContentSchema, type SlideContent } from "@/lib/slides/content-schema";
 import { addContentSlide, applyTemplateLayout } from "@/lib/slides/pptx";
 import { templateFor } from "@/lib/slides/template";
@@ -60,6 +61,29 @@ function toDeckSlides(rows: { title: string; contentJson: string | null }[]): {
   return { slides, skipped };
 }
 
+/**
+ * May this caller read the lesson's content?
+ *
+ * The course's instructor always may. A student may only when the course is
+ * published and they are enrolled — the same rule the quiz endpoints use, so
+ * the two cannot drift apart.
+ */
+async function mayReadLesson(lessonId: string, userId: string): Promise<boolean> {
+  const lesson = await db.lesson.findUnique({
+    where: { id: lessonId },
+    select: { courseId: true, course: { select: { creatorId: true, status: true } } },
+  });
+  if (!lesson) return false;
+  if (lesson.course.creatorId === userId) return true;
+  if (lesson.course.status !== "published") return false;
+
+  const enrollment = await db.enrollment.findUnique({
+    where: { userId_courseId: { userId, courseId: lesson.courseId } },
+    select: { id: true },
+  });
+  return Boolean(enrollment);
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as ExportRequest;
@@ -67,6 +91,11 @@ export async function POST(request: NextRequest) {
     if (!body.lessonId && !body.slideIds?.length) {
       return NextResponse.json({ error: "lessonId or slideIds is required" }, { status: 400 });
     }
+
+    // A deck is the lesson's full content, so exporting one is reading it:
+    // allowed for the course's instructor, or for a student enrolled in a
+    // published course. Anyone else gets not-found.
+    const user = await requireUser();
 
     let rows: { title: string; contentJson: string | null; order: number }[] = [];
     let deckName = body.deckName ?? "lesson";
@@ -83,7 +112,7 @@ export async function POST(request: NextRequest) {
           },
         },
       });
-      if (!lesson) {
+      if (!lesson || !(await mayReadLesson(body.lessonId, user.id))) {
         return NextResponse.json({ error: "Lesson not found" }, { status: 404 });
       }
       rows = lesson.slides;
@@ -101,6 +130,9 @@ export async function POST(request: NextRequest) {
         return row ? [row] : [];
       });
       const lessonId = found[0]?.lessonId;
+      if (lessonId && !(await mayReadLesson(lessonId, user.id))) {
+        return NextResponse.json({ error: "Slides not found" }, { status: 404 });
+      }
       if (lessonId) {
         const lesson = await db.lesson.findUnique({
           where: { id: lessonId },
@@ -156,6 +188,9 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
+    if (error instanceof AuthorizationError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     console.error("[export-pptx] generation error:", error);
     const message = error instanceof Error ? error.message : "Failed to generate PPTX";
     return NextResponse.json({ error: message }, { status: 500 });

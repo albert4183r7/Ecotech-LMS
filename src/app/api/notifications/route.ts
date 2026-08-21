@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { requireUser, AuthorizationError } from "@/lib/session";
 import { NextRequest, NextResponse } from "next/server";
 
 // ============================================
@@ -8,7 +9,20 @@ import { NextRequest, NextResponse } from "next/server";
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const userId = searchParams.get("userId");
+    // Notifications are personal, so the list is the caller's own whatever
+    // the query string says.
+    let userId: string;
+    try {
+      userId = (await requireUser()).id;
+    } catch (error) {
+      if (error instanceof AuthorizationError) {
+        return NextResponse.json(
+          { success: false, error: error.message },
+          { status: error.status },
+        );
+      }
+      throw error;
+    }
 
     if (!userId) {
       return NextResponse.json({ error: "userId is required" }, { status: 400 });
@@ -34,10 +48,24 @@ export async function GET(request: NextRequest) {
 // ============================================
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { userId, title, message, type, link } = body;
+    let actingUserId: string;
+    try {
+      actingUserId = (await requireUser()).id;
+    } catch (error) {
+      if (error instanceof AuthorizationError) {
+        return NextResponse.json(
+          { success: false, error: error.message },
+          { status: error.status },
+        );
+      }
+      throw error;
+    }
 
-    if (!userId || !title || !message) {
+    const body = await request.json();
+    const { title, message, type, link } = body;
+    const userId = actingUserId;
+
+    if (!title || !message) {
       return NextResponse.json(
         { error: "userId, title, and message are required" },
         { status: 400 },
@@ -69,11 +97,25 @@ export async function POST(request: NextRequest) {
 // ============================================
 export async function PUT(request: NextRequest) {
   try {
+    let actingUserId: string;
+    try {
+      actingUserId = (await requireUser()).id;
+    } catch (error) {
+      if (error instanceof AuthorizationError) {
+        return NextResponse.json(
+          { success: false, error: error.message },
+          { status: error.status },
+        );
+      }
+      throw error;
+    }
+
     const body = await request.json();
-    const { notificationId, userId, readAll } = body;
+    const { notificationId, readAll } = body;
+    const userId = actingUserId;
 
     // Mark all as read
-    if (readAll && userId) {
+    if (readAll) {
       const result = await db.notification.updateMany({
         where: { userId, read: false },
         data: { read: true },
@@ -83,15 +125,20 @@ export async function PUT(request: NextRequest) {
 
     // Mark single notification as read
     if (notificationId && body.read !== undefined) {
-      const notification = await db.notification.update({
-        where: { id: notificationId },
+      // Scoped by userId as well as id, so marking someone else's
+      // notification read matches nothing rather than succeeding.
+      const result = await db.notification.updateMany({
+        where: { id: notificationId, userId },
         data: { read: body.read },
       });
-      return NextResponse.json({ notification });
+      if (result.count === 0) {
+        return NextResponse.json({ error: "Notification not found" }, { status: 404 });
+      }
+      return NextResponse.json({ updated: result.count });
     }
 
     return NextResponse.json(
-      { error: "Invalid request. Provide { notificationId, read } or { userId, readAll: true }" },
+      { error: "Invalid request. Provide { notificationId, read } or { readAll: true }" },
       { status: 400 },
     );
   } catch (error) {

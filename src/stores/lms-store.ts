@@ -83,6 +83,8 @@ interface UserState {
   setCurrentRole: (role: "student" | "instructor") => void;
   login: (id: string, role: "student" | "instructor") => void;
   logout: () => void;
+  /** Drop local sign-in state without touching the server session. */
+  clearLocalSession: () => void;
 }
 
 export const useUserStore = create<UserState>()(
@@ -103,6 +105,11 @@ export const useUserStore = create<UserState>()(
         });
         set({ isAuthenticated: false, currentUserId: "", currentRole: "student" as const });
       },
+      // Used when the server has already told us the session is gone: the
+      // cookie is the authority, so there is nothing left to revoke and a
+      // logout call would only produce a pointless 401-adjacent round trip.
+      clearLocalSession: () =>
+        set({ isAuthenticated: false, currentUserId: "", currentRole: "student" as const }),
     }),
     { name: "ecotech-user" },
   ),

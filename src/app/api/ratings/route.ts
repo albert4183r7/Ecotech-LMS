@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { requireUser, AuthorizationError } from "@/lib/session";
 
 export async function GET(request: NextRequest) {
   try {
@@ -41,10 +42,26 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { userId, courseId, score } = body;
+    // The acting user is the signed-in one. Taking it from the request let a
+    // caller create or change rows belonging to anybody.
+    let actingUserId: string;
+    try {
+      actingUserId = (await requireUser()).id;
+    } catch (error) {
+      if (error instanceof AuthorizationError) {
+        return NextResponse.json(
+          { success: false, error: error.message },
+          { status: error.status },
+        );
+      }
+      throw error;
+    }
 
-    if (!userId || !courseId) {
+    const body = await request.json();
+    const { courseId, score } = body;
+    const userId = actingUserId;
+
+    if (!courseId) {
       return NextResponse.json(
         { success: false, error: "userId and courseId are required" },
         { status: 400 },

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { requireLessonOwner, AuthorizationError } from "@/lib/session";
 import { sanitizeHtml, wrapSlideHtml } from "@/lib/sanitize";
 import { isRetryable, SLIDE_ATTEMPTS } from "@/lib/slide-status";
 import { renderSlideContent } from "@/lib/slides/render";
@@ -295,6 +296,20 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as GenerateSlidesRequest;
     if (!body.lessonId) {
       return NextResponse.json({ success: false, error: "lessonId is required" }, { status: 400 });
+    }
+
+    // Generation is expensive and writes to the instructor's lesson, so the
+    // caller has to own it.
+    try {
+      await requireLessonOwner(body.lessonId);
+    } catch (error) {
+      if (error instanceof AuthorizationError) {
+        return NextResponse.json(
+          { success: false, error: error.message },
+          { status: error.status },
+        );
+      }
+      throw error;
     }
 
     const lesson = await db.lesson.findUnique({
