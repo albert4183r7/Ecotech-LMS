@@ -18,6 +18,13 @@ import { useUserStore } from "@/stores/lms-store";
 // two accounts were used in one browser).
 // ============================================
 
+interface SessionUserView {
+  id: string;
+  name: string | null;
+  email: string;
+  role: "student" | "instructor";
+}
+
 export function SessionSync() {
   useEffect(() => {
     const controller = new AbortController();
@@ -29,7 +36,7 @@ export function SessionSync() {
         const json: unknown = await res.json();
         const user =
           json && typeof json === "object" && "data" in json
-            ? (json as { data: { id: string; role: "student" | "instructor" } | null }).data
+            ? (json as { data: SessionUserView | null }).data
             : null;
 
         // Read at callback time, not render time: this effect runs once and
@@ -40,10 +47,12 @@ export function SessionSync() {
           if (state.isAuthenticated) state.clearLocalSession();
           return;
         }
+        const name = user.name ?? user.email;
         if (!state.isAuthenticated || state.currentUserId !== user.id) {
-          state.login(user.id, user.role);
-        } else if (state.currentRole !== user.role) {
-          state.setCurrentRole(user.role);
+          state.login(user.id, user.role, name);
+        } else {
+          if (state.currentRole !== user.role) state.setCurrentRole(user.role);
+          if (state.currentUserName !== name) state.login(user.id, user.role, name);
         }
       } catch {
         // A network failure says nothing about whether the session is valid,

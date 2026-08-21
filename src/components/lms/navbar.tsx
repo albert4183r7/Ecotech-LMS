@@ -281,7 +281,7 @@ function parseNotificationLink(link: string | null): { view: ViewName; courseId?
 
 export function Navbar() {
   const { currentView, navigateTo, openCourseDetail } = useNavigation();
-  const { currentUserId, currentRole, isAuthenticated, logout } = useUserStore();
+  const { currentUserId, currentUserName, currentRole, isAuthenticated, logout } = useUserStore();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { theme, setTheme, resolvedTheme } = useTheme();
 
@@ -468,14 +468,12 @@ export function Navbar() {
     return name.slice(0, 2).toUpperCase();
   };
 
-  /** Role-aware display name */
-  const displayNameMap: Record<string, string> = {
-    user_instructor_001: "Dr. Sarah Chen",
-    user_student_001: "Alex Johnson",
-    user_student_002: "Maria Garcia",
-  };
+  // The account's own name, which the session supplies. The id-derived form is
+  // only a fallback for the moment before the session has been read back — it
+  // used to be the only source, so a real sign-up rendered as "User Abc123"
+  // and only three seeded ids had a human name at all.
   const displayName =
-    displayNameMap[currentUserId] ||
+    currentUserName ||
     (currentUserId.includes("_")
       ? currentUserId
           .split("_")

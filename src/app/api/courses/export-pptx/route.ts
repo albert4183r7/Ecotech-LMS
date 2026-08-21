@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import PptxGenJS from "pptxgenjs";
 import { db } from "@/lib/db";
-import { AuthorizationError, requireUser } from "@/lib/session";
+import { AuthorizationError, mayReadLesson, requireUser } from "@/lib/session";
 import { SlideContentSchema, type SlideContent } from "@/lib/slides/content-schema";
 import { addContentSlide, applyTemplateLayout } from "@/lib/slides/pptx";
 import { templateFor } from "@/lib/slides/template";
@@ -61,29 +61,6 @@ function toDeckSlides(rows: { title: string; contentJson: string | null }[]): {
   return { slides, skipped };
 }
 
-/**
- * May this caller read the lesson's content?
- *
- * The course's instructor always may. A student may only when the course is
- * published and they are enrolled — the same rule the quiz endpoints use, so
- * the two cannot drift apart.
- */
-async function mayReadLesson(lessonId: string, userId: string): Promise<boolean> {
-  const lesson = await db.lesson.findUnique({
-    where: { id: lessonId },
-    select: { courseId: true, course: { select: { creatorId: true, status: true } } },
-  });
-  if (!lesson) return false;
-  if (lesson.course.creatorId === userId) return true;
-  if (lesson.course.status !== "published") return false;
-
-  const enrollment = await db.enrollment.findUnique({
-    where: { userId_courseId: { userId, courseId: lesson.courseId } },
-    select: { id: true },
-  });
-  return Boolean(enrollment);
-}
-
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as ExportRequest;
@@ -129,10 +106,15 @@ export async function POST(request: NextRequest) {
         const row = byId.get(id);
         return row ? [row] : [];
       });
-      const lessonId = found[0]?.lessonId;
-      if (lessonId && !(await mayReadLesson(lessonId, user.id))) {
+      // Slide ids may name more than one lesson, so check every one of them:
+      // checking only the first would let a readable slide carry unreadable
+      // ones into the same deck.
+      const lessonIds = [...new Set(found.map((row) => row.lessonId))];
+      const readable = await Promise.all(lessonIds.map((id) => mayReadLesson(id, user.id)));
+      if (readable.some((allowed) => !allowed)) {
         return NextResponse.json({ error: "Slides not found" }, { status: 404 });
       }
+      const lessonId = lessonIds[0];
       if (lessonId) {
         const lesson = await db.lesson.findUnique({
           where: { id: lessonId },

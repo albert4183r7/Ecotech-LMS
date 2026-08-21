@@ -490,7 +490,7 @@ export function ProfilePage() {
           <LearningPathTimeline enrollments={enrollments} />
 
           {/* XP Level Progress (Full) */}
-          <XpBarFull userId={profile.id} />
+          <XpBarFull />
 
           {/* Weekly Activity Chart */}
           <ActivityChart userId={profile.id} />

@@ -78,10 +78,12 @@ export const useMyLearningStore = create<MyLearningState>((set) => ({
 interface UserState {
   isAuthenticated: boolean;
   currentUserId: string;
+  /** The account's own name, so the UI never has to guess one from the id. */
+  currentUserName: string;
   currentRole: "student" | "instructor";
   setCurrentUserId: (id: string) => void;
   setCurrentRole: (role: "student" | "instructor") => void;
-  login: (id: string, role: "student" | "instructor") => void;
+  login: (id: string, role: "student" | "instructor", name?: string) => void;
   logout: () => void;
   /** Drop local sign-in state without touching the server session. */
   clearLocalSession: () => void;
@@ -92,10 +94,17 @@ export const useUserStore = create<UserState>()(
     (set) => ({
       isAuthenticated: false,
       currentUserId: "",
+      currentUserName: "",
       currentRole: "student" as const,
       setCurrentUserId: (id) => set({ currentUserId: id }),
       setCurrentRole: (role) => set({ currentRole: role }),
-      login: (id, role) => set({ isAuthenticated: true, currentUserId: id, currentRole: role }),
+      login: (id, role, name) =>
+        set({
+          isAuthenticated: true,
+          currentUserId: id,
+          currentUserName: name ?? "",
+          currentRole: role,
+        }),
       // Clearing the flag renders the auth screen whatever route you are on,
       // but the server session has to go too — otherwise the API would still
       // authorize requests for a user the UI considers signed out.
@@ -103,13 +112,23 @@ export const useUserStore = create<UserState>()(
         void fetch("/api/auth/logout", { method: "POST" }).catch(() => {
           /* the local sign-out stands regardless; the cookie expires anyway */
         });
-        set({ isAuthenticated: false, currentUserId: "", currentRole: "student" as const });
+        set({
+          isAuthenticated: false,
+          currentUserId: "",
+          currentUserName: "",
+          currentRole: "student" as const,
+        });
       },
       // Used when the server has already told us the session is gone: the
       // cookie is the authority, so there is nothing left to revoke and a
       // logout call would only produce a pointless 401-adjacent round trip.
       clearLocalSession: () =>
-        set({ isAuthenticated: false, currentUserId: "", currentRole: "student" as const }),
+        set({
+          isAuthenticated: false,
+          currentUserId: "",
+          currentUserName: "",
+          currentRole: "student" as const,
+        }),
     }),
     { name: "ecotech-user" },
   ),

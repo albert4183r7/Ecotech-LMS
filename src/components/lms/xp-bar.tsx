@@ -46,7 +46,7 @@ const TYPE_ICONS: Record<string, React.ElementType> = {
 //  Compact XP Bar (for navbar)
 // ------------------------------------------------------------------
 
-export function XpBarCompact({ userId = "user_student_001" }: { userId?: string }) {
+export function XpBarCompact() {
   const [data, setData] = useState<XpData | null>(null);
   const [loading, setLoading] = useState(true);
   const [flash, setFlash] = useState(false);
@@ -56,7 +56,7 @@ export function XpBarCompact({ userId = "user_student_001" }: { userId?: string 
     let cancelled = false;
     async function fetchXp() {
       try {
-        const res = await fetch(`/api/xp?userId=${userId}`);
+        const res = await fetch("/api/xp");
         const json = await res.json();
         if (!cancelled && json.success) {
           setData(json.data);
@@ -77,7 +77,7 @@ export function XpBarCompact({ userId = "user_student_001" }: { userId?: string 
     return () => {
       cancelled = true;
     };
-  }, [userId]);
+  }, []);
 
   if (loading || !data) {
     return (
@@ -128,7 +128,7 @@ export function XpBarCompact({ userId = "user_student_001" }: { userId?: string 
 //  Full XP Bar (for profile page)
 // ------------------------------------------------------------------
 
-export function XpBarFull({ userId = "user_student_001" }: { userId?: string }) {
+export function XpBarFull() {
   const [data, setData] = useState<XpData | null>(null);
   const [loading, setLoading] = useState(true);
   const [flash, setFlash] = useState(false);
@@ -138,7 +138,7 @@ export function XpBarFull({ userId = "user_student_001" }: { userId?: string }) 
     let cancelled = false;
     async function fetchXp() {
       try {
-        const res = await fetch(`/api/xp?userId=${userId}`);
+        const res = await fetch("/api/xp");
         const json = await res.json();
         if (!cancelled && json.success) {
           setData(json.data);
@@ -158,7 +158,7 @@ export function XpBarFull({ userId = "user_student_001" }: { userId?: string }) 
     return () => {
       cancelled = true;
     };
-  }, [userId]);
+  }, []);
 
   if (loading || !data) {
     return <XpBarFullSkeleton />;

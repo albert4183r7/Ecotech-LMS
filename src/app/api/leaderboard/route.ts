@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { requireUser } from "@/lib/session";
 
 // ------------------------------------------------------------------
 //  Types
@@ -86,8 +87,6 @@ const MOCK_USERS = [
   },
 ];
 
-const CURRENT_USER_ID = "user_student_001";
-
 // ------------------------------------------------------------------
 //  Score calculation: completedCourses * 100 + avgProgress * 10
 // ------------------------------------------------------------------
@@ -101,10 +100,13 @@ function calcScore(completedCourses: number, avgProgress: number): number {
 // ------------------------------------------------------------------
 
 export async function GET() {
+  // "You" on the board is the signed-in user; it used to be a hardcoded seed
+  // account, so every viewer saw the same person highlighted as themselves.
+  const currentUserId = (await requireUser()).id;
   try {
     // Fetch the real current user's stats from the database
     const user = await db.user.findUnique({
-      where: { id: CURRENT_USER_ID },
+      where: { id: currentUserId },
       include: {
         enrollments: {
           include: {

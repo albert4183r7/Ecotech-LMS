@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireUser } from "@/lib/session";
 
 // ------------------------------------------------------------------
 //  Types
@@ -145,8 +146,10 @@ function shuffleArray<T>(arr: T[], rand: () => number): T[] {
 
 export async function GET(request: Request) {
   try {
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get("userId") || "user_student_001";
+    // Whose data this is comes from the session, never from the query string:
+    // the id used to default to a seeded account, so every signed-in user saw
+    // that account's numbers, and anyone could read another user's by asking.
+    const userId = (await requireUser()).id;
 
     const seed = getDaySeed();
     const rand = seededRandom(seed);

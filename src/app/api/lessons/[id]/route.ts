@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { requireLessonOwner } from "@/lib/session";
+import { requireLessonOwner, requireLessonReader, AuthorizationError } from "@/lib/session";
 import { handleRoute, ok, fail } from "@/lib/api-response";
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
+
+    // A lesson's slides are the course's content. Reading one is allowed for
+    // the instructor who owns it, or for a student enrolled in the published
+    // course — otherwise an unpublished draft would be readable by anyone who
+    // guessed the id.
+    await requireLessonReader(id);
 
     const lesson = await db.lesson.findUnique({
       where: { id },
@@ -55,6 +61,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     return NextResponse.json({ success: true, data: formattedLesson });
   } catch (error) {
+    if (error instanceof AuthorizationError) {
+      return NextResponse.json({ success: false, error: error.message }, { status: error.status });
+    }
     console.error("Error fetching lesson:", error);
     return NextResponse.json({ success: false, error: "Failed to fetch lesson" }, { status: 500 });
   }

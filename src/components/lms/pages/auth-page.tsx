@@ -35,7 +35,7 @@ export function AuthPage() {
         toast.error(json.error || "Login failed");
         return;
       }
-      login(json.data.id, json.data.role);
+      login(json.data.id, json.data.role, json.data.name ?? json.data.email);
       navigateTo("home");
       toast.success("Welcome back, " + (json.data.name || json.data.email) + "!");
     } catch {
@@ -58,7 +58,7 @@ export function AuthPage() {
         toast.error(json.error || "Login failed");
         return;
       }
-      login(json.data.id, json.data.role);
+      login(json.data.id, json.data.role, json.data.name ?? json.data.email);
       navigateTo("home");
       toast.success("Welcome back, " + (json.data.name || json.data.email) + "!");
     } catch {

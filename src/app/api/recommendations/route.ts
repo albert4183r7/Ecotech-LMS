@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { requireUser } from "@/lib/session";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -28,8 +29,10 @@ interface RecommendationsResponse {
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get("userId") || "user_student_001";
+    // Whose data this is comes from the session, never from the query string:
+    // the id used to default to a seeded account, so every signed-in user saw
+    // that account's numbers, and anyone could read another user's by asking.
+    const userId = (await requireUser()).id;
 
     // Get user's enrolled course IDs and their categories
     const enrollments = await db.enrollment.findMany({

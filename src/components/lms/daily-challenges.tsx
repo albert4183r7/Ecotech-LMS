@@ -189,7 +189,7 @@ function ChallengeCard({ challenge }: { challenge: Challenge }) {
 //  DailyChallenges component
 // ------------------------------------------------------------------
 
-export function DailyChallenges({ userId = "user_student_001" }: { userId?: string }) {
+export function DailyChallenges() {
   const [data, setData] = useState<ChallengesData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -197,7 +197,7 @@ export function DailyChallenges({ userId = "user_student_001" }: { userId?: stri
     let cancelled = false;
     async function fetchChallenges() {
       try {
-        const res = await fetch(`/api/challenges?userId=${userId}`);
+        const res = await fetch("/api/challenges");
         const json = await res.json();
         if (!cancelled && json.success) {
           setData(json.data);
@@ -212,7 +212,7 @@ export function DailyChallenges({ userId = "user_student_001" }: { userId?: stri
     return () => {
       cancelled = true;
     };
-  }, [userId]);
+  }, []);
 
   if (loading || !data) {
     return <ChallengesSkeleton />;

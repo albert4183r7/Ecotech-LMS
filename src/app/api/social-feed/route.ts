@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireUser } from "@/lib/session";
 
 // ─────────────────────────────────────────────────────
 // Types
@@ -233,7 +234,10 @@ function generateSocialFeed(seed: number, limit: number): SocialActivityItem[] {
 
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
-  const userId = searchParams.get("userId") || "user_student_001";
+  // Whose data this is comes from the session, never from the query string:
+  // the id used to default to a seeded account, so every signed-in user saw
+  // that account's numbers, and anyone could read another user's by asking.
+  const userId = (await requireUser()).id;
   const limitParam = searchParams.get("limit");
   const limit = Math.min(Math.max(parseInt(limitParam || "10", 10), 1), 20);
 

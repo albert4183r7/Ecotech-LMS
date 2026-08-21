@@ -180,3 +180,48 @@ export async function requireLessonOwner(
   if (lesson.course.creatorId !== user.id) throw new AuthorizationError("Lesson not found.", 404);
   return { user, courseId: lesson.courseId };
 }
+
+/**
+ * May this user read the lesson's content?
+ *
+ * The course's instructor always may. Anyone else only when the course is
+ * published and they are enrolled in it — the same rule the quiz endpoints
+ * apply, kept in one place so reading a lesson through the lesson endpoint,
+ * the preview endpoint or a PPTX export cannot disagree.
+ */
+export async function mayReadLesson(lessonId: string, userId: string): Promise<boolean> {
+  const lesson = await db.lesson.findUnique({
+    where: { id: lessonId },
+    select: { courseId: true, course: { select: { creatorId: true, status: true } } },
+  });
+  if (!lesson) return false;
+  if (lesson.course.creatorId === userId) return true;
+  if (lesson.course.status !== "published") return false;
+
+  const enrollment = await db.enrollment.findUnique({
+    where: { userId_courseId: { userId, courseId: lesson.courseId } },
+    select: { id: true },
+  });
+  return Boolean(enrollment);
+}
+
+/**
+ * The signed-in user, who must be allowed to read the lesson.
+ *
+ * Reports a lesson they may not read as not found: an unpublished course's
+ * lesson should not be distinguishable from one that does not exist.
+ */
+export async function requireLessonReader(
+  lessonId: string,
+): Promise<{ user: SessionUser; isOwner: boolean }> {
+  const user = await requireUser();
+  const lesson = await db.lesson.findUnique({
+    where: { id: lessonId },
+    select: { course: { select: { creatorId: true } } },
+  });
+  if (!lesson) throw new AuthorizationError("Lesson not found.", 404);
+  if (!(await mayReadLesson(lessonId, user.id))) {
+    throw new AuthorizationError("Lesson not found.", 404);
+  }
+  return { user, isOwner: lesson.course.creatorId === user.id };
+}

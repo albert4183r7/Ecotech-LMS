@@ -58,12 +58,18 @@ export function useClassroomState(lessonId: string | undefined): ClassroomLoad {
       try {
         const lessonRes = await fetch(`/api/lessons/${lessonId}`);
         const lessonJson = await lessonRes.json();
-        if (!lessonRes.ok || !lessonJson.success) throw new Error("Lesson not found");
+        // The server answers 404 both for a lesson that does not exist and for
+        // one this account may not read, so its message is the one to show.
+        if (!lessonRes.ok || !lessonJson.success) {
+          throw new Error(lessonJson.error || "Lesson not found");
+        }
         const lesson = lessonJson.data;
 
         const courseRes = await fetch(`/api/courses/${lesson.courseId}`);
         const courseJson = await courseRes.json();
-        if (!courseRes.ok || !courseJson.success) throw new Error("Course not found");
+        if (!courseRes.ok || !courseJson.success) {
+          throw new Error(courseJson.error || "Course not found");
+        }
         const course = courseJson.data;
 
         const allLessonIds: string[] = (course.lessons ?? []).map((l: { id: string }) => l.id);

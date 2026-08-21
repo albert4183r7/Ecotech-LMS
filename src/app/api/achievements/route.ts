@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { requireUser } from "@/lib/session";
 
 // ------------------------------------------------------------------
 //  Types
@@ -13,16 +14,16 @@ interface AchievementResult {
   earned: boolean;
 }
 
-const CURRENT_USER_ID = "user_student_001";
-
 // ------------------------------------------------------------------
 //  GET /api/achievements?userId=xxx
 // ------------------------------------------------------------------
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get("userId") || CURRENT_USER_ID;
+    // Whose achievements these are comes from the session, never from the
+    // query string: the id used to default to a seeded account, so every
+    // signed-in user saw that account's badges.
+    const userId = (await requireUser()).id;
 
     // Fetch user's enrollments with course category and progress data
     const enrollments = await db.enrollment.findMany({

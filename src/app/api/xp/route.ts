@@ -129,8 +129,10 @@ function generateMockHistory(userId: string): XpHistoryEntry[] {
 
 export async function GET(request: Request) {
   try {
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get("userId") || "user_student_001";
+    // Whose data this is comes from the session, never from the query string:
+    // the id used to default to a seeded account, so every signed-in user saw
+    // that account's numbers, and anyone could read another user's by asking.
+    const userId = (await requireUser()).id;
 
     // Generate mock total XP in 150-600 range, seeded by userId
     const rand = seededRandom(Math.abs(hashUserId(userId)));
