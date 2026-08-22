@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { z } from "zod/v4";
 import { db } from "@/lib/db";
-import { generateStructuredJSON } from "@/lib/llm";
+import { generateStructuredJSON } from "@/lib/ai";
 import { handleRoute, ok, fail } from "@/lib/api-response";
 import { requireLessonOwner } from "@/lib/session";
 import { SlideContentSchema } from "@/lib/slides/content-schema";
@@ -92,6 +92,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     let replacement: string;
     try {
       const result = await generateStructuredJSON(prompt, ReplacementSchema, {
+        task: "slide-field-edit",
         systemInstruction: SYSTEM,
         temperature: 0.4,
       });

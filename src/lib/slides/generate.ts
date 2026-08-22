@@ -1,4 +1,4 @@
-import { generateStructuredJSON } from "@/lib/llm";
+import { generateStructuredJSON } from "@/lib/ai";
 import { contentWeight, type SlideContent } from "./content-schema";
 import { SlideDraftSchema, draftToContent } from "./draft";
 import { LAYOUTS } from "./template-layouts";
@@ -154,6 +154,7 @@ export async function generateSlideContent(brief: SlideBrief): Promise<SlideCont
     // A flat draft, not the typed union: Gemini's structured output does not
     // handle a top-level oneOf reliably, and every non-title slide failed.
     const draft = await generateStructuredJSON(buildPrompt(brief), SlideDraftSchema, {
+      task: "slide-authoring",
       systemInstruction: `${SYSTEM}\n\n${layoutBudget(brief)}`,
       temperature: attempt === 1 ? 0.6 : 0.8,
     });

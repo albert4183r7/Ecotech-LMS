@@ -1,10 +1,12 @@
-import { streamText } from "./llm";
+import { streamText, collectStream } from "./streaming";
 
 // ============================================
-// AI Client — slide HTML generation
+// Slide HTML generation
 //
-// Streams through the shared LLM client in ./llm, so the provider (currently
-// Claude via the EcoAPI gateway) is chosen in exactly one place.
+// The prompts and calls for the agent's HTML-authoring tools, which predate
+// the structured slide model and are still what those tools use. Streams
+// through the shared client, so the provider and the model for this task are
+// decided in one place — see ./models.ts, task "slide-html-legacy".
 // ============================================
 
 /** ImageKit URL endpoint (server-side only, never expose to client) */
@@ -129,20 +131,14 @@ export async function* streamSlideHtml(
   systemPrompt?: string,
 ): AsyncGenerator<string, void, undefined> {
   yield* streamText(userPrompt, {
+    task: "slide-html-legacy",
     systemPrompt: systemPrompt || SLIDE_HTML_SYSTEM_PROMPT,
     temperature: 0.8,
     maxTokens: SLIDE_MAX_OUTPUT_TOKENS,
   });
 }
 
-/** Collect a slide stream into a single string. */
-export async function collectStream(
-  stream: AsyncGenerator<string, void, undefined>,
-): Promise<string> {
-  let out = "";
-  for await (const chunk of stream) out += chunk;
-  return out;
-}
+export { collectStream };
 
 /** One-shot text generation: the whole response as a single string. */
 export async function generateText(userPrompt: string, systemPrompt: string): Promise<string> {
@@ -150,6 +146,7 @@ export async function generateText(userPrompt: string, systemPrompt: string): Pr
   // long enough that a non-streaming request can hit the gateway's timeout.
   return collectStream(
     streamText(userPrompt, {
+      task: "slide-html-legacy",
       systemPrompt,
       temperature: 0.7,
       maxTokens: SLIDE_MAX_OUTPUT_TOKENS,

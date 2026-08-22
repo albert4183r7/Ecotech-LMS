@@ -1,5 +1,5 @@
 import { z } from "zod/v4";
-import { generateStructuredJSON } from "@/lib/llm";
+import { generateStructuredJSON } from "@/lib/ai";
 import type { DraftQuestion } from "./schema";
 import type { LessonSource } from "./lesson-source";
 
@@ -172,6 +172,7 @@ Return one verdict per question, using the index shown in brackets.`;
 
   try {
     const result = await generateStructuredJSON(prompt, JudgementSchema, {
+      task: "quiz-grounding-judge",
       systemInstruction: JUDGE_SYSTEM,
       temperature: 0.1,
     });

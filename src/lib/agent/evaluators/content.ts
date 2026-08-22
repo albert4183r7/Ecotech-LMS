@@ -1,4 +1,4 @@
-import { generateStructuredJSON } from "@/lib/llm";
+import { generateStructuredJSON } from "@/lib/ai";
 import { EvaluationSchema, type EvaluationResult } from "./schema";
 
 // ============================================
@@ -62,6 +62,7 @@ function renderSnapshot(lesson: LessonSnapshot): string {
 
 export async function evaluateContent(lesson: LessonSnapshot): Promise<EvaluationResult> {
   return generateStructuredJSON(renderSnapshot(lesson), EvaluationSchema, {
+    task: "content-evaluation",
     systemInstruction: CONTENT_SYSTEM,
     temperature: 0.1,
   });
@@ -69,6 +70,7 @@ export async function evaluateContent(lesson: LessonSnapshot): Promise<Evaluatio
 
 export async function evaluatePedagogy(lesson: LessonSnapshot): Promise<EvaluationResult> {
   return generateStructuredJSON(renderSnapshot(lesson), EvaluationSchema, {
+    task: "content-evaluation",
     systemInstruction: PEDAGOGY_SYSTEM,
     temperature: 0.1,
   });

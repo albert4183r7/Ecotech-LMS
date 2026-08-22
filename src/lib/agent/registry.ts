@@ -1,5 +1,5 @@
 import { z } from "zod/v4";
-import type { ToolDeclaration } from "@/lib/llm";
+import type { ToolDeclaration } from "@/lib/ai";
 
 // ============================================
 // Tool registry

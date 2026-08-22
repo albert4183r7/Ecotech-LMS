@@ -1,4 +1,4 @@
-import { generateStructuredJSON } from "@/lib/llm";
+import { generateStructuredJSON } from "@/lib/ai";
 import {
   DraftQuizSchema,
   OPTIONS_PER_QUESTION,
@@ -108,6 +108,7 @@ export async function generateQuiz(source: LessonSource): Promise<QuizGeneration
   const target = questionCountFor(source.slideCount);
 
   const draft = await generateStructuredJSON(buildPrompt(source, target), DraftQuizSchema, {
+    task: "quiz-authoring",
     repair: repairQuiz,
     systemInstruction: SYSTEM,
     temperature: 0.5,
@@ -146,7 +147,12 @@ export async function generateQuiz(source: LessonSource): Promise<QuizGeneration
       const revision = await generateStructuredJSON(
         buildRevisionPrompt(source, failed, accepted),
         DraftQuizSchema,
-        { repair: repairQuiz, systemInstruction: SYSTEM, temperature: 0.6 },
+        {
+          task: "quiz-authoring",
+          repair: repairQuiz,
+          systemInstruction: SYSTEM,
+          temperature: 0.6,
+        },
       );
       pending = revision.questions.slice(0, failed.length);
     } catch (error) {

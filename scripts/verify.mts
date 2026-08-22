@@ -24,9 +24,11 @@ import {
   MAX_LESSON_CHARS,
 } from "../src/lib/assistant/lesson-tutor";
 import type { LessonSource } from "../src/lib/quiz/lesson-source";
+import { TASK_MODELS, modelFor, isMultimodal, type AiTask } from "../src/lib/ai/models";
 import { safeFileName } from "../src/lib/download";
 import type { SlideContent } from "../src/lib/slides/content-schema";
 import type { LessonSource } from "../src/lib/quiz/lesson-source";
+import { TASK_MODELS, modelFor, isMultimodal, type AiTask } from "../src/lib/ai/models";
 
 const checks: [string, () => boolean][] = [];
 const add = (n: string, f: () => boolean) => checks.push([n, f]);
@@ -160,6 +162,41 @@ add("template vars written into the slide document", () =>
   // used to be set to the navy, which is the heading colour.
   wrapSlideHtml("<div></div>", { templateId: "ecotech" }).includes("--tpl-accent: #7BBBA6"),
 );
+
+// ── AI task registry ────────────────────────────────────────────────────────
+add("every AI task names a model and an override", () => {
+  const tasks = Object.keys(TASK_MODELS) as AiTask[];
+  return (
+    tasks.length > 0 &&
+    tasks.every((t) => {
+      const e = TASK_MODELS[t];
+      return Boolean(e.model && e.envVar && e.rationale.length > 40);
+    })
+  );
+});
+add("the tasks do not all share one model", () => {
+  // The point of the registry: a judge and a planner should not be the same
+  // model just because they are both model calls.
+  const tasks = Object.keys(TASK_MODELS) as AiTask[];
+  return new Set(tasks.map(modelFor)).size > 1;
+});
+add("the task that sends images is on a multimodal model", () => {
+  // visual-evaluation posts screenshots. A text-only model here fails at
+  // request time, with an error that does not say why.
+  const vision = (Object.keys(TASK_MODELS) as AiTask[]).filter(isMultimodal);
+  return (
+    vision.length === 1 &&
+    vision[0] === "visual-evaluation" &&
+    /vision|llava/i.test(modelFor("visual-evaluation"))
+  );
+});
+add("an environment variable overrides a task's model", () => {
+  const before = modelFor("lesson-tutor");
+  process.env.MODEL_LESSON_TUTOR = "mistral:7b-instruct";
+  const after = modelFor("lesson-tutor");
+  delete process.env.MODEL_LESSON_TUTOR;
+  return before !== after && after === "mistral:7b-instruct" && modelFor("lesson-tutor") === before;
+});
 
 // ── Lesson assistant scope ──────────────────────────────────────────────────
 const tutorSource: LessonSource = {

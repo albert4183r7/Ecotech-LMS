@@ -1,4 +1,4 @@
-import { streamText } from "@/lib/llm";
+import { streamText } from "@/lib/ai";
 import type { LessonSource } from "@/lib/quiz/lesson-source";
 
 // ============================================
@@ -129,6 +129,7 @@ export async function* answerLessonQuestion(
     : `Student: ${request.question}`;
 
   yield* streamText(prompt, {
+    task: "lesson-tutor",
     systemPrompt: system,
     // Low: this is comprehension support, and it should stay close to what
     // the lesson actually says rather than paraphrasing freely.

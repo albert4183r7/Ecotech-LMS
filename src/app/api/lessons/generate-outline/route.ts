@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import path from "path";
 import { db } from "@/lib/db";
 import { requireCourseOwner, requireLessonOwner, AuthorizationError } from "@/lib/session";
-import { generateStructuredJSON } from "@/lib/llm";
+import { generateStructuredJSON } from "@/lib/ai";
 import {
   PresentationPlanSchema,
   balancePlan,
@@ -239,6 +239,7 @@ export async function POST(request: NextRequest) {
         }),
         PresentationPlanSchema,
         {
+          task: "outline-planning",
           // Grounding the plan in a document makes the model write longer,
           // more specific subtopics. Reshaping those to fit is cheaper and
           // less destructive than spending a retry on them.

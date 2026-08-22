@@ -1,4 +1,4 @@
-import { generateStructuredFromImages } from "@/lib/llm";
+import { generateStructuredFromImages } from "@/lib/ai";
 import { renderSlide } from "@/lib/render/slide-renderer";
 import { ensureCanvasDocument } from "@/lib/sanitize";
 import { EvaluationSchema, type EvaluationResult, type Finding } from "./schema";
@@ -87,7 +87,7 @@ export async function evaluateSlideVisual(input: VisualEvaluationInput): Promise
       prompt,
       [{ mimeType: "image/png", data: png.toString("base64") }],
       EvaluationSchema,
-      { systemInstruction: VISUAL_SYSTEM, temperature: 0.15 },
+      { task: "visual-evaluation", systemInstruction: VISUAL_SYSTEM, temperature: 0.15 },
     );
   } catch (err) {
     // A failed critic must not discard the measurements, which are the more

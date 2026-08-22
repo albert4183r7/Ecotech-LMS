@@ -3,7 +3,7 @@ import {
   type AgentMessage,
   type ModelTurn,
   type ToolDeclaration,
-} from "@/lib/llm";
+} from "@/lib/ai";
 import { runTool, type Registry, type ToolContext } from "./registry";
 
 // ============================================
@@ -107,6 +107,7 @@ export async function runAgent(options: AgentRunOptions): Promise<AgentRunResult
     const generate = options.generate ?? generateWithTools;
     try {
       turn = await generate({
+        task: "agent-tool-loop",
         messages,
         tools: declarations,
         systemInstruction: options.systemInstruction,
