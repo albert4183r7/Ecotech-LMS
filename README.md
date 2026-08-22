@@ -5,22 +5,23 @@ instructor describes a topic, chooses a slide count and a language, and optional
 uploads reference documents; the system plans the presentation as logical sections,
 shows that plan for review, and then generates every slide.
 
-Built with Next.js 16 (App Router), Prisma + SQLite, and Claude.
+Built with Next.js 16 (App Router), Prisma + SQLite, and open-source models
+run locally through Ollama.
 
 ---
 
 ## Stack
 
-| Layer     | Choice                                                 |
-| --------- | ------------------------------------------------------ |
-| Framework | Next.js 16 (App Router), React 19, TypeScript 5        |
-| Styling   | Tailwind CSS v4, shadcn/ui (Radix primitives)          |
-| Data      | Prisma 6 + SQLite                                      |
-| State     | Zustand (`src/stores/lms-store.ts`)                    |
-| LLM       | Claude, via the EcoAPI OpenAI-compatible gateway       |
-| Rendering | Playwright (headless Chromium) for slide rasterisation |
-| Export    | `pptxgenjs`                                            |
-| Runtime   | Node.js 20+ / npm                                      |
+| Layer     | Choice                                                  |
+| --------- | ------------------------------------------------------- |
+| Framework | Next.js 16 (App Router), React 19, TypeScript 5         |
+| Styling   | Tailwind CSS v4, shadcn/ui (Radix primitives)           |
+| Data      | Prisma 6 + SQLite                                       |
+| State     | Zustand (`src/stores/lms-store.ts`)                     |
+| LLM       | Open-source models via Ollama — one per task, see below |
+| Rendering | Playwright (headless Chromium) for slide rasterisation  |
+| Export    | `pptxgenjs`                                             |
+| Runtime   | Node.js 20+ / npm                                       |
 
 ## Features
 
@@ -137,13 +138,18 @@ above are. Start it on a throwaway lesson first.
 ### Prerequisites
 
 - Node.js 20 or newer
-- An [EcoAPI key](https://www.ecoapi.ai/api) for Claude access
+- [Ollama](https://ollama.com), for the models. No API key is needed.
 
 ### 1. Install
 
 ```bash
 npm install
 npx playwright install chromium
+
+ollama pull qwen2.5:14b-instruct     # planning, authoring, evaluation
+ollama pull qwen2.5:7b-instruct      # short edits and judgements
+ollama pull llama3.1:8b              # the lesson assistant
+ollama pull llama3.2-vision:11b      # visual evaluation
 ```
 
 Chromium is required for slide rendering, the visual critic and the PPTX export. If it
@@ -157,32 +163,53 @@ cp .env.example .env
 
 ```
 DATABASE_URL=file:../db/custom.db
-ECOAPI_API_KEY=your-key-here
+SESSION_SECRET=a-32-character-or-longer-random-string
 ```
+
+Nothing else is required: Ollama needs no key, and every model has a default.
 
 > **The `..` is deliberate.** Prisma resolves a relative SQLite path from
 > `prisma/schema.prisma`, not the project root, so `file:./db/custom.db` would create
 > `prisma/db/custom.db` and leave the intended database untouched. See `db/README.md`.
 
-| Variable                   | Default                        | Purpose                                              |
-| -------------------------- | ------------------------------ | ---------------------------------------------------- |
-| `DATABASE_URL`             | —                              | SQLite path, relative to `prisma/`                   |
-| `SESSION_SECRET`           | —                              | Signs session cookies; 32+ chars, required in prod   |
-| `ECOAPI_API_KEY`           | —                              | Required for all generation                          |
-| `ECOAPI_BASE_URL`          | `https://www.ecoapi.ai/api/v1` | Gateway root; must have `/chat/completions` under it |
-| `CLAUDE_MODEL`             | `claude-opus-5`                | Any model id the gateway lists                       |
-| `CLAUDE_MAX_TOKENS`        | `16000`                        | Ceiling for one generation                           |
-| `CHROMIUM_EXECUTABLE_PATH` | unset                          | System Chromium for the renderer                     |
-| `IMAGEKIT_URL_ENDPOINT`    | unset                          | Enables AI-generated images in slides                |
+| Variable                   | Default                     | Purpose                                                 |
+| -------------------------- | --------------------------- | ------------------------------------------------------- |
+| `DATABASE_URL`             | —                           | SQLite path, relative to `prisma/`                      |
+| `SESSION_SECRET`           | —                           | Signs session cookies; 32+ chars, required in prod      |
+| `OLLAMA_BASE_URL`          | `http://127.0.0.1:11434/v1` | Where Ollama is; must have `/chat/completions` under it |
+| `OLLAMA_MAX_TOKENS`        | `4096`                      | Ceiling for one generation                              |
+| `OLLAMA_TIMEOUT_MS`        | `300000`                    | Local generation on CPU is slow                         |
+| `OLLAMA_API_KEY`           | unset                       | Only if Ollama sits behind an authenticating proxy      |
+| `MODEL_*` (ten of them)    | see below                   | Move one AI task to a different model                   |
+| `CHROMIUM_EXECUTABLE_PATH` | unset                       | System Chromium for the renderer                        |
+| `IMAGEKIT_URL_ENDPOINT`    | unset                       | Enables AI-generated images in slides                   |
 
-The app talks to Claude through the [EcoAPI](https://www.ecoapi.ai/api) gateway, which
-serves an OpenAI-compatible surface — hence the `openai` client in `src/lib/llm.ts`
-pointed at a non-OpenAI base URL. The model is Claude; only the wire format is OpenAI's.
+**One model per task.** The project makes ten distinct kinds of model call and
+they do not want the same model — planning an outline and judging whether a quiz
+question is grounded are different jobs. Each names its own:
 
-**Switching back to Gemini.** The previous Gemini implementation is kept verbatim at the
-bottom of `src/lib/llm.ts`, commented out. Uncomment it, delete the block above it,
-reinstall `@google/genai`, and set `GEMINI_API_KEY` / `GEMINI_MODEL` instead of the
-EcoAPI variables. `.env.example` keeps both sets for the same reason.
+| Task                   | Model                  | Override                   |
+| ---------------------- | ---------------------- | -------------------------- |
+| `outline-planning`     | `qwen2.5:14b-instruct` | `MODEL_OUTLINE_PLANNING`   |
+| `slide-authoring`      | `qwen2.5:14b-instruct` | `MODEL_SLIDE_AUTHORING`    |
+| `slide-html-legacy`    | `qwen2.5:14b-instruct` | `MODEL_SLIDE_HTML`         |
+| `quiz-authoring`       | `qwen2.5:14b-instruct` | `MODEL_QUIZ_AUTHORING`     |
+| `content-evaluation`   | `qwen2.5:14b-instruct` | `MODEL_CONTENT_EVALUATION` |
+| `agent-tool-loop`      | `qwen2.5:14b-instruct` | `MODEL_AGENT_TOOL_LOOP`    |
+| `slide-field-edit`     | `qwen2.5:7b-instruct`  | `MODEL_SLIDE_FIELD_EDIT`   |
+| `quiz-grounding-judge` | `qwen2.5:7b-instruct`  | `MODEL_QUIZ_JUDGE`         |
+| `lesson-tutor`         | `llama3.1:8b`          | `MODEL_LESSON_TUTOR`       |
+| `visual-evaluation`    | `llama3.2-vision:11b`  | `MODEL_VISUAL_EVALUATION`  |
+
+Why each model was chosen is in `src/lib/ai/models.ts`, next to the choice.
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) has the full table.
+
+**Restoring a hosted provider.** Claude via the EcoAPI gateway, and Gemini
+before it, are kept commented in `src/lib/ai/previous-providers.ts`. Both speak
+the same shapes to the rest of the AI layer, so restoring one means moving its
+client construction and error classification into `src/lib/ai/provider.ts` and
+setting `models.ts` back to model ids that provider serves. `.env.example` keeps
+their variables.
 
 ### 3. Database
 
@@ -221,31 +248,27 @@ npm run dev
 ```
 src/
 ├── app/
-│   ├── api/
-│   │   ├── lessons/generate-outline   # phase one: plan sections
-│   │   ├── lessons/generate-slides    # phase two: write slides
-│   │   ├── slides/inline-edit         # AI edit of a whole slide
-│   │   ├── slides/element-edit        # AI edit of one element
-│   │   ├── courses/export-pptx        # design-preserving PowerPoint export
-│   │   └── agent/runs                 # agent run control and progress
-│   └── page.tsx                       # SPA shell
-├── components/lms/                    # screens and feature components
-├── hooks/
+│   ├── (app)/          pages behind the auth gate
+│   ├── learn/          the classroom, full-screen and outside the gate's chrome
+│   └── api/            endpoints, one directory per resource
+├── components/lms/     screens (pages/) and feature components
+├── hooks/              frontend logic behind the screens
 ├── lib/
-│   ├── presentation-plan.ts           # section planning and slide allocation
-│   ├── slides/                        # content schema, renderer, template, PPTX renderer, icons
-│   ├── quiz/                          # generation, grounding validation, access, persistence
-│   ├── session.ts                     # signed cookie sessions and authorization helpers
-│   ├── render/                        # Playwright rasterisation and layout extraction
-│   ├── agent/                         # tools, runtime, evaluators, persistence
-│   ├── classroom.ts                   # classroom state construction
-│   ├── download.ts                    # filename slugs and browser downloads
-│   ├── sanitize.ts                    # HTML allowlist and the slide canvas
-│   ├── extract-doc.ts                 # reference document extraction
-│   ├── llm.ts                         # LLM client (Claude via EcoAPI)
-│   └── ai.ts                          # system prompts
+│   ├── ai/             every model call, and which model runs which task
+│   ├── agent/          tool registry, runtime, evaluators, quality gate
+│   ├── assistant/      the lesson tutor's prompt and boundary
+│   ├── quiz/           generation, grounding, access, scoring
+│   ├── slides/         content schema, template layouts, both renderers
+│   ├── render/         Playwright rasterisation
+│   ├── session.ts      signed cookies and the authorization helpers
+│   └── sanitize.ts     HTML allowlist and the slide canvas
+├── stores/             Zustand
 └── types/
 ```
+
+The layer boundaries, the hook-per-workflow table, the model-per-task table and
+the main workflows end to end are in
+**[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
 
 ## Data model
 
@@ -260,13 +283,18 @@ planning, slides are the unit of display.
 
 ## Known limitations
 
-- **Authentication is not production-ready.** `api/auth/login` compares passwords in
-  plaintext and there is no session middleware; user IDs come from the client.
+- **Passwords are stored and compared in plaintext.** `api/auth/login` does
+  `user.password !== password`. Sessions themselves are signed cookies verified
+  server-side, and every endpoint authorizes against them.
+- **Generation is fire-and-forget** within a route handler, with client polling.
+  A pass picks up slides left in `ERROR` or stale in `GENERATING`, so failures
+  are recoverable, but there is no queue and a restart mid-run leaves slides
+  pending until the next attempt.
+- **`/api/agent/runs` has no UI.** The autonomous agent runtime works and is
+  authorized, but nothing in the app calls it.
+- **AI image generation is config-gated.** Without `IMAGEKIT_URL_ENDPOINT` the
+  sanitizer blocks external images and slides are built from CSS and type alone.
 - **Type errors are ignored at build time** (`typescript.ignoreBuildErrors` in
-  `next.config.ts`). Run `npx tsc --noEmit` to see the outstanding backlog.
-- **Generation is fire-and-forget** within a route handler. A pass picks up slides left
-  in `ERROR` or stale in `GENERATING`, so failures are recoverable, but there is no
-  queue and a restart mid-run leaves slides pending until the next attempt.
-- **AI image generation is config-gated.** Without `IMAGEKIT_URL_ENDPOINT` the sanitizer
-  blocks external images and slides are built from CSS and type alone.
-- **No test suite.**
+  `next.config.ts`). The backlog is currently zero; `npx tsc --noEmit` keeps it
+  honest.
+- **No automated test suite** beyond `npm run verify`.
