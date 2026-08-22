@@ -67,82 +67,23 @@ import {
   SlideGenState,
 } from "@/components/lms/create-course/outline-lesson-card";
 import { useCourseUploads } from "@/hooks/use-course-uploads";
+import { useCourseDraft } from "@/hooks/use-course-draft";
+import { useLessonWorkflow } from "@/hooks/use-lesson-workflow";
+import {
+  MAX_LESSONS,
+  MAX_TITLE_LENGTH,
+  MAX_DESC_LENGTH,
+  MAX_COURSE_DESC_LENGTH,
+} from "@/components/lms/create-course/model";
 
 // ============================================
-// Types
+// Create Course — the page
+//
+// The template. Every field, panel and dialog the instructor sees is here, and
+// nothing else: the course record is useCourseDraft, the plan-then-generate
+// workflow is useLessonWorkflow, and file handling is useCourseUploads. The
+// page's job is to wire the three together and render them.
 // ============================================
-
-/** Slide in an editable outline */
-const MAX_LESSONS = 10;
-const MAX_TITLE_LENGTH = 100;
-const MAX_DESC_LENGTH = 3000;
-const MAX_COURSE_DESC_LENGTH = 500;
-
-// ============================================
-// Create Course Page Component
-// ============================================
-
-/** A section as returned by the outline endpoint. */
-interface OutlineSectionResponse {
-  id: string;
-  title: string;
-  summary: string;
-  subtopics: string[];
-  slideBudget: number;
-  order: number;
-}
-
-/** Build the reviewable draft from a phase-one response. */
-function toLessonDraft(
-  lessonData: {
-    id: string;
-    title: string;
-    subtitle?: string;
-    slides: { id: string; title: string; order: number }[];
-    sections?: OutlineSectionResponse[];
-    requestedSlideCount?: number;
-    adjustments?: string[];
-  },
-  meta: { language: string; style: string; topic: string },
-): { lesson: OutlineLessonDraft; slides: OutlineSlideDraft[] } {
-  const sections = lessonData.sections ?? [];
-  const byId = new Map(sections.map((sec) => [sec.id, sec]));
-
-  const slides: OutlineSlideDraft[] = lessonData.slides.map((s, i) => ({
-    id: `local_${Date.now()}_${i}`,
-    slideId: s.id,
-    title: s.title,
-    // The outline a slide answers to is now its section's summary.
-    outline:
-      byId.get((s as { sectionId?: string }).sectionId ?? "")?.summary ??
-      sections[0]?.summary ??
-      "",
-    order: s.order,
-  }));
-
-  return {
-    lesson: {
-      id: lessonData.id,
-      title: lessonData.title,
-      subtitle: lessonData.subtitle,
-      slides,
-      sections: sections.map((sec) => ({
-        id: sec.id,
-        title: sec.title,
-        summary: sec.summary,
-        subtopics: sec.subtopics ?? [],
-        slideBudget: sec.slideBudget,
-        order: sec.order,
-      })),
-      requestedSlideCount: lessonData.requestedSlideCount,
-      adjustments: lessonData.adjustments,
-      language: meta.language,
-      style: meta.style,
-      topic: meta.topic,
-    },
-    slides,
-  };
-}
 
 export function CreateCoursePage() {
   const {
@@ -165,697 +106,74 @@ export function CreateCoursePage() {
   } = useCourseUploads();
 
   const { goBack } = useNavigation();
-  const { currentUserId } = useUserStore();
-  const { createPrompt, setCreatePrompt } = useCourseStore();
-
-  // ---- Course form state ----
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [categoryId, setCategoryId] = useState("");
-  const [language, setLanguage] = useState("english");
   const router = useRouter();
 
-  // The draft's id lives in the URL.
-  //
-  // It used to live only in component state, so leaving the page for the
-  // lesson preview unmounted the component and destroyed it — coming back gave
-  // an empty Create Course form even though the course was saved. A query
-  // parameter survives navigation, refresh and the browser's back button.
-  const searchParams = useSearchParams();
-  const courseId = searchParams.get("courseId");
+  // The two halves of the page, in the order the data flows: the course record
+  // reads the saved course, and the workflow adopts its lessons.
+  const course = useCourseDraft({ coverImage, setCoverImage });
 
-  /** Record the draft in the URL, replacing rather than pushing so Back still
-   *  leaves the create page rather than stepping through its own saves. */
-  const setCourseId = useCallback(
-    (id: string | null) => {
-      if (!id || id === courseId) return;
-      const next = new URLSearchParams(searchParams.toString());
-      next.set("courseId", id);
-      router.replace(`${ROUTES["create-course"]}?${next.toString()}`);
-    },
-    [courseId, searchParams, router],
-  );
-
-  // ---- UI state ----
-  const [categories, setCategories] = useState<CategoryItem[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [modalOpen, setModalOpen] = useState(false);
-
-  // ---- Reference documents state ----
-
-  // ---- Outline modal state ----
-  const [outlineTopic, setOutlineTopic] = useState("");
-  const [outlineSlideCount, setOutlineSlideCount] = useState(DEFAULT_SLIDE_COUNT);
-  const [outlineStyle, setOutlineStyle] = useState(DEFAULT_STYLE);
-  const [outlineLanguage, setOutlineLanguage] = useState(language);
-  const [outlineGenerating, setOutlineGenerating] = useState(false);
-  const [editingOutlineLesson, setEditingOutlineLesson] = useState<string | null>(null);
-  const [outlineEditingSlides, setOutlineEditingSlides] = useState<OutlineSlideDraft[]>([]);
-
-  // ---- Lessons list ----
-  const [outlineLessons, setOutlineLessons] = useState<OutlineLessonDraft[]>([]);
-  const [expandedOutlineLessonId, setExpandedOutlineLessonId] = useState<string | null>(null);
-
-  // ---- Slide generation state ----
-  const [generatingLessonId, setGeneratingLessonId] = useState<string | null>(null);
-  const [slideGenStates, setSlideGenStates] = useState<Record<string, SlideGenState>>({});
-  // Which stage of the generation workflow is running, so the UI can say
-  // "writing the quiz" rather than appearing to hang after the last slide.
-  const [genStage, setGenStage] = useState<"idle" | "slides" | "quiz">("idle");
-  const [currentGenSlideId, setCurrentGenSlideId] = useState<string | null>(null);
-  const [genProgress, setGenProgress] = useState({ current: 0, total: 0 });
-  const abortGenRef = useRef<AbortController | null>(null);
-  const slideGenStatesRef = useRef<Record<string, SlideGenState>>({});
-
-  // Keep ref in sync with state for polling callbacks
-  useEffect(() => {
-    slideGenStatesRef.current = slideGenStates;
-  }, [slideGenStates]);
-
-  // ---- Load existing course when editing from dashboard ----
-  const { editingCourseId, setEditingCourseId } = useCourseStore();
-  useEffect(() => {
-    if (editingCourseId && !courseId) {
-      setCourseId(editingCourseId);
-      setEditingCourseId(null);
-    }
-  }, [editingCourseId, courseId, setEditingCourseId, setCourseId]);
-
-  // ---- Refs ----
-
-  // ---- Pre-fill title from hero prompt ----
-  useEffect(() => {
-    if (createPrompt) {
-      setTitle(createPrompt);
-      setCreatePrompt("");
-    }
-  }, [createPrompt, setCreatePrompt]);
-
-  // ---- Fetch categories ----
-  useEffect(() => {
-    async function fetchCategories() {
-      setLoading(true);
-      try {
-        const res = await fetch("/api/categories");
-        const json = await res.json();
-        if (json.success) {
-          setCategories(json.data);
-        }
-      } catch {
-        toast.error("Failed to load categories");
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchCategories();
-  }, []);
-
-  // ---- Load existing course data when editing ----
-  useEffect(() => {
-    if (!courseId) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch(`/api/courses/${courseId}`);
-        const json = await res.json();
-        if (!json.success || cancelled) return;
-        const c = json.data;
-        if (c.title) setTitle(c.title);
-        if (c.description) setDescription(c.description);
-        if (c.categoryId) setCategoryId(c.categoryId);
-        if (c.language) setLanguage(c.language);
-        if (c.coverImage) setCoverImage(c.coverImage);
-
-        // Load lessons with their sections and slides
-        if (c.lessons && c.lessons.length > 0) {
-          const restoredStates: Record<string, SlideGenState> = {};
-
-          const lessonDrafts: OutlineLessonDraft[] = c.lessons.map(
-            (lesson: {
-              id: string;
-              title: string;
-              outlineJson: string | null;
-              sections?: OutlineSectionResponse[];
-              slides?: {
-                id: string;
-                title: string;
-                htmlBody: string;
-                status: string;
-                order: number;
-                sectionId: string | null;
-              }[];
-            }) => {
-              const parsedOutline = lesson.outlineJson ? JSON.parse(lesson.outlineJson) : null;
-              const lessonSlides = lesson.slides ?? [];
-
-              // Rebuild the preview map from stored HTML. It is only filled in
-              // during generation, so reopening a draft course previously left
-              // it empty and the preview button showed nothing.
-              for (const slide of lessonSlides) {
-                if (slide.status === "READY" && slide.htmlBody) {
-                  restoredStates[slide.id] = { status: "complete", htmlBody: slide.htmlBody };
-                } else if (slide.status === "ERROR") {
-                  restoredStates[slide.id] = { status: "error", error: "Generation failed" };
-                }
-              }
-
-              const { lesson: draft } = toLessonDraft(
-                {
-                  id: lesson.id,
-                  title: lesson.title,
-                  slides: lessonSlides,
-                  sections: lesson.sections,
-                  requestedSlideCount: parsedOutline?.slideCount,
-                  adjustments: parsedOutline?.adjustments,
-                },
-                {
-                  language: c.language || "english",
-                  style: parsedOutline?.style || DEFAULT_STYLE,
-                  topic: parsedOutline?.topic || lesson.title,
-                },
-              );
-
-              return {
-                ...draft,
-                allReady:
-                  lessonSlides.length > 0 && lessonSlides.every((s) => s.status === "READY"),
-              };
-            },
-          );
-
-          setOutlineLessons(lessonDrafts);
-          setSlideGenStates(restoredStates);
-          if (lessonDrafts.length > 0) setExpandedOutlineLessonId(lessonDrafts[0].id);
-        }
-      } catch {
-        toast.error("Failed to load course data");
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [courseId, currentUserId]);
-
-  // ---- Cover image handlers (local file upload) ----
-  // ---- Auto-save course as draft (needed before outline generation) ----
-  const ensureCourseSaved = useCallback(async (): Promise<string | null> => {
-    if (courseId) return courseId;
-    if (!title.trim() || !currentUserId) {
-      toast.error("Please enter a course title first");
-      return null;
-    }
-    try {
-      const res = await fetch("/api/courses", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: title.trim(),
-          description: description.trim() || null,
-          categoryId: categoryId || null,
-          language,
-          creatorId: currentUserId,
-          coverImage: coverImage || null,
-        }),
-      });
-      const json = await res.json();
-      if (json.success && json.data?.id) {
-        setCourseId(json.data.id);
-        return json.data.id;
-      }
-      toast.error("Failed to save course draft");
-      return null;
-    } catch {
-      toast.error("Failed to save course draft");
-      return null;
-    }
-  }, [courseId, title, description, categoryId, language, currentUserId, coverImage]);
-
-  // ---- Open modal for new outline ----
-  const handleOpenModal = () => {
-    setOutlineTopic("");
-    setOutlineSlideCount(DEFAULT_SLIDE_COUNT);
-    setOutlineStyle(DEFAULT_STYLE);
-    setOutlineLanguage(language);
-    setOutlineGenerating(false);
-    setEditingOutlineLesson(null);
-    setOutlineEditingSlides([]);
-    setReferenceFiles([]);
-    setModalOpen(true);
-  };
-
-  // ---- Generate outline ----
-  const handleGenerateOutline = useCallback(async () => {
-    if (!outlineTopic.trim()) {
-      toast.error("Prompt is required");
-      return;
-    }
-    if (outlineLessons.length >= MAX_LESSONS) {
-      toast.error(`Maximum ${MAX_LESSONS} lessons allowed`);
-      return;
-    }
-
-    const savedCourseId = await ensureCourseSaved();
-    if (!savedCourseId) return;
-
-    setOutlineGenerating(true);
-    try {
-      const res = await fetch("/api/lessons/generate-outline", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          courseId: savedCourseId,
-          topic: outlineTopic.trim(),
-          slideCount: outlineSlideCount,
-          style: outlineStyle,
-          language: outlineLanguage,
-          referenceFileUrls:
-            referenceFiles.length > 0 ? referenceFiles.map((f) => f.url) : undefined,
-        }),
-      });
-      const json = await res.json();
-
-      if (!json.success) {
-        toast.error(json.error || "Failed to generate outline");
-        setOutlineGenerating(false);
-        return;
-      }
-
-      const { lesson: newLesson, slides } = toLessonDraft(json.data, {
-        language: outlineLanguage,
-        style: outlineStyle,
-        topic: outlineTopic.trim(),
-      });
-
-      setOutlineLessons((prev) => [...prev, newLesson]);
-      setEditingOutlineLesson(newLesson.id);
-      setOutlineEditingSlides(slides);
-      setOutlineGenerating(false);
-      toast.success(
-        `Plan ready: ${newLesson.sections?.length ?? 0} sections across ${slides.length} slides`,
-      );
-    } catch {
-      toast.error("Failed to generate outline. Please try again.");
-      setOutlineGenerating(false);
-    }
-  }, [
-    outlineTopic,
-    outlineSlideCount,
-    outlineStyle,
-    outlineLanguage,
+  const workflow = useLessonWorkflow({
+    courseId: course.courseId,
+    language: course.language,
+    ensureCourseSaved: course.ensureCourseSaved,
     referenceFiles,
-    ensureCourseSaved,
-    outlineLessons.length,
-  ]);
+    setReferenceFiles,
+    loadedLessons: course.loadedLessons,
+  });
 
-  // ---- Update lesson title (in outline modal) ----
-  const handleUpdateLessonTitle = async (lessonId: string, newTitle: string) => {
-    setOutlineLessons((prev) =>
-      prev.map((ol) => (ol.id === lessonId ? { ...ol, title: newTitle } : ol)),
-    );
-    try {
-      await fetch(`/api/lessons/${lessonId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: newTitle }),
-      });
-    } catch {
-      // silent
-    }
-  };
+  // Names the JSX below already uses, kept rather than rewriting the template.
+  const {
+    title,
+    setTitle,
+    description,
+    setDescription,
+    categoryId,
+    setCategoryId,
+    language,
+    setLanguage,
+    categories,
+    loading,
+    saving,
+    courseId,
+  } = course;
+  const handleSave = () => course.publishCourse(workflow.generatingLessonId !== null);
 
-  // ---- Update slide title (inline edit) ----
-  const handleUpdateSlideTitle = async (slideId: string, newTitle: string) => {
-    setOutlineEditingSlides((prev) =>
-      prev.map((s) => (s.slideId === slideId ? { ...s, title: newTitle } : s)),
-    );
-    setOutlineLessons((prev) =>
-      prev.map((ol) =>
-        ol.id === editingOutlineLesson
-          ? {
-              ...ol,
-              slides: ol.slides.map((s) => (s.slideId === slideId ? { ...s, title: newTitle } : s)),
-            }
-          : ol,
-      ),
-    );
-    try {
-      await fetch(`/api/slides/${slideId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: newTitle }),
-      });
-    } catch {
-      // silent
-    }
-  };
-
-  // ---- Delete a slide from outline ----
-  const handleDeleteOutlineSlide = async (slideId: string, localId: string) => {
-    setOutlineEditingSlides((prev) => prev.filter((s) => s.id !== localId));
-    setOutlineLessons((prev) =>
-      prev.map((ol) =>
-        ol.id === editingOutlineLesson
-          ? { ...ol, slides: ol.slides.filter((s) => s.id !== localId) }
-          : ol,
-      ),
-    );
-    if (slideId) {
-      try {
-        await fetch(`/api/slides/${slideId}`, { method: "DELETE" });
-      } catch {
-        // silent
-      }
-    }
-  };
-
-  // ---- Add a blank slide to outline ----
-  const handleAddOutlineSlide = () => {
-    const newOrder = outlineEditingSlides.length;
-    const localId = `local_${Date.now()}_new`;
-    const newSlide: OutlineSlideDraft = {
-      id: localId,
-      slideId: null,
-      title: `Slide ${newOrder + 1}`,
-      outline: "",
-      order: newOrder,
-    };
-    setOutlineEditingSlides((prev) => [...prev, newSlide]);
-    setOutlineLessons((prev) =>
-      prev.map((ol) =>
-        ol.id === editingOutlineLesson ? { ...ol, slides: [...ol.slides, newSlide] } : ol,
-      ),
-    );
-  };
-
-  // ---- Regenerate outline ----
-  const handleRegenerateOutline = async () => {
-    if (!editingOutlineLesson) return;
-    setOutlineGenerating(true);
-    try {
-      const res = await fetch("/api/lessons/generate-outline", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          courseId,
-          topic: outlineTopic.trim(),
-          slideCount: outlineSlideCount,
-          style: outlineStyle,
-          language: outlineLanguage,
-          existingLessonId: editingOutlineLesson,
-          referenceFileUrls:
-            referenceFiles.length > 0 ? referenceFiles.map((f) => f.url) : undefined,
-        }),
-      });
-      const json = await res.json();
-      if (!json.success) {
-        toast.error(json.error || "Failed to regenerate");
-        setOutlineGenerating(false);
-        return;
-      }
-      const { lesson: regenerated, slides } = toLessonDraft(json.data, {
-        language: outlineLanguage,
-        style: outlineStyle,
-        topic: outlineTopic.trim(),
-      });
-      setOutlineEditingSlides(slides);
-      setOutlineLessons((prev) =>
-        prev.map((ol) => (ol.id === editingOutlineLesson ? { ...ol, ...regenerated } : ol)),
-      );
-      setOutlineGenerating(false);
-      toast.success(
-        `Plan regenerated: ${regenerated.sections?.length ?? 0} sections across ${slides.length} slides`,
-      );
-    } catch {
-      toast.error("Failed to regenerate outline");
-      setOutlineGenerating(false);
-    }
-  };
-
-  // ============================================
-  // GENERATE SLIDES — Polling approach (proxy-safe)
-  // ============================================
-
-  const handleGenerateSlides = useCallback(
-    async (lessonId: string) => {
-      const lesson = outlineLessons.find((l) => l.id === lessonId);
-      if (!lesson) return;
-      if (lesson.slides.length === 0) {
-        toast.error("No slides to generate");
-        return;
-      }
-
-      // Initialize per-slide gen states
-      const initialStates: Record<string, SlideGenState> = {};
-      lesson.slides.forEach((s) => {
-        if (s.slideId) {
-          initialStates[s.slideId] = { status: "pending" };
-        }
-      });
-      setSlideGenStates(initialStates);
-      setGeneratingLessonId(lessonId);
-      setGenStage("slides");
-      setCurrentGenSlideId(null);
-      setGenProgress({ current: 0, total: lesson.slides.length });
-      setExpandedOutlineLessonId(lessonId);
-
-      // Close modal if open
-      setModalOpen(false);
-
-      try {
-        // Start generation (returns immediately)
-        const res = await fetch("/api/lessons/generate-slides", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            lessonId,
-            language: lesson.language,
-          }),
-        });
-
-        const json = await res.json();
-        if (!json.success) {
-          toast.error(json.error || "Failed to start slide generation");
-          setGeneratingLessonId(null);
-          setGenStage("idle");
-          return;
-        }
-
-        // Poll for slide status every 3 seconds
-        const totalSlides = json.data.totalSlides;
-        let completedCount = 0;
-        let errorCount = 0;
-        let pollInterval: ReturnType<typeof setInterval> | null = null;
-        let stopped = false;
-
-        const poll = async () => {
-          try {
-            const pollRes = await fetch(`/api/lessons/${lessonId}`);
-            const pollJson = await pollRes.json();
-            if (!pollJson.success || !pollJson.data?.slides) return;
-
-            const dbSlides = pollJson.data.slides;
-            let currentGenId: string | null = null;
-            let newCompleted = 0;
-            let newErrors = 0;
-
-            const newStates: Record<string, SlideGenState> = {};
-            for (const s of dbSlides) {
-              const prevState = slideGenStatesRef.current[s.id];
-              if (s.status === "GENERATING") {
-                currentGenId = s.id;
-                newStates[s.id] = { status: "generating" };
-              } else if (s.status === "READY") {
-                newCompleted++;
-                // Fetch the htmlBody from DB for completed slides
-                newStates[s.id] = {
-                  status: "complete",
-                  htmlBody: prevState?.htmlBody || s.htmlBody || "",
-                };
-              } else if (s.status === "ERROR") {
-                newErrors++;
-                newStates[s.id] = { status: "error", error: "Generation failed" };
-              } else {
-                newStates[s.id] = prevState || { status: "pending" };
-              }
-            }
-
-            // Merge with existing states to preserve already-loaded htmlBody
-            setSlideGenStates((prev) => {
-              const merged: Record<string, SlideGenState> = {};
-              for (const [id, state] of Object.entries(prev)) {
-                merged[id] = state;
-              }
-              for (const [id, state] of Object.entries(newStates)) {
-                // For READY slides, fetch htmlBody if we don't have it yet
-                if (state.status === "complete" && !state.htmlBody) {
-                  const dbSlide = dbSlides.find((s) => s.id === id);
-                  merged[id] = { ...state, htmlBody: dbSlide?.htmlBody || "" };
-                } else {
-                  merged[id] = state;
-                }
-              }
-              return merged;
-            });
-
-            if (currentGenId) {
-              setCurrentGenSlideId(currentGenId);
-            }
-
-            completedCount = newCompleted;
-            errorCount = newErrors;
-            setGenProgress({ current: newCompleted + newErrors, total: totalSlides });
-
-            // Slides are only the first stage. The quiz is written from them
-            // afterwards, in the same server-side workflow, so declaring
-            // success here left the instructor on a preview with no quiz and
-            // a button suggesting they generate it by hand.
-            const slidesDone = newCompleted + newErrors >= totalSlides;
-            const quiz = pollJson.data.quiz as {
-              status: string;
-              questionCount: number;
-              error: string | null;
-            } | null;
-            const quizSettled = quiz?.status === "READY" || quiz?.status === "ERROR";
-            // A lesson whose slides all failed never starts a quiz, so waiting
-            // for one would hang the UI.
-            const quizExpected = newCompleted > 0;
-            const allDone = slidesDone && (!quizExpected || quizSettled);
-
-            if (slidesDone && !quizSettled && quizExpected) {
-              setGenStage("quiz");
-            }
-
-            if (allDone && !stopped) {
-              stopped = true;
-              if (pollInterval) clearInterval(pollInterval);
-              setGeneratingLessonId(null);
-              setGenStage("idle");
-              setCurrentGenSlideId(null);
-              setGenStage("idle");
-              abortGenRef.current = null;
-
-              if (newErrors > 0) {
-                toast.warning(
-                  `${newCompleted} of ${totalSlides} slides generated. ${newErrors} failed.`,
-                );
-              } else if (quiz?.status === "ERROR") {
-                toast.warning(
-                  `All ${newCompleted} slides generated, but the quiz could not be built. You can retry it from the preview.`,
-                );
-              } else {
-                toast.success(
-                  `All ${newCompleted} slides generated` +
-                    (quiz?.questionCount ? `, with a ${quiz.questionCount}-question quiz.` : "."),
-                );
-              }
-
-              setOutlineLessons((prev) =>
-                prev.map((ol) =>
-                  ol.id === lessonId ? { ...ol, allReady: newCompleted === totalSlides } : ol,
-                ),
-              );
-            }
-          } catch (pollErr) {
-            console.error("[generate-slides] Poll error:", pollErr);
-          }
-        };
-
-        // Store ref for polling access
-        slideGenStatesRef.current = initialStates;
-        pollInterval = setInterval(poll, 3000);
-        // Also poll immediately after a short delay
-        setTimeout(poll, 2000);
-
-        // Store interval ref for cleanup on cancel
-        abortGenRef.current = {
-          abort: () => {
-            stopped = true;
-            if (pollInterval) clearInterval(pollInterval);
-            setGeneratingLessonId(null);
-            setGenStage("idle");
-            setCurrentGenSlideId(null);
-          },
-        } as unknown as AbortController;
-      } catch {
-        toast.error("Failed to generate slides. Please try again.");
-        setGeneratingLessonId(null);
-        setGenStage("idle");
-        setCurrentGenSlideId(null);
-        abortGenRef.current = null;
-      }
-    },
-    [outlineLessons],
-  );
-
-  const handleCancelGeneration = () => {
-    abortGenRef.current?.abort();
-    setGeneratingLessonId(null);
-    setGenStage("idle");
-    setCurrentGenSlideId(null);
-    toast.info("Generation will continue in background. Refresh to see updated slides.");
-  };
-
-  // ---- Delete lesson ----
-  const handleDeleteOutlineLesson = async (lessonId: string) => {
-    setOutlineLessons((prev) => prev.filter((ol) => ol.id !== lessonId));
-    if (expandedOutlineLessonId === lessonId) {
-      setExpandedOutlineLessonId(null);
-    }
-    try {
-      const res = await fetch(`/api/lessons/${lessonId}`, { method: "DELETE" });
-      const json = await res.json();
-      if (!json.success) toast.error("Failed to remove lesson");
-    } catch {
-      toast.error("Failed to remove lesson");
-    }
-  };
-
-  // ---- Form submission ----
-  const handleSave = async () => {
-    if (!title.trim()) {
-      toast.error("Course title is required");
-      return;
-    }
-
-    // Check if any lesson is still generating
-    if (generatingLessonId) {
-      toast.error("Please wait for slide generation to finish");
-      return;
-    }
-
-    setSaving(true);
-    try {
-      if (courseId) {
-        // Update existing course to published
-        const res = await fetch(`/api/courses/${courseId}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            title: title.trim(),
-            description: description.trim() || null,
-            categoryId: categoryId || null,
-            language,
-            coverImage: coverImage || null,
-            status: "published",
-          }),
-        });
-        const json = await res.json();
-        if (json.success) {
-          toast.success("Course published successfully!");
-          goBack();
-        } else {
-          toast.error(json.error || "Failed to publish course");
-        }
-      } else {
-        toast.error("Please add at least one lesson first");
-      }
-    } catch {
-      toast.error("Failed to save course. Please try again.");
-    } finally {
-      setSaving(false);
-    }
-  };
+  const {
+    modalOpen,
+    setModalOpen,
+    outlineTopic,
+    setOutlineTopic,
+    outlineSlideCount,
+    setOutlineSlideCount,
+    outlineStyle,
+    setOutlineStyle,
+    outlineLanguage,
+    setOutlineLanguage,
+    outlineGenerating,
+    editingOutlineLesson,
+    setEditingOutlineLesson,
+    outlineEditingSlides,
+    setOutlineEditingSlides,
+    outlineLessons,
+    setOutlineLessons,
+    expandedOutlineLessonId,
+    setExpandedOutlineLessonId,
+    generatingLessonId,
+    slideGenStates,
+    genStage,
+    currentGenSlideId,
+    genProgress,
+    handleOpenModal,
+    handleGenerateOutline,
+    handleRegenerateOutline,
+    handleUpdateLessonTitle,
+    handleUpdateSlideTitle,
+    handleDeleteOutlineSlide,
+    handleAddOutlineSlide,
+    handleDeleteOutlineLesson,
+    handleGenerateSlides,
+    handleCancelGeneration,
+  } = workflow;
 
   // ============================================
   // Render
