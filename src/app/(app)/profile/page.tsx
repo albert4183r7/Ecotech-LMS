@@ -1,6 +1,4 @@
-"use client";
-
-import { ProfilePage } from "@/components/lms/pages/profile-page";
+import { ProfilePage } from "./profile-page";
 
 export default function Page() {
   return <ProfilePage />;

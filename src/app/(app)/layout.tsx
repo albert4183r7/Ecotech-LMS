@@ -5,7 +5,7 @@ import { Navbar } from "@/components/lms/navbar";
 import { Footer } from "@/components/lms/footer";
 import { OnboardingTour } from "@/components/lms/onboarding-tour";
 import { AnnouncementBanner } from "@/components/lms/announcement-banner";
-import { AuthPage } from "@/components/lms/pages/auth-page";
+import { AuthPage } from "@/components/lms/auth-page";
 import { FloatingActions } from "@/components/lms/floating-actions";
 import { KeyboardShortcuts } from "@/components/lms/keyboard-shortcuts";
 import { SessionSync } from "@/components/lms/session-sync";

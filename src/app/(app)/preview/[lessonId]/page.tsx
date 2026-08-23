@@ -1,6 +1,4 @@
-"use client";
-
-import { LessonPreviewPage } from "@/components/lms/pages/lesson-preview-page";
+import { LessonPreviewPage } from "./lesson-preview-page";
 import { RoleGuard } from "@/components/lms/role-guard";
 
 export default function Page() {

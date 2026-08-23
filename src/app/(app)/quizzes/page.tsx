@@ -1,6 +1,4 @@
-"use client";
-
-import { QuizzesPage } from "@/components/lms/pages/quizzes-page";
+import { QuizzesPage } from "./quizzes-page";
 
 export default function Page() {
   return <QuizzesPage />;

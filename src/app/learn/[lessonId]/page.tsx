@@ -1,8 +1,8 @@
 "use client";
 
 import { useUserStore } from "@/stores/lms-store";
-import { AuthPage } from "@/components/lms/pages/auth-page";
-import { ClassroomPage } from "@/components/lms/pages/classroom-page";
+import { AuthPage } from "@/components/lms/auth-page";
+import { ClassroomPage } from "./classroom-page";
 import { KeyboardShortcuts } from "@/components/lms/keyboard-shortcuts";
 import { OnboardingTour } from "@/components/lms/onboarding-tour";
 

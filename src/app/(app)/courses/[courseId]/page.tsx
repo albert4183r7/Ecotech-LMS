@@ -1,6 +1,4 @@
-"use client";
-
-import { CourseDetailPage } from "@/components/lms/pages/course-detail-page";
+import { CourseDetailPage } from "./course-detail-page";
 
 export default function Page() {
   return <CourseDetailPage />;

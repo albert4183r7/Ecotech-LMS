@@ -1,8 +1,6 @@
-"use client";
-
 import { Suspense } from "react";
 import { Loader2 } from "lucide-react";
-import { CreateCoursePage } from "@/components/lms/pages/create-course-page";
+import { CreateCoursePage } from "./create-course-page";
 import { RoleGuard } from "@/components/lms/role-guard";
 
 // The editor reads the draft's id from the query string, so it needs a

@@ -18,10 +18,18 @@ import { modelFor, type AiTask } from "./models";
 // each one holds a connection, and rebuilding one on every call would leak
 // sockets under load.
 //
-// The previous providers — Claude through the EcoAPI gateway, and Gemini
-// before it — are preserved in ./previous-providers.ts, commented rather than
-// deleted, with notes on restoring either.
+// The project can run either way — on local models with no key, or on a
+// hosted provider behind an API key. The second mode is kept in
+// ./previous-providers.ts, commented rather than deleted; switching is a swap
+// of the block below for that one. The README's "Two ways to run the models"
+// section has the steps.
 // ============================================
+
+// ────────────────────────────────────────────────────────────────────────────
+// MODE A — local open-source models through Ollama. Active.
+// To switch to the API-key mode, comment out everything down to "end of mode A"
+// and uncomment provider 2 from ./previous-providers.ts in its place.
+// ────────────────────────────────────────────────────────────────────────────
 
 /**
  * Where the Ollama server is.
@@ -89,6 +97,11 @@ export function getChatModel(task: AiTask, options: ChatModelOptions = {}): Chat
   return chat;
 }
 
+// ────────────────────────────────────────────────────────────────────────────
+// End of mode A. The two helpers below belong to neither mode in particular;
+// both use them, so leave them in place when switching.
+// ────────────────────────────────────────────────────────────────────────────
+
 function extractErrorMessage(err: unknown): string {
   if (err instanceof Error) return err.message;
   if (typeof err === "string") return err;
@@ -102,6 +115,11 @@ function extractStatus(err: unknown): number | undefined {
   const raw = candidate.status ?? candidate.status_code;
   return typeof raw === "number" ? raw : undefined;
 }
+
+// ────────────────────────────────────────────────────────────────────────────
+// Mode A's error classification. Mode B replaces this function too — the
+// failures differ, and a message naming the wrong ones is worse than none.
+// ────────────────────────────────────────────────────────────────────────────
 
 /**
  * Classify a provider error and throw a clean, actionable message.
@@ -142,5 +160,5 @@ export function throwFriendlyError(err: unknown, context: string, task: AiTask):
   throw new Error(`[LLM Error] ${context} (${task}) — ${msg}`);
 }
 
-// Previous providers — Claude via EcoAPI, and Gemini before it — are kept
-// commented in ./previous-providers.ts, with notes on restoring either.
+// The API-key mode — Claude via the EcoAPI gateway — and the Gemini
+// implementation before it are kept commented in ./previous-providers.ts.
