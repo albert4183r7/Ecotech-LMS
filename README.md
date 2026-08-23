@@ -115,7 +115,6 @@ Nothing else is required: Ollama needs no key, and every model has a default.
 | `OLLAMA_API_KEY`           | unset                    | Only if Ollama sits behind an authenticating proxy         |
 | `MODEL_*` (ten of them)    | see below                | Move one AI task to a different model                      |
 | `CHROMIUM_EXECUTABLE_PATH` | unset                    | System Chromium for the renderer                           |
-| `IMAGEKIT_URL_ENDPOINT`    | unset                    | Enables AI-generated images in slides                      |
 
 **One model per task.** The project makes ten distinct kinds of model call and
 they do not want the same model — planning an outline and judging whether a quiz

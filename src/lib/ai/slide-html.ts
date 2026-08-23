@@ -9,48 +9,20 @@ import { streamText, collectStream } from "./streaming";
 // decided in one place — see ./models.ts, task "slide-html-legacy".
 // ============================================
 
-/** ImageKit URL endpoint (server-side only, never expose to client) */
-const IMAGEKIT_ENDPOINT = process.env.IMAGEKIT_URL_ENDPOINT || "";
+// Images. The slide model that superseded this path has no image field at all
+// — a slide's visuals come from the template's own shapes, gradients and
+// typography — and the sanitiser blocks every external <img> src. So the rule
+// here is not a preference: markup that reaches for a remote image loses it.
 
-/** Whether ImageKit is configured for AI image generation */
-const IMAGEKIT_CONFIGURED = !!IMAGEKIT_ENDPOINT;
-
-/** Build image instruction based on whether ImageKit is configured */
-function buildImageRule(): string {
-  if (IMAGEKIT_CONFIGURED) {
-    return `IMAGE RULES:
-- For images, use ImageKit AI generation URLs in this exact format:
-  <img src="${IMAGEKIT_ENDPOINT}/ik-genimg-prompt-{URL_ENCODED_DESCRIPTION}/slide-image.jpg" alt="description" class="..." />
-  Replace {URL_ENCODED_DESCRIPTION} with a URL-encoded short English description of the desired image (e.g. "colorful+data+visualization+chart").
-  The filename after the description can be any descriptive name ending in .jpg.
-  Example: <img src="${IMAGEKIT_ENDPOINT}/ik-genimg-prompt-colorful+data+chart/data-viz.jpg" alt="Data visualization chart" class="w-full rounded-lg shadow-md" />
-- Do NOT use any external image URLs other than ImageKit URLs.`;
-  }
-  return `IMAGE RULES:
-- Do NOT include <img> tags with external URLs — image generation is not available.
+const IMAGE_RULE = `IMAGE RULES:
+- Do NOT include <img> tags with external URLs — remote images are stripped by the sanitiser.
 - Instead, create visuals using: colored div backgrounds with Tailwind gradients, borders, and patterns; icon-like Unicode characters or emoji for visual indicators (e.g. 📊 🎯 ✅ ⚡); CSS grid/flexbox layouts for visual structure; colored boxes, badges, and decorative div elements.
 - Every visual must be pure CSS/HTML.
 - Do NOT use any external image URLs or <img> tags with external sources.`;
-}
 
-/** Build edit prompt image instruction */
-function buildEditImageRule(): string {
-  if (IMAGEKIT_CONFIGURED) {
-    return `For NEW images, use ImageKit AI generation URLs:
-  <img src="${IMAGEKIT_ENDPOINT}/ik-genimg-prompt-{URL_ENCODED_DESCRIPTION}/slide-image.jpg" alt="description" class="..." />
-  Replace {URL_ENCODED_DESCRIPTION} with a URL-encoded short English description.
-For EXISTING images that need AI transformation, append transformation params as ?tr= query params on the existing ImageKit URL:
-  - Remove background: append ?tr=e-removedotbg
-  - Replace background: append ?tr=e-changebg-prompt-{URL_ENCODED_NEW_BG_DESCRIPTION}
-  - Upscale: append ?tr=e-upscale
-  - Add drop shadow: append ?tr=e-dropshadow
-  Example: if original src is ".../image.jpg", changing background becomes ".../image.jpg?tr=e-changebg-prompt-sunset+beach"
-Do NOT use any external image URLs other than ImageKit URLs.`;
-  }
-  return `Do NOT add <img> tags with external URLs — image generation is not available.
+const EDIT_IMAGE_RULE = `Do NOT add <img> tags with external URLs — remote images are stripped by the sanitiser.
 For visual elements, use CSS-based approaches (gradients, colored divs, Unicode/emoji, Tailwind classes).
 Do NOT use any external image URLs.`;
-}
 
 /** System prompt for HTML slide generation — PPT-style presentation slides */
 export const SLIDE_HTML_SYSTEM_PROMPT = `You are an expert presentation slide designer. You create beautiful, visually impactful slides like those in a professional PowerPoint or Keynote presentation.
@@ -69,7 +41,7 @@ CRITICAL DESIGN RULES:
    - Strong visual hierarchy — title >> subtitles >> body text
    - Use visual elements: colored accent bars, icon indicators, number badges, colored cards
    - Leave breathing room — do NOT fill every pixel with text
-5. ${buildImageRule()}
+5. ${IMAGE_RULE}
 6. Structure each slide as a self-contained HTML fragment wrapped in a single root <div>.
 7. SLIDE TYPES AND HOW TO DESIGN THEM:
    - TITLE SLIDE: Large centered title, subtitle below, maybe a decorative accent. NO bullet points.
@@ -105,7 +77,7 @@ CRITICAL RULES:
 2. Preserve the overall structure and Tailwind class patterns.
 3. Apply the requested changes precisely.
 4. Use ONLY Tailwind CSS utility classes — never inline style="".
-5. ${buildEditImageRule()}
+5. ${EDIT_IMAGE_RULE}
 6. Preserve ALL existing Tailwind CSS classes unless the instruction explicitly asks to change them.
 7. Keep the slide looking like a real PPT/Keynote presentation slide — visual, not text-heavy.`;
 
@@ -119,7 +91,7 @@ CRITICAL RULES:
 4. Preserve ALL existing Tailwind CSS classes unless the instruction explicitly asks to change the styling/color/layout. This is critical — do not drop or modify classes that weren't asked to change.
 5. Use ONLY Tailwind CSS utility classes — never inline style="".
 6. Apply the requested content or structural changes precisely and completely.
-7. ${buildEditImageRule()}
+7. ${EDIT_IMAGE_RULE}
 8. Do NOT add any wrapper divs or container elements that weren't in the original — replace only the element itself.`;
 
 /** Ceiling for a single slide's HTML. */

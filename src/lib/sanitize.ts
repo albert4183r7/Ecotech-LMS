@@ -80,55 +80,6 @@ const FORBIDDEN_TAGS = [
   "set",
 ];
 
-/** Check whether ImageKit is properly configured */
-function isImageKitConfigured(): boolean {
-  return !!process.env.IMAGEKIT_URL_ENDPOINT;
-}
-
-/** Get the allowed ImageKit URL endpoint from env */
-function getImageKitDomain(): string | null {
-  const endpoint = process.env.IMAGEKIT_URL_ENDPOINT;
-  if (!endpoint) return null;
-  try {
-    return new URL(endpoint).hostname;
-  } catch {
-    return null;
-  }
-}
-
-/** Sign an ImageKit URL server-side. Only works when env vars are set. */
-function signImageKitUrl(url: string): string {
-  const endpoint = process.env.IMAGEKIT_URL_ENDPOINT;
-  const privateKey = process.env.IMAGEKIT_PRIVATE_KEY;
-  if (!endpoint || !privateKey) return url;
-
-  try {
-    const parsedUrl = new URL(url);
-    if (parsedUrl.hostname !== getImageKitDomain()) return url;
-
-    const expiry = Math.floor(Date.now() / 1000) + 3600; // 1 hour
-    // Extract the path+query (everything after the hostname)
-    const pathAndQuery = parsedUrl.pathname + parsedUrl.search;
-    const signatureBase = pathAndQuery + expiry;
-
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const crypto = require("crypto");
-    const hmac = crypto.createHmac("sha1", privateKey);
-    hmac.update(signatureBase);
-    const signature = hmac
-      .digest("base64")
-      .replace(/\+/g, "-")
-      .replace(/\//g, "_")
-      .replace(/=+$/, "");
-
-    parsedUrl.searchParams.set("ik-s", signature);
-    parsedUrl.searchParams.set("ik-t", String(expiry));
-    return parsedUrl.toString();
-  } catch {
-    return url;
-  }
-}
-
 /** Regex-based href validation — works on both server and client */
 function isValidHref(href: string): boolean {
   const trimmed = href.trim().toLowerCase();
@@ -138,31 +89,23 @@ function isValidHref(href: string): boolean {
   return false;
 }
 
-/** Regex-based img src validation — works on both server and client */
+/**
+ * Regex-based img src validation — works on both server and client.
+ *
+ * Only images this application serves are allowed: a relative path, which in
+ * practice means something under /uploads that a user uploaded through
+ * /api/upload. Everything else is dropped — a remote host, because it would
+ * let generated markup pull in and phone out to an arbitrary domain, and a
+ * data: URI, because SVG inside one can carry script.
+ *
+ * Nothing in the slide pipeline needs more than this. Slide visuals come from
+ * the template's shapes, gradients and typography; the slide content model has
+ * no image field.
+ */
 function isValidImgSrc(src: string): boolean {
-  const ikDomain = getImageKitDomain();
   const trimmed = src.trim();
-
-  // SECURITY: Block data: URIs entirely (can contain SVG with embedded scripts)
   if (trimmed.startsWith("data:")) return false;
-
-  if (ikDomain) {
-    // When ImageKit is configured, ONLY allow ImageKit domain images
-    try {
-      const url = new URL(trimmed);
-      return url.hostname === ikDomain && url.protocol === "https:";
-    } catch {
-      return false;
-    }
-  }
-
-  // When ImageKit is NOT configured, block ALL external images.
-  // This prevents the AI from generating URLs that point to arbitrary domains
-  // or to the placeholder "ik.imagekit.io/YOUR_ID" that would fail to load.
-  // Relative paths (e.g. /uploads/...) are allowed for user-uploaded images.
-  if (trimmed.startsWith("/") || trimmed.startsWith("./")) return true;
-
-  return false;
+  return trimmed.startsWith("/") || trimmed.startsWith("./");
 }
 
 /** Regex-based second pass: enforce URL policies & strip on* / style attrs.
@@ -278,20 +221,6 @@ function serverSidePostProcess(html: string): string {
     const filtered = filterInlineStyle(dq ?? sq ?? "");
     return filtered ? ` style="${filtered}"` : "";
   });
-
-  // 5. Sign ImageKit URLs server-side (only when configured)
-  if (typeof require === "function" && isImageKitConfigured()) {
-    html = html.replace(
-      /(<img\s[^>]*?\bsrc=)("([^"]*)"|'([^']*)')([^>]*?)(\/?>)/gi,
-      (_match, before, srcFull, srcDq, srcSq, after, close) => {
-        const srcVal = srcDq ?? srcSq;
-        if (!srcVal) return _match;
-        const signed = signImageKitUrl(srcVal);
-        if (signed === srcVal) return _match; // No change needed
-        return `${before}"${signed}"${after}${close}`;
-      },
-    );
-  }
 
   return html;
 }
