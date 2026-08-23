@@ -5,8 +5,9 @@ instructor describes a topic, chooses a slide count and a language, and optional
 uploads reference documents; the system plans the presentation as logical sections,
 shows that plan for review, and then generates every slide.
 
-Built with Next.js 16 (App Router), Prisma + SQLite, and open-source models
-run locally through Ollama.
+Built with Next.js 16 (App Router), Prisma + SQLite, and LangChain over
+open-source models run locally through Ollama — with a hosted, API-key provider
+kept one file-swap away.
 
 ---
 
@@ -18,6 +19,7 @@ run locally through Ollama.
 | Styling   | Tailwind CSS v4, shadcn/ui (Radix primitives)           |
 | Data      | Prisma 6 + SQLite                                       |
 | State     | Zustand (`src/stores/lms-store.ts`)                     |
+| AI        | LangChain — `@langchain/core`, `@langchain/ollama`      |
 | LLM       | Open-source models via Ollama — one per task, see below |
 | Rendering | Playwright (headless Chromium) for slide rasterisation  |
 | Export    | `pptxgenjs`                                             |
@@ -104,17 +106,16 @@ Nothing else is required: Ollama needs no key, and every model has a default.
 > `prisma/schema.prisma`, not the project root, so `file:./db/custom.db` would create
 > `prisma/db/custom.db` and leave the intended database untouched. See `db/README.md`.
 
-| Variable                   | Default                     | Purpose                                                 |
-| -------------------------- | --------------------------- | ------------------------------------------------------- |
-| `DATABASE_URL`             | —                           | SQLite path, relative to `prisma/`                      |
-| `SESSION_SECRET`           | —                           | Signs session cookies; 32+ chars, required in prod      |
-| `OLLAMA_BASE_URL`          | `http://127.0.0.1:11434/v1` | Where Ollama is; must have `/chat/completions` under it |
-| `OLLAMA_MAX_TOKENS`        | `4096`                      | Ceiling for one generation                              |
-| `OLLAMA_TIMEOUT_MS`        | `300000`                    | Local generation on CPU is slow                         |
-| `OLLAMA_API_KEY`           | unset                       | Only if Ollama sits behind an authenticating proxy      |
-| `MODEL_*` (ten of them)    | see below                   | Move one AI task to a different model                   |
-| `CHROMIUM_EXECUTABLE_PATH` | unset                       | System Chromium for the renderer                        |
-| `IMAGEKIT_URL_ENDPOINT`    | unset                       | Enables AI-generated images in slides                   |
+| Variable                   | Default                  | Purpose                                                    |
+| -------------------------- | ------------------------ | ---------------------------------------------------------- |
+| `DATABASE_URL`             | —                        | SQLite path, relative to `prisma/`                         |
+| `SESSION_SECRET`           | —                        | Signs session cookies; 32+ chars, required in prod         |
+| `OLLAMA_BASE_URL`          | `http://127.0.0.1:11434` | Where Ollama is; a trailing `/v1` is accepted and stripped |
+| `OLLAMA_MAX_TOKENS`        | `4096`                   | Ceiling for one generation                                 |
+| `OLLAMA_API_KEY`           | unset                    | Only if Ollama sits behind an authenticating proxy         |
+| `MODEL_*` (ten of them)    | see below                | Move one AI task to a different model                      |
+| `CHROMIUM_EXECUTABLE_PATH` | unset                    | System Chromium for the renderer                           |
+| `IMAGEKIT_URL_ENDPOINT`    | unset                    | Enables AI-generated images in slides                      |
 
 **One model per task.** The project makes ten distinct kinds of model call and
 they do not want the same model — planning an outline and judging whether a quiz
@@ -123,9 +124,9 @@ question is grounded are different jobs. Each names its own, and each has a
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#model-per-task); the source of truth
 is `src/lib/ai/models.ts`.
 
-**Restoring a hosted provider.** Claude via the EcoAPI gateway, and Gemini
-before it, are kept commented in `src/lib/ai/previous-providers.ts`, with notes
-on restoring either. `.env.example` keeps their variables.
+**Running on an API key instead.** The project supports both — see
+[Two ways to run the models](#two-ways-to-run-the-models) below for the exact
+switch, in either direction.
 
 ### 3. Database
 
@@ -140,6 +141,87 @@ npm run db:seed   # optional demo content
 ```bash
 npm run dev
 ```
+
+---
+
+## Two ways to run the models
+
+Every model call goes through LangChain, so the provider is one file:
+`src/lib/ai/provider.ts`. It exports a chat model per task and an error
+classifier, and nothing above it knows or cares which mode is active.
+
+|                 | **Mode A — local, open source**                    | **Mode B — hosted, API key**                          |
+| --------------- | -------------------------------------------------- | ----------------------------------------------------- |
+| Runs on         | Ollama on your own machine                         | a gateway (EcoAPI, or any OpenAI-compatible endpoint) |
+| LangChain class | `ChatOllama`                                       | `ChatOpenAI`                                          |
+| Costs           | nothing                                            | per token                                             |
+| Needs           | the models pulled locally, and the RAM to run them | a key, and network                                    |
+| Status          | **active** — this is what ships                    | kept commented in `src/lib/ai/previous-providers.ts`  |
+
+Both are written against the same two exports, so switching does not touch a
+single caller, and no `npm install` is involved: `@langchain/openai` is already
+a dependency.
+
+### A → B: run on an API key
+
+1. **Move the implementation.** In `src/lib/ai/provider.ts`, comment out
+   everything between `MODE A` and `End of mode A`, and the `throwFriendlyError`
+   below it. Leave `extractErrorMessage` and `extractStatus`; both modes use
+   them.
+2. **Paste the other one in.** Open `src/lib/ai/previous-providers.ts`, copy the
+   `PROVIDER 2` block, uncomment it, and put it where mode A was. It exports the
+   same `getChatModel` / `throwFriendlyError` / `BASE_URL` / `MAX_OUTPUT_TOKENS`
+   / `MAX_RETRIES` / `ChatModelOptions`, so `index.ts` and every caller keep
+   compiling untouched.
+3. **Add the key** to `.env`:
+
+   ```
+   ECOAPI_API_KEY=sk-...
+   ECOAPI_BASE_URL=https://www.ecoapi.ai/api/v1
+   ```
+
+4. **Point the tasks at models the gateway serves.** The ten task entries in
+   `src/lib/ai/models.ts` name Ollama tags, which a gateway will not recognise.
+   Either edit that file, or leave it alone and set the ten `MODEL_*` variables
+   in `.env` — the overrides exist for exactly this:
+
+   ```
+   MODEL_OUTLINE_PLANNING=claude-opus-5
+   MODEL_SLIDE_AUTHORING=claude-opus-5
+   ...
+   ```
+
+   One model can serve every task; the per-task split is there so a deployment
+   _can_ differentiate, not because it must.
+
+5. Restart the dev server. Ollama can be stopped.
+
+That is the whole switch. There is nothing to change in the routes, the agent
+runtime, the evaluators or the UI.
+
+### B → A: run on local models again
+
+1. Uncomment mode A in `src/lib/ai/provider.ts` and comment out the API-key
+   block, or restore the file from git.
+2. Start Ollama and pull the four models listed in
+   [Install](#1-install).
+3. Remove the `MODEL_*` overrides from `.env` if you set them, so the task
+   defaults in `models.ts` apply again. `ECOAPI_API_KEY` can stay; nothing
+   reads it in this mode.
+4. Restart.
+
+### Using a different hosted provider
+
+Anything with an OpenAI-compatible endpoint — OpenRouter, Together, vLLM,
+LM Studio, an Azure deployment — works in mode B by changing `ECOAPI_BASE_URL`
+and the model ids. For a provider with its own LangChain package (Anthropic's
+own API, Google, Mistral), install that package and swap the class in
+`getChatModel`; the rest of mode B is unchanged, because everything above
+`provider.ts` speaks LangChain, not a vendor's wire format.
+
+A third implementation, Gemini through `@google/genai`, predates LangChain and
+is also kept commented in `previous-providers.ts`. It is a rewrite rather than a
+swap, and is there for reference.
 
 ---
 
@@ -164,10 +246,13 @@ npm run dev
 ```
 src/
 ├── app/
-│   ├── (app)/          pages behind the auth gate
+│   ├── (app)/          routes behind the auth gate
+│   │   ├── page.tsx        the route
+│   │   ├── home-page.tsx   its UI, colocated
+│   │   └── courses/, create/, dashboard/, profile/, quizzes/, preview/
 │   ├── learn/          the classroom, full-screen and outside the gate's chrome
 │   └── api/            endpoints, one directory per resource
-├── components/lms/     screens (pages/) and feature components
+├── components/lms/     components shared across routes; ui/ is shadcn
 ├── hooks/              frontend logic behind the screens
 ├── lib/
 │   ├── ai/             every model call, and which model runs which task
@@ -181,6 +266,29 @@ src/
 ├── stores/             Zustand
 └── types/
 ```
+
+**Route UI lives with its route.** A route folder holds `page.tsx` and the
+component it renders — `create/page.tsx` and `create/create-course-page.tsx`
+sit together. This is the App Router's colocation rule: anything in `app/` that
+is not `page`, `layout`, `route` or another reserved filename is not routable,
+so a route's own files are safe to keep there. Only components used by more
+than one route go up to `src/components/lms/`.
+
+**`page.tsx` is a Server Component; the screen below it is a Client
+Component.** The page declares the route, composes the guards
+(`RoleGuard`, `Suspense`) and stays on the server; the `"use client"` directive
+sits on the screen itself, which is where the state and effects are. The
+exception is `learn/[lessonId]/page.tsx`, which reads the session store to
+decide between the classroom and the sign-in screen and is therefore a client
+component itself.
+
+This is a client-first application — the screens fetch through hooks against
+`app/api/**`, rather than the pages fetching on the server and streaming.
+That is a deliberate trade, not an accident: the UI was built against those
+endpoints, and moving the fetching into server components would change how
+every screen loads. What the boundary above buys today is that the route
+modules themselves stay out of the client bundle and can take `metadata` or
+server-side data loading later, one route at a time, without a rewrite.
 
 The layer boundaries, the hook-per-workflow table, the model-per-task table and
 the main workflows end to end are in

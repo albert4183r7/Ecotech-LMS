@@ -16,7 +16,7 @@ Five layers, each with one job. The rule is that a layer may call the one below
 it and never the one above.
 
 ```
-  UI template          what the user sees          src/components/lms/**
+  UI template          what the user sees          src/app/**/*-page.tsx
         │
   frontend logic       what happens when they act  src/hooks/**, src/stores/**
         │
@@ -28,8 +28,10 @@ it and never the one above.
 ```
 
 **UI template** — React components. Markup, layout and presentational state
-(which panel is open, which tab is selected). A page component holds no `fetch`
-call and no workflow.
+(which panel is open, which tab is selected). A screen component holds no
+`fetch` call and no workflow. Each one lives in its own route's folder, beside
+the `page.tsx` that renders it; `src/components/lms/` is for what more than one
+route uses.
 
 **Frontend logic** — hooks own the behaviour behind a screen: what to load, what
 to send, what to do with the response. A screen with real workflow behind it has
@@ -49,14 +51,15 @@ quiz grounding, session verification, PPTX export, and every model call.
 ```
 src/
 ├── app/
-│   ├── (app)/              routes behind the auth gate — the pages
+│   ├── (app)/              routes behind the auth gate
+│   │   └── <route>/        page.tsx (server) + <name>-page.tsx (the screen)
 │   ├── learn/[lessonId]/   the classroom, deliberately outside (app):
 │   │                       it is full-screen and has no site chrome
 │   └── api/                endpoints, one directory per resource
 │
 ├── components/
 │   ├── lms/
-│   │   ├── pages/          one component per screen — templates
+│   │   ├── auth-page.tsx   the sign-in screen — two routes render it
 │   │   ├── create-course/  outline card, and model.ts (limits + draft builder)
 │   │   ├── classroom/      notes sidebar, lesson assistant, confetti
 │   │   ├── quiz/           quiz runner (student), review panel (instructor)
@@ -112,7 +115,7 @@ which provider is running or which model serves a given job.
 
 ```
   models.ts              which model runs which task, and why
-  provider.ts            the transport and its error classification
+  provider.ts            the LangChain chat models and the error classification
   previous-providers.ts  earlier providers, commented, restorable
   structured.ts          JSON conforming to a Zod schema
   streaming.ts           text streamed as it arrives
@@ -136,17 +139,32 @@ model happens to be the default.
 
 ### Provider
 
-Open-source models run locally through **Ollama**, which serves an
-OpenAI-compatible `/v1/chat/completions`. The transport, streaming and
-tool-calling code are the same ones the previous hosted gateway used; what
-changed is the base URL and the model each task names. No API key is involved.
+Every model call is a **LangChain** chat model. The framework owns the message
+types, the streaming protocol and the tool-call schema, so the files above
+`provider.ts` describe what they want rather than how one vendor's HTTP API
+spells it: `invoke()` for structured JSON, `stream()` for the tutor and slide
+HTML, `bindTools()` for the agent turn, and content blocks for the images the
+visual evaluator sends.
 
-Which models to pull, and how to point the app at a server that is not on
-localhost, are in the README's [Getting started](../README.md#getting-started).
+The active integration is `@langchain/ollama`, running open-weight models
+locally. No API key is involved. `provider.ts` builds a `ChatOllama` per task,
+cached by model and settings, since each holds a connection.
 
-Error classification is _not_ shared with the hosted implementation, because the
-failures differ: there is no quota and no key to get wrong, but the server may
-not be running and the model may not have been pulled. Those are what it reports.
+Two things are deliberately _not_ delegated to the framework.
+`withStructuredOutput()` is not used, because it reports a parse failure and
+gives nothing to act on, and the hand-written retry in `structured.ts` is what
+makes a rejected outline recoverable: it hands the model its own output and the
+exact validation errors. And LangChain's own retry is switched off
+(`maxRetries: 0`), because a blind repeat of a slow local generation costs
+minutes and changes nothing.
+
+The same file is where the API-key mode goes; see below, and the README's
+[Two ways to run the models](../README.md#two-ways-to-run-the-models) for the
+switch in either direction.
+
+Error classification is per mode, because the failures differ: locally there is
+no quota and no key to get wrong, but the server may not be running and the
+model may not have been pulled. Those are what it reports.
 
 ### Model per task
 
@@ -174,14 +192,20 @@ constrained; the 7B carries the short, decidable ones.
 
 `src/lib/ai/models.ts` is the source of truth for this table.
 
-### Restoring a hosted provider
+### The API-key mode
 
-`src/lib/ai/previous-providers.ts` keeps both earlier implementations —
-Claude via the EcoAPI gateway, and Gemini before it — commented rather than
-deleted. Both speak the same shapes to the rest of the AI layer, so restoring
-one means moving its client construction and error classification into
-`provider.ts` and setting `models.ts` back to model ids that provider serves.
-`.env.example` keeps their variables for the same reason.
+`src/lib/ai/previous-providers.ts` keeps the hosted implementations commented
+rather than deleted. Claude through the EcoAPI gateway is written as a
+LangChain `ChatOpenAI`, exporting the same `getChatModel` and
+`throwFriendlyError` as the active mode, so moving between local models and an
+API key is a swap of one file's contents and two environment variables —
+nothing above `provider.ts` is touched, and no package is installed, since
+`@langchain/openai` is already a dependency. Gemini through `@google/genai`
+predates LangChain and is kept for reference; restoring it is a rewrite rather
+than a swap. `.env.example` keeps the variables for both.
+
+The step-by-step switch, in both directions, is in the README:
+[Two ways to run the models](../README.md#two-ways-to-run-the-models).
 
 ---
 
@@ -190,7 +214,7 @@ one means moving its client construction and error classification into
 ### Creating a lesson
 
 ```
-  instructor fills the form                create-course-page.tsx  (template)
+  instructor fills the form                create/create-course-page.tsx
         │
   useCourseDraft.ensureCourseSaved()       POST /api/courses        → draft row
         │
