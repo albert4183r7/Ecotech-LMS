@@ -41,95 +41,27 @@ run locally through Ollama.
 
 ---
 
-## How generation works
+## How it works
 
-### Phase one — plan the presentation
+An instructor describes a topic; the model plans the lesson as **sections**, not
+slides, each with the subtopics it must teach and a share of the slide budget.
+That plan is shown for review before anything is written.
 
-`POST /api/lessons/generate-outline` takes the prompt, slide count, language and any
-reference files. The model returns **sections**, not slides: each with a summary, the
-specific subtopics it must teach, and a share of the slide budget.
+Once approved, each slide is generated as **structured content** — never HTML —
+and laid out by picking a layout from the supplied `.pptx` template and filling
+its placeholders. Visual quality is owned by the renderer, so a thin answer
+cannot become a slide full of empty space, and the same content object drives
+both the web view and the PowerPoint export.
 
-Sections are deliberately independent of slide count. The model decides how many
-sections a subject needs; `src/lib/presentation-plan.ts` then reconciles its budget
-with the user's request — redistributing slides, and merging sections only when there
-are fewer slides than sections. Nothing is ever dropped to make the numbers fit.
-
-The plan is persisted as `Section` rows plus one empty `Slide` row per allocated slot,
-and shown in the outline preview with its per-section slide counts.
-
-### Phase two — write the slides
-
-`POST /api/lessons/generate-slides` reads the approved sections from the database and
-generates each slide. It does not re-plan.
-
-Each slide is requested as **structured content**, never HTML. The model returns a flat
-draft — a type, a title and a uniform `blocks` array — which `src/lib/slides/draft.ts`
-narrows into typed content (`concept`, `comparison`, `process`, `architecture`,
-`caseStudy`, `data`, `summary`, `title`, `closing`). Where the chosen type cannot be
-satisfied by what came back, it degrades to a simpler layout rather than failing.
-
-`src/lib/slides/render.ts` then lays that content out. Visual quality is owned by the
-renderer, not by the model, so a thin answer cannot become a slide full of empty space.
-
-Each layout draws icons, panels and connectors rather than plain text blocks: every
-content block carries an icon name, resolved against the set in
-`src/lib/slides/icons.ts` — an unknown or missing name falls back to one inferred from
-the block's own text, so a slide never renders without one. Icons are inline SVG,
-because a slide is rendered inside a sandboxed iframe and rasterised by headless
-Chromium, neither of which can be relied on to fetch an external asset. Themes in
-`src/lib/slides/theme.ts` supply the palette, the gradients and the colour of the
-decorative shapes bled off each slide's corners.
-
-### Templates
-
-A template is data — hex colours, font stacks, a point scale — in
-`src/lib/slides/template.ts`. The default is the Ecotech house deck, entered from the
-supplied `.pptx`. One template drives every representation of a slide: the web renderer
-resolves colour roles through CSS custom properties, and the PowerPoint renderer in
-`src/lib/slides/pptx.ts` reads the same values directly. Both consume the same
-`SlideContent`, so the exported deck, the instructor preview, the published lesson and
-the student view cannot drift apart.
+Every generated lesson also gets a quiz, written from that lesson's slides and
+nothing else, with each question quoting the sentence that supports its answer.
 
 ```
-        SlideContent + SlideTemplate
-                    │
-          ┌─────────┴─────────┐
-          ▼                   ▼
-   render.ts (web)      pptx.ts (PowerPoint)
+  prompt → sections (reviewed) → slides → quality gate → quiz → preview → publish
 ```
 
-### Quizzes
-
-Generating a lesson generates its quiz — one per lesson, written from that lesson's
-finished slides and nothing else. Each question must quote the sentence supporting its
-correct answer, and that quote is stored so grounding stays auditable. Every question is
-checked mechanically (one correct option, distinct choices, a quote that appears in the
-lesson) and then judged against the lesson by the model; failures are regenerated with
-the reason quoted back, and anything still ungrounded after two passes is dropped rather
-than shipped. Correct answers are stripped server-side for anyone who is not the course's
-instructor, and students reach a quiz only when the course is published _and_ they are
-enrolled.
-
-### The slide canvas
-
-Every slide is authored and rendered at a fixed **1280×720** canvas and scaled to fit
-its container (`wrapSlideHtml` in `src/lib/sanitize.ts`). Without a fixed canvas the
-same slide lays out differently in the classroom and in a preview, because the model's
-type and spacing values are measured against the viewport.
-
-Slide styling comes from `public/slide-runtime.css`, compiled from
-`src/styles/slide-runtime.css`. It is generated by `npm run build:slide-css`, which
-runs automatically before `dev` and `build`, and is not committed.
-
-### Agent layer
-
-`src/lib/agent/` contains a tool-calling runtime: a registry of Zod-typed tools, a loop
-with step, token and time limits, content and pedagogy critics, a visual critic that
-judges rendered slides, and run persistence (`AgentRun`, `AgentStep`, `Evaluation`).
-`POST /api/agent/runs` starts a run; `GET /api/agent/runs?lessonId=…` reports progress.
-
-This layer is functional but is **not** on the default generation path — the two phases
-above are. Start it on a throwaway lesson first.
+The full picture — the layers, every workflow drawn end to end, and which model
+runs which AI task — is in **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
 
 ---
 
@@ -186,30 +118,14 @@ Nothing else is required: Ollama needs no key, and every model has a default.
 
 **One model per task.** The project makes ten distinct kinds of model call and
 they do not want the same model — planning an outline and judging whether a quiz
-question is grounded are different jobs. Each names its own:
-
-| Task                   | Model                  | Override                   |
-| ---------------------- | ---------------------- | -------------------------- |
-| `outline-planning`     | `qwen2.5:14b-instruct` | `MODEL_OUTLINE_PLANNING`   |
-| `slide-authoring`      | `qwen2.5:14b-instruct` | `MODEL_SLIDE_AUTHORING`    |
-| `slide-html-legacy`    | `qwen2.5:14b-instruct` | `MODEL_SLIDE_HTML`         |
-| `quiz-authoring`       | `qwen2.5:14b-instruct` | `MODEL_QUIZ_AUTHORING`     |
-| `content-evaluation`   | `qwen2.5:14b-instruct` | `MODEL_CONTENT_EVALUATION` |
-| `agent-tool-loop`      | `qwen2.5:14b-instruct` | `MODEL_AGENT_TOOL_LOOP`    |
-| `slide-field-edit`     | `qwen2.5:7b-instruct`  | `MODEL_SLIDE_FIELD_EDIT`   |
-| `quiz-grounding-judge` | `qwen2.5:7b-instruct`  | `MODEL_QUIZ_JUDGE`         |
-| `lesson-tutor`         | `llama3.1:8b`          | `MODEL_LESSON_TUTOR`       |
-| `visual-evaluation`    | `llama3.2-vision:11b`  | `MODEL_VISUAL_EVALUATION`  |
-
-Why each model was chosen is in `src/lib/ai/models.ts`, next to the choice.
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) has the full table.
+question is grounded are different jobs. Each names its own, and each has a
+`MODEL_*` override. The table, with the reasoning for every choice, is in
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#model-per-task); the source of truth
+is `src/lib/ai/models.ts`.
 
 **Restoring a hosted provider.** Claude via the EcoAPI gateway, and Gemini
-before it, are kept commented in `src/lib/ai/previous-providers.ts`. Both speak
-the same shapes to the rest of the AI layer, so restoring one means moving its
-client construction and error classification into `src/lib/ai/provider.ts` and
-setting `models.ts` back to model ids that provider serves. `.env.example` keeps
-their variables.
+before it, are kept commented in `src/lib/ai/previous-providers.ts`, with notes
+on restoring either. `.env.example` keeps their variables.
 
 ### 3. Database
 
@@ -283,18 +199,7 @@ planning, slides are the unit of display.
 
 ## Known limitations
 
-- **Passwords are stored and compared in plaintext.** `api/auth/login` does
-  `user.password !== password`. Sessions themselves are signed cookies verified
-  server-side, and every endpoint authorizes against them.
-- **Generation is fire-and-forget** within a route handler, with client polling.
-  A pass picks up slides left in `ERROR` or stale in `GENERATING`, so failures
-  are recoverable, but there is no queue and a restart mid-run leaves slides
-  pending until the next attempt.
-- **`/api/agent/runs` has no UI.** The autonomous agent runtime works and is
-  authorized, but nothing in the app calls it.
-- **AI image generation is config-gated.** Without `IMAGEKIT_URL_ENDPOINT` the
-  sanitizer blocks external images and slides are built from CSS and type alone.
-- **Type errors are ignored at build time** (`typescript.ignoreBuildErrors` in
-  `next.config.ts`). The backlog is currently zero; `npx tsc --noEmit` keeps it
-  honest.
-- **No automated test suite** beyond `npm run verify`.
+Passwords are plaintext, generation is fire-and-forget with client polling, and
+there is no test suite beyond `npm run verify`. The full list, with what each
+one actually means, is in
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#known-limitations).

@@ -141,13 +141,8 @@ OpenAI-compatible `/v1/chat/completions`. The transport, streaming and
 tool-calling code are the same ones the previous hosted gateway used; what
 changed is the base URL and the model each task names. No API key is involved.
 
-```bash
-ollama serve
-ollama pull qwen2.5:14b-instruct
-ollama pull qwen2.5:7b-instruct
-ollama pull llama3.1:8b
-ollama pull llama3.2-vision:11b
-```
+Which models to pull, and how to point the app at a server that is not on
+localhost, are in the README's [Getting started](../README.md#getting-started).
 
 Error classification is _not_ shared with the hosted implementation, because the
 failures differ: there is no quota and no key to get wrong, but the server may
@@ -246,6 +241,57 @@ lesson view are the same slide rather than two designs that resemble each other.
 `scripts/layout-coverage.mts` asserts every content type renders at every
 permitted item count. `scripts/layout-shots.mts` screenshots one slide per
 layout and flags any box drawn outside the canvas.
+
+#### The slide canvas
+
+Every slide is authored and rendered at a fixed **1280×720** canvas and scaled
+to fit its container (`wrapSlideHtml` in `src/lib/sanitize.ts`). Without a fixed
+canvas the same slide lays out differently in the classroom and in a preview,
+because the layout's type and spacing are absolute values, not viewport-relative
+ones.
+
+Slide styling comes from `public/slide-runtime.css`, compiled from
+`src/styles/slide-runtime.css` by `npm run build:slide-css`. That runs
+automatically before `dev` and `build`, and the output is not committed.
+
+### Generating a quiz
+
+Generating a lesson generates its quiz — one per lesson, written from that
+lesson's finished slides and nothing else.
+
+```
+  the lesson's READY slides       loadLessonSource()
+        │
+  AI: quiz-authoring              each question quotes the sentence
+        │                          supporting its correct answer
+  mechanical check                one correct option, distinct choices,
+        │                          and the quote really appears in the lesson
+  AI: quiz-grounding-judge        is this answerable from the lesson?
+        │
+  regenerate with the reason quoted back, up to two passes
+        │
+  anything still ungrounded is dropped rather than shipped
+```
+
+The supporting quote is stored, so grounding stays auditable rather than merely
+asserted. Correct answers are stripped server-side for anyone who is not the
+course's instructor, and a student reaches a quiz only when the course is
+published _and_ they are enrolled.
+
+### The agent layer
+
+`src/lib/agent/` is a tool-calling runtime: a registry of Zod-typed tools, a
+loop with step, token and time limits, content and pedagogy critics, a visual
+critic that judges rendered slides, and run persistence (`AgentRun`,
+`AgentStep`, `Evaluation`).
+
+Part of it is on the default path and part is not:
+
+- **`runQualityGate` is** — `generate-slides` calls it between writing the
+  slides and writing the quiz, using the content and pedagogy evaluators.
+- **`runLessonAgent` is not** — `POST /api/agent/runs` starts an autonomous run
+  and `GET /api/agent/runs?lessonId=…` reports progress, but nothing in the app
+  calls either. It works; it has no UI.
 
 ### A student asking the assistant
 
