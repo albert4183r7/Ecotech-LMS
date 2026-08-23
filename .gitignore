@@ -68,3 +68,6 @@ public/slide-runtime.css
 **/*.db
 **/*.db-journal
 **/*.db-wal
+
+*.patch
+*.bundle
