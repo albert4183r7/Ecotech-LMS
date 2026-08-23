@@ -1,6 +1,7 @@
+import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { z } from "zod/v4";
-import { modelFor, type AiTask } from "./models";
-import { getClient, throwFriendlyError, MAX_OUTPUT_TOKENS } from "./provider";
+import { type AiTask } from "./models";
+import { getChatModel, throwFriendlyError } from "./provider";
 import { toJsonSchema, stripFences } from "./structured";
 import type { ImageInput } from "./tools";
 
@@ -11,6 +12,9 @@ import type { ImageInput } from "./tools";
 // to look at a rendered slide rather than reason about its markup. The task
 // this serves is the only one that needs a multimodal model — see
 // isMultimodal() in ./models.ts.
+//
+// Images travel as LangChain content blocks, which the active integration
+// turns into whatever the model underneath expects.
 // ============================================
 
 /**
@@ -35,28 +39,26 @@ export async function generateStructuredFromImages<T>(
     .filter(Boolean)
     .join("\n\n");
 
+  const model = getChatModel(options.task, {
+    temperature: options.temperature ?? 0.2,
+    format: "json",
+  });
+
   let raw: string;
   try {
-    const response = await getClient().chat.completions.create({
-      model: modelFor(options.task),
-      max_tokens: MAX_OUTPUT_TOKENS,
-      temperature: options.temperature ?? 0.2,
-      response_format: { type: "json_object" },
-      messages: [
-        { role: "system", content: system },
-        {
-          role: "user",
-          content: [
-            { type: "text", text: prompt },
-            ...images.map((img) => ({
-              type: "image_url" as const,
-              image_url: { url: `data:${img.mimeType};base64,${img.data}` },
-            })),
-          ],
-        },
-      ],
-    });
-    raw = response.choices[0]?.message?.content ?? "";
+    const response = await model.invoke([
+      new SystemMessage(system),
+      new HumanMessage({
+        content: [
+          { type: "text", text: prompt },
+          ...images.map((img) => ({
+            type: "image_url" as const,
+            image_url: { url: `data:${img.mimeType};base64,${img.data}` },
+          })),
+        ],
+      }),
+    ]);
+    raw = response.text;
   } catch (err) {
     throwFriendlyError(err, "generateStructuredFromImages", options.task);
   }

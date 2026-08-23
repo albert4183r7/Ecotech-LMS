@@ -16,17 +16,35 @@ import type { SlideContent } from "../src/lib/slides/content-schema";
 
 const point = (h: string, d: string) => ({ heading: h, description: d });
 const deck: SlideContent[] = [
-  { type: "title", eyebrow: "Module 01", title: "Introduction to Logical Reasoning",
-    subtitle: "What deductive and inductive arguments are, and how to tell them apart." },
-  { type: "concept", eyebrow: "02 · Foundations", title: "Three Ways to Frame an Argument",
+  {
+    type: "title",
+    eyebrow: "Module 01",
+    title: "Introduction to Logical Reasoning",
+    subtitle: "What deductive and inductive arguments are, and how to tell them apart.",
+  },
+  {
+    type: "concept",
+    eyebrow: "02 · Foundations",
+    title: "Three Ways to Frame an Argument",
     lead: "Each starts from different evidence.",
-    points: [point("Deductive", "General premises to a conclusion that must follow."),
-             point("Inductive", "Generalises from observations to a probable rule."),
-             point("Abductive", "Selects the explanation that best fits.")] },
-  { type: "data", eyebrow: "05 · Impact", title: "Why Reasoning Matters",
+    points: [
+      point("Deductive", "General premises to a conclusion that must follow."),
+      point("Inductive", "Generalises from observations to a probable rule."),
+      point("Abductive", "Selects the explanation that best fits."),
+    ],
+  },
+  {
+    type: "data",
+    eyebrow: "05 · Impact",
+    title: "Why Reasoning Matters",
     lead: "Structured reasoning shows up directly in how students perform.",
-    stats: [{ value: "3.5x", label: "Faster problem solving" }, { value: "-40%", label: "Fewer errors" },
-            { value: "92%", label: "Retention" }, { value: "24/7", label: "Applies outside class" }] },
+    stats: [
+      { value: "3.5x", label: "Faster problem solving" },
+      { value: "-40%", label: "Fewer errors" },
+      { value: "92%", label: "Retention" },
+      { value: "24/7", label: "Applies outside class" },
+    ],
+  },
   { type: "closing", title: "Thank You", subtitle: "Questions welcome." },
 ];
 
@@ -65,16 +83,32 @@ check(
   `${p.featureFrom} to ${p.featureTo}`,
 );
 check("no sentinel colour survives", !xml.includes(GRADIENT_SENTINEL));
-check("no shape carries an outline", !/<a:ln w="\d+">/.test(xml), "template uses <a:ln/> throughout");
+check(
+  "no shape carries an outline",
+  !/<a:ln w="\d+">/.test(xml),
+  "template uses <a:ln/> throughout",
+);
 
 // Corner radii, back-computed from the adj values pptxgenjs wrote.
-const radii = [...xml.matchAll(/prst="roundRect"><a:avLst><a:gd name="adj" fmla="val (\d+)"/g)]
-  .map((m) => Number(m[1]));
-check("every roundRect is rounded, none is a pill", radii.length > 0 && radii.every((r) => r > 0 && r < 20000),
-  `adj ${Math.min(...radii)}..${Math.max(...radii)} (template: 2817..6452 on cards and bands)`);
+const radii = [...xml.matchAll(/prst="roundRect"><a:avLst><a:gd name="adj" fmla="val (\d+)"/g)].map(
+  (m) => Number(m[1]),
+);
+check(
+  "every roundRect is rounded, none is a pill",
+  radii.length > 0 && radii.every((r) => r > 0 && r < 20000),
+  `adj ${Math.min(...radii)}..${Math.max(...radii)} (template: 2817..6452 on cards and bands)`,
+);
 
-check("headings are the template's serif", xml.includes(`typeface="${SLIDE_TEMPLATE.fonts.heading}"`), SLIDE_TEMPLATE.fonts.heading);
-check("body is the template's sans", xml.includes(`typeface="${SLIDE_TEMPLATE.fonts.body}"`), SLIDE_TEMPLATE.fonts.body);
+check(
+  "headings are the template's serif",
+  xml.includes(`typeface="${SLIDE_TEMPLATE.fonts.heading}"`),
+  SLIDE_TEMPLATE.fonts.heading,
+);
+check(
+  "body is the template's sans",
+  xml.includes(`typeface="${SLIDE_TEMPLATE.fonts.body}"`),
+  SLIDE_TEMPLATE.fonts.body,
+);
 check("navy is used for headings", xml.includes(p.heading), p.heading);
 check("mint is used for accents", xml.includes(p.accent), p.accent);
 check("decorative circles keep their alpha", /<a:alpha val="\d+"\/>/.test(xml));

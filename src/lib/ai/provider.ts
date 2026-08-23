@@ -1,51 +1,92 @@
-import OpenAI from "openai";
+import { ChatOllama } from "@langchain/ollama";
 import { modelFor, type AiTask } from "./models";
 
 // ============================================
-// Provider — local open-source models through Ollama
+// Provider — local open-source models, through LangChain
 //
-// Ollama serves an OpenAI-compatible /v1/chat/completions, so the transport is
-// unchanged from the hosted gateway this replaced: the same OpenAI client, the
-// same request shapes, the same streaming and tool-calling code. What changed
-// is the base URL and which model each task names.
+// Every model call in the project is a LangChain chat model. The framework
+// owns the message types, the streaming protocol and the tool-call schema, so
+// the files above this one describe what they want rather than how a
+// particular vendor's HTTP API spells it.
 //
-// No API key is involved. Ollama does not authenticate by default, but the
-// OpenAI client requires the field to be set, so a placeholder is sent and
-// ignored. OLLAMA_API_KEY exists for deployments that put the server behind a
-// proxy which does check.
+// The active integration is @langchain/ollama, which speaks Ollama's native
+// API. Ollama does not authenticate by default, so no API key is involved;
+// OLLAMA_API_KEY exists only for deployments that put the server behind a
+// proxy which does check, and is sent as a bearer header when set.
+//
+// Because the model is chosen per task, models are built per task and cached:
+// each one holds a connection, and rebuilding one on every call would leak
+// sockets under load.
 //
 // The previous providers — Claude through the EcoAPI gateway, and Gemini
 // before it — are preserved in ./previous-providers.ts, commented rather than
 // deleted, with notes on restoring either.
 // ============================================
 
-/** Where the Ollama server is. */
-const BASE_URL = process.env.OLLAMA_BASE_URL ?? "http://127.0.0.1:11434/v1";
+/**
+ * Where the Ollama server is.
+ *
+ * A trailing `/v1` is accepted and stripped: earlier versions of this file
+ * spoke the OpenAI-compatible endpoint, so deployments have that suffix in
+ * their environment and should not have to edit it to upgrade.
+ */
+export const BASE_URL = (process.env.OLLAMA_BASE_URL ?? "http://127.0.0.1:11434").replace(
+  /\/v1\/?$/,
+  "",
+);
 
 /**
  * Output ceiling.
  *
- * Lower than the hosted default of 16000: these models have smaller context
+ * Lower than a hosted provider's default: these models have smaller context
  * windows, and reserving most of it for output starves the prompt. The longest
  * thing generated here is one slide's content, which fits comfortably.
  */
-const MAX_OUTPUT_TOKENS = Number(process.env.OLLAMA_MAX_TOKENS ?? 4096);
+export const MAX_OUTPUT_TOKENS = Number(process.env.OLLAMA_MAX_TOKENS ?? 4096);
 
-const MAX_RETRIES = 2;
+export const MAX_RETRIES = 2;
 
-let client: OpenAI | null = null;
+/** How the caller wants the model configured for one kind of call. */
+export interface ChatModelOptions {
+  temperature?: number;
+  maxOutputTokens?: number;
+  /** Ollama's response format. "json" constrains output to a JSON object. */
+  format?: "json";
+}
 
-/** The shared client. Built once, since it holds a connection pool. */
-export function getClient(): OpenAI {
-  if (client) return client;
-  client = new OpenAI({
-    apiKey: process.env.OLLAMA_API_KEY ?? "ollama",
-    baseURL: BASE_URL,
-    // Local generation on CPU is slow; the client's default would give up on a
-    // long slide before the model finished writing it.
-    timeout: Number(process.env.OLLAMA_TIMEOUT_MS ?? 300_000),
+const cache = new Map<string, ChatOllama>();
+
+/**
+ * The chat model for a task.
+ *
+ * Cached per task-and-settings, since a model holds a connection and the same
+ * few combinations recur for the life of the process.
+ */
+export function getChatModel(task: AiTask, options: ChatModelOptions = {}): ChatOllama {
+  const model = modelFor(task);
+  const temperature = options.temperature ?? 0.4;
+  const numPredict = options.maxOutputTokens ?? MAX_OUTPUT_TOKENS;
+  const key = `${model}|${temperature}|${numPredict}|${options.format ?? ""}`;
+
+  const cached = cache.get(key);
+  if (cached) return cached;
+
+  const apiKey = process.env.OLLAMA_API_KEY?.trim();
+  const chat = new ChatOllama({
+    model,
+    baseUrl: BASE_URL,
+    temperature,
+    numPredict,
+    ...(options.format ? { format: options.format } : {}),
+    ...(apiKey ? { headers: { Authorization: `Bearer ${apiKey}` } } : {}),
+    // Local generation on CPU is slow, and LangChain's own retry would repeat
+    // a long, expensive call; the callers that need another attempt retry with
+    // feedback instead, which is worth more than a blind repeat.
+    maxRetries: 0,
   });
-  return client;
+
+  cache.set(key, chat);
+  return chat;
 }
 
 function extractErrorMessage(err: unknown): string {
@@ -54,15 +95,23 @@ function extractErrorMessage(err: unknown): string {
   return JSON.stringify(err);
 }
 
+/** HTTP status, if the integration attached one to the error. */
+function extractStatus(err: unknown): number | undefined {
+  if (typeof err !== "object" || err === null) return undefined;
+  const candidate = err as { status?: unknown; status_code?: unknown };
+  const raw = candidate.status ?? candidate.status_code;
+  return typeof raw === "number" ? raw : undefined;
+}
+
 /**
  * Classify a provider error and throw a clean, actionable message.
  *
- * The failures worth naming are different from a hosted gateway's: there is no
- * quota and no key, but the server may not be running, and the model this task
- * asks for may not have been pulled.
+ * The failures worth naming for a local server are different from a hosted
+ * gateway's: there is no quota and no key, but the server may not be running,
+ * and the model this task asks for may not have been pulled.
  */
 export function throwFriendlyError(err: unknown, context: string, task: AiTask): never {
-  const status = err instanceof OpenAI.APIError ? err.status : undefined;
+  const status = extractStatus(err);
   const msg = extractErrorMessage(err);
   const model = modelFor(task);
 
@@ -92,8 +141,6 @@ export function throwFriendlyError(err: unknown, context: string, task: AiTask):
   }
   throw new Error(`[LLM Error] ${context} (${task}) — ${msg}`);
 }
-
-export { MAX_OUTPUT_TOKENS, MAX_RETRIES, BASE_URL };
 
 // Previous providers — Claude via EcoAPI, and Gemini before it — are kept
 // commented in ./previous-providers.ts, with notes on restoring either.

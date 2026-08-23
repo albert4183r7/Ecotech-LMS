@@ -1,6 +1,6 @@
-import OpenAI from "openai";
-import { modelFor, type AiTask } from "./models";
-import { getClient, throwFriendlyError, MAX_OUTPUT_TOKENS } from "./provider";
+import { HumanMessage, SystemMessage, type BaseMessage } from "@langchain/core/messages";
+import { type AiTask } from "./models";
+import { getChatModel, throwFriendlyError } from "./provider";
 
 // ============================================
 // Streaming text
@@ -8,6 +8,9 @@ import { getClient, throwFriendlyError, MAX_OUTPUT_TOKENS } from "./provider";
 // For the two callers where the reply is read as it arrives: the lesson
 // assistant, where a student is waiting, and slide HTML, which is long enough
 // that a non-streaming request can hit a timeout.
+//
+// LangChain's .stream() yields message chunks; this narrows them to the text
+// a caller actually writes to the response body.
 // ============================================
 
 export interface StreamOptions {
@@ -22,25 +25,24 @@ export async function* streamText(
   prompt: string,
   options: StreamOptions,
 ): AsyncGenerator<string, void, undefined> {
-  const messages: OpenAI.ChatCompletionMessageParam[] = [];
-  if (options.systemPrompt) messages.push({ role: "system", content: options.systemPrompt });
-  messages.push({ role: "user", content: prompt });
+  const messages: BaseMessage[] = [];
+  if (options.systemPrompt) messages.push(new SystemMessage(options.systemPrompt));
+  messages.push(new HumanMessage(prompt));
+
+  const model = getChatModel(options.task, {
+    temperature: options.temperature ?? 0.7,
+    maxOutputTokens: options.maxTokens,
+  });
 
   let stream;
   try {
-    stream = await getClient().chat.completions.create({
-      model: modelFor(options.task),
-      max_tokens: options.maxTokens ?? MAX_OUTPUT_TOKENS,
-      temperature: options.temperature ?? 0.7,
-      stream: true,
-      messages,
-    });
+    stream = await model.stream(messages);
   } catch (err) {
     throwFriendlyError(err, "streamText", options.task);
   }
 
   for await (const chunk of stream) {
-    const delta = chunk.choices[0]?.delta?.content;
+    const delta = chunk.text;
     if (delta) yield delta;
   }
 }

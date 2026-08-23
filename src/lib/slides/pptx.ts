@@ -98,9 +98,7 @@ function drawPanel(slide: PptxGenJS.Slide, t: SlideTemplate, panel: Panel): void
     // library still writes a 1pt stroke, which put a visible border on every
     // card and decorative circle in the exported deck.
     line: { type: "none" },
-    ...(shape === "roundRect"
-      ? { rectRadius: Math.max(0.01, panel.radius * t.deck.widthIn) }
-      : {}),
+    ...(shape === "roundRect" ? { rectRadius: Math.max(0.01, panel.radius * t.deck.widthIn) } : {}),
   });
 }
 

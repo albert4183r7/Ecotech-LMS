@@ -1,12 +1,22 @@
-import OpenAI from "openai";
-import { modelFor, type AiTask } from "./models";
-import { getClient, throwFriendlyError, MAX_OUTPUT_TOKENS } from "./provider";
+import {
+  AIMessage,
+  HumanMessage,
+  SystemMessage,
+  ToolMessage,
+  type BaseMessage,
+} from "@langchain/core/messages";
+import { type AiTask } from "./models";
+import { getChatModel, throwFriendlyError } from "./provider";
 
 // ============================================
 // Tool calling
 //
 // One model turn with tools available. Deciding what to do with the result —
 // run a tool, stop, try again — is the agent runtime's job, not this file's.
+//
+// LangChain's .bindTools() carries the declarations and normalises whatever
+// the model returns into a single tool-call shape, so this file translates
+// between that shape and the runtime's own, and nothing else.
 // ============================================
 
 /** A tool invocation the model asked for. */
@@ -43,61 +53,60 @@ export interface ToolDeclaration {
   parameters: Record<string, unknown>;
 }
 
-/** Translate our message list into the provider's chat format. */
-function toChatMessages(messages: AgentMessage[]): OpenAI.ChatCompletionMessageParam[] {
-  const out: OpenAI.ChatCompletionMessageParam[] = [];
+/** Translate our message list into LangChain messages. */
+function toLangChainMessages(messages: AgentMessage[]): BaseMessage[] {
+  const out: BaseMessage[] = [];
 
   for (const message of messages) {
     if (message.role === "user") {
-      out.push({ role: "user", content: message.text });
+      out.push(new HumanMessage(message.text));
       continue;
     }
 
     if (message.role === "model") {
-      out.push({
-        role: "assistant",
-        content: message.text || null,
-        ...(message.toolCalls?.length
-          ? {
-              tool_calls: message.toolCalls.map((call) => ({
-                id: call.id,
-                type: "function" as const,
-                function: { name: call.name, arguments: JSON.stringify(call.args) },
-              })),
-            }
-          : {}),
-      });
+      out.push(
+        new AIMessage({
+          content: message.text,
+          tool_calls: (message.toolCalls ?? []).map((call) => ({
+            id: call.id,
+            name: call.name,
+            args: call.args,
+            type: "tool_call" as const,
+          })),
+        }),
+      );
       continue;
     }
 
     // A tool result must reference the call it answers. The runtime appends
     // results in the order the calls were made, so pair them by walking back
-    // to the most recent assistant turn that is still missing a result.
-    const pendingId = findPendingToolCallId(out, message.name);
-    out.push({
-      role: "tool",
-      tool_call_id: pendingId,
-      content: typeof message.result === "string" ? message.result : JSON.stringify(message.result),
-    });
+    // to the most recent model turn that is still missing a result.
+    out.push(
+      new ToolMessage({
+        name: message.name,
+        tool_call_id: findPendingToolCallId(out, message.name),
+        content:
+          typeof message.result === "string" ? message.result : JSON.stringify(message.result),
+      }),
+    );
   }
 
   return out;
 }
 
 /** Find the id of the most recent unanswered call to `name`. */
-function findPendingToolCallId(built: OpenAI.ChatCompletionMessageParam[], name: string): string {
+function findPendingToolCallId(built: BaseMessage[], name: string): string {
   const answered = new Set(
-    built.filter((m) => m.role === "tool").map((m) => (m as { tool_call_id: string }).tool_call_id),
+    built.filter((m): m is ToolMessage => m instanceof ToolMessage).map((m) => m.tool_call_id),
   );
 
   for (let i = built.length - 1; i >= 0; i--) {
     const message = built[i];
-    if (message.role !== "assistant") continue;
-    const calls = (message as { tool_calls?: { id: string; function: { name: string } }[] })
-      .tool_calls;
-    if (!calls) continue;
-    const match = calls.find((c) => c.function.name === name && !answered.has(c.id));
-    if (match) return match.id;
+    if (!(message instanceof AIMessage)) continue;
+    const match = (message.tool_calls ?? []).find(
+      (c) => c.name === name && c.id && !answered.has(c.id),
+    );
+    if (match?.id) return match.id;
   }
   return name;
 }
@@ -116,54 +125,46 @@ export async function generateWithTools(params: {
   temperature?: number;
   maxOutputTokens?: number;
 }): Promise<ModelTurn> {
-  const messages: OpenAI.ChatCompletionMessageParam[] = [];
+  const messages: BaseMessage[] = [];
   if (params.systemInstruction) {
-    messages.push({ role: "system", content: params.systemInstruction });
+    messages.push(new SystemMessage(params.systemInstruction));
   }
-  messages.push(...toChatMessages(params.messages));
+  messages.push(...toLangChainMessages(params.messages));
+
+  const chat = getChatModel(params.task, {
+    temperature: params.temperature ?? 0.3,
+    maxOutputTokens: params.maxOutputTokens,
+  });
+  const model = params.tools.length
+    ? chat.bindTools(
+        params.tools.map((tool) => ({
+          type: "function" as const,
+          function: {
+            name: tool.name,
+            description: tool.description,
+            parameters: tool.parameters,
+          },
+        })),
+      )
+    : chat;
 
   try {
-    const response = await getClient().chat.completions.create({
-      model: modelFor(params.task),
-      max_tokens: params.maxOutputTokens ?? MAX_OUTPUT_TOKENS,
-      temperature: params.temperature ?? 0.3,
-      messages,
-      ...(params.tools.length
-        ? {
-            tools: params.tools.map((tool) => ({
-              type: "function" as const,
-              function: {
-                name: tool.name,
-                description: tool.description,
-                parameters: tool.parameters,
-              },
-            })),
-          }
-        : {}),
-    });
-
-    const choice = response.choices[0]?.message;
-    const toolCalls: ToolCallRequest[] = (choice?.tool_calls ?? [])
-      .filter((call) => call.type === "function")
-      .map((call) => {
-        const fn = (call as { id: string; function: { name: string; arguments: string } }).function;
-        let args: Record<string, unknown> = {};
-        try {
-          args = fn.arguments ? (JSON.parse(fn.arguments) as Record<string, unknown>) : {};
-        } catch {
-          // Malformed arguments become a validation failure downstream, which
-          // the agent can react to, rather than throwing here.
-        }
-        return { id: (call as { id: string }).id, name: fn.name, args };
-      });
+    const response = await model.invoke(messages);
+    const usage = response.usage_metadata;
 
     return {
-      text: choice?.content ?? "",
-      toolCalls,
+      text: response.text,
+      toolCalls: (response.tool_calls ?? []).map((call, index) => ({
+        // Ollama does not always give a call an id; the runtime needs one to
+        // pair the result with, so fall back to something stable per turn.
+        id: call.id ?? `${call.name}-${index}`,
+        name: call.name,
+        args: (call.args ?? {}) as Record<string, unknown>,
+      })),
       usage: {
-        input: response.usage?.prompt_tokens ?? 0,
-        output: response.usage?.completion_tokens ?? 0,
-        total: response.usage?.total_tokens ?? 0,
+        input: usage?.input_tokens ?? 0,
+        output: usage?.output_tokens ?? 0,
+        total: usage?.total_tokens ?? 0,
       },
     };
   } catch (err) {

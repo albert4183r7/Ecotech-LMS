@@ -4,40 +4,53 @@
 // Every implementation this project has run on, kept commented rather than
 // deleted so any of them can be restored. They are listed newest first.
 //
-// All three speak the same shapes to the rest of the AI layer, because two of
-// them are OpenAI-compatible and the Gemini one was adapted to match. Restoring
-// one means moving its client construction and error classification into
-// ./provider.ts and setting ./models.ts back to whatever model ids it serves.
+// All three present the same surface to the rest of the AI layer — a chat
+// model per task, and one error classifier — so restoring one means moving its
+// model construction and error classification into ./provider.ts and setting
+// ./models.ts to whatever model ids it serves. Nothing above that file changes.
+//
+// Provider 2 is written as LangChain chat models, like the active one, so the
+// switch between local models and an API key is a swap of one file's contents.
+// Provider 1 predates LangChain and calls the Gemini SDK directly.
 //
 // This file is inert: everything below is a comment.
 // ============================================
 
 // ============================================================================
-// ── PROVIDER 2 — Claude via the EcoAPI gateway (OpenAI-compatible) ──────────
+// ── PROVIDER 2 — an API-key provider through LangChain (Claude via EcoAPI) ──
 //
-// Kept for reference and for restoring. EcoAPI exposes an OpenAI-compatible
-// surface, so only the client construction and the error classification below
-// differ from the Ollama implementation above; everything that consumes them
-// is unchanged. To restore: comment out the active block above, uncomment
-// this one, and set the model registry in ./models.ts back to a single
-// gateway model id.
+// Kept for reference and for restoring. This is the hosted-API mode: instead
+// of a local Ollama server, the models come from a gateway that authenticates
+// with an API key. EcoAPI exposes an OpenAI-compatible surface, so LangChain's
+// ChatOpenAI speaks to it with only a base URL change — and because both modes
+// are LangChain chat models, everything above ./provider.ts is untouched by
+// the switch.
 //
-// import OpenAI from "openai";
+// To restore, in ./provider.ts: comment out the ChatOllama implementation,
+// uncomment this one, and put the gateway's model ids in ./models.ts. The
+// README's "Switching between the two LLM modes" section has the full steps.
 //
-// /** Model id. Set CLAUDE_MODEL to whatever string the gateway expects. */
-// export const LLM_MODEL = process.env.CLAUDE_MODEL ?? "claude-opus-5";
+// import { ChatOpenAI } from "@langchain/openai";
+// import { modelFor, type AiTask } from "./models";
+//
+// /** The gateway's OpenAI-compatible endpoint. */
+// export const BASE_URL = process.env.ECOAPI_BASE_URL ?? "https://www.ecoapi.ai/api/v1";
 //
 // /** Generous ceiling; long slide content and plans need room. */
-// const MAX_OUTPUT_TOKENS = Number(process.env.CLAUDE_MAX_TOKENS ?? 16000);
+// export const MAX_OUTPUT_TOKENS = Number(process.env.CLAUDE_MAX_TOKENS ?? 16000);
 //
-// const MAX_RETRIES = 2;
+// export const MAX_RETRIES = 2;
 //
-// let client: OpenAI | null = null;
+// export interface ChatModelOptions {
+//   temperature?: number;
+//   maxOutputTokens?: number;
+//   format?: "json";
+// }
 //
-// /** Lazily build the client from the gateway's key and base URL. */
-// export function getClient(): OpenAI {
-//   if (client) return client;
+// const cache = new Map<string, ChatOpenAI>();
 //
+// /** The chat model for a task, built from the gateway's key and base URL. */
+// export function getChatModel(task: AiTask, options: ChatModelOptions = {}): ChatOpenAI {
 //   const apiKey = process.env.ECOAPI_API_KEY;
 //   if (!apiKey) {
 //     throw new Error(
@@ -45,17 +58,37 @@
 //     );
 //   }
 //
-//   client = new OpenAI({
+//   const model = modelFor(task);
+//   const temperature = options.temperature ?? 0.4;
+//   const maxTokens = options.maxOutputTokens ?? MAX_OUTPUT_TOKENS;
+//   const key = `${model}|${temperature}|${maxTokens}|${options.format ?? ""}`;
+//
+//   const cached = cache.get(key);
+//   if (cached) return cached;
+//
+//   const chat = new ChatOpenAI({
+//     model,
 //     apiKey,
-//     baseURL: process.env.ECOAPI_BASE_URL ?? "https://www.ecoapi.ai/api/v1",
+//     configuration: { baseURL: BASE_URL },
+//     temperature,
+//     maxTokens,
+//     maxRetries: 0,
+//     // The structured and vision callers ask for JSON; a gateway that speaks
+//     // the OpenAI surface takes it as a response_format.
+//     ...(options.format === "json"
+//       ? { modelKwargs: { response_format: { type: "json_object" } } }
+//       : {}),
 //   });
-//   return client;
+//
+//   cache.set(key, chat);
+//   return chat;
 // }
 //
 // /** Classify an API error and throw a clean, actionable message. */
-// function throwFriendlyError(err: unknown, context: string): never {
-//   const status = err instanceof OpenAI.APIError ? err.status : undefined;
+// export function throwFriendlyError(err: unknown, context: string, task: AiTask): never {
+//   const status = extractStatus(err);
 //   const msg = extractErrorMessage(err);
+//   const model = modelFor(task);
 //
 //   if (status === 429 || /rate.?limit|quota|insufficient|balance/i.test(msg)) {
 //     throw new Error(
@@ -69,15 +102,15 @@
 //   }
 //   if (status === 404 || /not.?found|no such model|unknown model/i.test(msg)) {
 //     throw new Error(
-//       `[LLM Model Error] ${context} — the gateway does not recognise model "${LLM_MODEL}". Set CLAUDE_MODEL to a model id EcoAPI lists.`,
+//       `[LLM Model Error] ${context} — the gateway does not recognise model "${model}". Set the ${task} entry in ./models.ts to a model id EcoAPI lists.`,
 //     );
 //   }
 //   if (/socket|ECONNREFUSED|ENOTFOUND|ETIMEDOUT|fetch failed|network/i.test(msg)) {
 //     throw new Error(
-//       `[LLM Network Error] ${context} — could not reach the gateway at ${process.env.ECOAPI_BASE_URL ?? "the configured base URL"}. (${msg})`,
+//       `[LLM Network Error] ${context} — could not reach the gateway at ${BASE_URL}. (${msg})`,
 //     );
 //   }
-//   throw new Error(`[LLM Error] ${context} — ${msg}`);
+//   throw new Error(`[LLM Error] ${context} (${task}) — ${msg}`);
 // }
 // ============================================================================
 

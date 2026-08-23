@@ -1,15 +1,20 @@
-import OpenAI from "openai";
+import { AIMessage, HumanMessage, SystemMessage, type BaseMessage } from "@langchain/core/messages";
 import { z } from "zod/v4";
-import { modelFor, type AiTask } from "./models";
-import { getClient, throwFriendlyError, MAX_OUTPUT_TOKENS, MAX_RETRIES } from "./provider";
+import { type AiTask } from "./models";
+import { getChatModel, throwFriendlyError, MAX_RETRIES } from "./provider";
 
 // ============================================
 // Structured JSON
 //
 // Most of the project's model calls want an object of a known shape. The
 // schema is sent in the instructions and enforced here with Zod rather than
-// relied on at the API level, because JSON-schema support varies between
-// providers and this way the contract holds whichever one is active.
+// left to the provider, because the guarantees an integration can offer vary
+// and this way the contract holds whichever one is active.
+//
+// LangChain offers withStructuredOutput(), which does the same job in one
+// call. It is not used here because it gives back a parse failure and nothing
+// to act on, and the retry below is what makes a rejected outline recoverable:
+// it hands the model its own output and the exact validation errors.
 // ============================================
 
 /** Strip the dialect key; it is not part of a response-format contract. */
@@ -50,7 +55,6 @@ export async function generateStructuredJSON<T>(
   schema: z.ZodType<T>,
   options: StructuredOptions,
 ): Promise<T> {
-  const model = modelFor(options.task);
   const jsonSchema = toJsonSchema(schema);
   const system = [
     options.systemInstruction ?? "",
@@ -63,40 +67,36 @@ export async function generateStructuredJSON<T>(
     .filter(Boolean)
     .join("\n\n");
 
+  const model = getChatModel(options.task, {
+    temperature: options.temperature ?? 0.4,
+    format: "json",
+  });
+
   let lastError: Error | null = null;
   let correction: { badOutput: string; issues: string } | null = null;
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-    const messages: OpenAI.ChatCompletionMessageParam[] = [
-      { role: "system", content: system },
-      { role: "user", content: prompt },
-    ];
+    const messages: BaseMessage[] = [new SystemMessage(system), new HumanMessage(prompt)];
     if (correction) {
-      messages.push({ role: "assistant", content: correction.badOutput });
-      messages.push({
-        role: "user",
-        content: [
-          "That response was rejected by schema validation:",
-          correction.issues,
-          "",
-          "Send the whole object again, corrected. Change only what the errors",
-          "name; keep everything else as you wrote it. Where a value is too long,",
-          "shorten it by rewriting it more tightly or by splitting it into",
-          "separate entries — do not simply cut it off mid-word.",
-        ].join("\n"),
-      });
+      messages.push(new AIMessage(correction.badOutput));
+      messages.push(
+        new HumanMessage(
+          [
+            "That response was rejected by schema validation:",
+            correction.issues,
+            "",
+            "Send the whole object again, corrected. Change only what the errors",
+            "name; keep everything else as you wrote it. Where a value is too long,",
+            "shorten it by rewriting it more tightly or by splitting it into",
+            "separate entries — do not simply cut it off mid-word.",
+          ].join("\n"),
+        ),
+      );
     }
 
     let rawContent: string;
     try {
-      const response = await getClient().chat.completions.create({
-        model,
-        max_tokens: MAX_OUTPUT_TOKENS,
-        temperature: options.temperature ?? 0.4,
-        response_format: { type: "json_object" },
-        messages,
-      });
-      rawContent = response.choices[0]?.message?.content ?? "";
+      rawContent = (await model.invoke(messages)).text;
     } catch (err) {
       throwFriendlyError(err, "generateStructuredJSON", options.task);
     }
