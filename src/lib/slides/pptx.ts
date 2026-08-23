@@ -3,6 +3,7 @@ import type { SlideContent } from "./content-schema";
 import { resolveSlide, type ResolvedBox } from "./resolve";
 import type { Panel } from "./template-layouts";
 import type { SlideTemplate, TemplatePalette } from "./template";
+import { GRADIENT_SENTINEL } from "./pptx-gradient";
 
 // ============================================
 // PowerPoint renderer
@@ -49,11 +50,11 @@ function panelFill(palette: TemplatePalette, fill: Panel["fill"]): string | null
       return palette.accentSoft;
     case "heading":
       return palette.heading;
-    // pptxgenjs has no gradient fill, so the template's navy-to-mint band is
-    // laid in as its darker stop. The white type over it keeps its contrast,
-    // which a mid-gradient average would not.
+    // pptxgenjs cannot express a gradient, so this goes in as a sentinel
+    // colour and applyGradients() swaps it for a real <a:gradFill> after the
+    // file is written. See ./pptx-gradient.ts.
     case "gradient":
-      return palette.featureFrom;
+      return GRADIENT_SENTINEL;
     case "none":
       return null;
   }
@@ -92,11 +93,14 @@ function drawPanel(slide: PptxGenJS.Slide, t: SlideTemplate, panel: Panel): void
   slide.addShape(shape, {
     ...frame,
     fill,
-    line:
-      panel.kind === "card"
-        ? { color: t.palette.panelBorder, width: 1 }
-        : { color: colour, width: 0 },
-    ...(shape === "roundRect" ? { rectRadius: Math.min(0.2, panel.radius * t.deck.widthIn) } : {}),
+    // No outline on anything: every roundRect and ellipse in the template
+    // carries an empty <a:ln/>. Passing `width: 0` does not do this — the
+    // library still writes a 1pt stroke, which put a visible border on every
+    // card and decorative circle in the exported deck.
+    line: { type: "none" },
+    ...(shape === "roundRect"
+      ? { rectRadius: Math.max(0.01, panel.radius * t.deck.widthIn) }
+      : {}),
   });
 }
 

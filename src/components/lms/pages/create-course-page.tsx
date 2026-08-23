@@ -52,13 +52,7 @@ import { lessonPreviewPath, ROUTES } from "@/lib/routes";
 import { useNavigation } from "@/hooks/use-navigation";
 import type { CategoryItem } from "@/types/lms";
 import { toast } from "sonner";
-import {
-  SLIDE_STYLES,
-  DEFAULT_STYLE,
-  MIN_SLIDES,
-  MAX_SLIDES,
-  DEFAULT_SLIDE_COUNT,
-} from "@/lib/slide-styles";
+import { DEFAULT_STYLE, MIN_SLIDES, MAX_SLIDES, DEFAULT_SLIDE_COUNT } from "@/lib/slide-styles";
 import {
   OutlineLessonCard,
   OutlineLessonCardProps,
@@ -145,8 +139,6 @@ export function CreateCoursePage() {
     setOutlineTopic,
     outlineSlideCount,
     setOutlineSlideCount,
-    outlineStyle,
-    setOutlineStyle,
     outlineLanguage,
     setOutlineLanguage,
     outlineGenerating,
@@ -413,7 +405,6 @@ export function CreateCoursePage() {
                         setOutlineEditingSlides(ol.slides);
                         setOutlineTopic(ol.topic);
                         setOutlineSlideCount(ol.slides.length);
-                        setOutlineStyle(ol.style);
                         setModalOpen(true);
                       }}
                       onUpdateSlideTitle={(slideId, newTitle) =>
@@ -472,64 +463,37 @@ export function CreateCoursePage() {
               />
             </div>
 
-            {/* Slide Count + Style row */}
-            <div className="grid grid-cols-2 gap-4">
-              {/* Slide Count */}
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">Slide Count</Label>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setOutlineSlideCount((p) => Math.max(MIN_SLIDES, p - 1))}
-                    disabled={outlineGenerating || outlineSlideCount <= MIN_SLIDES}
-                    className="border-border text-muted-foreground hover:bg-muted flex h-9 w-9 items-center justify-center rounded-md border transition-colors disabled:opacity-40"
-                  >
-                    <Minus className="h-4 w-4" />
-                  </button>
-                  <Input
-                    type="number"
-                    min={MIN_SLIDES}
-                    max={MAX_SLIDES}
-                    value={outlineSlideCount}
-                    onChange={(e) => {
-                      const v = parseInt(e.target.value, 10);
-                      if (!isNaN(v))
-                        setOutlineSlideCount(Math.max(MIN_SLIDES, Math.min(MAX_SLIDES, v)));
-                    }}
-                    className="h-9 w-16 text-center"
-                    disabled={outlineGenerating}
-                  />
-                  <button
-                    onClick={() => setOutlineSlideCount((p) => Math.min(MAX_SLIDES, p + 1))}
-                    disabled={outlineGenerating || outlineSlideCount >= MAX_SLIDES}
-                    className="border-border text-muted-foreground hover:bg-muted flex h-9 w-9 items-center justify-center rounded-md border transition-colors disabled:opacity-40"
-                  >
-                    <Plus className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Template — drives the deck, the preview and the learn view alike */}
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">Template</Label>
-                <Select
-                  value={outlineStyle}
-                  onValueChange={setOutlineStyle}
-                  disabled={outlineGenerating}
+            {/* Slide Count */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Slide Count</Label>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setOutlineSlideCount((p) => Math.max(MIN_SLIDES, p - 1))}
+                  disabled={outlineGenerating || outlineSlideCount <= MIN_SLIDES}
+                  className="border-border text-muted-foreground hover:bg-muted flex h-9 w-9 items-center justify-center rounded-md border transition-colors disabled:opacity-40"
                 >
-                  <SelectTrigger className="h-9">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {SLIDE_STYLES.map((s) => (
-                      <SelectItem key={s.value} value={s.value}>
-                        <div className="flex items-center gap-2">
-                          <span>{s.label}</span>
-                          <span className="text-muted-foreground text-xs">{s.description}</span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  <Minus className="h-4 w-4" />
+                </button>
+                <Input
+                  type="number"
+                  min={MIN_SLIDES}
+                  max={MAX_SLIDES}
+                  value={outlineSlideCount}
+                  onChange={(e) => {
+                    const v = parseInt(e.target.value, 10);
+                    if (!isNaN(v))
+                      setOutlineSlideCount(Math.max(MIN_SLIDES, Math.min(MAX_SLIDES, v)));
+                  }}
+                  className="h-9 w-16 text-center"
+                  disabled={outlineGenerating}
+                />
+                <button
+                  onClick={() => setOutlineSlideCount((p) => Math.min(MAX_SLIDES, p + 1))}
+                  disabled={outlineGenerating || outlineSlideCount >= MAX_SLIDES}
+                  className="border-border text-muted-foreground hover:bg-muted flex h-9 w-9 items-center justify-center rounded-md border transition-colors disabled:opacity-40"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
               </div>
             </div>
 
@@ -671,9 +635,6 @@ export function CreateCoursePage() {
                     <Label className="text-foreground text-sm font-semibold">
                       Slide Outline ({outlineEditingSlides.length} slides)
                     </Label>
-                    <Badge variant="secondary" className="text-[10px]">
-                      {outlineStyle}
-                    </Badge>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <Button

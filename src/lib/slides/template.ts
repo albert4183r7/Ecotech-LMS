@@ -148,134 +148,15 @@ const SANS: SlideTemplate["fonts"] = {
   bodyStack: `Calibri, ${SYSTEM_FALLBACK}`,
 };
 
-export const SLIDE_TEMPLATES: SlideTemplate[] = [
-  ECOTECH_TEMPLATE,
-  template("professional", "Professional", "Corporate blue on white", SANS, {
-    surface: "FFFFFF",
-    surfaceAlt: "F1F5F9",
-    featureFrom: "0F172A",
-    featureVia: "1E293B",
-    featureTo: "1E3A8A",
-    heading: "0F172A",
-    body: "334155",
-    muted: "64748B",
-    panel: "F8FAFC",
-    panelBorder: "E2E8F0",
-    accent: "2563EB",
-    accentSoft: "DBEAFE",
-    onAccent: "FFFFFF",
-    iconInk: "2563EB",
-    decor: "3B82F6",
-    featureDecor: "60A5FA",
-    connector: "93C5FD",
-    featureHeading: "FFFFFF",
-    featureBody: "CBD5E1",
-  }),
-  template("minimal", "Minimal", "Monochrome, nothing decorative", SANS, {
-    surface: "FFFFFF",
-    surfaceAlt: "FFFFFF",
-    featureFrom: "171717",
-    featureVia: "262626",
-    featureTo: "404040",
-    heading: "171717",
-    body: "525252",
-    muted: "A3A3A3",
-    panel: "FAFAFA",
-    panelBorder: "E5E5E5",
-    accent: "171717",
-    accentSoft: "F5F5F5",
-    onAccent: "FFFFFF",
-    iconInk: "171717",
-    decor: "A3A3A3",
-    featureDecor: "D4D4D4",
-    connector: "D4D4D4",
-    featureHeading: "FFFFFF",
-    featureBody: "D4D4D4",
-  }),
-  template("creative", "Creative", "Violet and fuchsia, high contrast", SANS, {
-    surface: "FFFFFF",
-    surfaceAlt: "F5F3FF",
-    featureFrom: "6D28D9",
-    featureVia: "7E22CE",
-    featureTo: "A21CAF",
-    heading: "2E1065",
-    body: "334155",
-    muted: "A78BFA",
-    panel: "F5F3FF",
-    panelBorder: "DDD6FE",
-    accent: "7C3AED",
-    accentSoft: "EDE9FE",
-    onAccent: "FFFFFF",
-    iconInk: "7C3AED",
-    decor: "8B5CF6",
-    featureDecor: "E879F9",
-    connector: "C4B5FD",
-    featureHeading: "FFFFFF",
-    featureBody: "DDD6FE",
-  }),
-  template(
-    "academic",
-    "Academic",
-    "Warm stone and emerald, serif headings",
-    {
-      heading: "Cambria",
-      body: "Calibri",
-      headingStack: `Cambria, Georgia, serif`,
-      bodyStack: `Calibri, ${SYSTEM_FALLBACK}`,
-    },
-    {
-      surface: "FAFAF9",
-      surfaceAlt: "F5F5F4",
-      featureFrom: "292524",
-      featureVia: "1C1917",
-      featureTo: "022C22",
-      heading: "1C1917",
-      body: "44403C",
-      muted: "78716C",
-      panel: "FFFFFF",
-      panelBorder: "D6D3D1",
-      accent: "047857",
-      accentSoft: "ECFDF5",
-      onAccent: "FFFFFF",
-      iconInk: "047857",
-      decor: "059669",
-      featureDecor: "34D399",
-      connector: "6EE7B7",
-      featureHeading: "FFFFFF",
-      featureBody: "D6D3D1",
-    },
-  ),
-  template("tech", "Tech", "Dark slate with cyan, for technical decks", SANS, {
-    surface: "0F172A",
-    surfaceAlt: "1E293B",
-    featureFrom: "020617",
-    featureVia: "0F172A",
-    featureTo: "083344",
-    heading: "FFFFFF",
-    body: "CBD5E1",
-    muted: "64748B",
-    panel: "1E293B",
-    panelBorder: "334155",
-    accent: "06B6D4",
-    accentSoft: "164E63",
-    onAccent: "020617",
-    iconInk: "22D3EE",
-    decor: "06B6D4",
-    featureDecor: "22D3EE",
-    connector: "0E7490",
-    featureHeading: "FFFFFF",
-    featureBody: "A5F3FC",
-  }),
-];
-
-export const DEFAULT_TEMPLATE_ID = ECOTECH_TEMPLATE.id;
-
-export const VALID_TEMPLATE_IDS: string[] = SLIDE_TEMPLATES.map((t) => t.id);
-
-/** Resolve a template id, falling back to the default rather than failing. */
-export function templateFor(id: string | undefined | null): SlideTemplate {
-  return SLIDE_TEMPLATES.find((t) => t.id === id) ?? ECOTECH_TEMPLATE;
-}
+/**
+ * The template.
+ *
+ * There is one, and there is no way to pick another: the Ecotech deck is the
+ * design, measured from the supplied .pptx. This used to be a registry with a
+ * lookup, which existed only so the instructor could choose — now that the
+ * choice is gone, so is the indirection.
+ */
+export const SLIDE_TEMPLATE: SlideTemplate = ECOTECH_TEMPLATE;
 
 /**
  * The template as CSS custom properties.
@@ -283,7 +164,7 @@ export function templateFor(id: string | undefined | null): SlideTemplate {
  * This is what lets the web renderer name colour roles rather than literal
  * values, so switching template changes every slide without touching markup.
  */
-export function templateCssVariables(t: SlideTemplate): string {
+export function templateCssVariables(t: SlideTemplate = SLIDE_TEMPLATE): string {
   const p = t.palette;
   const vars: [string, string][] = [
     ["--tpl-surface", `#${p.surface}`],

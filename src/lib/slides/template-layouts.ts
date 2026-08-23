@@ -203,6 +203,15 @@ function decorCircles(spec: Array<[number, number, number, number, number]>): Pa
   }));
 }
 
+/**
+ * Corner radii, as fractions of the slide width.
+ *
+ * Read from the template's roundRect `adj` values: its cards are 0.120in and
+ * everything else it rounds is 0.100in. These were 0.02 — 0.27in — which is
+ * more than twice as round as the file, and visible on every card.
+ */
+const RADIUS = { card: 0.009, panel: 0.0075 };
+
 // ────────────────────────────────────────────────
 // Layout definitions
 // ────────────────────────────────────────────────
@@ -411,7 +420,7 @@ const OPTIONS_LAYOUT: LayoutDefinition = {
     const placeholders: Placeholder[] = [...base.placeholders, FOOTER];
 
     cells.forEach((cell, i) => {
-      panels.push({ kind: "card", ...cell, fill: "panel", radius: 0.02 });
+      panels.push({ kind: "card", ...cell, fill: "panel", radius: RADIUS.card });
       panels.push({
         kind: "badge",
         x: cell.x + 0.026,
@@ -635,7 +644,7 @@ const COMPARISON_LAYOUT: LayoutDefinition = {
     const BODY_BOTTOM = 0.9;
 
     columns(columnCount, HEAD_Y, HEAD_H).forEach((cell, c) => {
-      panels.push({ kind: "band", ...cell, fill: "accentSoft", radius: 0.015 });
+      panels.push({ kind: "band", ...cell, fill: "accentSoft", radius: RADIUS.panel });
       placeholders.push({
         path: `columns.${c}.heading`,
         role: "heading",
@@ -655,7 +664,7 @@ const COMPARISON_LAYOUT: LayoutDefinition = {
         w: cell.w,
         h: BODY_BOTTOM - BODY_TOP,
         fill: "panel",
-        radius: 0.015,
+        radius: RADIUS.panel,
       });
       // Five is the schema's own maximum for a column's points; boxes past the
       // supplied count simply go unused.
@@ -699,7 +708,7 @@ const METRICS_LAYOUT: LayoutDefinition = {
     cells.forEach((cell, i) => {
       // White card, hairline border, no accent rule — the rule was an
       // addition, and the template does not draw one.
-      panels.push({ kind: "card", ...cell, fill: "surface", radius: 0.02 });
+      panels.push({ kind: "card", ...cell, fill: "surface", radius: RADIUS.panel });
       placeholders.push(
         {
           path: `stats.${i}.value`,
@@ -737,7 +746,7 @@ const METRICS_LAYOUT: LayoutDefinition = {
       h: 0.2067,
       // Navy-to-mint, as the template fills it, with white type over it.
       fill: "gradient",
-      radius: 0.02,
+      radius: RADIUS.panel,
     });
     placeholders.push(
       {

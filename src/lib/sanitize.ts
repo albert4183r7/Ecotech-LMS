@@ -1,5 +1,5 @@
 import DOMPurify, { type Config } from "isomorphic-dompurify";
-import { templateFor, templateCssVariables } from "@/lib/slides/template";
+import { SLIDE_TEMPLATE, templateCssVariables } from "@/lib/slides/template";
 
 // ============================================
 // HTML Sanitizer for AI-generated slide content
@@ -426,12 +426,9 @@ export const SLIDE_HEIGHT = 720;
  * markup, so the same body renders in any template and a stored slide can be
  * re-themed without regenerating it.
  */
-export function wrapSlideHtml(
-  bodyHtml: string,
-  options?: { title?: string; templateId?: string },
-): string {
+export function wrapSlideHtml(bodyHtml: string, options?: { title?: string }): string {
   const title = options?.title || "Slide";
-  const template = templateFor(options?.templateId);
+  const template = SLIDE_TEMPLATE;
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -504,10 +501,10 @@ export function isCanvasDocument(html: string): boolean {
  * have let through. Cleaning here means a slide is safe because of what the
  * renderer does, not because of what every historical writer remembered to do.
  */
-export function ensureCanvasDocument(html: string, title?: string, templateId?: string): string {
+export function ensureCanvasDocument(html: string, title?: string): string {
   if (isCanvasDocument(html)) return html;
   const body = /<body[^>]*>([\s\S]*)<\/body>/i.exec(html)?.[1] ?? html;
-  return wrapSlideHtml(sanitizeHtml(body), { title, templateId });
+  return wrapSlideHtml(sanitizeHtml(body), { title });
 }
 
 function escapeHtml(str: string): string {

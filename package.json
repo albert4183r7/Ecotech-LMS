@@ -16,7 +16,7 @@
     "db:migrate": "prisma migrate dev",
     "db:reset": "prisma migrate reset",
     "db:seed": "node --experimental-strip-types prisma/seed.mts",
-    "verify": "npx --yes tsx scripts/verify.mts && npx --yes tsx scripts/layout-coverage.mts && npx --yes tsx scripts/parity.mts"
+    "verify": "npx --yes tsx scripts/verify.mts && npx --yes tsx scripts/layout-coverage.mts && npx --yes tsx scripts/parity.mts && npx --yes tsx scripts/deck-check.mts"
   },
   "dependencies": {
     "@google/genai": "^2.17.1",

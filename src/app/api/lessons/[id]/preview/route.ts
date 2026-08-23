@@ -2,8 +2,7 @@ import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { handleRoute, ok } from "@/lib/api-response";
 import { requireLessonOwner } from "@/lib/session";
-import { readLessonTemplateId } from "@/lib/slides/lesson-template";
-import { templateFor } from "@/lib/slides/template";
+import { SLIDE_TEMPLATE } from "@/lib/slides/template";
 import { ensureCanvasDocument } from "@/lib/sanitize";
 
 // ============================================
@@ -40,8 +39,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     });
     if (!lesson) return ok(null);
 
-    const templateId = readLessonTemplateId(lesson.outlineJson);
-    const template = templateFor(templateId);
+    const template = SLIDE_TEMPLATE;
 
     return ok({
       id: lesson.id,
@@ -63,7 +61,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
         // Render-ready rather than as-stored: a slide that predates the canvas
         // is re-wrapped and re-sanitized here, so the page can drop it into an
         // iframe without deciding for itself whether the stored HTML is safe.
-        htmlBody: ensureCanvasDocument(slide.htmlBody, slide.title, templateId ?? undefined),
+        htmlBody: ensureCanvasDocument(slide.htmlBody, slide.title),
         status: slide.status,
         order: slide.order,
         sectionId: slide.sectionId,

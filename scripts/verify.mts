@@ -15,8 +15,9 @@ import { renderSlideContent } from "../src/lib/slides/render";
 import { sanitizeHtml, wrapSlideHtml } from "../src/lib/sanitize";
 import { checkMechanically } from "../src/lib/quiz/validator";
 import { repairQuiz, DraftQuizSchema } from "../src/lib/quiz/schema";
-import { templateFor, SLIDE_TEMPLATES } from "../src/lib/slides/template";
-import { readLessonTemplateId } from "../src/lib/slides/lesson-template";
+import * as templateModule from "../src/lib/slides/template";
+import { SLIDE_TEMPLATE } from "../src/lib/slides/template";
+import { GRADIENT_SENTINEL } from "../src/lib/slides/pptx-gradient";
 import { LAYOUTS } from "../src/lib/slides/template-layouts";
 import {
   buildLessonContext,
@@ -27,8 +28,6 @@ import type { LessonSource } from "../src/lib/quiz/lesson-source";
 import { TASK_MODELS, modelFor, isMultimodal, type AiTask } from "../src/lib/ai/models";
 import { safeFileName } from "../src/lib/download";
 import type { SlideContent } from "../src/lib/slides/content-schema";
-import type { LessonSource } from "../src/lib/quiz/lesson-source";
-import { TASK_MODELS, modelFor, isMultimodal, type AiTask } from "../src/lib/ai/models";
 
 const checks: [string, () => boolean][] = [];
 const add = (n: string, f: () => boolean) => checks.push([n, f]);
@@ -67,16 +66,30 @@ add("outline repair leaves valid plans alone", () => {
   };
   return (repairPlan(structuredClone(plan)) as typeof plan).sections[0].subtopics.length === 2;
 });
-add("every template resolves and is 16:9", () =>
-  SLIDE_TEMPLATES.every((t) => Math.abs(t.deck.widthIn / t.deck.heightIn - 16 / 9) < 0.01),
-);
-add("unknown template id falls back to Ecotech", () => templateFor("nope").id === "ecotech");
 add(
-  "lesson template read from stored outline",
-  () =>
-    readLessonTemplateId(JSON.stringify({ style: "tech" })) === "tech" &&
-    readLessonTemplateId(null) === "ecotech",
+  "the template resolves and is 16:9",
+  () => Math.abs(SLIDE_TEMPLATE.deck.widthIn / SLIDE_TEMPLATE.deck.heightIn - 16 / 9) < 0.01,
 );
+add("there is exactly one template", () => SLIDE_TEMPLATE.id === "ecotech");
+add("the gradient sentinel is not a real palette colour", () => {
+  // The exported deck marks its gradient panels with this and swaps them
+  // afterwards. If it ever matched a colour the template actually uses, that
+  // colour's fills would silently become gradients.
+  const used = Object.values(SLIDE_TEMPLATE.palette).map((c) => c.toUpperCase());
+  return !used.includes(GRADIENT_SENTINEL.toUpperCase());
+});
+add("no template can be selected", () => {
+  // The picker is gone and so is the lookup behind it: no registry, no
+  // resolver, nothing that takes an id. This fails if that indirection comes
+  // back, which is the only way a second design could reappear.
+  const exported = Object.keys(templateModule);
+  return (
+    SLIDE_TEMPLATE.id === "ecotech" &&
+    !exported.includes("templateFor") &&
+    !exported.includes("SLIDE_TEMPLATES") &&
+    !exported.includes("VALID_TEMPLATE_IDS")
+  );
+});
 
 const titleSlide: SlideContent = {
   type: "title",
@@ -111,14 +124,14 @@ add(
   () => writeField(concept, "points.0.heading", "x").ok === false,
 );
 add("every editable field is addressable in the render", () => {
-  const html = sanitizeHtml(renderSlideContent(concept, { templateId: "ecotech" }));
+  const html = sanitizeHtml(renderSlideContent(concept));
   return editableFields(concept).every((f) => html.includes(`data-path="${f.path}"`));
 });
 add("template geometry survives sanitising", () => {
   // The renderer positions boxes with inline style; the sanitiser must filter
   // those declarations rather than delete them, or every slide renders stacked
   // at the top-left corner.
-  const html = sanitizeHtml(renderSlideContent(concept, { templateId: "ecotech", slideNumber: 2 }));
+  const html = sanitizeHtml(renderSlideContent(concept, { slideNumber: 2 }));
   return /style="[^"]*left:/.test(html) && /style="[^"]*font-size:/.test(html);
 });
 add("dangerous css declarations are still stripped", () => {
@@ -128,7 +141,7 @@ add("dangerous css declarations are still stripped", () => {
   return /left:5%/.test(out) && !/javascript:|expression\(|url\(/i.test(out);
 });
 add("slides carry the template layout they were drawn with", () => {
-  const html = renderSlideContent(concept, { templateId: "ecotech" });
+  const html = renderSlideContent(concept);
   return /data-layout="options"/.test(html);
 });
 add("every layout is a slide that exists in the template file", () => {
@@ -149,8 +162,8 @@ add("every layout is a slide that exists in the template file", () => {
   return LAYOUTS.every((l) => fromTemplate.has(l.id));
 });
 add("a mid-deck title becomes the template's section divider", () => {
-  const first = renderSlideContent(titleSlide, { templateId: "ecotech", slideNumber: 1 });
-  const later = renderSlideContent(titleSlide, { templateId: "ecotech", slideNumber: 6 });
+  const first = renderSlideContent(titleSlide, { slideNumber: 1 });
+  const later = renderSlideContent(titleSlide, { slideNumber: 6 });
   return /data-layout="title"/.test(first) && /data-layout="section"/.test(later);
 });
 add(
@@ -160,7 +173,7 @@ add(
 add("template vars written into the slide document", () =>
   // The mint the template uses for eyebrows, stat values and decoration. It
   // used to be set to the navy, which is the heading colour.
-  wrapSlideHtml("<div></div>", { templateId: "ecotech" }).includes("--tpl-accent: #7BBBA6"),
+  wrapSlideHtml("<div></div>", {}).includes("--tpl-accent: #7BBBA6"),
 );
 
 // ── AI task registry ────────────────────────────────────────────────────────
@@ -320,7 +333,7 @@ add(
   "filenames are slugged safely",
   () => safeFileName("Lesson 1: Agents & Tools!") === "lesson-1-agents-tools",
 );
-add("all nine slide types render in all templates", () => {
+add("all nine slide types render", () => {
   const all: SlideContent[] = [
     { type: "title", title: "T", subtitle: "A subtitle here" },
     concept,
@@ -361,9 +374,7 @@ add("all nine slide types render in all templates", () => {
     { type: "summary", title: "S", takeaways: ["a".repeat(20), "b".repeat(20), "c".repeat(20)] },
     { type: "closing", title: "End" },
   ];
-  return all.every((c) =>
-    SLIDE_TEMPLATES.every((t) => renderSlideContent(c, { templateId: t.id }).length > 100),
-  );
+  return all.every((c) => renderSlideContent(c).length > 100);
 });
 
 let pass = 0,

@@ -7,7 +7,6 @@ import { requireLessonOwner } from "@/lib/session";
 import { SlideContentSchema } from "@/lib/slides/content-schema";
 import { readField, writeField, humanLabel } from "@/lib/slides/content-path";
 import { renderSlideContent } from "@/lib/slides/render";
-import { readLessonTemplateId } from "@/lib/slides/lesson-template";
 import { sanitizeHtml, wrapSlideHtml } from "@/lib/sanitize";
 
 // ============================================
@@ -107,13 +106,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const written = writeField(content, body.path, replacement);
     if (!written.ok) return fail(written.error, 422);
 
-    const templateId = readLessonTemplateId(
-      (await db.lesson.findUnique({ where: { id: slide.lessonId }, select: { outlineJson: true } }))
-        ?.outlineJson ?? null,
-    );
-
     const html = sanitizeHtml(
-      renderSlideContent(written.content, { templateId, slideNumber: slide.order + 1 }),
+      renderSlideContent(written.content, { slideNumber: slide.order + 1 }),
     );
     const title =
       "title" in written.content && written.content.title
@@ -124,7 +118,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       where: { id: slide.id },
       data: {
         contentJson: JSON.stringify(written.content),
-        htmlBody: wrapSlideHtml(html, { title, templateId }),
+        htmlBody: wrapSlideHtml(html, { title }),
         title,
       },
     });
@@ -135,7 +129,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       label: humanLabel(body.path),
       previousText: field.value,
       newText: replacement.trim(),
-      htmlBody: wrapSlideHtml(html, { title, templateId }),
+      htmlBody: wrapSlideHtml(html, { title }),
       title,
     });
   });

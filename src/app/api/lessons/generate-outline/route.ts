@@ -12,7 +12,7 @@ import {
   MAX_SLIDES,
   type PresentationPlan,
 } from "@/lib/presentation-plan";
-import { SLIDE_STYLES, VALID_STYLES } from "@/lib/slide-styles";
+import { DEFAULT_STYLE } from "@/lib/slide-styles";
 import { extractTextFromFiles, selectRelevantSections } from "@/lib/extract-doc";
 
 // ============================================
@@ -28,7 +28,6 @@ interface GenerateOutlineRequest {
   courseId: string;
   topic: string;
   slideCount: number;
-  style: string;
   language?: string;
   existingLessonId?: string;
   referenceFileUrls?: string[];
@@ -118,16 +117,14 @@ function buildPlannerPrompt(params: {
   topic: string;
   slideCount: number;
   language: string;
-  styleLabel: string;
   reference: string;
 }): string {
-  const { topic, slideCount, language, styleLabel, reference } = params;
+  const { topic, slideCount, language, reference } = params;
 
   return `WHAT THE USER ASKED FOR: ${topic}
 
 SLIDE BUDGET: ${slideCount} slides in total.
 LANGUAGE: write everything in ${language}.
-VISUAL STYLE: ${styleLabel}.
 ${
   reference
     ? `\nSOURCE MATERIAL — this is the substance of the presentation, not background reading:\n<reference>\n${reference}\n</reference>\n\nThe sections must come out of this document. Name the specific concepts, terms,\nfigures and examples it actually uses. A plan that would read the same without\nthis document has failed. Where the document and general knowledge disagree,\nthe document wins. Do not introduce major topics it never mentions.\n`
@@ -167,7 +164,7 @@ Also give the presentation a title and a one-line subtitle.`;
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as GenerateOutlineRequest;
-    const { courseId, topic, slideCount, style, language = "english", existingLessonId } = body;
+    const { courseId, topic, slideCount, language = "english", existingLessonId } = body;
 
     if (!courseId) {
       return NextResponse.json({ success: false, error: "courseId is required" }, { status: 400 });
@@ -191,15 +188,9 @@ export async function POST(request: NextRequest) {
       throw error;
     }
 
-    if (!topic || !slideCount || !style) {
+    if (!topic || !slideCount) {
       return NextResponse.json(
-        { success: false, error: "courseId, topic, slideCount, and style are required" },
-        { status: 400 },
-      );
-    }
-    if (!VALID_STYLES.includes(style)) {
-      return NextResponse.json(
-        { success: false, error: `Invalid style. Must be one of: ${VALID_STYLES.join(", ")}` },
+        { success: false, error: "courseId, topic and slideCount are required" },
         { status: 400 },
       );
     }
@@ -225,8 +216,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const styleInfo = SLIDE_STYLES.find((s) => s.value === style);
-
     let plan: PresentationPlan;
     try {
       plan = await generateStructuredJSON(
@@ -234,7 +223,6 @@ export async function POST(request: NextRequest) {
           topic,
           slideCount: requestedSlides,
           language,
-          styleLabel: styleInfo ? `${styleInfo.label} (${styleInfo.description})` : style,
           reference,
         }),
         PresentationPlanSchema,
@@ -276,7 +264,7 @@ export async function POST(request: NextRequest) {
 
     const outlineData = {
       topic,
-      style,
+      style: DEFAULT_STYLE,
       slideCount: requestedSlides,
       language,
       title: balanced.title,

@@ -121,13 +121,9 @@ const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 
 for (const [i, content] of deck.entries()) {
   const n = i + 1;
-  const html = wrapSlideHtml(
-    renderSlideContent(content, { templateId: "ecotech", slideNumber: n }),
-    {
-      title: `Slide ${n}`,
-      templateId: "ecotech",
-    },
-  );
+  const html = wrapSlideHtml(renderSlideContent(content, { slideNumber: n }), {
+    title: `Slide ${n}`,
+  });
   const css = await readFile("public/slide-runtime.css", "utf8");
   // Inlined in place of the <link>, so the document's own template block still
   // overrides the stylesheet's defaults exactly as it does in the browser.

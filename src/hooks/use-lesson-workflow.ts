@@ -51,7 +51,6 @@ export function useLessonWorkflow({
   const [modalOpen, setModalOpen] = useState(false);
   const [outlineTopic, setOutlineTopic] = useState("");
   const [outlineSlideCount, setOutlineSlideCount] = useState(DEFAULT_SLIDE_COUNT);
-  const [outlineStyle, setOutlineStyle] = useState(DEFAULT_STYLE);
   const [outlineLanguage, setOutlineLanguage] = useState(language);
   const [outlineGenerating, setOutlineGenerating] = useState(false);
   const [editingOutlineLesson, setEditingOutlineLesson] = useState<string | null>(null);
@@ -92,7 +91,6 @@ export function useLessonWorkflow({
   const handleOpenModal = () => {
     setOutlineTopic("");
     setOutlineSlideCount(DEFAULT_SLIDE_COUNT);
-    setOutlineStyle(DEFAULT_STYLE);
     setOutlineLanguage(language);
     setOutlineGenerating(false);
     setEditingOutlineLesson(null);
@@ -124,7 +122,6 @@ export function useLessonWorkflow({
           courseId: savedCourseId,
           topic: outlineTopic.trim(),
           slideCount: outlineSlideCount,
-          style: outlineStyle,
           language: outlineLanguage,
           referenceFileUrls:
             referenceFiles.length > 0 ? referenceFiles.map((f) => f.url) : undefined,
@@ -140,7 +137,7 @@ export function useLessonWorkflow({
 
       const { lesson: newLesson, slides } = toLessonDraft(json.data, {
         language: outlineLanguage,
-        style: outlineStyle,
+        style: DEFAULT_STYLE,
         topic: outlineTopic.trim(),
       });
 
@@ -158,7 +155,6 @@ export function useLessonWorkflow({
   }, [
     outlineTopic,
     outlineSlideCount,
-    outlineStyle,
     outlineLanguage,
     referenceFiles,
     ensureCourseSaved,
@@ -257,7 +253,6 @@ export function useLessonWorkflow({
           courseId,
           topic: outlineTopic.trim(),
           slideCount: outlineSlideCount,
-          style: outlineStyle,
           language: outlineLanguage,
           existingLessonId: editingOutlineLesson,
           referenceFileUrls:
@@ -272,7 +267,7 @@ export function useLessonWorkflow({
       }
       const { lesson: regenerated, slides } = toLessonDraft(json.data, {
         language: outlineLanguage,
-        style: outlineStyle,
+        style: DEFAULT_STYLE,
         topic: outlineTopic.trim(),
       });
       setOutlineEditingSlides(slides);
@@ -516,8 +511,6 @@ export function useLessonWorkflow({
     setOutlineTopic,
     outlineSlideCount,
     setOutlineSlideCount,
-    outlineStyle,
-    setOutlineStyle,
     outlineLanguage,
     setOutlineLanguage,
     outlineGenerating,

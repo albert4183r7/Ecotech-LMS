@@ -2,7 +2,6 @@
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { SLIDE_STYLES } from "@/lib/slide-styles";
 import {
   AlertCircle,
   Check,
@@ -99,7 +98,6 @@ export function OutlineLessonCard({
   onDelete,
   onPreview,
 }: OutlineLessonCardProps) {
-  const styleLabel = SLIDE_STYLES.find((s) => s.value === lesson.style)?.label || lesson.style;
   const hasReadySlides = lesson.slides.some(
     (s) => s.slideId && slideGenStates[s.slideId]?.status === "complete",
   );
@@ -167,8 +165,6 @@ export function OutlineLessonCard({
                 {lesson.slides.length} slides
               </span>
             )}
-            <span>·</span>
-            <span>{styleLabel}</span>
           </div>
         </div>
 

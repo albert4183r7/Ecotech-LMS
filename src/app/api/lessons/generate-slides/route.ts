@@ -6,7 +6,6 @@ import { isRetryable, SLIDE_ATTEMPTS } from "@/lib/slide-status";
 import { renderSlideContent } from "@/lib/slides/render";
 import { generateSlideContent, summariseForContext, type SlideBrief } from "@/lib/slides/generate";
 import type { SlideContent } from "@/lib/slides/content-schema";
-import { readLessonTemplateId } from "@/lib/slides/lesson-template";
 import { generateAndSaveQuiz } from "@/lib/quiz/persist";
 import { runQualityGate } from "@/lib/agent/quality-gate";
 
@@ -83,7 +82,6 @@ async function generateAllSlides(lessonId: string, languageOverride?: string): P
   const language = languageOverride ?? plan.language ?? lesson.course?.language ?? "english";
   // The template the lesson was planned with. Resolved from the stored outline
   // so every re-render of a slide keeps the look it was generated with.
-  const templateId = readLessonTemplateId(lesson.outlineJson);
   const deck = lesson.slides;
   const pending = deck.filter((s) => isRetryable(s.status, s.updatedAt));
 
@@ -184,9 +182,7 @@ async function generateAllSlides(lessonId: string, languageOverride?: string): P
 
         // Layout is ours, not the model's, so a slide cannot come back unstyled
         // or empty.
-        const html = sanitizeHtml(
-          renderSlideContent(content, { templateId, slideNumber: position + 1 }),
-        );
+        const html = sanitizeHtml(renderSlideContent(content, { slideNumber: position + 1 }));
         if (!html.trim()) throw new Error("rendered slide was empty after sanitising");
 
         const title =
@@ -195,7 +191,7 @@ async function generateAllSlides(lessonId: string, languageOverride?: string): P
         await db.slide.update({
           where: { id: slide.id },
           data: {
-            htmlBody: wrapSlideHtml(html, { title, templateId }),
+            htmlBody: wrapSlideHtml(html, { title }),
             contentJson: JSON.stringify(content),
             title,
             status: "READY",

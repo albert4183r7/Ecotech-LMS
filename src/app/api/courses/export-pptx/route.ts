@@ -4,9 +4,9 @@ import { db } from "@/lib/db";
 import { AuthorizationError, mayReadLesson, requireUser } from "@/lib/session";
 import { SlideContentSchema, type SlideContent } from "@/lib/slides/content-schema";
 import { addContentSlide, applyTemplateLayout } from "@/lib/slides/pptx";
-import { templateFor } from "@/lib/slides/template";
+import { applyGradients } from "@/lib/slides/pptx-gradient";
+import { SLIDE_TEMPLATE } from "@/lib/slides/template";
 import { safeFileName } from "@/lib/download";
-import { readLessonTemplateId } from "@/lib/slides/lesson-template";
 
 // ============================================
 // POST /api/courses/export-pptx
@@ -76,7 +76,6 @@ export async function POST(request: NextRequest) {
 
     let rows: { title: string; contentJson: string | null; order: number }[] = [];
     let deckName = body.deckName ?? "lesson";
-    let templateId: string | null = null;
 
     if (body.lessonId) {
       const lesson = await db.lesson.findUnique({
@@ -94,7 +93,6 @@ export async function POST(request: NextRequest) {
       }
       rows = lesson.slides;
       deckName = body.deckName ?? lesson.title;
-      templateId = readLessonTemplateId(lesson.outlineJson);
     } else {
       const found = await db.slide.findMany({
         where: { id: { in: body.slideIds ?? [] }, status: "READY" },
@@ -120,7 +118,6 @@ export async function POST(request: NextRequest) {
           where: { id: lessonId },
           select: { outlineJson: true },
         });
-        templateId = readLessonTemplateId(lesson?.outlineJson ?? null);
       }
     }
 
@@ -139,7 +136,7 @@ export async function POST(request: NextRequest) {
       console.warn(`[export-pptx] ${skipped} slide(s) skipped: no structured content`);
     }
 
-    const template = templateFor(templateId);
+    const template = SLIDE_TEMPLATE;
     const pptx = new PptxGenJS();
     applyTemplateLayout(pptx, template);
     pptx.author = "Ecotech LMS";
@@ -162,7 +159,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const buffer: Buffer = (await pptx.write({ outputType: "nodebuffer" })) as Buffer;
+    const written: Buffer = (await pptx.write({ outputType: "nodebuffer" })) as Buffer;
+    // The template's gradient panels go in as a sentinel colour; this swaps
+    // them for real gradient fills, which pptxgenjs cannot write itself.
+    const buffer = await applyGradients(written, template);
+
     return new Response(new Uint8Array(buffer), {
       headers: {
         "Content-Type": "application/vnd.openxmlformats-officedocument.presentationml.presentation",

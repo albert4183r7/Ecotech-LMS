@@ -1,29 +1,16 @@
-import { SLIDE_TEMPLATES, DEFAULT_TEMPLATE_ID, VALID_TEMPLATE_IDS } from "./slides/template";
+import { SLIDE_TEMPLATE } from "./slides/template";
 
 // ============================================
-// Slide template choices for the UI
+// Outline form constants
 //
-// Derived from the template registry rather than listed again here. The two
-// used to be separate lists that happened to share ids, so adding a template
-// meant editing both and a mismatch was silently possible.
-//
-// The stored field is still called `style` on existing lessons; a style id and
-// a template id are the same namespace, so old lessons keep resolving.
+// There is one template — the Ecotech deck the .pptx defines — and no way to
+// pick another, so nothing here offers a choice. DEFAULT_STYLE remains because
+// a lesson still records which template it was drawn with, and lessons stored
+// before the picker was removed carry an id in that field.
 // ============================================
 
-export const SLIDE_STYLES = SLIDE_TEMPLATES.map((t) => ({
-  value: t.id,
-  label: t.label,
-  description: t.description,
-}));
-
-export type SlideStyle = string;
-
-/** Ids the outline endpoint will accept. */
-export const VALID_STYLES: readonly string[] = VALID_TEMPLATE_IDS;
-
-/** The template a new lesson gets unless the instructor picks another. */
-export const DEFAULT_STYLE = DEFAULT_TEMPLATE_ID;
+/** The template every lesson is drawn with. */
+export const DEFAULT_STYLE = SLIDE_TEMPLATE.id;
 
 /** Default slide count range */
 export const MIN_SLIDES = 3;

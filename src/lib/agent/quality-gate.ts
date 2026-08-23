@@ -5,7 +5,6 @@ import { recordEvaluation } from "./persistence";
 import { SlideContentSchema, type SlideContent } from "@/lib/slides/content-schema";
 import { generateSlideContent, type SlideBrief } from "@/lib/slides/generate";
 import { renderSlideContent } from "@/lib/slides/render";
-import { readLessonTemplateId } from "@/lib/slides/lesson-template";
 import { sanitizeHtml, wrapSlideHtml } from "@/lib/sanitize";
 
 // ============================================
@@ -168,7 +167,6 @@ async function reviseSlide(params: {
   findings: Finding[];
   deckSize: number;
   language: string;
-  templateId: string;
   referenceText?: string;
   lessonTitle: string;
 }): Promise<void> {
@@ -199,16 +197,14 @@ async function reviseSlide(params: {
   };
 
   const content = await generateSlideContent(brief);
-  const html = sanitizeHtml(
-    renderSlideContent(content, { templateId: params.templateId, slideNumber: brief.position }),
-  );
+  const html = sanitizeHtml(renderSlideContent(content, { slideNumber: brief.position }));
   const title = "title" in content && content.title ? content.title.slice(0, 90) : params.row.title;
 
   await db.slide.update({
     where: { id: params.row.id },
     data: {
       contentJson: JSON.stringify(content),
-      htmlBody: wrapSlideHtml(html, { title, templateId: params.templateId }),
+      htmlBody: wrapSlideHtml(html, { title }),
       title,
     },
   });
@@ -229,7 +225,6 @@ export async function runQualityGate(options: GateOptions): Promise<GateReport> 
     where: { id: options.lessonId },
     select: { outlineJson: true },
   });
-  const templateId = readLessonTemplateId(lesson?.outlineJson ?? null);
   const language =
     (() => {
       try {
@@ -327,7 +322,6 @@ export async function runQualityGate(options: GateOptions): Promise<GateReport> 
           findings,
           deckSize: taken.rows.length,
           language,
-          templateId,
           referenceText: options.referenceText,
           lessonTitle: taken.title,
         });

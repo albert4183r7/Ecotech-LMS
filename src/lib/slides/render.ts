@@ -64,9 +64,8 @@ function renderPanel(panel: Panel): string {
     panel.radius >= 0.5
       ? "border-radius:9999px;"
       : `border-radius:${(panel.radius * CANVAS_W).toFixed(1)}px;`;
-  const border = panel.kind === "card" ? "border:1px solid var(--tpl-panel-border);" : "";
   const alpha = panel.alpha !== undefined ? `opacity:${panel.alpha};` : "";
-  return `<div class="tpl-panel-el ${PANEL_FILL[panel.fill]}" style="${place(panel)}${radius}${border}${alpha}"></div>`;
+  return `<div class="tpl-panel-el ${PANEL_FILL[panel.fill]}" style="${place(panel)}${radius}${alpha}"></div>`;
 }
 
 function renderBox(box: ResolvedBox): string {
@@ -97,9 +96,6 @@ function renderBox(box: ResolvedBox): string {
 }
 
 export interface RenderOptions {
-  templateId?: string;
-  /** Retained for callers that still pass the old name. */
-  style?: string;
   slideNumber?: number;
 }
 
