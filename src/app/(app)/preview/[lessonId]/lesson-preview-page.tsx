@@ -12,13 +12,16 @@ import {
   ArrowLeft,
   AlertTriangle,
   CheckCircle2,
+  FileDown,
+  BookOpen,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { courseDetailPath } from "@/lib/routes";
+import { courseDetailPath, lessonPreviewPath } from "@/lib/routes";
+import { usePptxDownload } from "@/hooks/use-pptx-download";
 import { QuizReviewPanel, type QuizPreview } from "@/components/lms/quiz/quiz-review-panel";
 
 // ============================================
@@ -27,6 +30,11 @@ import { QuizReviewPanel, type QuizPreview } from "@/components/lms/quiz/quiz-re
 // The instructor's review screen: the approved outline on the left, the
 // generated slide on the right, and the lesson's quiz behind a tab. Everything
 // here is pre-publication — this is the last look before students see it.
+//
+// It walks the same path a student does — lesson, then its quiz, then the next
+// lesson — because a review that cannot follow the route the class takes
+// cannot tell whether that route works. What differs is the purpose: a student
+// answers the quiz, an instructor reads and edits it.
 //
 // Clicking any text on a slide selects the content field behind it and offers
 // an instruction box. The edit changes that field alone; see
@@ -52,14 +60,31 @@ interface PreviewSection {
   order: number;
 }
 
+/** One lesson of the course, for stepping from this one to the next. */
+interface CourseLesson {
+  id: string;
+  title: string;
+  order: number;
+}
+
 interface PreviewData {
   id: string;
   title: string;
   course: { id: string; title: string; status: string };
+  lessons: CourseLesson[];
   template: { id: string; label: string };
   sections: PreviewSection[];
   slides: PreviewSlide[];
   quiz: QuizPreview | null;
+}
+
+/** What /api/lessons/[id]/progress reports while a lesson is being written. */
+interface LessonProgress {
+  stage: "slides" | "finishing" | "ready" | "failed";
+  done: boolean;
+  totalSlides: number;
+  readySlides: number;
+  errorSlides: number;
 }
 
 interface Selection {
@@ -71,6 +96,20 @@ interface Selection {
   y: number;
 }
 
+/** Which lesson the slide index and the open tab belong to.
+ *
+ *  Stepping to the next lesson keeps this component mounted, so a plain index
+ *  would carry slide 7 of the last lesson into a lesson with three slides.
+ *  Naming the lesson the view belongs to resets it without an effect. */
+interface ViewState {
+  lessonId: string;
+  index: number;
+  tab: "slides" | "quiz";
+}
+
+/** How often the page re-checks a lesson that is still being generated. */
+const PROGRESS_POLL_MS = 3000;
+
 export function LessonPreviewPage() {
   const router = useRouter();
   const { lessonId } = useParams<{ lessonId: string }>();
@@ -78,13 +117,38 @@ export function LessonPreviewPage() {
   const [data, setData] = useState<PreviewData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [index, setIndex] = useState(0);
-  const [tab, setTab] = useState<"slides" | "quiz">("slides");
+  const [progress, setProgress] = useState<LessonProgress | null>(null);
+
+  const [view, setView] = useState<ViewState>({ lessonId: "", index: 0, tab: "slides" });
+  const active: ViewState =
+    view.lessonId === lessonId ? view : { lessonId, index: 0, tab: "slides" };
+  const index = active.index;
+  const tab = active.tab;
+  const setIndex = useCallback(
+    (next: number | ((current: number) => number)) =>
+      setView((prev) => {
+        const base =
+          prev.lessonId === lessonId ? prev : { lessonId, index: 0, tab: "slides" as const };
+        return { ...base, index: typeof next === "function" ? next(base.index) : next };
+      }),
+    [lessonId],
+  );
+  const setTab = useCallback(
+    (next: "slides" | "quiz") =>
+      setView((prev) => {
+        const base =
+          prev.lessonId === lessonId ? prev : { lessonId, index: 0, tab: "slides" as const };
+        return { ...base, tab: next };
+      }),
+    [lessonId],
+  );
 
   const [selection, setSelection] = useState<Selection | null>(null);
   const [instruction, setInstruction] = useState("");
   const [editing, setEditing] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  const { downloadingLessonId, downloadLesson } = usePptxDownload();
 
   const load = useCallback(async () => {
     if (!lessonId) return;
@@ -106,8 +170,56 @@ export function LessonPreviewPage() {
     load();
   }, [load]);
 
+  // ─── "Is it still being written?" ─────────────
+  //
+  // Opening the preview straight after generation used to show whatever
+  // existed at that instant and never change again, so a deck the server was
+  // still reviewing looked finished — or half-empty — with nothing on screen
+  // to say otherwise. The statuses are cheap to read, so the page keeps asking
+  // until the workflow reports itself done, then reloads the lesson.
+  const wasDoneRef = useRef<boolean | null>(null);
+  useEffect(() => {
+    if (!lessonId) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setInterval> | null = null;
+    wasDoneRef.current = null;
+
+    const check = async () => {
+      try {
+        const res = await fetch(`/api/lessons/${lessonId}/progress`);
+        if (!res.ok) return;
+        const json = await res.json();
+        if (cancelled || !json.success) return;
+        const next = json.data as LessonProgress;
+        // The review pass rewrites slides, and the quiz only exists once the
+        // workflow ends, so the lesson is read again the moment it finishes.
+        if (wasDoneRef.current === false && next.done) void load();
+        wasDoneRef.current = next.done;
+        setProgress(next);
+        if (next.done && timer) {
+          clearInterval(timer);
+          timer = null;
+        }
+      } catch {
+        // A failed check just means the banner does not update this time.
+      }
+    };
+
+    void check();
+    timer = setInterval(check, PROGRESS_POLL_MS);
+    return () => {
+      cancelled = true;
+      if (timer) clearInterval(timer);
+    };
+  }, [lessonId, load]);
+
   const slides = useMemo(() => data?.slides ?? [], [data]);
-  const current = slides[index] ?? null;
+  const current = slides[Math.min(index, Math.max(0, slides.length - 1))] ?? null;
+
+  // Where this lesson sits in its course, and what comes after it.
+  const lessonPosition = data ? data.lessons.findIndex((l) => l.id === data.id) : -1;
+  const nextLesson =
+    data && lessonPosition >= 0 ? (data.lessons[lessonPosition + 1] ?? null) : null;
 
   /** Slides belonging to a section, so the outline can show its own slides. */
   const slidesOf = useCallback(
@@ -197,10 +309,22 @@ export function LessonPreviewPage() {
     }
   }, [current, selection, instruction, editing]);
 
-  if (loading) {
+  /** Move to the next lesson's review, starting at its first slide. */
+  const goToNextLesson = useCallback(() => {
+    if (!nextLesson) return;
+    router.push(lessonPreviewPath(nextLesson.id));
+  }, [nextLesson, router]);
+
+  if (loading && !data) {
+    // A deck of a dozen slides is a large document to read, so say what is
+    // being waited for rather than showing an unexplained spinner.
     return (
-      <div className="flex h-[60vh] items-center justify-center">
-        <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
+      <div className="flex h-[60vh] flex-col items-center justify-center gap-3">
+        <Loader2 className="text-primary h-8 w-8 animate-spin" />
+        <p className="text-foreground text-sm font-medium">Loading this lesson…</p>
+        <p className="text-muted-foreground text-xs">
+          Fetching the generated slides and their quiz.
+        </p>
       </div>
     );
   }
@@ -218,6 +342,11 @@ export function LessonPreviewPage() {
   }
 
   const readyCount = slides.filter((s) => s.status === "READY").length;
+  const generating = Boolean(progress && !progress.done);
+  const quizReady = data.quiz?.status === "READY";
+  // While the lesson is still being written, an absent quiz means "not yet",
+  // not "generate one" — the workflow is already doing exactly that.
+  const quizPending = generating && !quizReady;
 
   return (
     <main className="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6">
@@ -231,11 +360,39 @@ export function LessonPreviewPage() {
           <h1 className="text-foreground truncate text-xl font-bold">{data.title}</h1>
           <p className="text-muted-foreground truncate text-sm">
             {data.course.title} · {data.template.label} template
+            {lessonPosition >= 0 && (
+              <>
+                {" "}
+                · Lesson {lessonPosition + 1} of {data.lessons.length}
+              </>
+            )}
           </p>
         </div>
         <Badge variant={data.course.status === "published" ? "default" : "secondary"}>
           {data.course.status === "published" ? "Published" : "Draft — not yet visible"}
         </Badge>
+        {/* This lesson's own deck. Each lesson exports to its own file, so a
+            reviewer downloads the one they are looking at. */}
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-1.5"
+          onClick={() =>
+            downloadLesson(
+              { id: data.id, title: data.title },
+              { position: lessonPosition >= 0 ? lessonPosition + 1 : undefined },
+            )
+          }
+          disabled={downloadingLessonId !== null || readyCount === 0}
+          title={`Download “${data.title}” as a PowerPoint file`}
+        >
+          {downloadingLessonId === data.id ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <FileDown className="h-4 w-4" />
+          )}
+          Download PPT
+        </Button>
         <Button
           variant="outline"
           size="sm"
@@ -245,8 +402,26 @@ export function LessonPreviewPage() {
         </Button>
       </div>
 
-      {/* ─── Tabs ───────────────────────────────── */}
-      <div className="mb-4 flex gap-1">
+      {/* ─── Still generating ───────────────────── */}
+      {generating && progress && (
+        <div className="mb-4 flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-200">
+          <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin" />
+          <div className="min-w-0">
+            <p className="font-medium">
+              {progress.stage === "slides"
+                ? `Writing the slides — ${progress.readySlides + progress.errorSlides} of ${progress.totalSlides} done`
+                : `All ${progress.totalSlides} slides are written. Reviewing them and building the quiz…`}
+            </p>
+            <p className="mt-0.5 text-xs">
+              You can read and edit whatever is already here. This page updates itself as the rest
+              arrives — there is no need to refresh.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ─── The review path: slides, then quiz, then the next lesson ─── */}
+      <div className="mb-4 flex flex-wrap items-center gap-1">
         <Button
           variant={tab === "slides" ? "secondary" : "ghost"}
           size="sm"
@@ -259,6 +434,7 @@ export function LessonPreviewPage() {
             {readyCount}
           </Badge>
         </Button>
+        <ChevronRight className="text-muted-foreground/50 h-4 w-4" />
         <Button
           variant={tab === "quiz" ? "secondary" : "ghost"}
           size="sm"
@@ -267,18 +443,73 @@ export function LessonPreviewPage() {
         >
           <ListChecks className="h-4 w-4" />
           Quiz
-          {data.quiz?.status === "READY" ? (
+          {quizReady ? (
             <Badge variant="outline" className="ml-1">
-              {data.quiz.questions.length}
+              {data.quiz?.questions.length}
             </Badge>
+          ) : quizPending ? (
+            <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" />
           ) : (
             <AlertTriangle className="ml-1 h-3.5 w-3.5 text-amber-500" />
           )}
         </Button>
+        {nextLesson && (
+          <>
+            <ChevronRight className="text-muted-foreground/50 h-4 w-4" />
+            <Button variant="ghost" size="sm" className="gap-2" onClick={goToNextLesson}>
+              <BookOpen className="h-4 w-4" />
+              <span className="max-w-[16rem] truncate">Next lesson</span>
+            </Button>
+          </>
+        )}
       </div>
 
       {tab === "quiz" ? (
-        <QuizReviewPanel lessonId={data.id} quiz={data.quiz} onChanged={load} />
+        <div className="space-y-4">
+          {quizPending ? (
+            <div className="bg-card rounded-xl border p-8 text-center">
+              <Loader2 className="text-primary mx-auto h-8 w-8 animate-spin" />
+              <p className="text-foreground mt-3 font-medium">The quiz is being written</p>
+              <p className="text-muted-foreground mx-auto mt-1 max-w-md text-sm">
+                It is drawn from the finished slides, so it is the last part of the lesson to
+                arrive. It appears here on its own — nothing to press.
+              </p>
+            </div>
+          ) : (
+            <QuizReviewPanel lessonId={data.id} quiz={data.quiz} onChanged={load} />
+          )}
+
+          {/* Lesson → quiz → next lesson, the same order the class takes it in. */}
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-4">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => {
+                setTab("slides");
+                setIndex(Math.max(0, slides.length - 1));
+              }}
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Back to slides
+            </Button>
+            {nextLesson ? (
+              <Button size="sm" className="gap-1.5" onClick={goToNextLesson}>
+                <span className="max-w-[18rem] truncate">Next lesson: {nextLesson.title}</span>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                className="gap-1.5"
+                onClick={() => router.push(courseDetailPath(data.course.id))}
+              >
+                <CheckCircle2 className="h-4 w-4" />
+                Finish review
+              </Button>
+            )}
+          </div>
+        </div>
       ) : (
         /* ─── Outline | Slide ─────────────────── */
         <div className="grid gap-5 lg:grid-cols-[minmax(260px,340px)_1fr]">
@@ -309,13 +540,13 @@ export function LessonPreviewPage() {
                     <div className="mt-2 space-y-1">
                       {slidesOf(section.id).map((slide) => {
                         const position = slides.findIndex((s) => s.id === slide.id);
-                        const active = position === index;
+                        const isActive = position === index;
                         return (
                           <button
                             key={slide.id}
                             onClick={() => setIndex(position)}
                             className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors ${
-                              active
+                              isActive
                                 ? "bg-primary/10 text-primary font-medium"
                                 : "hover:bg-accent/50 text-muted-foreground"
                             }`}
@@ -356,8 +587,15 @@ export function LessonPreviewPage() {
                   onLoad={attachClickHandler}
                 />
               ) : (
-                <div className="text-muted-foreground flex aspect-video items-center justify-center text-sm">
-                  This lesson has no slides yet.
+                <div className="text-muted-foreground flex aspect-video flex-col items-center justify-center gap-2 text-sm">
+                  {generating ? (
+                    <>
+                      <Loader2 className="text-primary h-6 w-6 animate-spin" />
+                      The first slide is still being written…
+                    </>
+                  ) : (
+                    "This lesson has no slides yet."
+                  )}
                 </div>
               )}
             </div>
@@ -407,8 +645,11 @@ export function LessonPreviewPage() {
               </p>
             )}
 
-            {/* Slide navigation */}
-            <div className="flex items-center justify-between">
+            {/* Slide navigation.
+                The last slide leads to the quiz rather than to a dead end: the
+                quiz is part of the lesson, and reviewing one without the other
+                is how a lesson ships with a quiz nobody read. */}
+            <div className="flex items-center justify-between gap-2">
               <Button
                 variant="outline"
                 size="sm"
@@ -422,16 +663,22 @@ export function LessonPreviewPage() {
               <span className="text-muted-foreground text-sm tabular-nums">
                 Slide {slides.length === 0 ? 0 : index + 1} of {slides.length}
               </span>
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1.5"
-                onClick={() => setIndex((i) => Math.min(slides.length - 1, i + 1))}
-                disabled={index >= slides.length - 1}
-              >
-                Next
-                <ChevronRight className="h-4 w-4" />
-              </Button>
+              {index >= slides.length - 1 ? (
+                <Button size="sm" className="gap-1.5" onClick={() => setTab("quiz")}>
+                  <ListChecks className="h-4 w-4" />
+                  Continue to quiz
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={() => setIndex((i) => Math.min(slides.length - 1, i + 1))}
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              )}
             </div>
           </section>
         </div>

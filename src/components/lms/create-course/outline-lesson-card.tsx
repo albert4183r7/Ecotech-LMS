@@ -29,6 +29,16 @@ export interface SlideGenState {
   error?: string;
 }
 
+/**
+ * Which stage of "generate a lesson" is running.
+ *
+ * "quiz" covers everything that happens after the last slide reports READY:
+ * the review pass over the deck, and the quiz written from it. Both run for as
+ * long as the slides did, which is why the stage is named rather than folded
+ * into a single "generating".
+ */
+export type GenStage = "idle" | "slides" | "quiz";
+
 /** A planned section of the presentation. One section owns several slides. */
 export interface OutlineSectionDraft {
   id: string;
@@ -69,7 +79,9 @@ export interface OutlineLessonCardProps {
   currentGenSlideId: string | null;
   genProgress: { current: number; total: number };
   /** Which stage of the workflow is running, so the label matches the work. */
-  genStage?: "idle" | "slides" | "quiz";
+  genStage?: GenStage;
+  /** True while the generated slide HTML is on its way from the server. */
+  previewLoading?: boolean;
   onToggleExpand: () => void;
   onEditOutline: () => void;
   onUpdateSlideTitle: (slideId: string, newTitle: string) => void;
@@ -89,6 +101,7 @@ export function OutlineLessonCard({
   currentGenSlideId,
   genProgress,
   genStage,
+  previewLoading,
   onToggleExpand,
   onEditOutline,
   onUpdateSlideTitle,
@@ -112,6 +125,12 @@ export function OutlineLessonCard({
     const found = lesson.slides.find((s) => s.slideId && slideGenStates[s.slideId]?.htmlBody);
     return found?.slideId ? slideGenStates[found.slideId]?.htmlBody || "" : "";
   })();
+
+  // Everything after the last slide: the review pass and the quiz. The deck
+  // itself is finished, so it is shown rather than withheld until the whole
+  // workflow ends — which is minutes later on a long lesson.
+  const finishing = isGenerating && genStage === "quiz";
+  const showDeck = hasReadySlides && (!isGenerating || finishing);
 
   return (
     <div
@@ -143,17 +162,20 @@ export function OutlineLessonCard({
         <div className="min-w-0 flex-1">
           <p className="text-foreground truncate text-sm font-medium">{lesson.title}</p>
           <div className="text-muted-foreground mt-0.5 flex items-center gap-1.5 text-xs">
-            {allComplete ? (
+            {/* Work in progress is reported before "Ready": every slide is
+                complete during the review and quiz stages, so checking
+                allComplete first announced a lesson that was not finished. */}
+            {isGenerating ? (
+              <span className="bg-primary/10 text-primary inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium">
+                <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                {finishing
+                  ? `${genProgress.total} slides ready · writing the quiz`
+                  : `Generating ${genProgress.current}/${genProgress.total}`}
+              </span>
+            ) : allComplete ? (
               <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
                 <Check className="h-2.5 w-2.5" />
                 Ready
-              </span>
-            ) : isGenerating ? (
-              <span className="bg-primary/10 text-primary inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium">
-                <Loader2 className="h-2.5 w-2.5 animate-spin" />
-                {genStage === "quiz"
-                  ? "Reviewing and writing the quiz"
-                  : `Generating ${genProgress.current}/${genProgress.total}`}
               </span>
             ) : hasReadySlides ? (
               <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
@@ -207,18 +229,24 @@ export function OutlineLessonCard({
       {/* ---- Expanded content ---- */}
       {expanded && (
         <div className="border-border/40 space-y-3 border-t px-3 pt-2 pb-3">
-          {/* Generation progress bar */}
+          {/* Generation progress.
+              The bar tracked slides only, so once they were all written it sat
+              at 100% and said "Generating slide 12 of 12" for as long as the
+              review and the quiz took — which read as a hang. Each stage now
+              says what it is doing, and what the instructor can already do. */}
           {isGenerating && (
             <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs">
+              <div className="flex items-center justify-between gap-2 text-xs">
                 <span className="text-muted-foreground">
-                  Generating slide {genProgress.current} of {genProgress.total}...
+                  {finishing
+                    ? `All ${genProgress.total} slides are written. Reviewing them and writing the quiz…`
+                    : `Generating slide ${genProgress.current} of ${genProgress.total}...`}
                 </span>
                 <Button
                   size="sm"
                   variant="ghost"
                   onClick={onCancelGeneration}
-                  className="text-destructive hover:text-destructive h-6 gap-1 text-xs"
+                  className="text-destructive hover:text-destructive h-6 shrink-0 gap-1 text-xs"
                 >
                   <X className="h-3 w-3" />
                   Cancel
@@ -226,12 +254,21 @@ export function OutlineLessonCard({
               </div>
               <div className="bg-muted h-1.5 w-full overflow-hidden rounded-full">
                 <div
-                  className="bg-primary h-full rounded-full transition-all duration-500"
+                  className={`bg-primary h-full rounded-full transition-all duration-500 ${
+                    finishing ? "animate-pulse" : ""
+                  }`}
                   style={{
                     width: `${genProgress.total > 0 ? (genProgress.current / genProgress.total) * 100 : 0}%`,
                   }}
                 />
               </div>
+              {finishing && (
+                <p className="text-muted-foreground text-[11px] leading-relaxed">
+                  This last step usually takes a minute or two. The slides below are already
+                  finished — you can preview and edit them now, and the quiz appears here when it is
+                  written.
+                </p>
+              )}
             </div>
           )}
 
@@ -341,8 +378,12 @@ export function OutlineLessonCard({
 
           {/* Generated: a thumbnail here, and the full review a click away.
               The thumbnail alone showed only the first slide, which is not
-              enough to decide whether a lesson is fit to publish. */}
-          {!isGenerating && hasReadySlides && (
+              enough to decide whether a lesson is fit to publish.
+
+              This used to wait for the whole workflow, so a finished deck sat
+              hidden behind the review and quiz stages. It appears as soon as
+              the slides do. */}
+          {showDeck && (
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <p className="text-muted-foreground text-xs font-medium">
@@ -360,7 +401,7 @@ export function OutlineLessonCard({
                   </Button>
                 )}
               </div>
-              {lesson.slides.some((s) => s.slideId && slideGenStates[s.slideId]?.htmlBody) && (
+              {firstCompletedHtml ? (
                 <div className="border-border/40 overflow-hidden rounded-md border">
                   <iframe
                     srcDoc={firstCompletedHtml}
@@ -369,6 +410,16 @@ export function OutlineLessonCard({
                     style={{ aspectRatio: "16/9" }}
                     title={`Preview of ${lesson.title}`}
                   />
+                </div>
+              ) : (
+                /* The slides exist; their markup is still on its way. Saying so
+                   is the difference between "loading" and "broken". */
+                <div
+                  className="border-border/40 bg-muted/30 text-muted-foreground flex flex-col items-center justify-center gap-2 rounded-md border text-xs"
+                  style={{ aspectRatio: "16/9" }}
+                >
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  {previewLoading ? "Loading the slides…" : "Preparing the preview…"}
                 </div>
               )}
             </div>

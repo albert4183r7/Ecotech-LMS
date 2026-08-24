@@ -830,7 +830,7 @@ export function ClassroomPage() {
                   )}
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Download as PPT</TooltipContent>
+              <TooltipContent>Download this lesson as PPT</TooltipContent>
             </Tooltip>
           </div>
 

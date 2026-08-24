@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { DEFAULT_SLIDE_COUNT, DEFAULT_STYLE } from "@/lib/slide-styles";
 import type {
+  GenStage,
   OutlineLessonDraft,
   OutlineSlideDraft,
   SlideGenState,
@@ -24,6 +25,21 @@ import type { ReferenceFile } from "@/hooks/use-course-uploads";
 // draft-save it needs before an outline can be attached all arrive as
 // arguments, so this never writes to the form.
 // ============================================
+
+/** How often the page asks the server where generation has got to. */
+const POLL_INTERVAL_MS = 1500;
+
+/** The answer /api/lessons/[id]/progress gives: statuses, never markup. */
+interface LessonProgress {
+  stage: "slides" | "finishing" | "ready" | "failed";
+  done: boolean;
+  totalSlides: number;
+  readySlides: number;
+  errorSlides: number;
+  generatingSlideId: string | null;
+  slides: { id: string; title: string; status: string; order: number }[];
+  quiz: { id: string; status: string; error: string | null; questionCount: number } | null;
+}
 
 export interface UseLessonWorkflowOptions {
   /** The saved course, or null before the first save. */
@@ -65,11 +81,49 @@ export function useLessonWorkflow({
   const [slideGenStates, setSlideGenStates] = useState<Record<string, SlideGenState>>({});
   // Which stage of the generation workflow is running, so the UI can say
   // "writing the quiz" rather than appearing to hang after the last slide.
-  const [genStage, setGenStage] = useState<"idle" | "slides" | "quiz">("idle");
+  const [genStage, setGenStage] = useState<GenStage>("idle");
   const [currentGenSlideId, setCurrentGenSlideId] = useState<string | null>(null);
   const [genProgress, setGenProgress] = useState({ current: 0, total: 0 });
+  // True while the generated HTML is being fetched, so the card can say the
+  // deck is loading instead of showing an empty space where it will appear.
+  const [slidesLoading, setSlidesLoading] = useState(false);
   const abortGenRef = useRef<AbortController | null>(null);
   const slideGenStatesRef = useRef<Record<string, SlideGenState>>({});
+  /** The running progress poll, so it can be stopped from anywhere. */
+  const pollControlRef = useRef<{ stop: () => void } | null>(null);
+
+  // ---- Slide HTML, fetched only when there is something new to show ----
+  //
+  // Polling used to read /api/lessons/[id], which returns every slide's full
+  // HTML document. That answer grew with the deck and was re-sent every few
+  // seconds, so "the slides are ready" reached the page long after they were.
+  // The poll now reads statuses only, and the markup is fetched here: once as
+  // soon as the first slide is ready, and once more at the end, because the
+  // review pass rewrites some slides after they first report READY.
+  const loadSlideHtml = useCallback(async (lessonId: string) => {
+    setSlidesLoading(true);
+    try {
+      const res = await fetch(`/api/lessons/${lessonId}`);
+      const json = await res.json();
+      if (!json.success || !Array.isArray(json.data?.slides)) return;
+      const html = new Map<string, string>(
+        (json.data.slides as { id: string; htmlBody?: string; status: string }[])
+          .filter((s) => s.status === "READY" && s.htmlBody)
+          .map((s) => [s.id, s.htmlBody as string]),
+      );
+      setSlideGenStates((prev) => {
+        const merged: Record<string, SlideGenState> = { ...prev };
+        for (const [id, htmlBody] of html) {
+          merged[id] = { ...(merged[id] ?? { status: "complete" }), status: "complete", htmlBody };
+        }
+        return merged;
+      });
+    } catch (error) {
+      console.error("[generate-slides] Could not load slide HTML:", error);
+    } finally {
+      setSlidesLoading(false);
+    }
+  }, []);
 
   // Keep ref in sync with state for polling callbacks
   useEffect(() => {
@@ -288,6 +342,172 @@ export function useLessonWorkflow({
   // GENERATE SLIDES — Polling approach (proxy-safe)
   // ============================================
 
+  /**
+   * Follow one lesson through generation until the server says it is finished.
+   *
+   * Kept apart from starting a generation because the two are not the same
+   * thing: reopening a course whose lesson is still being written has to watch
+   * it without starting it again.
+   */
+  const startProgressPolling = useCallback(
+    (lessonId: string) => {
+      // One lesson at a time; a second loop would fight the first for state.
+      pollControlRef.current?.stop();
+
+      let stopped = false;
+      let pollInterval: ReturnType<typeof setInterval> | null = null;
+      // Whether the markup of the first finished slide has been asked for.
+      let htmlRequested = false;
+
+      const stop = () => {
+        stopped = true;
+        if (pollInterval) clearInterval(pollInterval);
+        pollInterval = null;
+      };
+
+      const poll = async () => {
+        try {
+          const pollRes = await fetch(`/api/lessons/${lessonId}/progress`);
+          const pollJson = await pollRes.json();
+          if (stopped || !pollJson.success || !pollJson.data?.slides) return;
+          const progress = pollJson.data as LessonProgress;
+
+          const nextStates: Record<string, SlideGenState> = {};
+          for (const slide of progress.slides) {
+            const previous = slideGenStatesRef.current[slide.id];
+            if (slide.status === "GENERATING") {
+              nextStates[slide.id] = { status: "generating", htmlBody: previous?.htmlBody };
+            } else if (slide.status === "READY") {
+              // The markup arrives from loadSlideHtml, not from the poll —
+              // carrying it here is what made every poll a full deck download.
+              nextStates[slide.id] = { status: "complete", htmlBody: previous?.htmlBody };
+            } else if (slide.status === "ERROR") {
+              nextStates[slide.id] = { status: "error", error: "Generation failed" };
+            } else {
+              nextStates[slide.id] = previous ?? { status: "pending" };
+            }
+          }
+
+          slideGenStatesRef.current = nextStates;
+          setSlideGenStates((prev) => ({ ...prev, ...nextStates }));
+
+          setCurrentGenSlideId(progress.generatingSlideId);
+          setGenProgress({
+            current: progress.readySlides + progress.errorSlides,
+            total: progress.totalSlides,
+          });
+          // Slides are only the first stage. The deck is reviewed and the quiz
+          // written from it afterwards, in the same server-side workflow, so
+          // declaring success at the last slide left the instructor on a
+          // preview with no quiz — and naming the stage is what stops a
+          // finished deck from looking stuck.
+          setGenStage(progress.done ? "idle" : progress.stage === "slides" ? "slides" : "quiz");
+
+          // Show the deck the moment there is one, rather than at the end of a
+          // workflow whose remaining stages take as long as the slides did.
+          if (!htmlRequested && progress.readySlides > 0) {
+            htmlRequested = true;
+            void loadSlideHtml(lessonId);
+          }
+
+          if (progress.done) {
+            stop();
+            setGeneratingLessonId(null);
+            setGenStage("idle");
+            setCurrentGenSlideId(null);
+            abortGenRef.current = null;
+
+            // The review pass revises slides after they first report READY, so
+            // the finished deck is read once more here.
+            void loadSlideHtml(lessonId);
+
+            const { readySlides, errorSlides, totalSlides, quiz } = progress;
+            if (errorSlides > 0) {
+              toast.warning(
+                `${readySlides} of ${totalSlides} slides generated. ${errorSlides} failed.`,
+              );
+            } else if (quiz?.status === "ERROR") {
+              toast.warning(
+                `All ${readySlides} slides generated, but the quiz could not be built. You can retry it from the preview.`,
+              );
+            } else {
+              toast.success(
+                `All ${readySlides} slides generated` +
+                  (quiz?.questionCount ? `, with a ${quiz.questionCount}-question quiz.` : "."),
+              );
+            }
+
+            setOutlineLessons((prev) =>
+              prev.map((ol) =>
+                ol.id === lessonId ? { ...ol, allReady: readySlides === totalSlides } : ol,
+              ),
+            );
+          }
+        } catch (pollErr) {
+          console.error("[generate-slides] Poll error:", pollErr);
+        }
+      };
+
+      pollInterval = setInterval(poll, POLL_INTERVAL_MS);
+      // And once straight away: the first slide of a short deck can be ready
+      // before the first interval elapses.
+      void poll();
+
+      pollControlRef.current = { stop };
+      abortGenRef.current = {
+        abort: () => {
+          stop();
+          setGeneratingLessonId(null);
+          setGenStage("idle");
+          setCurrentGenSlideId(null);
+        },
+      } as unknown as AbortController;
+    },
+    [loadSlideHtml],
+  );
+
+  // Stop watching when the page goes away.
+  useEffect(() => () => pollControlRef.current?.stop(), []);
+
+  // ---- Pick a reopened course's generation back up ----
+  //
+  // Generation runs on the server and outlives the page, so leaving Create
+  // Course — to preview a lesson, say — and coming back used to show a lesson
+  // frozen at whatever it had reached, with nothing saying more was on its way.
+  useEffect(() => {
+    if (!loadedLessons) return;
+    let cancelled = false;
+
+    (async () => {
+      for (const lesson of loadedLessons.lessons) {
+        if (cancelled) return;
+        try {
+          const res = await fetch(`/api/lessons/${lesson.id}/progress`);
+          if (!res.ok) continue;
+          const json = await res.json();
+          if (cancelled) return;
+          if (!json.success) continue;
+          const progress = json.data as LessonProgress;
+          if (progress.done || progress.totalSlides === 0) continue;
+          // A lesson whose slides are all still outlines has not been started;
+          // watching it would report progress nobody asked for.
+          if (progress.readySlides === 0 && !progress.generatingSlideId) continue;
+
+          setGeneratingLessonId(lesson.id);
+          setExpandedOutlineLessonId(lesson.id);
+          startProgressPolling(lesson.id);
+          return;
+        } catch {
+          // A lesson whose progress cannot be read is simply left alone.
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [loadedLessons, startProgressPolling]);
+
   const handleGenerateSlides = useCallback(
     async (lessonId: string) => {
       const lesson = outlineLessons.find((l) => l.id === lessonId);
@@ -305,6 +525,7 @@ export function useLessonWorkflow({
         }
       });
       setSlideGenStates(initialStates);
+      slideGenStatesRef.current = initialStates;
       setGeneratingLessonId(lessonId);
       setGenStage("slides");
       setCurrentGenSlideId(null);
@@ -333,142 +554,7 @@ export function useLessonWorkflow({
           return;
         }
 
-        // Poll for slide status every 3 seconds
-        const totalSlides = json.data.totalSlides;
-        let completedCount = 0;
-        let errorCount = 0;
-        let pollInterval: ReturnType<typeof setInterval> | null = null;
-        let stopped = false;
-
-        const poll = async () => {
-          try {
-            const pollRes = await fetch(`/api/lessons/${lessonId}`);
-            const pollJson = await pollRes.json();
-            if (!pollJson.success || !pollJson.data?.slides) return;
-
-            const dbSlides = pollJson.data.slides;
-            let currentGenId: string | null = null;
-            let newCompleted = 0;
-            let newErrors = 0;
-
-            const newStates: Record<string, SlideGenState> = {};
-            for (const s of dbSlides) {
-              const prevState = slideGenStatesRef.current[s.id];
-              if (s.status === "GENERATING") {
-                currentGenId = s.id;
-                newStates[s.id] = { status: "generating" };
-              } else if (s.status === "READY") {
-                newCompleted++;
-                // Fetch the htmlBody from DB for completed slides
-                newStates[s.id] = {
-                  status: "complete",
-                  htmlBody: prevState?.htmlBody || s.htmlBody || "",
-                };
-              } else if (s.status === "ERROR") {
-                newErrors++;
-                newStates[s.id] = { status: "error", error: "Generation failed" };
-              } else {
-                newStates[s.id] = prevState || { status: "pending" };
-              }
-            }
-
-            // Merge with existing states to preserve already-loaded htmlBody
-            setSlideGenStates((prev) => {
-              const merged: Record<string, SlideGenState> = {};
-              for (const [id, state] of Object.entries(prev)) {
-                merged[id] = state;
-              }
-              for (const [id, state] of Object.entries(newStates)) {
-                // For READY slides, fetch htmlBody if we don't have it yet
-                if (state.status === "complete" && !state.htmlBody) {
-                  const dbSlide = dbSlides.find((s) => s.id === id);
-                  merged[id] = { ...state, htmlBody: dbSlide?.htmlBody || "" };
-                } else {
-                  merged[id] = state;
-                }
-              }
-              return merged;
-            });
-
-            if (currentGenId) {
-              setCurrentGenSlideId(currentGenId);
-            }
-
-            completedCount = newCompleted;
-            errorCount = newErrors;
-            setGenProgress({ current: newCompleted + newErrors, total: totalSlides });
-
-            // Slides are only the first stage. The quiz is written from them
-            // afterwards, in the same server-side workflow, so declaring
-            // success here left the instructor on a preview with no quiz and
-            // a button suggesting they generate it by hand.
-            const slidesDone = newCompleted + newErrors >= totalSlides;
-            const quiz = pollJson.data.quiz as {
-              status: string;
-              questionCount: number;
-              error: string | null;
-            } | null;
-            const quizSettled = quiz?.status === "READY" || quiz?.status === "ERROR";
-            // A lesson whose slides all failed never starts a quiz, so waiting
-            // for one would hang the UI.
-            const quizExpected = newCompleted > 0;
-            const allDone = slidesDone && (!quizExpected || quizSettled);
-
-            if (slidesDone && !quizSettled && quizExpected) {
-              setGenStage("quiz");
-            }
-
-            if (allDone && !stopped) {
-              stopped = true;
-              if (pollInterval) clearInterval(pollInterval);
-              setGeneratingLessonId(null);
-              setGenStage("idle");
-              setCurrentGenSlideId(null);
-              setGenStage("idle");
-              abortGenRef.current = null;
-
-              if (newErrors > 0) {
-                toast.warning(
-                  `${newCompleted} of ${totalSlides} slides generated. ${newErrors} failed.`,
-                );
-              } else if (quiz?.status === "ERROR") {
-                toast.warning(
-                  `All ${newCompleted} slides generated, but the quiz could not be built. You can retry it from the preview.`,
-                );
-              } else {
-                toast.success(
-                  `All ${newCompleted} slides generated` +
-                    (quiz?.questionCount ? `, with a ${quiz.questionCount}-question quiz.` : "."),
-                );
-              }
-
-              setOutlineLessons((prev) =>
-                prev.map((ol) =>
-                  ol.id === lessonId ? { ...ol, allReady: newCompleted === totalSlides } : ol,
-                ),
-              );
-            }
-          } catch (pollErr) {
-            console.error("[generate-slides] Poll error:", pollErr);
-          }
-        };
-
-        // Store ref for polling access
-        slideGenStatesRef.current = initialStates;
-        pollInterval = setInterval(poll, 3000);
-        // Also poll immediately after a short delay
-        setTimeout(poll, 2000);
-
-        // Store interval ref for cleanup on cancel
-        abortGenRef.current = {
-          abort: () => {
-            stopped = true;
-            if (pollInterval) clearInterval(pollInterval);
-            setGeneratingLessonId(null);
-            setGenStage("idle");
-            setCurrentGenSlideId(null);
-          },
-        } as unknown as AbortController;
+        startProgressPolling(lessonId);
       } catch {
         toast.error("Failed to generate slides. Please try again.");
         setGeneratingLessonId(null);
@@ -477,11 +563,12 @@ export function useLessonWorkflow({
         abortGenRef.current = null;
       }
     },
-    [outlineLessons],
+    [outlineLessons, startProgressPolling],
   );
 
   const handleCancelGeneration = () => {
     abortGenRef.current?.abort();
+    pollControlRef.current?.stop();
     setGeneratingLessonId(null);
     setGenStage("idle");
     setCurrentGenSlideId(null);
@@ -529,6 +616,7 @@ export function useLessonWorkflow({
     genStage,
     currentGenSlideId,
     genProgress,
+    slidesLoading,
     // actions
     handleOpenModal,
     handleGenerateOutline,

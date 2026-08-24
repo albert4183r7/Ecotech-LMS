@@ -39,6 +39,15 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     });
     if (!lesson) return ok(null);
 
+    // The other lessons of the same course, so the review can run the way a
+    // student does: this lesson, then its quiz, then the next lesson. Titles
+    // only — the next lesson's slides are fetched when it is opened.
+    const courseLessons = await db.lesson.findMany({
+      where: { courseId: lesson.courseId },
+      orderBy: { order: "asc" },
+      select: { id: true, title: true, order: true },
+    });
+
     const template = SLIDE_TEMPLATE;
 
     return ok({
@@ -46,6 +55,8 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       title: lesson.title,
       order: lesson.order,
       course: lesson.course,
+      /** Every lesson of the course, in order, including this one. */
+      lessons: courseLessons,
       template: { id: template.id, label: template.label },
       sections: lesson.sections.map((section) => ({
         id: section.id,
