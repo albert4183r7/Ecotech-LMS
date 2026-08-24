@@ -40,21 +40,22 @@ interface TaskModel {
 }
 
 /**
- * Open-weight models, run locally through Ollama.
+ * Hosted models, reached through the gateway in ./provider.ts.
  *
- * Qwen2.5-Instruct does the structured work: of the freely available models it
- * is the most reliable at holding to a JSON schema, which is what most of this
- * project asks for. The 14B carries the tasks whose output is long or has to
- * satisfy tight length limits; the 7B carries the short, decidable ones, where
- * the larger model buys nothing.
+ * Every id here has to be one the gateway actually lists — it is passed
+ * through verbatim — and every one has a MODEL_* override, so a deployment on
+ * a different gateway can move a task without editing this file.
  *
- * Llama 3.1 8B answers the learner, because that is a conversation and latency
- * is what the student feels. Llama 3.2 Vision is here because the visual
- * evaluator sends screenshots, and it is the only one of these that can see.
+ * The split is the same idea as on the open-source branch: the strongest model
+ * carries the tasks whose output is long, tightly constrained, or a critique
+ * worth reading, and a cheaper, faster one carries the short decidable jobs
+ * and the conversation a student waits on. Running everything on one model is
+ * a supported choice — set the ten variables and it works — but most of these
+ * calls do not need the largest model, and here they are billed.
  */
 export const TASK_MODELS: Record<AiTask, TaskModel> = {
   "outline-planning": {
-    model: "qwen2.5:14b-instruct",
+    model: "claude-opus-5",
     envVar: "MODEL_OUTLINE_PLANNING",
     rationale:
       "Reads a reference document and plans the lesson's sections and slide budget. " +
@@ -62,45 +63,45 @@ export const TASK_MODELS: Record<AiTask, TaskModel> = {
       "has to satisfy per-field length limits that a weaker model overruns.",
   },
   "slide-authoring": {
-    model: "qwen2.5:14b-instruct",
+    model: "claude-opus-5",
     envVar: "MODEL_SLIDE_AUTHORING",
     rationale:
       "Writes each slide's content to the character budget its chosen template " +
       "layout allows. Constrained writing where overrunning a limit costs a retry.",
   },
   "slide-field-edit": {
-    model: "qwen2.5:7b-instruct",
+    model: "claude-sonnet-5",
     envVar: "MODEL_SLIDE_FIELD_EDIT",
     rationale:
       "Rewrites one field of one slide on an instruction. A small, local edit " +
-      "returning a short object; the larger model adds latency and nothing else.",
+      "returning a short object; the stronger model buys nothing and bills more.",
   },
   "slide-html-legacy": {
-    model: "qwen2.5:14b-instruct",
+    model: "claude-opus-5",
     envVar: "MODEL_SLIDE_HTML",
     rationale:
       "Writes raw slide HTML for the agent's authoring tools. Long output that has " +
       "to stay inside a tag and class allowlist.",
   },
   "quiz-authoring": {
-    model: "qwen2.5:14b-instruct",
+    model: "claude-opus-5",
     envVar: "MODEL_QUIZ_AUTHORING",
     rationale:
       "Writes multiple-choice questions grounded in one lesson, each quoting the " +
       "sentence it came from. Needs to hold a nested schema and stay inside the " +
-      "source text; the smaller model invents plausible distractors that are not " +
-      "in the lesson.",
+      "source text; a weaker model invents plausible distractors that are not in " +
+      "the lesson.",
   },
   "quiz-grounding-judge": {
-    model: "qwen2.5:7b-instruct",
+    model: "claude-sonnet-5",
     envVar: "MODEL_QUIZ_JUDGE",
     rationale:
       "Decides whether a question is answerable from the lesson. A verdict with a " +
-      "reason, not composition — well inside what the 7B does reliably, and it runs " +
-      "once per question so cost matters.",
+      "reason, not composition — well inside what the cheaper model does reliably, " +
+      "and it runs once per question, so cost matters.",
   },
   "content-evaluation": {
-    model: "qwen2.5:14b-instruct",
+    model: "claude-opus-5",
     envVar: "MODEL_CONTENT_EVALUATION",
     rationale:
       "Reviews a generated lesson for accuracy and teaching quality and writes the " +
@@ -108,15 +109,16 @@ export const TASK_MODELS: Record<AiTask, TaskModel> = {
       "specific, which is where model size shows.",
   },
   "visual-evaluation": {
-    model: "llama3.2-vision:11b",
+    model: "claude-opus-5",
     envVar: "MODEL_VISUAL_EVALUATION",
     rationale:
       "Looks at screenshots of rendered slides for clipping and overlap. Must be " +
-      "multimodal, which rules out every Qwen2.5 text model above.",
+      "multimodal — every model here is, so this flag travels with the task rather " +
+      "than constraining it.",
     multimodal: true,
   },
   "agent-tool-loop": {
-    model: "qwen2.5:14b-instruct",
+    model: "claude-opus-5",
     envVar: "MODEL_AGENT_TOOL_LOOP",
     rationale:
       "Drives the agent runtime, choosing which tool to call next. Needs function " +
@@ -124,12 +126,12 @@ export const TASK_MODELS: Record<AiTask, TaskModel> = {
     tools: true,
   },
   "lesson-tutor": {
-    model: "llama3.1:8b",
+    model: "claude-sonnet-5",
     envVar: "MODEL_LESSON_TUTOR",
     rationale:
       "Answers the student's questions about the lesson they have open, streaming. " +
       "The one task a person waits on directly, so responsiveness outweighs the " +
-      "extra quality of a larger model on what is a short, grounded answer.",
+      "extra quality of the stronger model on what is a short, grounded answer.",
   },
 };
 

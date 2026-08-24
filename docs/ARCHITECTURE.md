@@ -146,25 +146,22 @@ spells it: `invoke()` for structured JSON, `stream()` for the tutor and slide
 HTML, `bindTools()` for the agent turn, and content blocks for the images the
 visual evaluator sends.
 
-The active integration is `@langchain/ollama`, running open-weight models
-locally. No API key is involved. `provider.ts` builds a `ChatOllama` per task,
-cached by model and settings, since each holds a connection.
+On this branch the integration is `@langchain/openai`, pointed at an
+OpenAI-compatible gateway and authenticated with `ECOAPI_API_KEY`.
+`provider.ts` builds a `ChatOpenAI` per task, cached by model and settings,
+since each holds a connection.
 
 Two things are deliberately _not_ delegated to the framework.
 `withStructuredOutput()` is not used, because it reports a parse failure and
 gives nothing to act on, and the hand-written retry in `structured.ts` is what
 makes a rejected outline recoverable: it hands the model its own output and the
 exact validation errors. And LangChain's own retry is switched off
-(`maxRetries: 0`), because a blind repeat of a slow local generation costs
-minutes and changes nothing.
+(`maxRetries: 0`), because a blind repeat of a failed call is billed exactly
+like the first one and is no more likely to succeed.
 
-The same file is where the API-key mode goes; see below, and the README's
-[Two ways to run the models](../README.md#two-ways-to-run-the-models) for the
-switch in either direction.
-
-Error classification is per mode, because the failures differ: locally there is
-no quota and no key to get wrong, but the server may not be running and the
-model may not have been pulled. Those are what it reports.
+Error classification is per branch, because the failures differ: here they are
+the ones a key and a bill bring — an exhausted quota, a key that is wrong or
+expired, a model id the gateway does not sell.
 
 ### Model per task
 
@@ -172,36 +169,36 @@ Ten distinct kinds of model call, and they do not want the same model. Planning
 an outline over a reference document and deciding whether a quiz question is
 answerable from its lesson are different jobs.
 
-| Task                   | Model                  | Why this one                                                                                                          | Override                   |
-| ---------------------- | ---------------------- | --------------------------------------------------------------------------------------------------------------------- | -------------------------- |
-| `outline-planning`     | `qwen2.5:14b-instruct` | Longest context and most reasoning here; output must satisfy per-field length limits a weaker model overruns          | `MODEL_OUTLINE_PLANNING`   |
-| `slide-authoring`      | `qwen2.5:14b-instruct` | Writes to the character budget its chosen layout allows; overrunning costs a retry                                    | `MODEL_SLIDE_AUTHORING`    |
-| `slide-html-legacy`    | `qwen2.5:14b-instruct` | Long output that has to stay inside a tag and class allowlist                                                         | `MODEL_SLIDE_HTML`         |
-| `quiz-authoring`       | `qwen2.5:14b-instruct` | Nested schema, and must stay inside the source text — the 7B invents plausible distractors that are not in the lesson | `MODEL_QUIZ_AUTHORING`     |
-| `content-evaluation`   | `qwen2.5:14b-instruct` | Critique is only useful if specific, which is where model size shows                                                  | `MODEL_CONTENT_EVALUATION` |
-| `agent-tool-loop`      | `qwen2.5:14b-instruct` | Needs function calling and enough judgement to stop                                                                   | `MODEL_AGENT_TOOL_LOOP`    |
-| `slide-field-edit`     | `qwen2.5:7b-instruct`  | One short field; the larger model adds latency and nothing else                                                       | `MODEL_SLIDE_FIELD_EDIT`   |
-| `quiz-grounding-judge` | `qwen2.5:7b-instruct`  | A verdict with a reason, not composition — and it runs once per question                                              | `MODEL_QUIZ_JUDGE`         |
-| `lesson-tutor`         | `llama3.1:8b`          | The one task a person waits on directly; responsiveness beats the extra quality on a short grounded answer            | `MODEL_LESSON_TUTOR`       |
-| `visual-evaluation`    | `llama3.2-vision:11b`  | Sends screenshots. The only task that needs to see                                                                    | `MODEL_VISUAL_EVALUATION`  |
+| Task                   | Model             | Why this one                                                                                                 | Override                   |
+| ---------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------ | -------------------------- |
+| `outline-planning`     | `claude-opus-5`   | Longest context and most reasoning here; output must satisfy per-field length limits a weaker model overruns | `MODEL_OUTLINE_PLANNING`   |
+| `slide-authoring`      | `claude-opus-5`   | Writes to the character budget its chosen layout allows; overrunning costs a retry                           | `MODEL_SLIDE_AUTHORING`    |
+| `slide-html-legacy`    | `claude-opus-5`   | Long output that has to stay inside a tag and class allowlist                                                | `MODEL_SLIDE_HTML`         |
+| `quiz-authoring`       | `claude-opus-5`   | Nested schema, and must stay inside the source text — a weaker model invents distractors that are not in it  | `MODEL_QUIZ_AUTHORING`     |
+| `content-evaluation`   | `claude-opus-5`   | Critique is only useful if specific, which is where model strength shows                                     | `MODEL_CONTENT_EVALUATION` |
+| `agent-tool-loop`      | `claude-opus-5`   | Needs function calling and enough judgement to stop                                                          | `MODEL_AGENT_TOOL_LOOP`    |
+| `visual-evaluation`    | `claude-opus-5`   | Sends screenshots. The only task that must see                                                               | `MODEL_VISUAL_EVALUATION`  |
+| `slide-field-edit`     | `claude-sonnet-5` | One short field; the stronger model buys nothing and bills more                                              | `MODEL_SLIDE_FIELD_EDIT`   |
+| `quiz-grounding-judge` | `claude-sonnet-5` | A verdict with a reason, not composition — and it runs once per question                                     | `MODEL_QUIZ_JUDGE`         |
+| `lesson-tutor`         | `claude-sonnet-5` | The one task a person waits on directly; responsiveness beats the extra quality on a short grounded answer   | `MODEL_LESSON_TUTOR`       |
 
-Qwen2.5-Instruct does the structured work because of the freely available models
-it is the most reliable at holding to a JSON schema, which is what most of this
-project asks for. The 14B carries the tasks whose output is long or tightly
-constrained; the 7B carries the short, decidable ones.
+The ids are passed to the gateway verbatim, so they have to be ids it lists;
+the defaults assume it sells Anthropic's models. Running all ten on one model
+is a supported choice — set the ten variables and the registry defers to them.
+The split is here because most of these calls do not need the strongest model
+and every one of them is billed.
 
 `src/lib/ai/models.ts` is the source of truth for this table.
 
-### The API-key mode
+### The other mode
 
-The provider is chosen by branch, not by configuration. `claude/llm-open-source`
-holds the `ChatOllama` implementation above; `claude/llm-api-key` holds a
-LangChain `ChatOpenAI` against a gateway, exporting the same `getChatModel` and
-`throwFriendlyError`, so nothing above `provider.ts` differs between them — and
-no package is installed either way, since both LangChain integrations are
-dependencies on every branch. Five files carry the whole difference; the
-README's [Two ways to run the models](../README.md#two-ways-to-run-the-models)
-lists them, and says how to carry shared work across.
+This branch holds the `ChatOpenAI` implementation. `claude/llm-open-source`
+holds a `ChatOllama` against a local Ollama server, exporting the same
+`getChatModel` and `throwFriendlyError`, so nothing above `provider.ts` differs
+between the two — and no package is installed either way, since both LangChain
+integrations are dependencies on every branch. The README's
+[This branch runs hosted models](../README.md#this-branch-runs-hosted-models-behind-an-api-key)
+says which five files carry the difference.
 
 `src/lib/ai/previous-providers.ts` keeps the Gemini implementation, through
 `@google/genai`, commented rather than deleted. It predates LangChain, so

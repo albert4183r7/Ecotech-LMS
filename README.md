@@ -5,25 +5,25 @@ instructor describes a topic, chooses a slide count and a language, and optional
 uploads reference documents; the system plans the presentation as logical sections,
 shows that plan for review, and then generates every slide.
 
-Built with Next.js 16 (App Router), Prisma + SQLite, and LangChain over
-open-source models run locally through Ollama — with a hosted, API-key provider
-one branch away.
+Built with Next.js 16 (App Router), Prisma + SQLite, and LangChain over hosted
+models reached with an API key — with a local, open-source provider one branch
+away.
 
 ---
 
 ## Stack
 
-| Layer     | Choice                                                  |
-| --------- | ------------------------------------------------------- |
-| Framework | Next.js 16 (App Router), React 19, TypeScript 5         |
-| Styling   | Tailwind CSS v4, shadcn/ui (Radix primitives)           |
-| Data      | Prisma 6 + SQLite                                       |
-| State     | Zustand (`src/stores/lms-store.ts`)                     |
-| AI        | LangChain — `@langchain/core`, `@langchain/ollama`      |
-| LLM       | Open-source models via Ollama — one per task, see below |
-| Rendering | Playwright (headless Chromium) for slide rasterisation  |
-| Export    | `pptxgenjs`                                             |
-| Runtime   | Node.js 20+ / npm                                       |
+| Layer     | Choice                                                                   |
+| --------- | ------------------------------------------------------------------------ |
+| Framework | Next.js 16 (App Router), React 19, TypeScript 5                          |
+| Styling   | Tailwind CSS v4, shadcn/ui (Radix primitives)                            |
+| Data      | Prisma 6 + SQLite                                                        |
+| State     | Zustand (`src/stores/lms-store.ts`)                                      |
+| AI        | LangChain — `@langchain/core`, `@langchain/openai`                       |
+| LLM       | Hosted models via an OpenAI-compatible gateway — one per task, see below |
+| Rendering | Playwright (headless Chromium) for slide rasterisation                   |
+| Export    | `pptxgenjs`                                                              |
+| Runtime   | Node.js 20+ / npm                                                        |
 
 ## Features
 
@@ -72,18 +72,15 @@ runs which AI task — is in **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
 ### Prerequisites
 
 - Node.js 20 or newer
-- [Ollama](https://ollama.com), for the models. No API key is needed.
+- An API key for an OpenAI-compatible gateway. The default is
+  [EcoAPI](https://www.ecoapi.ai/api); any endpoint that speaks that surface
+  works.
 
 ### 1. Install
 
 ```bash
 npm install
 npx playwright install chromium
-
-ollama pull qwen2.5:14b-instruct     # planning, authoring, evaluation
-ollama pull qwen2.5:7b-instruct      # short edits and judgements
-ollama pull llama3.1:8b              # the lesson assistant
-ollama pull llama3.2-vision:11b      # visual evaluation
 ```
 
 Chromium is required for slide rendering, the visual critic and the PPTX export. If it
@@ -98,23 +95,26 @@ cp .env.example .env
 ```
 DATABASE_URL=file:../db/custom.db
 SESSION_SECRET=a-32-character-or-longer-random-string
+ECOAPI_API_KEY=sk-...
 ```
 
-Nothing else is required: Ollama needs no key, and every model has a default.
+The key is required on this branch — every model call goes through the gateway,
+so a missing key is a startup error on the first generation rather than a
+silent fallback.
 
 > **The `..` is deliberate.** Prisma resolves a relative SQLite path from
 > `prisma/schema.prisma`, not the project root, so `file:./db/custom.db` would create
 > `prisma/db/custom.db` and leave the intended database untouched. See `db/README.md`.
 
-| Variable                   | Default                  | Purpose                                                    |
-| -------------------------- | ------------------------ | ---------------------------------------------------------- |
-| `DATABASE_URL`             | —                        | SQLite path, relative to `prisma/`                         |
-| `SESSION_SECRET`           | —                        | Signs session cookies; 32+ chars, required in prod         |
-| `OLLAMA_BASE_URL`          | `http://127.0.0.1:11434` | Where Ollama is; a trailing `/v1` is accepted and stripped |
-| `OLLAMA_MAX_TOKENS`        | `4096`                   | Ceiling for one generation                                 |
-| `OLLAMA_API_KEY`           | unset                    | Only if Ollama sits behind an authenticating proxy         |
-| `MODEL_*` (ten of them)    | see below                | Move one AI task to a different model                      |
-| `CHROMIUM_EXECUTABLE_PATH` | unset                    | System Chromium for the renderer                           |
+| Variable                   | Default                        | Purpose                                            |
+| -------------------------- | ------------------------------ | -------------------------------------------------- |
+| `DATABASE_URL`             | —                              | SQLite path, relative to `prisma/`                 |
+| `SESSION_SECRET`           | —                              | Signs session cookies; 32+ chars, required in prod |
+| `ECOAPI_API_KEY`           | —                              | The gateway's key. Required                        |
+| `ECOAPI_BASE_URL`          | `https://www.ecoapi.ai/api/v1` | The gateway's OpenAI-compatible endpoint           |
+| `CLAUDE_MAX_TOKENS`        | `16000`                        | Ceiling for one generation                         |
+| `MODEL_*` (ten of them)    | see below                      | Move one AI task to a different model              |
+| `CHROMIUM_EXECUTABLE_PATH` | unset                          | System Chromium for the renderer                   |
 
 **One model per task.** The project makes ten distinct kinds of model call and
 they do not want the same model — planning an outline and judging whether a quiz
@@ -123,8 +123,9 @@ question is grounded are different jobs. Each names its own, and each has a
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#model-per-task); the source of truth
 is `src/lib/ai/models.ts`.
 
-**Running on an API key instead.** That is a branch, not a setting — see
-[Two ways to run the models](#two-ways-to-run-the-models) below.
+**Running without a key, on local models, instead.** That is a branch, not a
+setting — see [This branch runs hosted models](#this-branch-runs-hosted-models-behind-an-api-key)
+below.
 
 ### 3. Database
 
@@ -142,85 +143,67 @@ npm run dev
 
 ---
 
-## Two ways to run the models
+## This branch runs hosted models, behind an API key
 
-Every model call goes through LangChain, so the provider is one file:
-`src/lib/ai/provider.ts`. It exports a chat model per task and an error
-classifier, and nothing above it knows or cares which one is in there.
+Every model call goes through LangChain, and `src/lib/ai/provider.ts` on this
+branch builds a **`ChatOpenAI`** per task, pointed at the gateway in
+`ECOAPI_BASE_URL` and authenticated with `ECOAPI_API_KEY`. Every generation is
+billed.
 
-**Which implementation that file holds is decided by the branch you are on, not
-by editing it.**
-
-| Branch                   | Runs on                                               | LangChain class | Needs                                              | Costs     |
-| ------------------------ | ----------------------------------------------------- | --------------- | -------------------------------------------------- | --------- |
-| `claude/llm-open-source` | Ollama on your own machine                            | `ChatOllama`    | the models pulled locally, and the RAM to run them | nothing   |
-| `claude/llm-api-key`     | a gateway (EcoAPI, or any OpenAI-compatible endpoint) | `ChatOpenAI`    | `ECOAPI_API_KEY`, and network                      | per token |
-
-This branch is the **base**: the shared trunk both are cut from. It runs the
-local models, so a fresh clone works with no key, but the mode you deploy
-should be one of the two above — they are the ones whose `.env.example`, README
-and task registry describe what they actually need.
-
-### Choosing one
+The same application on local, open-source models is
+**`claude/llm-open-source`**, which swaps that one file for a `ChatOllama`
+against an Ollama server and needs no key. Both are cut from
+`claude/ai-agent-architecture-mo8v7d`, the base branch, which is where every
+change that is not about the provider belongs.
 
 ```bash
-git checkout claude/llm-api-key      # or claude/llm-open-source
-npm install
-cp .env.example .env                 # then fill in what that branch's README asks for
-npm run dev
+git checkout claude/llm-open-source   # the other mode
 ```
 
-Nothing else changes. Both branches are the same application: the same routes,
-the same agent runtime, the same evaluators, the same UI. Neither needs an extra
-package — `@langchain/ollama` and `@langchain/openai` are both dependencies on
-every branch.
-
-### What actually differs between them
-
-Five files, and no more:
-
-| File                     | Why it differs                                                                  |
-| ------------------------ | ------------------------------------------------------------------------------- |
-| `src/lib/ai/provider.ts` | the implementation — `ChatOllama` or `ChatOpenAI`, and its error classification |
-| `src/lib/ai/models.ts`   | the model each task names: Ollama tags, or the gateway's ids                    |
-| `.env.example`           | what that mode needs; only one of them requires a key                           |
-| `README.md`              | this section, and the setup steps                                               |
-| `docs/ARCHITECTURE.md`   | the provider section                                                            |
-
-A sixth, `src/lib/ai/previous-providers.ts`, differs from **this** branch but
-not from each other: both mode branches drop the commented EcoAPI gateway it
-still holds here, because on one of them that code is live and on the other it
-is a `git checkout` away. What stays in it either way is Gemini, which predates
-LangChain.
-
-### Carrying work across
-
-Everything that is not on that list belongs on this branch. Make the change
-here, then merge it outward:
+Five files differ between the two — `provider.ts`, `models.ts`, `.env.example`,
+this README and `docs/ARCHITECTURE.md`. Everything else is shared, so a change
+to anything else goes on the base branch and is merged outward:
 
 ```bash
-git checkout claude/ai-agent-architecture-mo8v7d
-# ... commit the change ...
-git checkout claude/llm-open-source && git merge claude/ai-agent-architecture-mo8v7d
-git checkout claude/llm-api-key     && git merge claude/ai-agent-architecture-mo8v7d
+git merge claude/ai-agent-architecture-mo8v7d
 ```
 
-Only the files above can conflict, and only if the change touched one of
-them. Committing a feature straight onto a mode branch is what makes the other
-one drift, so don't.
+### Which models
 
-### Using a different hosted provider
+`src/lib/ai/models.ts` names one per task — the ids are passed to the gateway
+verbatim, so they have to be ids it lists. The defaults assume it serves
+Anthropic's models:
 
-`claude/llm-api-key` works against anything with an OpenAI-compatible endpoint —
-OpenRouter, Together, vLLM, LM Studio, an Azure deployment — by changing
-`ECOAPI_BASE_URL` and the model ids in `models.ts`. For a provider with its own
-LangChain package (Anthropic's own API, Google, Mistral), install that package
-and swap the class in `getChatModel`; nothing above `provider.ts` changes,
-because it speaks LangChain rather than a vendor's wire format.
+|                   | Tasks                                                                                                                     |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `claude-opus-5`   | outline planning, slide authoring, slide HTML, quiz authoring, content evaluation, visual evaluation, the agent tool loop |
+| `claude-sonnet-5` | single-field edits, the quiz grounding judge, the lesson tutor                                                            |
 
-A third implementation, Gemini through `@google/genai`, predates LangChain and
-is kept commented in `src/lib/ai/previous-providers.ts`. It is a rewrite rather
-than a swap, and is there for reference.
+Running everything on one model is a supported choice: set the ten `MODEL_*`
+variables and the registry defers to them. The split is there because most of
+these calls do not need the largest model and all of them are billed — the
+grounding judge alone runs once per question.
+
+For a gateway that sells something else, change the ids and nothing more. The
+per-task reasoning is in
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#model-per-task).
+
+### Using a different gateway
+
+Anything with an OpenAI-compatible endpoint — OpenRouter, Together, an Azure
+deployment, or a vLLM / LM Studio server you host — works by changing
+`ECOAPI_BASE_URL` and the model ids. A server that does not check a key still
+needs `ECOAPI_API_KEY` set to something; the client requires the field.
+
+For a provider with its own LangChain package (Anthropic's own API, Google,
+Mistral), install that package and swap the class in `getChatModel`. Nothing
+above `provider.ts` changes, because it speaks LangChain rather than a vendor's
+wire format.
+
+If the gateway rejects `response_format`, drop the `modelKwargs` line from
+`getChatModel`. The prompts already demand a bare JSON object, and
+`generateStructuredJSON` validates the reply and retries with the schema
+errors, so nothing depends on the gateway enforcing it.
 
 ---
 

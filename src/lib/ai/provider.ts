@@ -1,56 +1,40 @@
-import { ChatOllama } from "@langchain/ollama";
+import { ChatOpenAI } from "@langchain/openai";
 import { modelFor, type AiTask } from "./models";
 
 // ============================================
-// Provider — local open-source models, through LangChain
+// Provider — hosted models behind an API key, through LangChain
 //
 // Every model call in the project is a LangChain chat model. The framework
 // owns the message types, the streaming protocol and the tool-call schema, so
 // the files above this one describe what they want rather than how a
 // particular vendor's HTTP API spells it.
 //
-// The active integration is @langchain/ollama, which speaks Ollama's native
-// API. Ollama does not authenticate by default, so no API key is involved;
-// OLLAMA_API_KEY exists only for deployments that put the server behind a
-// proxy which does check, and is sent as a bearer header when set.
+// This is the API-key branch: the models come from a gateway that
+// authenticates with a key, reached with LangChain's ChatOpenAI. The same file
+// on claude/llm-open-source builds a ChatOllama against a local server
+// instead. Both export the same two functions, which is why the mode is a
+// branch rather than a setting — nothing above this file changes.
+//
+// The gateway is EcoAPI by default, but nothing here is specific to it: any
+// endpoint that speaks the OpenAI surface works by changing ECOAPI_BASE_URL
+// and the model ids in ./models.ts.
 //
 // Because the model is chosen per task, models are built per task and cached:
 // each one holds a connection, and rebuilding one on every call would leak
 // sockets under load.
-//
-// The project can run either way — on local models with no key, or on a
-// hosted provider behind an API key. The second mode is kept in
-// ./previous-providers.ts, commented rather than deleted; switching is a swap
-// of the block below for that one. The README's "Two ways to run the models"
-// section has the steps.
 // ============================================
 
-// ────────────────────────────────────────────────────────────────────────────
-// MODE A — local open-source models through Ollama. Active.
-// To switch to the API-key mode, comment out everything down to "end of mode A"
-// and uncomment provider 2 from ./previous-providers.ts in its place.
-// ────────────────────────────────────────────────────────────────────────────
-
-/**
- * Where the Ollama server is.
- *
- * A trailing `/v1` is accepted and stripped: earlier versions of this file
- * spoke the OpenAI-compatible endpoint, so deployments have that suffix in
- * their environment and should not have to edit it to upgrade.
- */
-export const BASE_URL = (process.env.OLLAMA_BASE_URL ?? "http://127.0.0.1:11434").replace(
-  /\/v1\/?$/,
-  "",
-);
+/** The gateway's OpenAI-compatible endpoint. */
+export const BASE_URL = process.env.ECOAPI_BASE_URL ?? "https://www.ecoapi.ai/api/v1";
 
 /**
  * Output ceiling.
  *
- * Lower than a hosted provider's default: these models have smaller context
- * windows, and reserving most of it for output starves the prompt. The longest
- * thing generated here is one slide's content, which fits comfortably.
+ * Generous, unlike the local branch's: a hosted model has the context window
+ * for it, and the longest thing generated here — one slide's content, or a
+ * whole outline — is better finished than truncated.
  */
-export const MAX_OUTPUT_TOKENS = Number(process.env.OLLAMA_MAX_TOKENS ?? 4096);
+export const MAX_OUTPUT_TOKENS = Number(process.env.CLAUDE_MAX_TOKENS ?? 16000);
 
 export const MAX_RETRIES = 2;
 
@@ -58,11 +42,11 @@ export const MAX_RETRIES = 2;
 export interface ChatModelOptions {
   temperature?: number;
   maxOutputTokens?: number;
-  /** Ollama's response format. "json" constrains output to a JSON object. */
+  /** "json" asks the gateway to constrain the reply to a JSON object. */
   format?: "json";
 }
 
-const cache = new Map<string, ChatOllama>();
+const cache = new Map<string, ChatOpenAI>();
 
 /**
  * The chat model for a task.
@@ -70,37 +54,45 @@ const cache = new Map<string, ChatOllama>();
  * Cached per task-and-settings, since a model holds a connection and the same
  * few combinations recur for the life of the process.
  */
-export function getChatModel(task: AiTask, options: ChatModelOptions = {}): ChatOllama {
+export function getChatModel(task: AiTask, options: ChatModelOptions = {}): ChatOpenAI {
+  const apiKey = process.env.ECOAPI_API_KEY;
+  if (!apiKey) {
+    throw new Error(
+      "[LLM Config Error] ECOAPI_API_KEY is not set. Add it to .env — see the README. " +
+        "To run without a key, on local models, use the claude/llm-open-source branch.",
+    );
+  }
+
   const model = modelFor(task);
   const temperature = options.temperature ?? 0.4;
-  const numPredict = options.maxOutputTokens ?? MAX_OUTPUT_TOKENS;
-  const key = `${model}|${temperature}|${numPredict}|${options.format ?? ""}`;
+  const maxTokens = options.maxOutputTokens ?? MAX_OUTPUT_TOKENS;
+  const key = `${model}|${temperature}|${maxTokens}|${options.format ?? ""}`;
 
   const cached = cache.get(key);
   if (cached) return cached;
 
-  const apiKey = process.env.OLLAMA_API_KEY?.trim();
-  const chat = new ChatOllama({
+  const chat = new ChatOpenAI({
     model,
-    baseUrl: BASE_URL,
+    apiKey,
+    configuration: { baseURL: BASE_URL },
     temperature,
-    numPredict,
-    ...(options.format ? { format: options.format } : {}),
-    ...(apiKey ? { headers: { Authorization: `Bearer ${apiKey}` } } : {}),
-    // Local generation on CPU is slow, and LangChain's own retry would repeat
-    // a long, expensive call; the callers that need another attempt retry with
-    // feedback instead, which is worth more than a blind repeat.
+    maxTokens,
+    // LangChain's own retry would repeat a whole billed call on a transient
+    // failure; the callers that need another attempt retry with feedback
+    // instead, which is worth more than a blind repeat and costs the same.
     maxRetries: 0,
+    // JSON mode. A gateway that does not implement response_format will
+    // reject the request — drop this line if yours does. The instructions
+    // already demand a bare JSON object, and generateStructuredJSON validates
+    // and retries with the schema errors, so nothing depends on it.
+    ...(options.format === "json"
+      ? { modelKwargs: { response_format: { type: "json_object" } } }
+      : {}),
   });
 
   cache.set(key, chat);
   return chat;
 }
-
-// ────────────────────────────────────────────────────────────────────────────
-// End of mode A. The two helpers below belong to neither mode in particular;
-// both use them, so leave them in place when switching.
-// ────────────────────────────────────────────────────────────────────────────
 
 function extractErrorMessage(err: unknown): string {
   if (err instanceof Error) return err.message;
@@ -116,39 +108,38 @@ function extractStatus(err: unknown): number | undefined {
   return typeof raw === "number" ? raw : undefined;
 }
 
-// ────────────────────────────────────────────────────────────────────────────
-// Mode A's error classification. Mode B replaces this function too — the
-// failures differ, and a message naming the wrong ones is worse than none.
-// ────────────────────────────────────────────────────────────────────────────
-
 /**
  * Classify a provider error and throw a clean, actionable message.
  *
- * The failures worth naming for a local server are different from a hosted
- * gateway's: there is no quota and no key, but the server may not be running,
- * and the model this task asks for may not have been pulled.
+ * The failures worth naming for a hosted gateway are the ones a key and a bill
+ * bring with them: an exhausted quota, a key that is wrong or expired, a model
+ * id the gateway does not sell.
  */
 export function throwFriendlyError(err: unknown, context: string, task: AiTask): never {
   const status = extractStatus(err);
   const msg = extractErrorMessage(err);
   const model = modelFor(task);
 
+  if (status === 429 || /rate.?limit|quota|insufficient|balance/i.test(msg)) {
+    throw new Error(
+      `[LLM Rate Limited] ${context} — the gateway reported a quota or rate limit. ` +
+        `Check the account balance, or retry shortly. (${msg})`,
+    );
+  }
+  if (status === 401 || status === 403 || /api.?key|unauthor|forbidden/i.test(msg)) {
+    throw new Error(
+      `[LLM Auth Error] ${context} — check that ECOAPI_API_KEY is set and valid for ${BASE_URL}.`,
+    );
+  }
+  if (status === 404 || /not.?found|no such model|unknown model/i.test(msg)) {
+    throw new Error(
+      `[LLM Model Error] ${context} — the gateway does not recognise "${model}". ` +
+        `Set the ${task} entry in src/lib/ai/models.ts, or its MODEL_* variable, to a model id it lists.`,
+    );
+  }
   if (/socket|ECONNREFUSED|ENOTFOUND|ETIMEDOUT|fetch failed|network/i.test(msg)) {
     throw new Error(
-      `[LLM Network Error] ${context} — could not reach Ollama at ${BASE_URL}. ` +
-        `Start it with \`ollama serve\`. (${msg})`,
-    );
-  }
-  if (status === 404 || /not.?found|no such model|unknown model|try pulling/i.test(msg)) {
-    throw new Error(
-      `[LLM Model Error] ${context} — Ollama does not have "${model}". ` +
-        `Pull it with \`ollama pull ${model}\`, or point ${task} at a model you have.`,
-    );
-  }
-  if (status === 401 || status === 403) {
-    throw new Error(
-      `[LLM Auth Error] ${context} — the Ollama endpoint refused the request. ` +
-        `If it sits behind an authenticating proxy, set OLLAMA_API_KEY.`,
+      `[LLM Network Error] ${context} — could not reach the gateway at ${BASE_URL}. (${msg})`,
     );
   }
   if (/context length|too many tokens|exceeds/i.test(msg)) {
@@ -160,5 +151,6 @@ export function throwFriendlyError(err: unknown, context: string, task: AiTask):
   throw new Error(`[LLM Error] ${context} (${task}) — ${msg}`);
 }
 
-// The API-key mode — Claude via the EcoAPI gateway — and the Gemini
-// implementation before it are kept commented in ./previous-providers.ts.
+// The local, open-source mode is a branch: claude/llm-open-source. The Gemini
+// implementation this project ran on before LangChain is kept commented in
+// ./previous-providers.ts.
