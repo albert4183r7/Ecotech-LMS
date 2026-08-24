@@ -14,7 +14,7 @@
 //   slide-html.ts  the agent's HTML-authoring prompts
 // ============================================
 
-export { TASK_MODELS, modelFor, isMultimodal, type AiTask } from "./models";
+export { TASK_MODELS, modelFor, isMultimodal, VISION_MODEL_PATTERN, type AiTask } from "./models";
 export { getChatModel, BASE_URL, type ChatModelOptions } from "./provider";
 export { generateStructuredJSON, type StructuredOptions } from "./structured";
 export { streamText, collectStream, type StreamOptions } from "./streaming";

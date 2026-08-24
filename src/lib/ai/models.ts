@@ -139,6 +139,16 @@ export function modelFor(task: AiTask): string {
   return process.env[entry.envVar]?.trim() || entry.model;
 }
 
+/**
+ * Model ids that accept images.
+ *
+ * The multimodal flag above says which task *needs* to see; this says which
+ * models here can. It lives next to the models rather than in the check that
+ * uses it, because the answer is a property of this branch's provider: an
+ * Ollama tag advertises vision in its name, and a hosted model's id does not.
+ */
+export const VISION_MODEL_PATTERN = /vision|llava/i;
+
 /** Tasks needing a multimodal model, for start-up checks and documentation. */
 export function isMultimodal(task: AiTask): boolean {
   return TASK_MODELS[task].multimodal === true;

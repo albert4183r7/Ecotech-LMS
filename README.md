@@ -187,6 +187,12 @@ Five files, and no more:
 | `README.md`              | this section, and the setup steps                                               |
 | `docs/ARCHITECTURE.md`   | the provider section                                                            |
 
+A sixth, `src/lib/ai/previous-providers.ts`, differs from **this** branch but
+not from each other: both mode branches drop the commented EcoAPI gateway it
+still holds here, because on one of them that code is live and on the other it
+is a `git checkout` away. What stays in it either way is Gemini, which predates
+LangChain.
+
 ### Carrying work across
 
 Everything that is not on that list belongs on this branch. Make the change
@@ -199,7 +205,7 @@ git checkout claude/llm-open-source && git merge claude/ai-agent-architecture-mo
 git checkout claude/llm-api-key     && git merge claude/ai-agent-architecture-mo8v7d
 ```
 
-Only the five files above can conflict, and only if the change touched one of
+Only the files above can conflict, and only if the change touched one of
 them. Committing a feature straight onto a mode branch is what makes the other
 one drift, so don't.
 

@@ -25,7 +25,13 @@ import {
   MAX_LESSON_CHARS,
 } from "../src/lib/assistant/lesson-tutor";
 import type { LessonSource } from "../src/lib/quiz/lesson-source";
-import { TASK_MODELS, modelFor, isMultimodal, type AiTask } from "../src/lib/ai/models";
+import {
+  TASK_MODELS,
+  modelFor,
+  isMultimodal,
+  VISION_MODEL_PATTERN,
+  type AiTask,
+} from "../src/lib/ai/models";
 import { safeFileName } from "../src/lib/download";
 import type { SlideContent } from "../src/lib/slides/content-schema";
 
@@ -200,7 +206,7 @@ add("the task that sends images is on a multimodal model", () => {
   return (
     vision.length === 1 &&
     vision[0] === "visual-evaluation" &&
-    /vision|llava/i.test(modelFor("visual-evaluation"))
+    VISION_MODEL_PATTERN.test(modelFor("visual-evaluation"))
   );
 });
 add("an environment variable overrides a task's model", () => {
