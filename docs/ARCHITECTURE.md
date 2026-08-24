@@ -192,16 +192,15 @@ constrained; the 7B carries the short, decidable ones.
 
 `src/lib/ai/models.ts` is the source of truth for this table.
 
-### The API-key mode
+### The other mode
 
-The provider is chosen by branch, not by configuration. `claude/llm-open-source`
-holds the `ChatOllama` implementation above; `claude/llm-api-key` holds a
+This branch holds the `ChatOllama` implementation. `claude/llm-api-key` holds a
 LangChain `ChatOpenAI` against a gateway, exporting the same `getChatModel` and
-`throwFriendlyError`, so nothing above `provider.ts` differs between them — and
-no package is installed either way, since both LangChain integrations are
-dependencies on every branch. Five files carry the whole difference; the
-README's [Two ways to run the models](../README.md#two-ways-to-run-the-models)
-lists them, and says how to carry shared work across.
+`throwFriendlyError`, so nothing above `provider.ts` differs between the two —
+and no package is installed either way, since both LangChain integrations are
+dependencies on every branch. The README's
+[This branch runs local, open-source models](../README.md#this-branch-runs-local-open-source-models)
+says which five files carry the difference.
 
 `src/lib/ai/previous-providers.ts` keeps the Gemini implementation, through
 `@google/genai`, commented rather than deleted. It predates LangChain, so

@@ -1,125 +1,26 @@
 // ============================================
 // Previous providers
 //
-// Every implementation this project has run on, kept commented rather than
-// deleted so any of them can be restored. They are listed newest first.
+// Implementations this project has run on that are not reachable from any
+// branch, kept commented rather than deleted.
 //
-// All three present the same surface to the rest of the AI layer — a chat
-// model per task, and one error classifier — so restoring one means moving its
-// model construction and error classification into ./provider.ts and setting
-// ./models.ts to whatever model ids it serves. Nothing above that file changes.
-//
-// Provider 2 is written as LangChain chat models, like the active one, so the
-// switch between local models and an API key is a swap of one file's contents.
-// Provider 1 predates LangChain and calls the Gemini SDK directly.
+// The two current ones are not in here. Local models and a hosted API key are
+// both live code, each on its own branch — claude/llm-open-source and
+// claude/llm-api-key — because an implementation belongs in a file that
+// compiles, not in a comment. Both export the same surface from ./provider.ts,
+// so nothing above that file knows which is which.
 //
 // This file is inert: everything below is a comment.
 // ============================================
 
 // ============================================================================
-// ── PROVIDER 2 — an API-key provider through LangChain (Claude via EcoAPI) ──
+// ── Google Gemini via @google/genai ─────────────────────────────────────────
 //
-// Kept for reference and for restoring. This is the hosted-API mode: instead
-// of a local Ollama server, the models come from a gateway that authenticates
-// with an API key. EcoAPI exposes an OpenAI-compatible surface, so LangChain's
-// ChatOpenAI speaks to it with only a base URL change — and because both modes
-// are LangChain chat models, everything above ./provider.ts is untouched by
-// the switch.
-//
-// To restore, in ./provider.ts: comment out the ChatOllama implementation,
-// uncomment this one, and put the gateway's model ids in ./models.ts. The
-// README's "Switching between the two LLM modes" section has the full steps.
-//
-// import { ChatOpenAI } from "@langchain/openai";
-// import { modelFor, type AiTask } from "./models";
-//
-// /** The gateway's OpenAI-compatible endpoint. */
-// export const BASE_URL = process.env.ECOAPI_BASE_URL ?? "https://www.ecoapi.ai/api/v1";
-//
-// /** Generous ceiling; long slide content and plans need room. */
-// export const MAX_OUTPUT_TOKENS = Number(process.env.CLAUDE_MAX_TOKENS ?? 16000);
-//
-// export const MAX_RETRIES = 2;
-//
-// export interface ChatModelOptions {
-//   temperature?: number;
-//   maxOutputTokens?: number;
-//   format?: "json";
-// }
-//
-// const cache = new Map<string, ChatOpenAI>();
-//
-// /** The chat model for a task, built from the gateway's key and base URL. */
-// export function getChatModel(task: AiTask, options: ChatModelOptions = {}): ChatOpenAI {
-//   const apiKey = process.env.ECOAPI_API_KEY;
-//   if (!apiKey) {
-//     throw new Error(
-//       "[LLM Config Error] ECOAPI_API_KEY is not set. Add it to .env — see the README.",
-//     );
-//   }
-//
-//   const model = modelFor(task);
-//   const temperature = options.temperature ?? 0.4;
-//   const maxTokens = options.maxOutputTokens ?? MAX_OUTPUT_TOKENS;
-//   const key = `${model}|${temperature}|${maxTokens}|${options.format ?? ""}`;
-//
-//   const cached = cache.get(key);
-//   if (cached) return cached;
-//
-//   const chat = new ChatOpenAI({
-//     model,
-//     apiKey,
-//     configuration: { baseURL: BASE_URL },
-//     temperature,
-//     maxTokens,
-//     maxRetries: 0,
-//     // The structured and vision callers ask for JSON; a gateway that speaks
-//     // the OpenAI surface takes it as a response_format.
-//     ...(options.format === "json"
-//       ? { modelKwargs: { response_format: { type: "json_object" } } }
-//       : {}),
-//   });
-//
-//   cache.set(key, chat);
-//   return chat;
-// }
-//
-// /** Classify an API error and throw a clean, actionable message. */
-// export function throwFriendlyError(err: unknown, context: string, task: AiTask): never {
-//   const status = extractStatus(err);
-//   const msg = extractErrorMessage(err);
-//   const model = modelFor(task);
-//
-//   if (status === 429 || /rate.?limit|quota|insufficient|balance/i.test(msg)) {
-//     throw new Error(
-//       `[LLM Rate Limited] ${context} — the gateway reported a quota or rate limit. Check the EcoAPI balance, or retry shortly.`,
-//     );
-//   }
-//   if (status === 401 || status === 403 || /api.?key|unauthor|forbidden/i.test(msg)) {
-//     throw new Error(
-//       `[LLM Auth Error] ${context} — check that ECOAPI_API_KEY is set and valid for this gateway.`,
-//     );
-//   }
-//   if (status === 404 || /not.?found|no such model|unknown model/i.test(msg)) {
-//     throw new Error(
-//       `[LLM Model Error] ${context} — the gateway does not recognise model "${model}". Set the ${task} entry in ./models.ts to a model id EcoAPI lists.`,
-//     );
-//   }
-//   if (/socket|ECONNREFUSED|ENOTFOUND|ETIMEDOUT|fetch failed|network/i.test(msg)) {
-//     throw new Error(
-//       `[LLM Network Error] ${context} — could not reach the gateway at ${BASE_URL}. (${msg})`,
-//     );
-//   }
-//   throw new Error(`[LLM Error] ${context} (${task}) — ${msg}`);
-// }
-// ============================================================================
-
-// ============================================================================
-// ── PROVIDER 1 — Google Gemini via @google/genai ───────────────────────────
-//
-// Kept for reference so the switch back is a restore, not a rewrite. To use it:
-// uncomment everything below, delete the OpenAI-compatible implementation
-// above, reinstate GEMINI_API_KEY / GEMINI_MODEL in .env, and reinstall
+// What this project ran on before LangChain, kept for reference. Restoring it
+// is a rewrite rather than a swap: it calls the Gemini SDK directly, so it
+// would have to be adapted to the chat-model-per-task surface the AI layer
+// expects. To try: uncomment everything below, replace ./provider.ts with it,
+// reinstate GEMINI_API_KEY / GEMINI_MODEL in .env, and reinstall
 // @google/genai.
 // ============================================================================
 // import { GoogleGenAI } from "@google/genai";

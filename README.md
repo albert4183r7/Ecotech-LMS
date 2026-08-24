@@ -142,85 +142,43 @@ npm run dev
 
 ---
 
-## Two ways to run the models
+## This branch runs local, open-source models
 
-Every model call goes through LangChain, so the provider is one file:
-`src/lib/ai/provider.ts`. It exports a chat model per task and an error
-classifier, and nothing above it knows or cares which one is in there.
+Every model call goes through LangChain, and `src/lib/ai/provider.ts` on this
+branch builds a **`ChatOllama`** per task. No API key is involved and nothing
+leaves the machine.
 
-**Which implementation that file holds is decided by the branch you are on, not
-by editing it.**
-
-| Branch                   | Runs on                                               | LangChain class | Needs                                              | Costs     |
-| ------------------------ | ----------------------------------------------------- | --------------- | -------------------------------------------------- | --------- |
-| `claude/llm-open-source` | Ollama on your own machine                            | `ChatOllama`    | the models pulled locally, and the RAM to run them | nothing   |
-| `claude/llm-api-key`     | a gateway (EcoAPI, or any OpenAI-compatible endpoint) | `ChatOpenAI`    | `ECOAPI_API_KEY`, and network                      | per token |
-
-This branch is the **base**: the shared trunk both are cut from. It runs the
-local models, so a fresh clone works with no key, but the mode you deploy
-should be one of the two above — they are the ones whose `.env.example`, README
-and task registry describe what they actually need.
-
-### Choosing one
+The same application on a hosted provider is **`claude/llm-api-key`**, which
+swaps that one file for a `ChatOpenAI` against a gateway. Both are cut from
+`claude/ai-agent-architecture-mo8v7d`, the base branch, which is where every
+change that is not about the provider belongs.
 
 ```bash
-git checkout claude/llm-api-key      # or claude/llm-open-source
-npm install
-cp .env.example .env                 # then fill in what that branch's README asks for
-npm run dev
+git checkout claude/llm-api-key   # the other mode
 ```
 
-Nothing else changes. Both branches are the same application: the same routes,
-the same agent runtime, the same evaluators, the same UI. Neither needs an extra
-package — `@langchain/ollama` and `@langchain/openai` are both dependencies on
-every branch.
-
-### What actually differs between them
-
-Five files, and no more:
-
-| File                     | Why it differs                                                                  |
-| ------------------------ | ------------------------------------------------------------------------------- |
-| `src/lib/ai/provider.ts` | the implementation — `ChatOllama` or `ChatOpenAI`, and its error classification |
-| `src/lib/ai/models.ts`   | the model each task names: Ollama tags, or the gateway's ids                    |
-| `.env.example`           | what that mode needs; only one of them requires a key                           |
-| `README.md`              | this section, and the setup steps                                               |
-| `docs/ARCHITECTURE.md`   | the provider section                                                            |
-
-A sixth, `src/lib/ai/previous-providers.ts`, differs from **this** branch but
-not from each other: both mode branches drop the commented EcoAPI gateway it
-still holds here, because on one of them that code is live and on the other it
-is a `git checkout` away. What stays in it either way is Gemini, which predates
-LangChain.
-
-### Carrying work across
-
-Everything that is not on that list belongs on this branch. Make the change
-here, then merge it outward:
+Five files differ between the two — `provider.ts`, `models.ts`, `.env.example`,
+this README and `docs/ARCHITECTURE.md`. Everything else is shared, so a change
+to anything else goes on the base branch and is merged outward:
 
 ```bash
-git checkout claude/ai-agent-architecture-mo8v7d
-# ... commit the change ...
-git checkout claude/llm-open-source && git merge claude/ai-agent-architecture-mo8v7d
-git checkout claude/llm-api-key     && git merge claude/ai-agent-architecture-mo8v7d
+git merge claude/ai-agent-architecture-mo8v7d
 ```
 
-Only the files above can conflict, and only if the change touched one of
-them. Committing a feature straight onto a mode branch is what makes the other
-one drift, so don't.
+### What this mode needs
 
-### Using a different hosted provider
+Ollama, and the four models pulled — both are in
+[Getting started](#getting-started) above. The RAM to hold a 14B model is the
+real requirement; on a machine that cannot, move the heavier tasks to the 7B
+with the `MODEL_*` overrides, or use the API-key branch.
 
-`claude/llm-api-key` works against anything with an OpenAI-compatible endpoint —
-OpenRouter, Together, vLLM, LM Studio, an Azure deployment — by changing
-`ECOAPI_BASE_URL` and the model ids in `models.ts`. For a provider with its own
-LangChain package (Anthropic's own API, Google, Mistral), install that package
-and swap the class in `getChatModel`; nothing above `provider.ts` changes,
-because it speaks LangChain rather than a vendor's wire format.
+### Using a different local server
 
-A third implementation, Gemini through `@google/genai`, predates LangChain and
-is kept commented in `src/lib/ai/previous-providers.ts`. It is a rewrite rather
-than a swap, and is there for reference.
+Anything that speaks Ollama's API works by pointing `OLLAMA_BASE_URL` at it.
+For a runtime that speaks the OpenAI surface instead (vLLM, LM Studio,
+llama.cpp's server), the API-key branch is the closer starting point: set
+`ECOAPI_BASE_URL` to that server and leave the key empty if it does not check
+one.
 
 ---
 
