@@ -239,6 +239,26 @@ async function generateAllSlides(lessonId: string, languageOverride?: string): P
     );
   }
 
+  // ---- Mark the lesson as still in progress ----
+  //
+  // Review and quiz generation run here, after the last slide has reported
+  // READY, and take about as long as the slides did. Nothing recorded that,
+  // so a page watching the lesson saw a finished deck and no way to tell
+  // whether anything was still coming. A quiz row in its DRAFT state says so:
+  // it is the state the schema already defines for a quiz that is not yet
+  // answerable, and every reader of a quiz requires READY before showing it.
+  if (ready.length > 0) {
+    await db.quiz
+      .upsert({
+        where: { lessonId },
+        create: { lessonId, title: "Quiz", status: "DRAFT", error: null },
+        update: { status: "DRAFT", error: null },
+      })
+      .catch((error) => {
+        console.warn(`[generate-slides] lesson ${lessonId}: could not mark quiz pending —`, error);
+      });
+  }
+
   // ---- Review what was generated, and revise what fails ----
   //
   // The workflow decides that slides are followed by review and review by the

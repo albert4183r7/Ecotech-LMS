@@ -31,12 +31,6 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { useUserStore, useCourseStore } from "@/stores/lms-store";
@@ -48,6 +42,9 @@ import { StarRating } from "@/components/lms/star-rating";
 import type { CourseItem, LessonItem, ClassroomState } from "@/types/lms";
 import { buildClassroomState } from "@/lib/classroom";
 import { safeFileName, triggerDownload } from "@/lib/download";
+import { usePptxDownload } from "@/hooks/use-pptx-download";
+import { lessonPreviewPath } from "@/lib/routes";
+import { useRouter } from "next/navigation";
 
 type LessonProgress = {
   lessonId: string;
@@ -81,6 +78,9 @@ export function CourseDetailPage() {
   const [downloadingPptx, setDownloadingPptx] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const { setEditingCourseId } = useCourseStore();
+  const router = useRouter();
+  // One deck per lesson; the course-wide button below zips these same files.
+  const { downloadingLessonId, downloadLesson } = usePptxDownload();
 
   /** Fetch course detail from API */
   const fetchCourse = useCallback(async () => {
@@ -574,20 +574,22 @@ export function CourseDetailPage() {
           </Button>
         </div>
 
-        {/* Download as PPT - Outline Button */}
+        {/* Every lesson also has its own download in the curriculum below;
+            this is the same set of files, zipped. */}
         <Button
           variant="outline"
           size="lg"
           className="gap-2 px-5 py-6 text-sm font-medium"
           onClick={handleDownloadCoursePptx}
           disabled={downloadingPptx || course.lessons.length === 0}
+          title="One .pptx per lesson, delivered as a single zip"
         >
           {downloadingPptx ? (
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
             <FileDown className="h-4 w-4" />
           )}
-          Download as PPT
+          {course.lessons.length > 1 ? "Download all lessons" : "Download as PPT"}
         </Button>
 
         {/* Start / Continue Learning Button - Prominent (students only) */}
@@ -653,16 +655,30 @@ export function CourseDetailPage() {
         )}
       </div>
 
-      {/* ─── Curriculum Section ───────────────────── */}
+      {/* ─── Curriculum Section ─────────────────────
+          Each lesson is its own deck, so each lesson has its own download.
+          A single course-wide button produced one bundle and left the reader
+          to work out which file was which lesson. */}
       <section>
-        <h2 className="text-foreground mb-4 text-xl font-bold">Curriculum</h2>
+        <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="text-foreground text-xl font-bold">Curriculum</h2>
+          {course.lessons.length > 0 && (
+            <p className="text-muted-foreground text-xs">
+              Every lesson downloads as its own .pptx file.
+            </p>
+          )}
+        </div>
 
         {course.lessons.length === 0 ? (
           <p className="text-muted-foreground py-8 text-center text-sm">
             No chapters available yet.
           </p>
         ) : (
-          <Accordion type="multiple" className="bg-card w-full overflow-hidden rounded-xl border">
+          /* A list, not an accordion: the row opened the lesson rather than
+             expanding, so the panel behind it was never reachable — and a
+             per-lesson button cannot live inside a row that is itself one
+             big button. */
+          <div className="bg-card w-full divide-y overflow-hidden rounded-xl border">
             {course.lessons.map((lesson, index) => {
               const status = getLessonStatus(lesson);
               const prog = getLessonProgress(lesson.id);
@@ -671,75 +687,95 @@ export function CourseDetailPage() {
               const progressPct = totalP > 0 ? Math.round((completedPages / totalP) * 100) : 0;
 
               return (
-                <AccordionItem
+                <div
                   key={lesson.id}
-                  value={lesson.id}
-                  className="hover:bg-muted/50 border-b px-4 transition-colors last:border-b-0"
+                  className="hover:bg-muted/50 flex flex-wrap items-center gap-3 px-4 py-4 transition-colors"
                 >
-                  <AccordionTrigger
-                    className="group py-4 hover:no-underline"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      handleLessonClick(lesson);
-                    }}
+                  <button
+                    type="button"
+                    onClick={() => handleLessonClick(lesson)}
+                    className="flex min-w-0 flex-1 items-center gap-3 text-left"
                   >
-                    <div className="flex min-w-0 flex-1 items-center gap-3 text-left">
-                      {/* Section Number - Gradient Circle */}
-                      <span className="from-primary to-accent text-primary-foreground flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-xs font-bold shadow-sm">
-                        {status === "completed" ? <CheckCircle2 className="h-4 w-4" /> : index + 1}
-                      </span>
+                    {/* Section Number - Gradient Circle */}
+                    <span className="from-primary to-accent text-primary-foreground flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-xs font-bold shadow-sm">
+                      {status === "completed" ? <CheckCircle2 className="h-4 w-4" /> : index + 1}
+                    </span>
 
-                      {/* Title, Page Count, Progress */}
-                      <div className="min-w-0 flex-1">
-                        <div className="mb-0.5 flex items-center gap-2">
-                          <span className="text-foreground block truncate text-sm font-semibold">
-                            {lesson.title}
-                          </span>
-                          {/* Status Badge */}
-                          {status === "completed" && (
-                            <Badge className="border-0 bg-emerald-500/10 px-1.5 py-0 text-[10px] text-emerald-600">
-                              Completed
-                            </Badge>
-                          )}
-                          {status === "in-progress" && (
-                            <Badge className="border-0 bg-amber-500/10 px-1.5 py-0 text-[10px] text-amber-600">
-                              In Progress
-                            </Badge>
-                          )}
-                          {status === "not-started" && (
-                            <Badge variant="secondary" className="px-1.5 py-0 text-[10px]">
-                              Not started
-                            </Badge>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <span className="text-muted-foreground text-xs">{totalP} pages</span>
-                          {/* Progress indicator if enrolled */}
-                          {course.isEnrolled && status && status !== "not-started" && (
-                            <span className="text-muted-foreground text-xs">
-                              ✓ {completedPages}/{totalP} pages
-                            </span>
-                          )}
-                          {course.isEnrolled && status === "not-started" && (
-                            <span className="text-muted-foreground text-xs">0/{totalP} pages</span>
-                          )}
-                        </div>
-                        {/* Mini progress bar if enrolled */}
-                        {course.isEnrolled && (
-                          <Progress value={progressPct} className="mt-1.5 h-1" />
+                    {/* Title, Page Count, Progress */}
+                    <div className="min-w-0 flex-1">
+                      <div className="mb-0.5 flex items-center gap-2">
+                        <span className="text-foreground block truncate text-sm font-semibold">
+                          {lesson.title}
+                        </span>
+                        {/* Status Badge */}
+                        {status === "completed" && (
+                          <Badge className="border-0 bg-emerald-500/10 px-1.5 py-0 text-[10px] text-emerald-600">
+                            Completed
+                          </Badge>
+                        )}
+                        {status === "in-progress" && (
+                          <Badge className="border-0 bg-amber-500/10 px-1.5 py-0 text-[10px] text-amber-600">
+                            In Progress
+                          </Badge>
+                        )}
+                        {status === "not-started" && (
+                          <Badge variant="secondary" className="px-1.5 py-0 text-[10px]">
+                            Not started
+                          </Badge>
                         )}
                       </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-muted-foreground text-xs">{totalP} pages</span>
+                        {/* Progress indicator if enrolled */}
+                        {course.isEnrolled && status && status !== "not-started" && (
+                          <span className="text-muted-foreground text-xs">
+                            ✓ {completedPages}/{totalP} pages
+                          </span>
+                        )}
+                        {course.isEnrolled && status === "not-started" && (
+                          <span className="text-muted-foreground text-xs">0/{totalP} pages</span>
+                        )}
+                      </div>
+                      {/* Mini progress bar if enrolled */}
+                      {course.isEnrolled && <Progress value={progressPct} className="mt-1.5 h-1" />}
                     </div>
-                  </AccordionTrigger>
-                  <AccordionContent className="pb-4">
-                    <p className="text-muted-foreground pl-11 text-sm">
-                      Click &quot;{lesson.title}&quot; to open the lesson viewer and start learning.
-                    </p>
-                  </AccordionContent>
-                </AccordionItem>
+                  </button>
+
+                  {/* Per-lesson actions */}
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    {course.isOwner && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="gap-1.5"
+                        onClick={() => router.push(lessonPreviewPath(lesson.id))}
+                        title={`Preview and edit “${lesson.title}”`}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        <span className="hidden sm:inline">Preview &amp; edit</span>
+                      </Button>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5"
+                      onClick={() => downloadLesson(lesson, { position: index + 1 })}
+                      disabled={downloadingLessonId !== null}
+                      title={`Download “${lesson.title}” as a PowerPoint file`}
+                    >
+                      {downloadingLessonId === lesson.id ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <FileDown className="h-3.5 w-3.5" />
+                      )}
+                      <span className="hidden sm:inline">Download PPT</span>
+                      <span className="sm:hidden">PPT</span>
+                    </Button>
+                  </div>
+                </div>
               );
             })}
-          </Accordion>
+          </div>
         )}
       </section>
 

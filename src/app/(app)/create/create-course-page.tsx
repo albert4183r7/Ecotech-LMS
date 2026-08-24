@@ -155,6 +155,7 @@ export function CreateCoursePage() {
     genStage,
     currentGenSlideId,
     genProgress,
+    slidesLoading,
     handleOpenModal,
     handleGenerateOutline,
     handleRegenerateOutline,
@@ -397,6 +398,7 @@ export function CreateCoursePage() {
                       currentGenSlideId={currentGenSlideId}
                       genProgress={genProgress}
                       genStage={ol.id === generatingLessonId ? genStage : "idle"}
+                      previewLoading={slidesLoading}
                       onToggleExpand={() =>
                         setExpandedOutlineLessonId((prev) => (prev === ol.id ? null : ol.id))
                       }
