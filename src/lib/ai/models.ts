@@ -146,10 +146,11 @@ export function modelFor(task: AiTask): string {
  *
  * The multimodal flag above says which task *needs* to see; this says which
  * models here can. It lives next to the models rather than in the check that
- * uses it, because the answer is a property of this branch's provider: an
- * Ollama tag advertises vision in its name, and a hosted model's id does not.
+ * uses it, because the answer is a property of this branch's provider: every
+ * Claude model accepts images, so the id prefix is the whole rule. Point the
+ * registry at a gateway selling something else and this has to say so too.
  */
-export const VISION_MODEL_PATTERN = /vision|llava/i;
+export const VISION_MODEL_PATTERN = /^claude-/i;
 
 /** Tasks needing a multimodal model, for start-up checks and documentation. */
 export function isMultimodal(task: AiTask): boolean {
