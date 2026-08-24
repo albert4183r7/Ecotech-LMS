@@ -194,18 +194,18 @@ constrained; the 7B carries the short, decidable ones.
 
 ### The API-key mode
 
-`src/lib/ai/previous-providers.ts` keeps the hosted implementations commented
-rather than deleted. Claude through the EcoAPI gateway is written as a
-LangChain `ChatOpenAI`, exporting the same `getChatModel` and
-`throwFriendlyError` as the active mode, so moving between local models and an
-API key is a swap of one file's contents and two environment variables —
-nothing above `provider.ts` is touched, and no package is installed, since
-`@langchain/openai` is already a dependency. Gemini through `@google/genai`
-predates LangChain and is kept for reference; restoring it is a rewrite rather
-than a swap. `.env.example` keeps the variables for both.
+The provider is chosen by branch, not by configuration. `claude/llm-open-source`
+holds the `ChatOllama` implementation above; `claude/llm-api-key` holds a
+LangChain `ChatOpenAI` against a gateway, exporting the same `getChatModel` and
+`throwFriendlyError`, so nothing above `provider.ts` differs between them — and
+no package is installed either way, since both LangChain integrations are
+dependencies on every branch. Five files carry the whole difference; the
+README's [Two ways to run the models](../README.md#two-ways-to-run-the-models)
+lists them, and says how to carry shared work across.
 
-The step-by-step switch, in both directions, is in the README:
-[Two ways to run the models](../README.md#two-ways-to-run-the-models).
+`src/lib/ai/previous-providers.ts` keeps the Gemini implementation, through
+`@google/genai`, commented rather than deleted. It predates LangChain, so
+restoring it is a rewrite rather than a swap; it is there for reference.
 
 ---
 

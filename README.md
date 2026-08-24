@@ -7,7 +7,7 @@ shows that plan for review, and then generates every slide.
 
 Built with Next.js 16 (App Router), Prisma + SQLite, and LangChain over
 open-source models run locally through Ollama — with a hosted, API-key provider
-kept one file-swap away.
+one branch away.
 
 ---
 
@@ -123,9 +123,8 @@ question is grounded are different jobs. Each names its own, and each has a
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#model-per-task); the source of truth
 is `src/lib/ai/models.ts`.
 
-**Running on an API key instead.** The project supports both — see
-[Two ways to run the models](#two-ways-to-run-the-models) below for the exact
-switch, in either direction.
+**Running on an API key instead.** That is a branch, not a setting — see
+[Two ways to run the models](#two-ways-to-run-the-models) below.
 
 ### 3. Database
 
@@ -147,80 +146,75 @@ npm run dev
 
 Every model call goes through LangChain, so the provider is one file:
 `src/lib/ai/provider.ts`. It exports a chat model per task and an error
-classifier, and nothing above it knows or cares which mode is active.
+classifier, and nothing above it knows or cares which one is in there.
 
-|                 | **Mode A — local, open source**                    | **Mode B — hosted, API key**                          |
-| --------------- | -------------------------------------------------- | ----------------------------------------------------- |
-| Runs on         | Ollama on your own machine                         | a gateway (EcoAPI, or any OpenAI-compatible endpoint) |
-| LangChain class | `ChatOllama`                                       | `ChatOpenAI`                                          |
-| Costs           | nothing                                            | per token                                             |
-| Needs           | the models pulled locally, and the RAM to run them | a key, and network                                    |
-| Status          | **active** — this is what ships                    | kept commented in `src/lib/ai/previous-providers.ts`  |
+**Which implementation that file holds is decided by the branch you are on, not
+by editing it.**
 
-Both are written against the same two exports, so switching does not touch a
-single caller, and no `npm install` is involved: `@langchain/openai` is already
-a dependency.
+| Branch                   | Runs on                                               | LangChain class | Needs                                              | Costs     |
+| ------------------------ | ----------------------------------------------------- | --------------- | -------------------------------------------------- | --------- |
+| `claude/llm-open-source` | Ollama on your own machine                            | `ChatOllama`    | the models pulled locally, and the RAM to run them | nothing   |
+| `claude/llm-api-key`     | a gateway (EcoAPI, or any OpenAI-compatible endpoint) | `ChatOpenAI`    | `ECOAPI_API_KEY`, and network                      | per token |
 
-### A → B: run on an API key
+This branch is the **base**: the shared trunk both are cut from. It runs the
+local models, so a fresh clone works with no key, but the mode you deploy
+should be one of the two above — they are the ones whose `.env.example`, README
+and task registry describe what they actually need.
 
-1. **Move the implementation.** In `src/lib/ai/provider.ts`, comment out
-   everything between `MODE A` and `End of mode A`, and the `throwFriendlyError`
-   below it. Leave `extractErrorMessage` and `extractStatus`; both modes use
-   them.
-2. **Paste the other one in.** Open `src/lib/ai/previous-providers.ts`, copy the
-   `PROVIDER 2` block, uncomment it, and put it where mode A was. It exports the
-   same `getChatModel` / `throwFriendlyError` / `BASE_URL` / `MAX_OUTPUT_TOKENS`
-   / `MAX_RETRIES` / `ChatModelOptions`, so `index.ts` and every caller keep
-   compiling untouched.
-3. **Add the key** to `.env`:
+### Choosing one
 
-   ```
-   ECOAPI_API_KEY=sk-...
-   ECOAPI_BASE_URL=https://www.ecoapi.ai/api/v1
-   ```
+```bash
+git checkout claude/llm-api-key      # or claude/llm-open-source
+npm install
+cp .env.example .env                 # then fill in what that branch's README asks for
+npm run dev
+```
 
-4. **Point the tasks at models the gateway serves.** The ten task entries in
-   `src/lib/ai/models.ts` name Ollama tags, which a gateway will not recognise.
-   Either edit that file, or leave it alone and set the ten `MODEL_*` variables
-   in `.env` — the overrides exist for exactly this:
+Nothing else changes. Both branches are the same application: the same routes,
+the same agent runtime, the same evaluators, the same UI. Neither needs an extra
+package — `@langchain/ollama` and `@langchain/openai` are both dependencies on
+every branch.
 
-   ```
-   MODEL_OUTLINE_PLANNING=claude-opus-5
-   MODEL_SLIDE_AUTHORING=claude-opus-5
-   ...
-   ```
+### What actually differs between them
 
-   One model can serve every task; the per-task split is there so a deployment
-   _can_ differentiate, not because it must.
+Five files, and no more:
 
-5. Restart the dev server. Ollama can be stopped.
+| File                     | Why it differs                                                                  |
+| ------------------------ | ------------------------------------------------------------------------------- |
+| `src/lib/ai/provider.ts` | the implementation — `ChatOllama` or `ChatOpenAI`, and its error classification |
+| `src/lib/ai/models.ts`   | the model each task names: Ollama tags, or the gateway's ids                    |
+| `.env.example`           | what that mode needs; only one of them requires a key                           |
+| `README.md`              | this section, and the setup steps                                               |
+| `docs/ARCHITECTURE.md`   | the provider section                                                            |
 
-That is the whole switch. There is nothing to change in the routes, the agent
-runtime, the evaluators or the UI.
+### Carrying work across
 
-### B → A: run on local models again
+Everything that is not on that list belongs on this branch. Make the change
+here, then merge it outward:
 
-1. Uncomment mode A in `src/lib/ai/provider.ts` and comment out the API-key
-   block, or restore the file from git.
-2. Start Ollama and pull the four models listed in
-   [Install](#1-install).
-3. Remove the `MODEL_*` overrides from `.env` if you set them, so the task
-   defaults in `models.ts` apply again. `ECOAPI_API_KEY` can stay; nothing
-   reads it in this mode.
-4. Restart.
+```bash
+git checkout claude/ai-agent-architecture-mo8v7d
+# ... commit the change ...
+git checkout claude/llm-open-source && git merge claude/ai-agent-architecture-mo8v7d
+git checkout claude/llm-api-key     && git merge claude/ai-agent-architecture-mo8v7d
+```
+
+Only the five files above can conflict, and only if the change touched one of
+them. Committing a feature straight onto a mode branch is what makes the other
+one drift, so don't.
 
 ### Using a different hosted provider
 
-Anything with an OpenAI-compatible endpoint — OpenRouter, Together, vLLM,
-LM Studio, an Azure deployment — works in mode B by changing `ECOAPI_BASE_URL`
-and the model ids. For a provider with its own LangChain package (Anthropic's
-own API, Google, Mistral), install that package and swap the class in
-`getChatModel`; the rest of mode B is unchanged, because everything above
-`provider.ts` speaks LangChain, not a vendor's wire format.
+`claude/llm-api-key` works against anything with an OpenAI-compatible endpoint —
+OpenRouter, Together, vLLM, LM Studio, an Azure deployment — by changing
+`ECOAPI_BASE_URL` and the model ids in `models.ts`. For a provider with its own
+LangChain package (Anthropic's own API, Google, Mistral), install that package
+and swap the class in `getChatModel`; nothing above `provider.ts` changes,
+because it speaks LangChain rather than a vendor's wire format.
 
 A third implementation, Gemini through `@google/genai`, predates LangChain and
-is also kept commented in `previous-providers.ts`. It is a rewrite rather than a
-swap, and is there for reference.
+is kept commented in `src/lib/ai/previous-providers.ts`. It is a rewrite rather
+than a swap, and is there for reference.
 
 ---
 
