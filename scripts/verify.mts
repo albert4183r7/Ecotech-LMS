@@ -16,6 +16,7 @@ import {
   buildSlideSlots,
 } from "../src/lib/presentation-plan";
 import { draftToContent } from "../src/lib/slides/draft";
+import { SLIDE_CRAFT, SLIDE_EXEMPLARS, PLAN_EXEMPLAR } from "../src/lib/slides/craft";
 import { writeField, editableFields } from "../src/lib/slides/content-path";
 import { renderSlideContent } from "../src/lib/slides/render";
 import { sanitizeHtml, wrapSlideHtml } from "../src/lib/sanitize";
@@ -141,6 +142,22 @@ add("a section's subtopics stay in contiguous runs across its slides", () => {
     // and the planner's own titles reach the slots, rather than "Section (1/2)"
     slots[0].title === "A real first title" &&
     slots[1].title === "A real second title"
+  );
+});
+
+add("the craft guide reaches the writer, and the plan exemplar the planner", () => {
+  // Describing depth produces a longer definition; showing a shallow slide
+  // beside the deep version of it produces the deep one. If the exemplars
+  // stop being wired in, the prompts still read fine and the output quietly
+  // regresses — which is exactly the failure worth a check.
+  const craft = [SLIDE_CRAFT, SLIDE_EXEMPLARS, PLAN_EXEMPLAR];
+  return (
+    craft.every((text) => text.length > 400) &&
+    // each carries a worked pair, not just advice about writing one
+    SLIDE_EXEMPLARS.includes("Too shallow:") &&
+    SLIDE_EXEMPLARS.includes("Written properly:") &&
+    PLAN_EXEMPLAR.includes("claim:") &&
+    PLAN_EXEMPLAR.includes("vehicle:")
   );
 });
 

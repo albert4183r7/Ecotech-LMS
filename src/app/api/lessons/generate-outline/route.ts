@@ -13,6 +13,7 @@ import {
   type PresentationPlan,
 } from "@/lib/presentation-plan";
 import { DEFAULT_STYLE } from "@/lib/slide-styles";
+import { PLAN_EXEMPLAR } from "@/lib/slides/craft";
 import { extractTextFromFiles, selectRelevantSections } from "@/lib/extract-doc";
 
 // ============================================
@@ -213,7 +214,9 @@ WHAT MAKES A PLAN FAIL
   guidance, unless the request is specifically about those.
 - A plan shaped Definition → Components → Benefits → Challenges → Conclusion.
   That is the shape of a deck nobody remembers. If yours resembles it, the
-  sections are topics rather than claims — plan it again.`;
+  sections are topics rather than claims — plan it again.
+
+${PLAN_EXEMPLAR}`;
 }
 
 export async function POST(request: NextRequest) {

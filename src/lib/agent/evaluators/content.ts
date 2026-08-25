@@ -31,14 +31,15 @@ BLOCKING problems:
 - A figure, percentage, currency amount, date, study finding or quotation presented as fact about the real world, where the source material does not support it. If no source material was supplied, ANY such claim is blocking. A number inside a stated hypothetical is not this.
 - A capability, statistic or practice attributed to a specific named organisation that the source did not attribute to them. Naming the organisation is fine; putting an unsupported claim in its mouth is not.
 - A technical term introduced and never explained. The audience is meeting it for the first time; a name without a plain-language explanation teaches nothing.
+- A content slide that only defines. If it says what a thing is called and what category it belongs to, and nothing about how it works, what it costs, when it fails, or what it changes, it has not taught the subject. This is the most common fault; report it every time you see it.
+- A sentence that would be equally true in a lesson on a different subject. Generic filler crowds out the material the audience actually needs.
 - The same definition or the same example appearing on more than one slide.
 - A term used on an earlier slide than the one that defines it.
 - A slide whose text does not match its title.
 
 ADVISORY problems:
-- A slide that only defines. "X is a technique for Y" with nothing about how it works, what it costs, or when it fails.
 - More than five points on a slide, or points longer than about fifteen words.
-- Vague filler that states nothing concrete, or a sentence that would be equally true of a different subject.
+- A slide that lists only benefits, with no cost, trade-off or limit anywhere on it.
 - A slide that describes the lesson rather than teaching the subject.
 - Compliance boilerplate, HR-policy language or generic corporate safety guidance, where the lesson is not about those.
 

@@ -1,4 +1,5 @@
 import { generateStructuredJSON } from "@/lib/ai";
+import { SLIDE_CRAFT, SLIDE_EXEMPLARS } from "./craft";
 import { contentWeight, type SlideContent } from "./content-schema";
 import { SlideDraftSchema, draftToContent } from "./draft";
 import { LAYOUTS } from "./template-layouts";
@@ -63,26 +64,15 @@ this slide has to teach:
 
 TEACH THE SUBJECT, AT ITS OWN DEPTH
 
-- Name the real thing. A subject's own vocabulary is what the audience came
-  for — overfitting, gradient descent, retrieval, precision and recall,
-  whatever this subject's terms actually are. Using the real name is not
-  jargon; avoiding it is how a lesson becomes a page of definitions that could
-  be about anything.
-- Then explain it, in the same breath, in ordinary words. Assume a capable
-  person who has never met the term: what it means, and why it matters here.
-  A term you name and do not explain has taught nobody.
-- This is not a glossary. Do not write a list of definitions. Explain how the
-  thing works, what it is for, what goes wrong without it, or what decision it
-  drives. "X is a technique for Y" is the weakest sentence you can write.
-- Be concrete. A worked example, a situation the audience would recognise, a
-  comparison with what they already use, or the failure that makes the point
-  obvious — one of these beats another abstract sentence every time.
 - Depth over coverage. One idea explained properly is worth more than four
   mentioned. If the material for this slide is thin, go deeper into it rather
   than reaching for something else.
 - Never describe the presentation or what the audience will do. Never write
   compliance boilerplate, HR-policy language or generic corporate safety
   guidance unless the lesson is specifically about those.
+- Before you return a block, read it back and ask: does this say how the thing
+  works, what it costs, when it fails, or what it changes? If it only says what
+  the thing is called and what category it belongs to, write it again.
 
 EVIDENCE
 
@@ -209,7 +199,11 @@ export async function generateSlideContent(brief: SlideBrief): Promise<SlideCont
     // handle a top-level oneOf reliably, and every non-title slide failed.
     const draft = await generateStructuredJSON(buildPrompt(brief), SlideDraftSchema, {
       task: "slide-authoring",
-      systemInstruction: `${SYSTEM}\n\n${layoutBudget(brief)}`,
+      // The craft guide and its worked pairs go in front of the mechanics:
+      // a model shown a shallow slide beside the deep version of the same
+      // slide writes the deep one, where a model merely asked for depth
+      // writes a longer definition.
+      systemInstruction: `${SYSTEM}\n\n${SLIDE_CRAFT}\n\n${SLIDE_EXEMPLARS}\n\n${layoutBudget(brief)}`,
       temperature: attempt === 1 ? 0.6 : 0.8,
     });
     const content = draftToContent(draft);
