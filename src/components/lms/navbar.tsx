@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useSyncExternalStore } from "react";
 import {
   GraduationCap,
   ListChecks,
@@ -529,6 +529,22 @@ export function Navbar() {
     }
   }, [resolvedTheme, setTheme]);
 
+  // Whether the browser has taken over from the server-rendered HTML.
+  //
+  // next-themes reads the chosen theme from localStorage, which does not
+  // exist while the page is being rendered on the server: the HTML always
+  // says "light" and the browser may say "system" or "dark". Rendering a
+  // different icon for each is a hydration mismatch, and React responds by
+  // throwing the whole tree away and rebuilding it.
+  //
+  // An external store rather than the usual mount effect: it needs no state
+  // and no effect, and it gives the server its own snapshot by design.
+  const hydrated = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
+
   /** Get theme tooltip text */
   const getThemeTooltip = () => {
     if (theme === "system") return "System";
@@ -542,6 +558,10 @@ export function Navbar() {
       "h-4 w-4 transition-all duration-300",
       themeIconRotating && "rotate-180 scale-75",
     );
+    // Before the stored theme is readable, hold the icon's space rather than
+    // guess which icon belongs there. A guess is what the server has to make,
+    // and it is wrong for every reader who has chosen dark or system.
+    if (!hydrated) return <span className={iconClass} aria-hidden />;
     if (theme === "system") return <Monitor className={iconClass} />;
     if (theme === "dark") return <Moon className={iconClass} />;
     return <Sun className={iconClass} />;
