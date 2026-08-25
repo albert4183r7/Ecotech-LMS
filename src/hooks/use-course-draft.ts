@@ -175,6 +175,7 @@ export function useCourseDraft({ coverImage, setCoverImage }: UseCourseDraftOpti
                   audience: parsedOutline?.audience,
                   thesis: parsedOutline?.thesis,
                   misconception: parsedOutline?.misconception,
+                  keyTerms: parsedOutline?.keyTerms,
                 },
                 {
                   language: c.language || "english",

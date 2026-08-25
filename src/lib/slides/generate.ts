@@ -29,6 +29,8 @@ export interface SlideBrief {
   thesis?: string;
   /** What the audience believes now that the lesson corrects. */
   misconception?: string;
+  /** The lesson's vocabulary, so terminology stays consistent across slides. */
+  keyTerms?: string[];
   /** What this section asserts — the reason it exists. */
   sectionClaim?: string;
   /** How the section makes its case: the example, comparison or walkthrough. */
@@ -70,9 +72,14 @@ TEACH THE SUBJECT, AT ITS OWN DEPTH
 - Never describe the presentation or what the audience will do. Never write
   compliance boilerplate, HR-policy language or generic corporate safety
   guidance unless the lesson is specifically about those.
-- Before you return a block, read it back and ask: does this say how the thing
-  works, what it costs, when it fails, or what it changes? If it only says what
-  the thing is called and what category it belongs to, write it again.
+- When several related terms belong together, put them on one slide with the
+  distinction between them made explicit — what each is for, and when someone
+  reaches for one rather than another. Three definitions on three slides teach
+  less than one slide that separates them.
+- Before you return a block, read it back and ask: does this give a comparison
+  a newcomer would follow, say what the thing is for, or show where they will
+  meet it? If it only says what the thing is called and what category it
+  belongs to, write it again.
 
 EVIDENCE
 
@@ -123,6 +130,9 @@ function buildPrompt(brief: SlideBrief): string {
     brief.audience ? `WRITTEN FOR: ${brief.audience}` : "",
     brief.thesis ? `THE LESSON ARGUES: ${brief.thesis}` : "",
     brief.misconception ? `IT IS CORRECTING THE BELIEF THAT: ${brief.misconception}` : "",
+    brief.keyTerms?.length
+      ? `VOCABULARY THIS LESSON TEACHES — use these words, in these forms, wherever this slide touches them: ${brief.keyTerms.join(", ")}`
+      : "",
     "",
     `SLIDE ${brief.position} of ${brief.totalSlides}.`,
     roleLine,

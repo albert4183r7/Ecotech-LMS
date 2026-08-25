@@ -145,14 +145,26 @@ ${
     ? `\nSOURCE MATERIAL — this is the substance of the presentation, not background reading:\n<reference>\n${reference}\n</reference>\n\nThe sections must come out of this document. Name the specific concepts, terms,\nfigures and examples it actually uses. A plan that would read the same without\nthis document has failed. Where the document and general knowledge disagree,\nthe document wins. Do not introduce major topics it never mentions.\n`
     : "\nNo source material was supplied. Plan from established knowledge of the subject. You may name the subject's real tools, methods and terms; do not promise figures or study findings you cannot support.\n"
 }
-FIRST, DECIDE WHO THIS IS FOR AND WHAT IT ARGUES
+You are planning TRAINING MATERIAL: something an instructor will stand in front
+of colleagues and teach from, and that the audience will use at work
+afterwards. Plan it as a curriculum, not as an argument.
+
+FIRST, DECIDE WHO THIS IS FOR AND WHAT THEY MUST COME AWAY WITH
 
 - audience: who will sit through this, and what they already know. Infer it
   from the request and the course above. Never write "general business
   audience" or "anyone interested in the topic" — that is not an answer, and a
   lesson written for nobody in particular teaches nobody in particular.
-- thesis: the one claim this lesson makes, that all of its sections are
-  evidence for. Not a description of the contents.
+- thesis: the one idea the whole lesson is built to leave them with, a week
+  later, when the detail has faded.
+- keyTerms: the real vocabulary this audience will hear other people use, and
+  must be able to recognise. Be generous and be specific. For a lesson on AI
+  agents that means the actual landscape — LLM, tools, function calling, the
+  agent loop, RAG, vector and graph retrieval, MCP, skills and connectors,
+  memory, multi-agent, guardrails, human-in-the-loop — and the equivalent list
+  for whatever subject you have been given. Do not leave a standard term out
+  because it seems obvious; the audience has not met it. Do not include a term
+  the lesson will not actually teach.
 - misconception: what this audience probably believes now that the lesson
   corrects. Leave it out if the subject genuinely has none; do not invent one.
 - outcomes: two to four things they can do afterwards that they could not
@@ -161,26 +173,30 @@ FIRST, DECIDE WHO THIS IS FOR AND WHAT IT ARGUES
 
 THEN PLAN THE SECTIONS
 
-Teach the subject in the order a good teacher would take it. For most subjects
-that is the conventional order — what it is, what it is made of, how it works,
-what goes wrong, what to do about it — and there is nothing wrong with that
-order. Depth is what separates a good lesson from a bad one, not novelty of
-structure.
+Follow the arc of a training lesson, set out below. It is a conventional order
+and that is a virtue: it is what a good instructor does. Depth and coverage are
+what separate a good lesson from a bad one, not novelty of structure.
 
-Decide how many sections the subject genuinely needs — usually three to six. A
+Cover the ground. Every term you listed in keyTerms must be taught by some
+section — that is what makes this training rather than an overview. Related
+terms belong together on one slide with the distinction between them made
+explicit, not scattered across three.
+
+Decide how many sections the subject genuinely needs — usually four to seven. A
 section is a part of the subject, not a slide. Do not create one section per
 slide, and do not pad the count to match the slide budget.
 
 For each section give:
 - title: what this part covers, at most 90 characters
-- claim: what this section asserts, in one sentence. "The three families differ
-  by what signal is available" is a claim. "Overview of the types of machine
-  learning" is not — it is a heading, and a heading can be filled with
-  definitions. Every section must assert something.
-- vehicle: the concrete thing this section teaches through — a worked example,
-  a before-and-after comparison, one request walked end to end, a failure
-  traced to its cause. Naming it here is what stops the slides beneath it
-  turning into prose.
+- claim: what this section teaches, in one sentence that says something.
+  "Authorisation, capture and settlement happen at different times, which is
+  why the customer's balance changes before the shop is paid" is a claim.
+  "Overview of the payment process" is not — it is a heading, and a heading
+  gets filled with definitions. Every section must say something specific.
+- vehicle: the concrete thing this section teaches through — a worked example
+  carried end to end, an everyday comparison, a side-by-side of related terms,
+  a before-and-after, a failure traced to its cause. Naming it here is what
+  stops the slides beneath it turning into a definition list.
 - summary: what the audience should understand once this section is done, at
   most 400 characters
 - subtopics: 2 to 8 specific points this section must teach, in the order they
@@ -207,9 +223,13 @@ WHAT MAKES A PLAN FAIL
   Concepts", "Conclusion". Name what is being taught.
 - Subtopics that would be true of any subject. Test each one: could this line
   appear unchanged in a lesson about something else? Then it is filler.
-- Definitions where an explanation belongs. "X is a technique for Y" teaches
-  nothing on its own; plan the part that shows how X behaves, what it costs,
-  or when it fails.
+- Definitions where teaching belongs. "X is a technique for Y" leaves the
+  audience able to repeat a sentence and nothing else. Plan the part that gives
+  the everyday comparison, says what X is for, and shows where they will meet
+  it.
+- Leaving out the words the audience will hear elsewhere. A lesson that avoids
+  the subject's real vocabulary has not prepared anyone for a conversation
+  about it.
 - Compliance boilerplate, HR-policy language or generic corporate safety
   guidance, unless the request is specifically about those.
 - A plan shaped Definition → Components → Benefits → Challenges → Conclusion.
@@ -367,6 +387,7 @@ export async function POST(request: NextRequest) {
       audience: balanced.audience,
       thesis: balanced.thesis,
       misconception: balanced.misconception,
+      keyTerms: balanced.keyTerms,
       outcomes: balanced.outcomes,
       recommendedSlides: balanced.recommendedSlides,
       sections: balanced.sections,
@@ -456,6 +477,7 @@ export async function POST(request: NextRequest) {
         audience: balanced.audience,
         thesis: balanced.thesis,
         misconception: balanced.misconception,
+        keyTerms: balanced.keyTerms,
         outcomes: balanced.outcomes,
         // Surfaced so a reference that could not be read is visible rather
         // than silently ignored.

@@ -45,6 +45,7 @@ interface StoredOutlinePlan {
   audience?: string;
   thesis?: string;
   misconception?: string;
+  keyTerms?: string[];
 }
 
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
@@ -181,6 +182,7 @@ async function generateAllSlides(lessonId: string, languageOverride?: string): P
       audience: plan.audience,
       thesis: plan.thesis,
       misconception: plan.misconception,
+      keyTerms: plan.keyTerms,
       sectionClaim: planned?.claim,
       sectionVehicle: planned?.vehicle,
       alreadyCovered: covered.length ? covered.slice(-8).join("\n") : undefined,

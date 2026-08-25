@@ -74,6 +74,8 @@ export interface OutlineLessonDraft {
   audience?: string;
   thesis?: string;
   misconception?: string;
+  /** The vocabulary the lesson undertakes to teach. */
+  keyTerms?: string[];
   language: string;
   style: string;
   topic: string;
@@ -290,7 +292,7 @@ export function OutlineLessonCard({
               The three lines worth reading before spending a generation on
               this lesson: a wrong audience or a flat argument is visible here
               in seconds, and costs a whole deck to discover afterwards. */}
-          {(lesson.audience || lesson.thesis) && (
+          {(lesson.audience || lesson.thesis || lesson.keyTerms?.length) && (
             <div className="border-primary/20 bg-primary/[0.03] space-y-1.5 rounded-md border p-2.5">
               {lesson.audience && (
                 <div className="flex gap-2 text-[11px]">
@@ -311,9 +313,29 @@ export function OutlineLessonCard({
               {lesson.thesis && (
                 <div className="flex gap-2 text-[11px]">
                   <span className="text-muted-foreground w-20 shrink-0 font-semibold tracking-wide uppercase">
-                    Arguing
+                    Remember
                   </span>
                   <span className="text-foreground flex-1">{lesson.thesis}</span>
+                </div>
+              )}
+              {/* Coverage, at a glance. Whether the lesson on agents actually
+                  reaches RAG and function calling is the question an
+                  instructor wants answered before generating twelve slides. */}
+              {lesson.keyTerms && lesson.keyTerms.length > 0 && (
+                <div className="flex gap-2 text-[11px]">
+                  <span className="text-muted-foreground w-20 shrink-0 font-semibold tracking-wide uppercase">
+                    Teaches
+                  </span>
+                  <span className="flex flex-1 flex-wrap gap-1">
+                    {lesson.keyTerms.map((term) => (
+                      <span
+                        key={term}
+                        className="bg-primary/10 text-primary rounded px-1.5 py-0.5 text-[10px] font-medium"
+                      >
+                        {term}
+                      </span>
+                    ))}
+                  </span>
                 </div>
               )}
             </div>

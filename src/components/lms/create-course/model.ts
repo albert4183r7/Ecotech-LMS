@@ -42,6 +42,7 @@ export function toLessonDraft(
     audience?: string;
     thesis?: string;
     misconception?: string;
+    keyTerms?: string[];
   },
   meta: { language: string; style: string; topic: string },
 ): { lesson: OutlineLessonDraft; slides: OutlineSlideDraft[] } {
@@ -81,6 +82,7 @@ export function toLessonDraft(
       audience: lessonData.audience,
       thesis: lessonData.thesis,
       misconception: lessonData.misconception,
+      keyTerms: lessonData.keyTerms,
       language: meta.language,
       style: meta.style,
       topic: meta.topic,

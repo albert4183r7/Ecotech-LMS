@@ -81,12 +81,25 @@ export const PresentationPlanSchema = z.object({
     .min(15)
     .max(300)
     .describe("Who this is for and what they already know, inferred from the request"),
-  /** The one claim the whole lesson makes; every section serves it. */
+  /** The one thing the audience should still know a week later. */
   thesis: z
     .string()
     .min(20)
     .max(300)
-    .describe("The single claim the lesson makes, that its sections are evidence for"),
+    .describe("The single idea the whole lesson is built to leave them with"),
+  /**
+   * The vocabulary the lesson has to teach.
+   *
+   * Training is partly about being able to follow a conversation afterwards,
+   * and that means meeting the words other people use. Listing them in the
+   * plan makes coverage reviewable: an instructor can see at a glance that the
+   * lesson on agents covers RAG and function calling, or that it does not.
+   */
+  keyTerms: z
+    .array(z.string().min(2).max(60))
+    .max(24)
+    .optional()
+    .describe("The real terms this audience will hear elsewhere and must learn to recognise"),
   /** What the audience believes now that the lesson corrects. Optional: not
    *  every subject has one, and an invented one is worse than none. */
   misconception: z
@@ -202,6 +215,12 @@ export function repairPlan(parsed: unknown): unknown {
   // nothing; failing validation costs a retry of the whole plan.
   if (typeof plan.audience === "string") plan.audience = trimToWord(plan.audience, 300);
   if (typeof plan.thesis === "string") plan.thesis = trimToWord(plan.thesis, 300);
+  if (Array.isArray(plan.keyTerms)) {
+    plan.keyTerms = plan.keyTerms
+      .filter((t): t is string => typeof t === "string" && t.trim().length >= 2)
+      .map((t) => trimToWord(t, 60))
+      .slice(0, 24);
+  }
   if (typeof plan.misconception === "string") {
     plan.misconception = trimToWord(plan.misconception, 240);
   }

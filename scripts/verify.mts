@@ -154,8 +154,10 @@ add("the craft guide reaches the writer, and the plan exemplar the planner", () 
   return (
     craft.every((text) => text.length > 400) &&
     // each carries a worked pair, not just advice about writing one
-    SLIDE_EXEMPLARS.includes("Too shallow:") &&
-    SLIDE_EXEMPLARS.includes("Written properly:") &&
+    SLIDE_EXEMPLARS.includes("As a definition list") &&
+    SLIDE_EXEMPLARS.includes("As training:") &&
+    // and the plan exemplar carries the arc a training lesson follows
+    PLAN_EXEMPLAR.includes("THE SHAPE OF A TRAINING LESSON") &&
     PLAN_EXEMPLAR.includes("claim:") &&
     PLAN_EXEMPLAR.includes("vehicle:")
   );
