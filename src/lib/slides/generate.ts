@@ -31,6 +31,12 @@ export interface SlideBrief {
   misconception?: string;
   /** The lesson's vocabulary, so terminology stays consistent across slides. */
   keyTerms?: string[];
+  /** The title the plan gave this slide, which the instructor has reviewed. */
+  plannedTitle?: string;
+  /** Where this slide sits inside its section, so two slides of one section
+   *  do not both write the section's opening. */
+  positionInSection?: number;
+  slidesInSection?: number;
   /** What this section asserts — the reason it exists. */
   sectionClaim?: string;
   /** How the section makes its case: the example, comparison or walkthrough. */
@@ -142,8 +148,17 @@ function buildPrompt(brief: SlideBrief): string {
     brief.sectionClaim ? `WHAT THIS SECTION ASSERTS: ${brief.sectionClaim}` : "",
     brief.sectionVehicle ? `HOW THIS SECTION MAKES ITS CASE: ${brief.sectionVehicle}` : "",
     "",
+    brief.plannedTitle && brief.role !== "cover"
+      ? `THIS SLIDE'S TITLE, as the instructor approved it: "${brief.plannedTitle}"\nKeep it, or improve the wording without changing what it promises.`
+      : "",
+    brief.slidesInSection && brief.slidesInSection > 1
+      ? `This is slide ${brief.positionInSection} of ${brief.slidesInSection} in this section. Cover the points below and nothing else from the section — its other slides carry the rest.`
+      : "",
     brief.subtopics.length
-      ? `THIS SLIDE MUST COVER:\n${brief.subtopics.map((t) => `- ${t}`).join("\n")}`
+      ? `THIS SLIDE MUST COVER:\n${brief.subtopics.map((t) => `- ${t}`).join("\n")}` +
+        `\n\nWrite one block per point above — ${brief.subtopics.length} block${
+          brief.subtopics.length === 1 ? "" : "s"
+        }, no more. If a point is too big for one block, teach the part that matters most and leave the rest; do not add blocks to fit everything in.`
       : "This slide frames the presentation rather than carrying detailed points.",
     brief.alreadyCovered
       ? `\nALREADY COVERED BY EARLIER SLIDES — do not restate:\n${brief.alreadyCovered}`

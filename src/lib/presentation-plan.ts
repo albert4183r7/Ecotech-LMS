@@ -244,9 +244,13 @@ export function repairPlan(parsed: unknown): unknown {
     if (typeof section.claim === "string") section.claim = trimToWord(section.claim, 240);
     if (typeof section.vehicle === "string") section.vehicle = trimToWord(section.vehicle, 200);
     if (Array.isArray(section.slideTitles)) {
+      const budget = typeof section.slideBudget === "number" ? section.slideBudget : 1;
       section.slideTitles = section.slideTitles
         .filter((t): t is string => typeof t === "string" && t.trim().length >= 3)
-        .map((t) => trimToWord(t, TITLE_MAX));
+        .map((t) => trimToWord(t, TITLE_MAX))
+        // One title per slide. Extra titles would silently go unused and read
+        // as slides the instructor was promised and never got.
+        .slice(0, budget);
     }
 
     if (Array.isArray(section.subtopics)) {
@@ -256,7 +260,15 @@ export function repairPlan(parsed: unknown): unknown {
         .filter((t) => t.length >= SUBTOPIC_MIN);
       // Splitting can push a section past the item cap; keeping the first
       // eight loses least, because the model orders points by importance.
-      section.subtopics = expanded.slice(0, MAX_SUBTOPICS);
+      //
+      // And no more than three points per slide the section was given. Eight
+      // points on one slide is not a dense slide, it is three points and five
+      // truncated ones: the boxes are a fixed size, so the surplus is written,
+      // shrunk, then cut off mid-sentence. Better to promise what a slide can
+      // actually teach.
+      const budget = typeof section.slideBudget === "number" ? section.slideBudget : 1;
+      const perSlideCap = Math.max(2, Math.min(MAX_SUBTOPICS, budget * 3));
+      section.subtopics = expanded.slice(0, Math.min(MAX_SUBTOPICS, perSlideCap));
     }
 
     return section;

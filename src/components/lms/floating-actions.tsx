@@ -95,13 +95,22 @@ export function FloatingActions() {
 
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-6 z-50 flex justify-end px-4 sm:bottom-8 sm:px-8">
-      <div className="pointer-events-auto flex flex-col items-end gap-3">
+      {/* The column stays transparent to the pointer; only the controls that
+          are actually visible take clicks.
+
+          It used to be pointer-events-auto as a whole, and a hidden menu still
+          occupies its layout space — so a tall invisible column sat over the
+          right-hand edge of every page, swallowing clicks meant for the
+          scrollbar behind it. */}
+      <div className="pointer-events-none flex flex-col items-end gap-3">
         {/* Expanded action items */}
         <div
           data-fab-menu
           className={cn(
             "flex flex-col items-end gap-2 transition-all duration-300 ease-out",
-            expanded ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-4 opacity-0",
+            expanded
+              ? "pointer-events-auto translate-y-0 opacity-100"
+              : "pointer-events-none translate-y-4 opacity-0",
           )}
         >
           {QUICK_ACTIONS.filter((action) => {
@@ -143,7 +152,7 @@ export function FloatingActions() {
           data-fab-root
           onClick={() => setExpanded((prev) => !prev)}
           className={cn(
-            "relative flex h-14 w-14 items-center justify-center rounded-full shadow-lg transition-all duration-300",
+            "pointer-events-auto relative flex h-14 w-14 items-center justify-center rounded-full shadow-lg transition-all duration-300",
             "bg-gradient-to-br from-cyan-500 to-teal-600 text-white",
             "hover:scale-110 hover:shadow-xl active:scale-95",
             "backdrop-blur-md",
@@ -166,7 +175,7 @@ export function FloatingActions() {
             "bg-background/80 text-foreground border-border/50 border backdrop-blur-md",
             "hover:scale-110 active:scale-95",
             showScrollTop
-              ? "translate-y-0 opacity-100"
+              ? "pointer-events-auto translate-y-0 opacity-100"
               : "pointer-events-none translate-y-4 opacity-0",
           )}
           aria-label="Scroll to top"

@@ -19,6 +19,34 @@ import { runQualityGate } from "@/lib/agent/quality-gate";
 
 const SLIDE_TIMEOUT_MS = 120_000;
 
+/**
+ * Slides written at once.
+ *
+ * They were written strictly one after another, so a twelve-slide lesson cost
+ * twelve round trips end to end and the instructor waited through all of them.
+ * The slides are independent — each owns its row and its share of the section's
+ * points — so the only thing serialising them bought was a fuller "already
+ * covered" list, and that is a safety net rather than the mechanism that keeps
+ * them distinct: the plan assigns each slide its own points.
+ */
+const SLIDE_CONCURRENCY = Math.max(1, Number(process.env.SLIDE_CONCURRENCY ?? 3));
+
+/** Run over items with at most `limit` in flight, preserving no order. */
+async function withConcurrency<T>(
+  items: T[],
+  limit: number,
+  worker: (item: T) => Promise<void>,
+): Promise<void> {
+  let cursor = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(limit, items.length) }, async () => {
+      while (cursor < items.length) {
+        await worker(items[cursor++]);
+      }
+    }),
+  );
+}
+
 interface GenerateSlidesRequest {
   lessonId: string;
   language?: string;
@@ -147,7 +175,7 @@ async function generateAllSlides(lessonId: string, languageOverride?: string): P
       }
     });
 
-  for (const slide of pending) {
+  const generateOne = async (slide: (typeof pending)[number]) => {
     const position = deck.findIndex((s) => s.id === slide.id);
     const label = `${position + 1}/${deck.length}`;
     const section = slide.sectionId ? sectionById.get(slide.sectionId) : undefined;
@@ -183,6 +211,12 @@ async function generateAllSlides(lessonId: string, languageOverride?: string): P
       thesis: plan.thesis,
       misconception: plan.misconception,
       keyTerms: plan.keyTerms,
+      // The title the plan gave this particular slide. Without it, every slide
+      // of a two-slide section invented a heading from the same section
+      // summary, and the pair came out looking like the same slide twice.
+      plannedTitle: slide.title,
+      positionInSection,
+      slidesInSection: owned.length,
       sectionClaim: planned?.claim,
       sectionVehicle: planned?.vehicle,
       alreadyCovered: covered.length ? covered.slice(-8).join("\n") : undefined,
@@ -240,7 +274,9 @@ async function generateAllSlides(lessonId: string, languageOverride?: string): P
         .update({ where: { id: slide.id }, data: { status: "ERROR" } })
         .catch(() => undefined);
     }
-  }
+  };
+
+  await withConcurrency(pending, SLIDE_CONCURRENCY, generateOne);
 
   // ---- Validate what was produced against what was approved ----
   const finished = await db.slide.findMany({

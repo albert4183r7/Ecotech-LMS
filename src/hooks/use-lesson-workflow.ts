@@ -96,6 +96,11 @@ export function useLessonWorkflow({
   // True while the generated HTML is being fetched, so the card can say the
   // deck is loading instead of showing an empty space where it will appear.
   const [slidesLoading, setSlidesLoading] = useState(false);
+  // Seconds left, estimated from how long the finished slides actually took.
+  // A figure printed before anything has finished would be a guess about the
+  // gateway's speed today, so nothing is shown until there is evidence.
+  const [etaSeconds, setEtaSeconds] = useState<number | null>(null);
+  const genStartedAtRef = useRef<number | null>(null);
   const abortGenRef = useRef<AbortController | null>(null);
   const slideGenStatesRef = useRef<Record<string, SlideGenState>>({});
   /** The running progress poll, so it can be stopped from anywhere. */
@@ -421,10 +426,22 @@ export function useLessonWorkflow({
           setSlideGenStates((prev) => ({ ...prev, ...nextStates }));
 
           setCurrentGenSlideId(progress.generatingSlideId);
-          setGenProgress({
-            current: progress.readySlides + progress.errorSlides,
-            total: progress.totalSlides,
-          });
+          const settled = progress.readySlides + progress.errorSlides;
+          setGenProgress({ current: settled, total: progress.totalSlides });
+
+          // Measured, not assumed: slides are written several at a time and
+          // the gateway's pace varies by the hour, so the only honest estimate
+          // is the rate this run is actually achieving.
+          const startedAt = genStartedAtRef.current;
+          if (progress.done) {
+            setEtaSeconds(null);
+          } else if (startedAt && settled > 0) {
+            const perSlide = (Date.now() - startedAt) / 1000 / settled;
+            const slidesLeft = Math.max(0, progress.totalSlides - settled);
+            // The review pass and the quiz still follow the last slide, and
+            // between them they cost roughly what three slides do.
+            setEtaSeconds(Math.round(perSlide * (slidesLeft + 3)));
+          }
           // Slides are only the first stage. The deck is reviewed and the quiz
           // written from it afterwards, in the same server-side workflow, so
           // declaring success at the last slide left the instructor on a
@@ -537,6 +554,8 @@ export function useLessonWorkflow({
 
           setGeneratingLessonId(lesson.id);
           setExpandedOutlineLessonId(lesson.id);
+          // Picked up mid-run, so the rate can only be measured from here.
+          genStartedAtRef.current = Date.now();
           startProgressPolling(lesson.id);
           return;
         } catch {
@@ -572,6 +591,8 @@ export function useLessonWorkflow({
       setGenStage("slides");
       setCurrentGenSlideId(null);
       setGenProgress({ current: 0, total: lesson.slides.length });
+      setEtaSeconds(null);
+      genStartedAtRef.current = Date.now();
       setExpandedOutlineLessonId(lessonId);
 
       // Close modal if open
@@ -659,6 +680,7 @@ export function useLessonWorkflow({
     currentGenSlideId,
     genProgress,
     slidesLoading,
+    etaSeconds,
     // actions
     handleOpenModal,
     handleGenerateOutline,

@@ -199,13 +199,18 @@ For each section give:
   stops the slides beneath it turning into a definition list.
 - summary: what the audience should understand once this section is done, at
   most 400 characters
-- subtopics: 2 to 8 specific points this section must teach, in the order they
+- subtopics: the specific points this section must teach, in the order they
   should be taught. Be concrete enough that the user can tell from reading them
   what the presentation will actually say. Write the actual points, not
   instructions like "explain the basics". Name the subject's real terms and
   methods — the vocabulary is the lesson, not decoration on it.
   HARD LIMIT: each subtopic at most 160 characters. One point per entry. If a
   point needs more room, it is two points; split it.
+  AT MOST THREE POINTS PER SLIDE OF THIS SECTION'S BUDGET. A one-slide section
+  carries three points; a two-slide section carries six. A slide holds three
+  ideas well and eight not at all — points past that are not taught, they are
+  crammed in and cut off. If the section has more to say than its budget
+  allows, give it more slides, or leave the surplus to another section.
 - slideTitles: one real title per slide in this section, in order, as many as
   slideBudget. Write the title the finished slide will carry — "Overfitting,
   read from a learning curve", not "Section 2 (1/2)".

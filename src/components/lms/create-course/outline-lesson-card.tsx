@@ -100,6 +100,8 @@ export interface OutlineLessonCardProps {
   genStage?: GenStage;
   /** True while the generated slide HTML is on its way from the server. */
   previewLoading?: boolean;
+  /** Seconds still to run, measured from this run's own pace. */
+  etaSeconds?: number | null;
   onToggleExpand: () => void;
   onEditOutline: () => void;
   onUpdateSlideTitle: (slideId: string, newTitle: string) => void;
@@ -120,6 +122,7 @@ export function OutlineLessonCard({
   genProgress,
   genStage,
   previewLoading,
+  etaSeconds,
   onToggleExpand,
   onEditOutline,
   onUpdateSlideTitle,
@@ -151,6 +154,14 @@ export function OutlineLessonCard({
   // The server logs the slide it has started; the progress figure counts the
   // ones that have finished. Both are right, and reporting the second with the
   // word "generating" made the page a slide behind the terminal.
+  /** "about 4 minutes left", in the units a waiting person thinks in. */
+  const remaining = (() => {
+    if (etaSeconds === null || etaSeconds === undefined || etaSeconds <= 0) return null;
+    if (etaSeconds < 60) return "under a minute left";
+    const minutes = Math.round(etaSeconds / 60);
+    return `about ${minutes} minute${minutes === 1 ? "" : "s"} left`;
+  })();
+
   const slideInFlight = Math.min(
     genProgress.total,
     genProgress.current + (currentGenSlideId ? 1 : 0),
@@ -266,6 +277,7 @@ export function OutlineLessonCard({
                   {finishing
                     ? `All ${genProgress.total} slides are written. Reviewing them and writing the quiz…`
                     : `Generating slide ${slideInFlight} of ${genProgress.total} · ${genProgress.current} done`}
+                  {remaining && !finishing ? ` · ${remaining}` : ""}
                 </span>
                 <Button
                   size="sm"
