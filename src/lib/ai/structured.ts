@@ -1,7 +1,13 @@
 import { AIMessage, HumanMessage, SystemMessage, type BaseMessage } from "@langchain/core/messages";
 import { z } from "zod/v4";
 import { type AiTask } from "./models";
-import { getChatModel, throwFriendlyError, MAX_RETRIES } from "./provider";
+import {
+  getChatModel,
+  throwFriendlyError,
+  isTransientError,
+  MAX_RETRIES,
+  TRANSIENT_RETRIES,
+} from "./provider";
 
 // ============================================
 // Structured JSON
@@ -40,6 +46,57 @@ export interface StructuredOptions {
   repair?: (parsed: unknown) => unknown;
   systemInstruction?: string;
   temperature?: number;
+}
+
+/**
+ * Send one request, streaming the reply, and re-send it if the gateway failed.
+ *
+ * Two things fixed here, both seen as one 504 from the outline planner.
+ *
+ * It streams. A gateway that buffers a whole response applies a deadline to
+ * it, and a plan carrying an audience, a thesis, the vocabulary and a claim
+ * per section is long enough to pass that deadline — where the same request
+ * streamed keeps producing bytes and is never cut off. This is the same reason
+ * generateText streams slide HTML rather than requesting it whole; structured
+ * JSON simply never got the same treatment, and only became long enough to
+ * need it once the plan started carrying its own brief.
+ *
+ * And a gateway failure is retried. A 504 is not a bad prompt — it is the
+ * deployment saying it did not finish in time — and the request that produced
+ * it usually succeeds unchanged. It used to throw straight out of the retry
+ * loop below, so one hiccup failed a whole outline and the user saw a 502.
+ * Counted separately from the schema retries, so a transport failure cannot
+ * consume the budget for a genuinely bad answer.
+ */
+async function invokeWithTransientRetry(
+  model: ReturnType<typeof getChatModel>,
+  messages: BaseMessage[],
+  task: AiTask,
+): Promise<string> {
+  let lastTransport: unknown;
+
+  for (let attempt = 0; attempt <= TRANSIENT_RETRIES; attempt++) {
+    try {
+      const stream = await model.stream(messages);
+      let text = "";
+      for await (const chunk of stream) text += chunk.text ?? "";
+      return text;
+    } catch (err) {
+      if (!isTransientError(err) || attempt === TRANSIENT_RETRIES) throw err;
+      lastTransport = err;
+      // Backing off matters when the cause is load rather than chance: an
+      // immediate retry arrives while the gateway is still saturated.
+      const waitMs = 2000 * 2 ** attempt;
+      console.warn(
+        `[generateStructuredJSON:${task}] gateway failure on attempt ${attempt + 1}/${
+          TRANSIENT_RETRIES + 1
+        }, retrying in ${waitMs / 1000}s — ${err instanceof Error ? err.message : String(err)}`,
+      );
+      await new Promise((resolve) => setTimeout(resolve, waitMs));
+    }
+  }
+
+  throw lastTransport;
 }
 
 /**
@@ -96,7 +153,7 @@ export async function generateStructuredJSON<T>(
 
     let rawContent: string;
     try {
-      rawContent = (await model.invoke(messages)).text;
+      rawContent = await invokeWithTransientRetry(model, messages, options.task);
     } catch (err) {
       throwFriendlyError(err, "generateStructuredJSON", options.task);
     }

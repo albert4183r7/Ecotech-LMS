@@ -36,7 +36,51 @@ export const BASE_URL = process.env.ECOAPI_BASE_URL ?? "https://www.ecoapi.ai/ap
  */
 export const MAX_OUTPUT_TOKENS = Number(process.env.CLAUDE_MAX_TOKENS ?? 16000);
 
+function extractErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === "string") return err;
+  return JSON.stringify(err);
+}
+
+/** HTTP status, if the integration attached one to the error. */
+function extractStatus(err: unknown): number | undefined {
+  if (typeof err !== "object" || err === null) return undefined;
+  const candidate = err as { status?: unknown; status_code?: unknown };
+  const raw = candidate.status ?? candidate.status_code;
+  return typeof raw === "number" ? raw : undefined;
+}
+
 export const MAX_RETRIES = 2;
+
+/**
+ * Attempts for a failure that is the gateway's rather than the request's.
+ *
+ * A 504 is not a bad prompt — it is the deployment saying it did not finish in
+ * time. Re-sending the same request is exactly the right response, which is
+ * why these attempts are counted separately from the schema retries: a
+ * transient failure must not consume the budget for a genuinely bad answer.
+ */
+export const TRANSIENT_RETRIES = 2;
+
+/** How long to wait for the gateway before giving up on one attempt. */
+export const REQUEST_TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS ?? 180_000);
+
+/**
+ * Whether a failure is worth re-sending unchanged.
+ *
+ * Gateway timeouts and upstream hiccups (502, 503, 504) and dropped sockets
+ * say nothing about the request; a 400 or a 401 says everything about it and
+ * will fail identically forever.
+ */
+export function isTransientError(err: unknown): boolean {
+  const status = extractStatus(err);
+  if (status === 408 || status === 409 || status === 429) return true;
+  if (status !== undefined && status >= 500) return true;
+  const msg = extractErrorMessage(err);
+  return /timeout|timed out|ETIMEDOUT|ECONNRESET|EPIPE|socket hang up|fetch failed|network|deployment|upstream|bad gateway|gateway|service unavailable|overloaded/i.test(
+    msg,
+  );
+}
 
 /** How the caller wants the model configured for one kind of call. */
 export interface ChatModelOptions {
@@ -80,7 +124,13 @@ export function getChatModel(task: AiTask, options: ChatModelOptions = {}): Chat
     // LangChain's own retry would repeat a whole billed call on a transient
     // failure; the callers that need another attempt retry with feedback
     // instead, which is worth more than a blind repeat and costs the same.
+    // Transport failures are retried by the callers too — see
+    // isTransientError — so that a 504 is distinguishable from a bad answer.
     maxRetries: 0,
+    // Without this a stalled gateway holds the request open until something
+    // else gives up first, and the caller cannot tell a slow answer from a
+    // dead connection.
+    timeout: REQUEST_TIMEOUT_MS,
     // JSON mode. A gateway that does not implement response_format will
     // reject the request — drop this line if yours does. The instructions
     // already demand a bare JSON object, and generateStructuredJSON validates
@@ -92,20 +142,6 @@ export function getChatModel(task: AiTask, options: ChatModelOptions = {}): Chat
 
   cache.set(key, chat);
   return chat;
-}
-
-function extractErrorMessage(err: unknown): string {
-  if (err instanceof Error) return err.message;
-  if (typeof err === "string") return err;
-  return JSON.stringify(err);
-}
-
-/** HTTP status, if the integration attached one to the error. */
-function extractStatus(err: unknown): number | undefined {
-  if (typeof err !== "object" || err === null) return undefined;
-  const candidate = err as { status?: unknown; status_code?: unknown };
-  const raw = candidate.status ?? candidate.status_code;
-  return typeof raw === "number" ? raw : undefined;
 }
 
 /**

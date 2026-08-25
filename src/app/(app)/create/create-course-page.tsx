@@ -437,7 +437,7 @@ export function CreateCoursePage() {
         }}
       >
         <DialogContent
-          className="max-h-[90vh] overflow-y-auto sm:max-w-3xl"
+          className="max-h-[90vh] overflow-y-auto sm:max-w-5xl"
           onInteractOutside={(e) => e.preventDefault()}
         >
           <DialogHeader>
@@ -456,11 +456,16 @@ export function CreateCoursePage() {
               <Label className="text-sm font-medium">
                 Prompt <span className="text-destructive">*</span>
               </Label>
-              <Input
-                placeholder="e.g., Create a lesson about data science fundamentals for beginners, covering key concepts like supervised vs unsupervised learning, with real-world examples"
+              {/* A textarea, not a single line: the planner reads this as the
+                  brief for the whole lesson — who it is for, what to cover —
+                  and a one-line box hid everything but the last few words of
+                  it while it was being written. */}
+              <Textarea
+                placeholder="e.g., Train our support team on how AI agents work — what an agent is, what it's made of, the loop, RAG, MCP, function calling and guardrails, with a worked example and what to watch out for"
                 value={outlineTopic}
                 onChange={(e) => setOutlineTopic(e.target.value)}
-                className="h-10"
+                rows={3}
+                className="resize-y text-sm"
                 disabled={outlineGenerating}
               />
             </div>
