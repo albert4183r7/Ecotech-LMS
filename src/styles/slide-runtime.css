@@ -207,6 +207,10 @@
 .tpl-fill-heading {
   background-color: var(--tpl-heading);
 }
+/* A composed slide may wash a card in the template's second surface tint. */
+.tpl-fill-surface-alt {
+  background-color: var(--tpl-surface-alt);
+}
 /* The one gradient in the template: its emphasis card and takeaway band. */
 .tpl-fill-gradient {
   background: linear-gradient(120deg, var(--tpl-feature-from) 0%, var(--tpl-feature-to) 100%);

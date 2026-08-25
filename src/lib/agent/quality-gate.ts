@@ -2,9 +2,15 @@ import { db } from "@/lib/db";
 import { evaluateContent, evaluatePedagogy, type LessonSnapshot } from "./evaluators/content";
 import { passes, blockingFindings, type EvaluationResult, type Finding } from "./evaluators/schema";
 import { recordEvaluation } from "./persistence";
-import { SlideContentSchema, type SlideContent } from "@/lib/slides/content-schema";
 import { generateSlideContent, type SlideBrief } from "@/lib/slides/generate";
-import { renderSlideContent } from "@/lib/slides/render";
+import { generateSlideComposition } from "@/lib/slides/composition-generate";
+import {
+  parseSlideDoc,
+  renderSlideDoc,
+  slideDocText,
+  slideDocTitle,
+  type SlideDoc,
+} from "@/lib/slides/document";
 import { sanitizeHtml, wrapSlideHtml } from "@/lib/sanitize";
 
 // ============================================
@@ -51,59 +57,12 @@ export interface GateReport {
   remaining: Finding[];
 }
 
-/** Flatten one slide's structured content into the text a critic reads. */
-function contentToText(content: SlideContent): string {
-  switch (content.type) {
-    case "title":
-    case "closing":
-      return [content.title, "subtitle" in content ? content.subtitle : ""]
-        .filter(Boolean)
-        .join(". ");
-    case "concept":
-      return [content.lead, ...content.points.map((p) => `${p.heading}: ${p.description}`)]
-        .filter(Boolean)
-        .join(" ");
-    case "comparison":
-      return [content.lead, ...content.columns.map((c) => `${c.heading}: ${c.points.join("; ")}`)]
-        .filter(Boolean)
-        .join(" ");
-    case "process":
-      return [content.lead, ...content.steps.map((s) => `${s.label}: ${s.description}`)]
-        .filter(Boolean)
-        .join(" ");
-    case "architecture":
-      return [
-        content.lead,
-        ...content.nodes.map((n) => `${n.label}${n.description ? `: ${n.description}` : ""}`),
-      ]
-        .filter(Boolean)
-        .join(" ");
-    case "caseStudy":
-      return `Situation: ${content.situation} Problem: ${content.problem} Action: ${content.action} Outcome: ${content.outcome}`;
-    case "data":
-      return [
-        content.lead,
-        ...content.stats.map((s) => `${s.value} ${s.label}${s.note ? ` (${s.note})` : ""}`),
-      ]
-        .filter(Boolean)
-        .join(" ");
-    case "summary":
-      return content.takeaways.join(" ");
-  }
-}
-
 interface SlideRow {
   id: string;
   title: string;
   order: number;
   contentJson: string | null;
   sectionId: string | null;
-}
-
-function parseContent(row: SlideRow): SlideContent | null {
-  if (!row.contentJson) return null;
-  const parsed = SlideContentSchema.safeParse(JSON.parse(row.contentJson));
-  return parsed.success ? parsed.data : null;
 }
 
 async function snapshot(
@@ -125,10 +84,8 @@ async function snapshot(
 
   const slides = lesson.slides
     .map((row) => {
-      const content = parseContent(row);
-      return content
-        ? { position: row.order + 1, title: row.title, text: contentToText(content) }
-        : null;
+      const doc = parseSlideDoc(row.contentJson);
+      return doc ? { position: row.order + 1, title: row.title, text: slideDocText(doc) } : null;
     })
     .filter((s): s is NonNullable<typeof s> => s !== null);
 
@@ -169,6 +126,8 @@ async function reviseSlide(params: {
   language: string;
   referenceText?: string;
   lessonTitle: string;
+  /** Which of the two slide models this row holds. */
+  kind: SlideDoc["kind"];
 }): Promise<void> {
   const section = params.row.sectionId
     ? await db.section.findUnique({
@@ -196,14 +155,22 @@ async function reviseSlide(params: {
     revisionNotes: params.findings.map((f) => `${f.problem} — ${f.fix}`),
   };
 
-  const content = await generateSlideContent(brief);
-  const html = sanitizeHtml(renderSlideContent(content, { slideNumber: brief.position }));
-  const title = "title" in content && content.title ? content.title.slice(0, 90) : params.row.title;
+  // Revised the way it was authored. A composed slide is composed again — the
+  // reviewer's findings go in beside the canvas rules — and a slide from a
+  // lesson generated before compositions keeps its typed content, so a
+  // revision never changes what the slide is, only what it says.
+  const doc: SlideDoc =
+    params.kind === "composition"
+      ? { kind: "composition", composition: await generateSlideComposition(brief) }
+      : { kind: "content", content: await generateSlideContent(brief) };
+
+  const html = sanitizeHtml(renderSlideDoc(doc, { slideNumber: brief.position }));
+  const title = slideDocTitle(doc, params.row.title);
 
   await db.slide.update({
     where: { id: params.row.id },
     data: {
-      contentJson: JSON.stringify(content),
+      contentJson: JSON.stringify(doc.kind === "composition" ? doc.composition : doc.content),
       htmlBody: wrapSlideHtml(html, { title }),
       title,
     },
@@ -324,6 +291,7 @@ export async function runQualityGate(options: GateOptions): Promise<GateReport> 
           language,
           referenceText: options.referenceText,
           lessonTitle: taken.title,
+          kind: parseSlideDoc(row.contentJson)?.kind ?? "composition",
         });
         report.revisedSlides.push(position);
       } catch (error) {

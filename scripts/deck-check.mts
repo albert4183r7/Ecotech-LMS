@@ -10,6 +10,8 @@ import { writeFileSync } from "node:fs";
 import PptxGenJS from "pptxgenjs";
 import JSZip from "jszip";
 import { addContentSlide, applyTemplateLayout } from "../src/lib/slides/pptx";
+import { addCompositionSlide } from "../src/lib/slides/composition-pptx";
+import type { SlideComposition } from "../src/lib/slides/composition";
 import { applyGradients, GRADIENT_SENTINEL } from "../src/lib/slides/pptx-gradient";
 import { SLIDE_TEMPLATE } from "../src/lib/slides/template";
 import type { SlideContent } from "../src/lib/slides/content-schema";
@@ -48,9 +50,55 @@ const deck: SlideContent[] = [
   { type: "closing", title: "Thank You", subtitle: "Questions welcome." },
 ];
 
+/** A composed slide, drawn shape by shape rather than poured into a layout. */
+const composed: SlideComposition = {
+  layoutNote: "three-step flow",
+  elements: [
+    { kind: "text", x: 0.045, y: 0.07, w: 0.4, h: 0.05, text: "03 · THE LOOP", role: "eyebrow" },
+    {
+      kind: "text",
+      x: 0.045,
+      y: 0.11,
+      w: 0.7,
+      h: 0.09,
+      text: "How a step is taken",
+      role: "title",
+    },
+    { kind: "card", x: 0.045, y: 0.32, w: 0.27, h: 0.36, fill: "panel" },
+    { kind: "chip", x: 0.07, y: 0.36, w: 0.05, h: 0.09, fill: "accent", text: "1" },
+    { kind: "text", x: 0.07, y: 0.48, w: 0.22, h: 0.07, text: "Observe", role: "heading" },
+    {
+      kind: "text",
+      x: 0.07,
+      y: 0.56,
+      w: 0.22,
+      h: 0.1,
+      text: "Read what came back from the last step.",
+      role: "body",
+    },
+    { kind: "arrow", x: 0.325, y: 0.47, w: 0.035, h: 0.06, direction: "right" },
+    { kind: "card", x: 0.365, y: 0.32, w: 0.27, h: 0.36, fill: "panel" },
+    { kind: "chip", x: 0.39, y: 0.36, w: 0.05, h: 0.09, fill: "accent", text: "2" },
+    { kind: "text", x: 0.39, y: 0.48, w: 0.22, h: 0.07, text: "Decide", role: "heading" },
+    { kind: "band", x: 0.045, y: 0.78, w: 0.91, h: 0.08, fill: "gradient" },
+    {
+      kind: "text",
+      x: 0.07,
+      y: 0.795,
+      w: 0.86,
+      h: 0.05,
+      text: "The loop is the mechanism; one pass is not an agent.",
+      role: "body",
+      ink: "featureBody",
+    },
+  ],
+};
+
 const pptx = new PptxGenJS();
 applyTemplateLayout(pptx, SLIDE_TEMPLATE);
 deck.forEach((c, i) => addContentSlide(pptx, c, SLIDE_TEMPLATE, { slideNumber: i + 1 }));
+// Both slide models go into one file: the export has to draw either.
+addCompositionSlide(pptx, composed, SLIDE_TEMPLATE, { slideNumber: deck.length + 1 });
 const written = (await pptx.write({ outputType: "nodebuffer" })) as Buffer;
 const buffer = await applyGradients(written, SLIDE_TEMPLATE);
 
@@ -112,6 +160,18 @@ check(
 check("navy is used for headings", xml.includes(p.heading), p.heading);
 check("mint is used for accents", xml.includes(p.accent), p.accent);
 check("decorative circles keep their alpha", /<a:alpha val="\d+"\/>/.test(xml));
+
+// The composed slide, which draws its own shapes rather than filling a layout.
+check(
+  "a composed slide's gradient band is a real gradient too",
+  grads >= 2,
+  `${grads} gradFill(s) across both slide models`,
+);
+check(
+  "a composed connector is a PowerPoint arrow, not a picture of one",
+  xml.includes('prst="rightArrow"'),
+);
+check("a composed chip is a circle", (xml.match(/prst="ellipse"/g)?.length ?? 0) > 0);
 
 console.log(fail === 0 ? "\ndeck matches the template" : `\n${fail} mismatch(es)`);
 process.exit(fail === 0 ? 0 : 1);

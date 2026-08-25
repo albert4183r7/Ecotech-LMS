@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { extractSlideText } from "@/lib/slides/text";
-import { SlideContentSchema, type SlideContent } from "@/lib/slides/content-schema";
+import { parseSlideDoc, slideDocText } from "@/lib/slides/document";
 
 // ============================================
 // The lesson as the quiz's only source of truth
@@ -31,66 +31,6 @@ export interface LessonSource {
   slideCount: number;
 }
 
-/** Flatten structured slide content into the sentences it renders as. */
-function contentToText(content: SlideContent): string {
-  switch (content.type) {
-    case "title":
-      return [content.eyebrow, content.title, content.subtitle].filter(Boolean).join(". ");
-    case "closing":
-      return [content.title, content.subtitle].filter(Boolean).join(". ");
-    case "concept":
-      return [
-        content.title,
-        content.lead,
-        ...content.points.map((p) => `${p.heading}: ${p.description}`),
-      ]
-        .filter(Boolean)
-        .join(" ");
-    case "comparison":
-      return [
-        content.title,
-        content.lead,
-        ...content.columns.map((c) => `${c.heading}: ${c.points.join("; ")}`),
-      ]
-        .filter(Boolean)
-        .join(" ");
-    case "process":
-      return [
-        content.title,
-        content.lead,
-        ...content.steps.map((s, i) => `Step ${i + 1}, ${s.label}: ${s.description}`),
-      ]
-        .filter(Boolean)
-        .join(" ");
-    case "architecture":
-      return [
-        content.title,
-        content.lead,
-        ...content.nodes.map((n) => `${n.label}${n.description ? `: ${n.description}` : ""}`),
-      ]
-        .filter(Boolean)
-        .join(" ");
-    case "caseStudy":
-      return [
-        content.title,
-        `Situation: ${content.situation}`,
-        `Problem: ${content.problem}`,
-        `Action: ${content.action}`,
-        `Outcome: ${content.outcome}`,
-      ].join(" ");
-    case "data":
-      return [
-        content.title,
-        content.lead,
-        ...content.stats.map((s) => `${s.value} — ${s.label}${s.note ? ` (${s.note})` : ""}`),
-      ]
-        .filter(Boolean)
-        .join(" ");
-    case "summary":
-      return [content.title, ...content.takeaways].join(" ");
-  }
-}
-
 /**
  * Read one lesson's generated content.
  *
@@ -117,11 +57,8 @@ export async function loadLessonSource(lessonId: string): Promise<LessonSource |
 
   const slides: LessonSourceSlide[] = [];
   for (const slide of lesson.slides) {
-    let body = "";
-    if (slide.contentJson) {
-      const parsed = SlideContentSchema.safeParse(JSON.parse(slide.contentJson));
-      if (parsed.success) body = contentToText(parsed.data);
-    }
+    const doc = parseSlideDoc(slide.contentJson);
+    let body = doc ? slideDocText(doc) : "";
     if (!body) body = extractSlideText(slide.htmlBody);
     if (body.trim()) {
       slides.push({ number: slide.order + 1, title: slide.title, text: body.trim() });

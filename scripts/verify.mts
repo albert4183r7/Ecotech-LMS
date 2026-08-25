@@ -42,6 +42,20 @@ import {
 } from "../src/lib/ai/models";
 import { safeFileName } from "../src/lib/download";
 import type { SlideContent } from "../src/lib/slides/content-schema";
+import {
+  FILL_ROLES,
+  INK_ROLES,
+  TEXT_ROLES,
+  SlideCompositionSchema,
+  compositionTitle,
+  isComposition,
+  type SlideComposition,
+} from "../src/lib/slides/composition";
+import { resolveComposition, pointSizeFor } from "../src/lib/slides/composition-resolve";
+import { renderComposition } from "../src/lib/slides/composition-render";
+import { readCompositionField, writeCompositionField } from "../src/lib/slides/composition-path";
+import { parseSlideDoc, slideDocText } from "../src/lib/slides/document";
+import { readFileSync } from "node:fs";
 
 const checks: [string, () => boolean][] = [];
 const add = (n: string, f: () => boolean) => checks.push([n, f]);
@@ -539,6 +553,205 @@ add("all nine slide types render", () => {
     { type: "closing", title: "End" },
   ];
   return all.every((c) => renderSlideContent(c).length > 100);
+});
+
+// ── Composed slides ─────────────────────────────────────────────────────────
+//
+// The model lays a slide out and names roles; the template supplies every
+// value. These are the invariants that keeps honest: the roles all resolve,
+// the measurement corrects what it must and says so, and the markup survives
+// the sanitiser with its colours intact — the failure that would otherwise
+// ship a slide of black text on white.
+
+/** A three-card slide, composed the way the canvas rules describe. */
+const composition: SlideComposition = {
+  layoutNote: "three cards",
+  elements: [
+    { kind: "text", x: 0.045, y: 0.07, w: 0.4, h: 0.05, text: "SECTION ONE", role: "eyebrow" },
+    { kind: "text", x: 0.045, y: 0.11, w: 0.7, h: 0.09, text: "What an agent is", role: "title" },
+    { kind: "card", x: 0.045, y: 0.3, w: 0.27, h: 0.42, fill: "panel" },
+    { kind: "chip", x: 0.07, y: 0.34, w: 0.05, h: 0.09, fill: "accent", text: "1" },
+    {
+      kind: "text",
+      x: 0.07,
+      y: 0.46,
+      w: 0.22,
+      h: 0.07,
+      text: "The model",
+      role: "heading",
+    },
+    {
+      kind: "text",
+      x: 0.07,
+      y: 0.54,
+      w: 0.22,
+      h: 0.14,
+      text: "Decides what to do next, one step at a time.",
+      role: "body",
+    },
+    { kind: "arrow", x: 0.325, y: 0.48, w: 0.035, h: 0.06, direction: "right" },
+    { kind: "card", x: 0.365, y: 0.3, w: 0.27, h: 0.42, fill: "panel" },
+    { kind: "icon", x: 0.39, y: 0.34, w: 0.05, h: 0.09, icon: "settings" },
+    {
+      kind: "text",
+      x: 0.39,
+      y: 0.46,
+      w: 0.22,
+      h: 0.07,
+      text: "The tools",
+      role: "heading",
+    },
+    { kind: "band", x: 0.045, y: 0.79, w: 0.91, h: 0.08, fill: "gradient" },
+    {
+      kind: "text",
+      x: 0.07,
+      y: 0.805,
+      w: 0.86,
+      h: 0.05,
+      text: "An agent is a loop, not a single answer.",
+      role: "body",
+      ink: "featureBody",
+    },
+  ],
+};
+
+add("a composition validates against its own schema", () => {
+  return SlideCompositionSchema.safeParse(composition).success && isComposition(composition);
+});
+
+add("every fill and ink role has a class in the slide stylesheet", () => {
+  // The source sheet, not the compiled one: public/slide-runtime.css is a
+  // build product and is not in the repository.
+  const css = readFileSync("src/styles/slide-runtime.css", "utf8");
+  const html = renderComposition(
+    {
+      elements: [
+        ...FILL_ROLES.filter((f) => f !== "none").map((fill, i) => ({
+          kind: "card" as const,
+          x: 0.05,
+          y: 0.06 + i * 0.02,
+          w: 0.1,
+          h: 0.02,
+          fill,
+        })),
+        ...INK_ROLES.map((ink, i) => ({
+          kind: "text" as const,
+          x: 0.5,
+          y: 0.06 + i * 0.02,
+          w: 0.2,
+          h: 0.02,
+          text: `ink ${ink}`,
+          role: "small" as const,
+          ink,
+        })),
+      ],
+    },
+    {},
+  );
+  // Every class the renderer emitted must be one the stylesheet defines,
+  // or the slide draws in the browser's own colours.
+  const classes = [...html.matchAll(/class="([^"]+)"/g)]
+    .flatMap((m) => m[1].split(/\s+/))
+    .filter((c) => c.startsWith("tpl-"));
+  return classes.length > 0 && classes.every((c) => css.includes(`.${c}`));
+});
+
+add("every text role resolves to a point size from the template's scale", () => {
+  return TEXT_ROLES.every((role) => {
+    const size = pointSizeFor(role);
+    return Number.isFinite(size) && size >= 10 && size <= 60;
+  });
+});
+
+add("a composed slide survives the sanitiser with its geometry and colour", () => {
+  const html = sanitizeHtml(renderComposition(composition, { slideNumber: 3 }));
+  return (
+    html.includes("tpl-fill-gradient") &&
+    html.includes("tpl-panel") &&
+    html.includes("tpl-feature-body") &&
+    /left:4\.500%/.test(html) &&
+    html.includes('data-path="elements.1.text"') &&
+    html.includes("<svg")
+  );
+});
+
+add("the resolver moves an off-slide element back on and says so", () => {
+  const { elements, warnings } = resolveComposition({
+    elements: [
+      { kind: "card", x: 0.92, y: 0.5, w: 0.3, h: 0.2, fill: "panel" },
+      ...composition.elements.slice(0, 2),
+    ],
+  });
+  return (
+    warnings.length > 0 &&
+    elements[0].x + elements[0].w <= 0.9551 &&
+    elements[0].y + elements[0].h <= 0.9251
+  );
+});
+
+add("text too long for its box is cut at a word and reported", () => {
+  const { elements, warnings } = resolveComposition({
+    elements: [
+      {
+        kind: "text",
+        x: 0.05,
+        y: 0.3,
+        w: 0.2,
+        h: 0.05,
+        text: "This sentence is far longer than the box it was given and has to be cut somewhere sensible rather than run past the edge of the card it sits on.",
+        role: "body",
+      },
+    ],
+  });
+  const drawn = elements[0].text ?? "";
+  return (
+    elements[0].truncated === true &&
+    drawn.endsWith("\u2026") &&
+    !drawn.includes("edge of the card") &&
+    warnings.some((w) => w.includes("did not fit"))
+  );
+});
+
+add("two text boxes printing over each other are reported", () => {
+  const { warnings } = resolveComposition({
+    elements: [
+      { kind: "text", x: 0.1, y: 0.3, w: 0.3, h: 0.1, text: "First run of text", role: "body" },
+      { kind: "text", x: 0.12, y: 0.31, w: 0.3, h: 0.1, text: "Second run of text", role: "body" },
+    ],
+  });
+  return warnings.some((w) => w.includes("overlap"));
+});
+
+add("a composition's title and text are readable without its markup", () => {
+  const doc = parseSlideDoc(JSON.stringify(composition));
+  return (
+    doc?.kind === "composition" &&
+    compositionTitle(composition) === "What an agent is" &&
+    slideDocText(doc).includes("An agent is a loop")
+  );
+});
+
+add("typed content still parses as typed content", () => {
+  const doc = parseSlideDoc(JSON.stringify({ type: "closing", title: "End" }));
+  return doc?.kind === "content" && doc.content.type === "closing";
+});
+
+add("editing one text run of a composition leaves the rest alone", () => {
+  const field = readCompositionField(composition, "elements.4.text");
+  const written = writeCompositionField(composition, "elements.4.text", "The reasoning model");
+  if (!written.ok || field?.value !== "The model") return false;
+  const before = composition.elements.map((e) => (e.kind === "text" ? e.text : e.kind));
+  const after = written.composition.elements.map((e) => (e.kind === "text" ? e.text : e.kind));
+  return (
+    after[4] === "The reasoning model" &&
+    before.filter((_, i) => i !== 4).join("|") === after.filter((_, i) => i !== 4).join("|")
+  );
+});
+
+add("an edit past the role's limit is refused", () => {
+  const written = writeCompositionField(composition, "elements.1.text", "x".repeat(200));
+  const missing = writeCompositionField(composition, "elements.2.text", "a card is not text");
+  return !written.ok && !missing.ok;
 });
 
 let pass = 0,

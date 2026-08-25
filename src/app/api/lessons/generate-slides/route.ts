@@ -3,9 +3,11 @@ import { db } from "@/lib/db";
 import { requireLessonOwner, AuthorizationError } from "@/lib/session";
 import { sanitizeHtml, wrapSlideHtml } from "@/lib/sanitize";
 import { isRetryable, SLIDE_ATTEMPTS } from "@/lib/slide-status";
-import { renderSlideContent } from "@/lib/slides/render";
-import { generateSlideContent, summariseForContext, type SlideBrief } from "@/lib/slides/generate";
-import type { SlideContent } from "@/lib/slides/content-schema";
+import { renderComposition } from "@/lib/slides/composition-render";
+import { generateSlideComposition, summariseComposition } from "@/lib/slides/composition-generate";
+import { compositionTitle } from "@/lib/slides/composition";
+import { parseSlideDoc, slideDocText } from "@/lib/slides/document";
+import type { SlideBrief } from "@/lib/slides/generate";
 import { generateAndSaveQuiz } from "@/lib/quiz/persist";
 import { runQualityGate } from "@/lib/agent/quality-gate";
 
@@ -168,11 +170,8 @@ async function generateAllSlides(lessonId: string, languageOverride?: string): P
   const covered: string[] = deck
     .filter((s) => s.status === "READY" && s.contentJson)
     .map((s) => {
-      try {
-        return summariseForContext(JSON.parse(s.contentJson!) as SlideContent);
-      } catch {
-        return s.title;
-      }
+      const doc = parseSlideDoc(s.contentJson);
+      return doc ? slideDocText(doc).slice(0, 240) : s.title;
     });
 
   const generateOne = async (slide: (typeof pending)[number]) => {
@@ -234,32 +233,36 @@ async function generateAllSlides(lessonId: string, languageOverride?: string): P
 
     for (let attempt = 1; attempt <= SLIDE_ATTEMPTS && !done; attempt++) {
       try {
-        const content = await withTimeout(
-          generateSlideContent(brief),
+        // The model composes the slide: which shapes it needs, where they go
+        // and what each one says. It cannot name a colour, a font or a point
+        // size — every one of those is a role that resolves to the template's
+        // own value — so an arrangement can be anything and the deck is still
+        // the Ecotech deck.
+        const composition = await withTimeout(
+          generateSlideComposition(brief),
           SLIDE_TIMEOUT_MS,
           `slide ${label}`,
         );
 
-        // Layout is ours, not the model's, so a slide cannot come back unstyled
-        // or empty.
-        const html = sanitizeHtml(renderSlideContent(content, { slideNumber: position + 1 }));
+        const html = sanitizeHtml(renderComposition(composition, { slideNumber: position + 1 }));
         if (!html.trim()) throw new Error("rendered slide was empty after sanitising");
 
-        const title =
-          "title" in content && content.title ? content.title.slice(0, 90) : slide.title;
+        const title = compositionTitle(composition) ?? slide.title;
 
         await db.slide.update({
           where: { id: slide.id },
           data: {
             htmlBody: wrapSlideHtml(html, { title }),
-            contentJson: JSON.stringify(content),
+            contentJson: JSON.stringify(composition),
             title,
             status: "READY",
           },
         });
 
-        covered.push(summariseForContext(content));
-        console.log(`[generate-slides] slide ${label} ready (${content.type})`);
+        covered.push(summariseComposition(composition));
+        console.log(
+          `[generate-slides] slide ${label} ready (${composition.layoutNote ?? "composed"})`,
+        );
         done = true;
       } catch (error) {
         lastError = error instanceof Error ? error.message : "slide generation failed";

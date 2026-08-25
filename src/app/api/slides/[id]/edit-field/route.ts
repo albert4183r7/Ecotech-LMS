@@ -4,9 +4,9 @@ import { db } from "@/lib/db";
 import { generateStructuredJSON } from "@/lib/ai";
 import { handleRoute, ok, fail } from "@/lib/api-response";
 import { requireLessonOwner } from "@/lib/session";
-import { SlideContentSchema } from "@/lib/slides/content-schema";
-import { readField, writeField, humanLabel } from "@/lib/slides/content-path";
-import { renderSlideContent } from "@/lib/slides/render";
+import { readField, writeField, type EditableField } from "@/lib/slides/content-path";
+import { readCompositionField, writeCompositionField } from "@/lib/slides/composition-path";
+import { parseSlideDoc, renderSlideDoc, slideDocTitle, type SlideDoc } from "@/lib/slides/document";
 import { sanitizeHtml, wrapSlideHtml } from "@/lib/sanitize";
 
 // ============================================
@@ -71,15 +71,22 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       );
     }
 
-    const parsed = SlideContentSchema.safeParse(JSON.parse(slide.contentJson));
-    if (!parsed.success) return fail("This slide's stored content is not readable.", 409);
-    const content = parsed.data;
+    const doc = parseSlideDoc(slide.contentJson);
+    if (!doc) return fail("This slide's stored content is not readable.", 409);
 
-    const field = readField(content, body.path);
+    // Either slide model is editable, and the path means the same thing in
+    // both: the one run of text the instructor clicked.
+    const field: EditableField | null =
+      doc.kind === "composition"
+        ? readCompositionField(doc.composition, body.path)
+        : readField(doc.content, body.path);
     if (!field) return fail(`"${body.path}" is not an editable field of this slide.`, 400);
 
+    const slideKind =
+      doc.kind === "composition" ? (doc.composition.layoutNote ?? "composed") : doc.content.type;
+
     const prompt = [
-      `FIELD: the ${field.label} of a ${content.type} slide.`,
+      `FIELD: the ${field.label} of a ${slideKind} slide.`,
       `CHARACTER LIMIT: between ${field.minLength} and ${field.maxLength}.`,
       "",
       "CURRENT TEXT:",
@@ -103,21 +110,26 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     // Validated against the field's own limits and then against the whole
     // slide, so an edit can never store content the renderer cannot draw.
-    const written = writeField(content, body.path, replacement);
-    if (!written.ok) return fail(written.error, 422);
+    let edited: SlideDoc;
+    if (doc.kind === "composition") {
+      const written = writeCompositionField(doc.composition, body.path, replacement);
+      if (!written.ok) return fail(written.error, 422);
+      edited = { kind: "composition", composition: written.composition };
+    } else {
+      const written = writeField(doc.content, body.path, replacement);
+      if (!written.ok) return fail(written.error, 422);
+      edited = { kind: "content", content: written.content };
+    }
 
-    const html = sanitizeHtml(
-      renderSlideContent(written.content, { slideNumber: slide.order + 1 }),
-    );
-    const title =
-      "title" in written.content && written.content.title
-        ? written.content.title.slice(0, 90)
-        : slide.title;
+    const html = sanitizeHtml(renderSlideDoc(edited, { slideNumber: slide.order + 1 }));
+    const title = slideDocTitle(edited, slide.title);
 
     await db.slide.update({
       where: { id: slide.id },
       data: {
-        contentJson: JSON.stringify(written.content),
+        contentJson: JSON.stringify(
+          edited.kind === "composition" ? edited.composition : edited.content,
+        ),
         htmlBody: wrapSlideHtml(html, { title }),
         title,
       },
@@ -126,7 +138,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return ok({
       slideId: slide.id,
       path: body.path,
-      label: humanLabel(body.path),
+      label: field.label,
       previousText: field.value,
       newText: replacement.trim(),
       htmlBody: wrapSlideHtml(html, { title }),

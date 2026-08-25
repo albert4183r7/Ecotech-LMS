@@ -210,7 +210,7 @@ function decorCircles(spec: Array<[number, number, number, number, number]>): Pa
  * everything else it rounds is 0.100in. These were 0.02 — 0.27in — which is
  * more than twice as round as the file, and visible on every card.
  */
-const RADIUS = { card: 0.009, panel: 0.0075 };
+export const RADIUS = { card: 0.009, panel: 0.0075 };
 
 /**
  * The template's gradient takeaway band, at the foot of a content slide.

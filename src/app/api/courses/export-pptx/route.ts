@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import PptxGenJS from "pptxgenjs";
 import { db } from "@/lib/db";
 import { AuthorizationError, mayReadLesson, requireUser } from "@/lib/session";
-import { SlideContentSchema, type SlideContent } from "@/lib/slides/content-schema";
+import { parseSlideDoc, type SlideDoc } from "@/lib/slides/document";
 import { addContentSlide, applyTemplateLayout } from "@/lib/slides/pptx";
+import { addCompositionSlide } from "@/lib/slides/composition-pptx";
 import { applyGradients } from "@/lib/slides/pptx-gradient";
 import { SLIDE_TEMPLATE } from "@/lib/slides/template";
 import { safeFileName } from "@/lib/download";
@@ -32,10 +33,17 @@ interface ExportRequest {
 
 interface DeckSlide {
   title: string;
-  content: SlideContent;
+  doc: SlideDoc;
 }
 
-/** Read stored slides into structured content, skipping any that cannot be. */
+/**
+ * Read stored slides, skipping any that cannot be.
+ *
+ * Either slide model exports: a composed slide is drawn shape by shape, and a
+ * slide from a lesson generated before compositions still goes through the
+ * template layouts. Slides authored before both exist only as HTML and are
+ * reported rather than silently dropped.
+ */
 function toDeckSlides(rows: { title: string; contentJson: string | null }[]): {
   slides: DeckSlide[];
   skipped: number;
@@ -44,18 +52,12 @@ function toDeckSlides(rows: { title: string; contentJson: string | null }[]): {
   let skipped = 0;
 
   for (const row of rows) {
-    if (!row.contentJson) {
-      // Slides authored before the structured model exist only as HTML. They
-      // are reported rather than silently dropped.
+    const doc = parseSlideDoc(row.contentJson);
+    if (!doc) {
       skipped++;
       continue;
     }
-    const parsed = SlideContentSchema.safeParse(JSON.parse(row.contentJson));
-    if (!parsed.success) {
-      skipped++;
-      continue;
-    }
-    slides.push({ title: row.title, content: parsed.data });
+    slides.push({ title: row.title, doc });
   }
 
   return { slides, skipped };
@@ -147,9 +149,12 @@ export async function POST(request: NextRequest) {
     // not slide furniture.
     const allWarnings: string[] = [];
     slides.forEach((slide, index) => {
-      const { warnings } = addContentSlide(pptx, slide.content, template, {
-        slideNumber: index + 1,
-      });
+      const { warnings } =
+        slide.doc.kind === "composition"
+          ? addCompositionSlide(pptx, slide.doc.composition, template, {
+              slideNumber: index + 1,
+            })
+          : addContentSlide(pptx, slide.doc.content, template, { slideNumber: index + 1 });
       allWarnings.push(...warnings.map((w) => `slide ${index + 1}: ${w}`));
     });
     if (allWarnings.length) {
