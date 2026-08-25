@@ -23,6 +23,8 @@ export interface OutlineSectionResponse {
   title: string;
   summary: string;
   subtopics: string[];
+  claim?: string;
+  vehicle?: string;
   slideBudget: number;
   order: number;
 }
@@ -37,6 +39,9 @@ export function toLessonDraft(
     sections?: OutlineSectionResponse[];
     requestedSlideCount?: number;
     adjustments?: string[];
+    audience?: string;
+    thesis?: string;
+    misconception?: string;
   },
   meta: { language: string; style: string; topic: string },
 ): { lesson: OutlineLessonDraft; slides: OutlineSlideDraft[] } {
@@ -66,11 +71,16 @@ export function toLessonDraft(
         title: sec.title,
         summary: sec.summary,
         subtopics: sec.subtopics ?? [],
+        claim: sec.claim,
+        vehicle: sec.vehicle,
         slideBudget: sec.slideBudget,
         order: sec.order,
       })),
       requestedSlideCount: lessonData.requestedSlideCount,
       adjustments: lessonData.adjustments,
+      audience: lessonData.audience,
+      thesis: lessonData.thesis,
+      misconception: lessonData.misconception,
       language: meta.language,
       style: meta.style,
       topic: meta.topic,

@@ -45,6 +45,10 @@ export interface OutlineSectionDraft {
   title: string;
   summary: string;
   subtopics: string[];
+  /** What this section asserts — the reason it is in the lesson. */
+  claim?: string;
+  /** The example, comparison or walkthrough it teaches through. */
+  vehicle?: string;
   slideBudget: number;
   order: number;
 }
@@ -60,6 +64,16 @@ export interface OutlineLessonDraft {
   requestedSlideCount?: number;
   /** Notes about merges or compression the plan had to make. */
   adjustments?: string[];
+  /**
+   * The brief the plan wrote for itself.
+   *
+   * The planner always had an audience and an argument in mind; they were
+   * never written down, so nobody could see that it had settled on "general
+   * business professionals" until the slides came out reading that way.
+   */
+  audience?: string;
+  thesis?: string;
+  misconception?: string;
   language: string;
   style: string;
   topic: string;
@@ -272,6 +286,39 @@ export function OutlineLessonCard({
             </div>
           )}
 
+          {/* ---- Who it is for, and what it argues ----
+              The three lines worth reading before spending a generation on
+              this lesson: a wrong audience or a flat argument is visible here
+              in seconds, and costs a whole deck to discover afterwards. */}
+          {(lesson.audience || lesson.thesis) && (
+            <div className="border-primary/20 bg-primary/[0.03] space-y-1.5 rounded-md border p-2.5">
+              {lesson.audience && (
+                <div className="flex gap-2 text-[11px]">
+                  <span className="text-muted-foreground w-20 shrink-0 font-semibold tracking-wide uppercase">
+                    For
+                  </span>
+                  <span className="text-foreground flex-1">{lesson.audience}</span>
+                </div>
+              )}
+              {lesson.misconception && (
+                <div className="flex gap-2 text-[11px]">
+                  <span className="text-muted-foreground w-20 shrink-0 font-semibold tracking-wide uppercase">
+                    Correcting
+                  </span>
+                  <span className="text-foreground flex-1">{lesson.misconception}</span>
+                </div>
+              )}
+              {lesson.thesis && (
+                <div className="flex gap-2 text-[11px]">
+                  <span className="text-muted-foreground w-20 shrink-0 font-semibold tracking-wide uppercase">
+                    Arguing
+                  </span>
+                  <span className="text-foreground flex-1">{lesson.thesis}</span>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* ---- The plan the user is approving ---- */}
           {lesson.sections && lesson.sections.length > 0 && (
             <div className="border-border/40 bg-muted/30 space-y-2 rounded-md border p-2.5">
@@ -292,6 +339,12 @@ export function OutlineLessonCard({
                       {section.slideBudget} {section.slideBudget === 1 ? "slide" : "slides"}
                     </span>
                   </div>
+                  {section.claim && (
+                    <p className="text-foreground/80 ml-3 text-[11px] italic">{section.claim}</p>
+                  )}
+                  {section.vehicle && (
+                    <p className="text-muted-foreground ml-3 text-[11px]">via {section.vehicle}</p>
+                  )}
                   {section.subtopics.length > 0 && (
                     <ul className="text-muted-foreground ml-3 list-disc space-y-0.5 text-[11px]">
                       {section.subtopics.map((topic, i) => (

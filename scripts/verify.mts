@@ -9,7 +9,13 @@
 // Paths are relative to the project root, so run it from there.
 // ============================================
 
-import { repairPlan, PresentationPlanSchema } from "../src/lib/presentation-plan";
+import {
+  repairPlan,
+  PresentationPlanSchema,
+  balancePlan,
+  buildSlideSlots,
+} from "../src/lib/presentation-plan";
+import { draftToContent } from "../src/lib/slides/draft";
 import { writeField, editableFields } from "../src/lib/slides/content-path";
 import { renderSlideContent } from "../src/lib/slides/render";
 import { sanitizeHtml, wrapSlideHtml } from "../src/lib/sanitize";
@@ -42,9 +48,14 @@ add("outline repair fixes an over-long subtopic", () => {
   const plan = {
     title: "A plan title",
     subtitle: "A plan subtitle",
+    audience: "People who have met the subject once and now have to use it",
+    thesis: "The subject is one mechanism, and its failures all come from that mechanism",
+    outcomes: ["Name the parts of it", "Say which part a failure came from"],
     sections: [
       {
         title: "Section",
+        claim: "This part asserts something specific about the subject",
+        vehicle: "One worked example carried through the section",
         summary: "x".repeat(30),
         subtopics: ["ok point here", "A. ".padEnd(200, "long clause text ")],
         slideBudget: 2,
@@ -61,9 +72,14 @@ add("outline repair leaves valid plans alone", () => {
   const plan = {
     title: "A plan title",
     subtitle: "A plan subtitle",
+    audience: "People who have met the subject once and now have to use it",
+    thesis: "The subject is one mechanism, and its failures all come from that mechanism",
+    outcomes: ["Name the parts of it", "Say which part a failure came from"],
     sections: [
       {
         title: "Section",
+        claim: "This part asserts something specific about the subject",
+        vehicle: "One worked example carried through the section",
         summary: "y".repeat(40),
         subtopics: ["point one here", "point two here"],
         slideBudget: 2,
@@ -72,6 +88,86 @@ add("outline repair leaves valid plans alone", () => {
   };
   return (repairPlan(structuredClone(plan)) as typeof plan).sections[0].subtopics.length === 2;
 });
+// ── The plan has to carry an argument, not just a table of contents ──
+
+add("a section without a claim is rejected", () => {
+  // The whole point of the field: a plan that only lists topics cannot
+  // validate, so genericness fails at the schema rather than at review.
+  const plan = {
+    title: "A plan title",
+    subtitle: "A plan subtitle",
+    audience: "People who have met the subject once and now have to use it",
+    thesis: "The subject is one mechanism, and its failures come from that mechanism",
+    outcomes: ["Name the parts of it", "Say which part a failure came from"],
+    sections: [
+      {
+        title: "Section",
+        vehicle: "One worked example carried through the section",
+        summary: "y".repeat(40),
+        subtopics: ["point one here", "point two here"],
+        slideBudget: 2,
+      },
+    ],
+  };
+  return !PresentationPlanSchema.safeParse(plan).success;
+});
+
+add("a section's subtopics stay in contiguous runs across its slides", () => {
+  // Dealing them round-robin put points 1 and 3 on one slide and 2 and 4 on
+  // the next, splitting an argument down the middle.
+  const plan = {
+    title: "A plan title",
+    subtitle: "A plan subtitle",
+    audience: "People who have met the subject once and now have to use it",
+    thesis: "The subject is one mechanism, and its failures come from that mechanism",
+    outcomes: ["Name the parts of it", "Say which part a failure came from"],
+    sections: [
+      {
+        title: "Section",
+        claim: "This part asserts something specific about the subject",
+        vehicle: "One worked example carried through the section",
+        summary: "y".repeat(40),
+        subtopics: ["first", "second", "third", "fourth"],
+        slideTitles: ["A real first title", "A real second title"],
+        slideBudget: 2,
+      },
+    ],
+  };
+  const parsed = PresentationPlanSchema.parse(plan);
+  const slots = buildSlideSlots(balancePlan(parsed, 2));
+  return (
+    slots[0].subtopics.join() === "first,second" &&
+    slots[1].subtopics.join() === "third,fourth" &&
+    // and the planner's own titles reach the slots, rather than "Section (1/2)"
+    slots[0].title === "A real first title" &&
+    slots[1].title === "A real second title"
+  );
+});
+
+add("a takeaway reaches the slide's band", () => {
+  const html = renderSlideContent({
+    type: "concept",
+    title: "A slide with a point",
+    points: [
+      { heading: "First", description: "Something substantial said about the first part." },
+      { heading: "Second", description: "Something substantial said about the second part." },
+    ],
+    takeaway: "This is the line the band at the foot of the slide carries.",
+  } as SlideContent);
+  return html.includes('data-path="takeaway"') && html.includes("the band at the foot");
+});
+
+add("thin blocks are dropped rather than padded with filler", () => {
+  // "— explained on this slide." used to be appended to short blocks to reach
+  // the schema's minimum, and reached real decks.
+  const content = draftToContent({
+    type: "concept",
+    title: "A slide title",
+    blocks: [{ heading: "One", body: "ok" }, { heading: "Two" }],
+  });
+  return !JSON.stringify(content).includes("explained on this slide");
+});
+
 add(
   "the template resolves and is 16:9",
   () => Math.abs(SLIDE_TEMPLATE.deck.widthIn / SLIDE_TEMPLATE.deck.heightIn - 16 / 9) < 0.01,

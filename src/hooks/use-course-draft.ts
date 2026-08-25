@@ -170,6 +170,11 @@ export function useCourseDraft({ coverImage, setCoverImage }: UseCourseDraftOpti
                   sections: lesson.sections,
                   requestedSlideCount: parsedOutline?.slideCount,
                   adjustments: parsedOutline?.adjustments,
+                  // Reopening a saved course restores the brief too, so the
+                  // outline reads the same as when it was first planned.
+                  audience: parsedOutline?.audience,
+                  thesis: parsedOutline?.thesis,
+                  misconception: parsedOutline?.misconception,
                 },
                 {
                   language: c.language || "english",

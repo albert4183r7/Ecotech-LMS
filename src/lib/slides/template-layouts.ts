@@ -212,9 +212,71 @@ function decorCircles(spec: Array<[number, number, number, number, number]>): Pa
  */
 const RADIUS = { card: 0.009, panel: 0.0075 };
 
+/**
+ * The template's gradient takeaway band, at the foot of a content slide.
+ *
+ * Slide 6 of the template carries one already; this is the same band, at the
+ * same fill and radius, made available to every content layout. It is the one
+ * place a slide says what it was for, which is the device the reference decks
+ * use on nearly every page.
+ *
+ * The content above it has to make room, so a layout only draws it when the
+ * content actually carries a takeaway — hence `hasTakeaway` rather than an
+ * unconditional band with nothing in it.
+ */
+const TAKEAWAY_BAND = { y: 0.845, h: 0.076, textY: 0.8585, textH: 0.05 };
+
+/**
+ * Where a layout's content must stop, to leave the band its room.
+ *
+ * The band is deliberately slim and sits low. Every hundredth it takes comes
+ * out of the body text above it, and a band bought by making the slide's own
+ * sentences terser would defeat its purpose.
+ */
+function contentBottom(hasTakeaway: boolean, withoutBand: number): number {
+  return hasTakeaway ? Math.min(withoutBand, TAKEAWAY_BAND.y - 0.012) : withoutBand;
+}
+
+function takeawayBand(): { panels: Panel[]; placeholders: Placeholder[] } {
+  return {
+    panels: [
+      {
+        kind: "band",
+        x: MARGIN_X,
+        y: TAKEAWAY_BAND.y,
+        w: CONTENT_W,
+        h: TAKEAWAY_BAND.h,
+        fill: "gradient",
+        radius: RADIUS.panel,
+      },
+    ],
+    placeholders: [
+      {
+        path: "takeaway",
+        role: "lead",
+        x: MARGIN_X + 0.021,
+        y: TAKEAWAY_BAND.textY,
+        w: CONTENT_W - 0.042,
+        h: TAKEAWAY_BAND.textH,
+        fontPt: 13,
+        align: "left",
+        bold: false,
+        ink: "featureHeading",
+      },
+    ],
+  };
+}
+
 // ────────────────────────────────────────────────
 // Layout definitions
 // ────────────────────────────────────────────────
+
+/** What the content has, for the layouts whose geometry depends on it. */
+export interface LayoutBuildOptions {
+  hasLead: boolean;
+  /** Whether a takeaway band should be drawn at the foot of the slide. */
+  hasTakeaway: boolean;
+}
 
 export interface LayoutDefinition {
   id: string;
@@ -224,7 +286,7 @@ export interface LayoutDefinition {
   supports: SlideType[];
   /** How many repeated items it holds. Content outside this cannot use it. */
   capacity: { min: number; max: number };
-  build: (itemCount: number, options: { hasLead: boolean }) => RenderedLayout;
+  build: (itemCount: number, options: LayoutBuildOptions) => RenderedLayout;
 }
 
 /**
@@ -413,11 +475,13 @@ const OPTIONS_LAYOUT: LayoutDefinition = {
   purpose: "Two or three parallel ideas, each with a short explanation",
   supports: ["concept"],
   capacity: { min: 2, max: 3 },
-  build: (count, { hasLead }) => {
+  build: (count, { hasLead, hasTakeaway }) => {
     const base = header(hasLead);
-    const cells = columns(count, 0.333, 0.48);
-    const panels: Panel[] = [...base.panels];
-    const placeholders: Placeholder[] = [...base.placeholders, FOOTER];
+    const cardBottom = contentBottom(hasTakeaway, 0.813);
+    const cells = columns(count, 0.333, cardBottom - 0.333);
+    const band = hasTakeaway ? takeawayBand() : { panels: [], placeholders: [] };
+    const panels: Panel[] = [...base.panels, ...band.panels];
+    const placeholders: Placeholder[] = [...base.placeholders, ...band.placeholders, FOOTER];
 
     cells.forEach((cell, i) => {
       panels.push({ kind: "card", ...cell, fill: "panel", radius: RADIUS.card });
@@ -492,10 +556,10 @@ const ROW = {
   bottom: 0.9,
 };
 
-function rowPitch(count: number): number {
+function rowPitch(count: number, bottom: number = ROW.bottom): number {
   if (count <= 1) return ROW.pitch;
   const blockH = ROW.headingH + ROW.gap;
-  return Math.min(ROW.pitch, (ROW.bottom - ROW.top - blockH) / (count - 1));
+  return Math.min(ROW.pitch, (bottom - ROW.top - blockH) / (count - 1));
 }
 
 /** Badge, divider and their placement for one row of the slide-2 structure. */
@@ -536,11 +600,16 @@ const AGENDA_LAYOUT: LayoutDefinition = {
   purpose: "An ordered set of points, each a line or two",
   supports: ["summary"],
   capacity: { min: 3, max: 6 },
-  build: (count, { hasLead }) => {
+  build: (count, { hasLead, hasTakeaway }) => {
     const base = header(hasLead);
-    const pitch = rowPitch(count);
-    const panels: Panel[] = [...base.panels];
-    const placeholders: Placeholder[] = [...base.placeholders, FOOTER];
+    // Six rows already fill the slide, and squeezing them for a band would
+    // cost every row a line of text. A slide that is nothing but takeaways is
+    // also the one that least needs another one at its foot.
+    const drawsBand = hasTakeaway && count <= 5;
+    const pitch = rowPitch(count, contentBottom(drawsBand, ROW.bottom));
+    const band = drawsBand ? takeawayBand() : { panels: [], placeholders: [] };
+    const panels: Panel[] = [...base.panels, ...band.panels];
+    const placeholders: Placeholder[] = [...base.placeholders, ...band.placeholders, FOOTER];
 
     for (let i = 0; i < count; i++) {
       const y = ROW.top + i * pitch;
@@ -575,11 +644,12 @@ const ROWS_LAYOUT: LayoutDefinition = {
   purpose: "Four or five ideas, each a heading with a line of explanation",
   supports: ["concept"],
   capacity: { min: 4, max: 5 },
-  build: (count, { hasLead }) => {
+  build: (count, { hasLead, hasTakeaway }) => {
     const base = header(hasLead);
-    const pitch = rowPitch(count);
-    const panels: Panel[] = [...base.panels];
-    const placeholders: Placeholder[] = [...base.placeholders, FOOTER];
+    const pitch = rowPitch(count, contentBottom(hasTakeaway, ROW.bottom));
+    const band = hasTakeaway ? takeawayBand() : { panels: [], placeholders: [] };
+    const panels: Panel[] = [...base.panels, ...band.panels];
+    const placeholders: Placeholder[] = [...base.placeholders, ...band.placeholders, FOOTER];
 
     for (let i = 0; i < count; i++) {
       const y = ROW.top + i * pitch;
@@ -633,15 +703,16 @@ const COMPARISON_LAYOUT: LayoutDefinition = {
   purpose: "Set two or three things against each other",
   supports: ["comparison"],
   capacity: { min: 2, max: 3 },
-  build: (columnCount, { hasLead }) => {
+  build: (columnCount, { hasLead, hasTakeaway }) => {
     const base = header(hasLead);
-    const panels: Panel[] = [...base.panels];
-    const placeholders: Placeholder[] = [...base.placeholders, FOOTER];
+    const band = hasTakeaway ? takeawayBand() : { panels: [], placeholders: [] };
+    const panels: Panel[] = [...base.panels, ...band.panels];
+    const placeholders: Placeholder[] = [...base.placeholders, ...band.placeholders, FOOTER];
 
     const HEAD_Y = 0.3;
     const HEAD_H = 0.087;
     const BODY_TOP = HEAD_Y + HEAD_H + 0.02;
-    const BODY_BOTTOM = 0.9;
+    const BODY_BOTTOM = contentBottom(hasTakeaway, 0.9);
 
     columns(columnCount, HEAD_Y, HEAD_H).forEach((cell, c) => {
       panels.push({ kind: "band", ...cell, fill: "accentSoft", radius: RADIUS.panel });
@@ -667,8 +738,10 @@ const COMPARISON_LAYOUT: LayoutDefinition = {
         radius: RADIUS.panel,
       });
       // Five is the schema's own maximum for a column's points; boxes past the
-      // supplied count simply go unused.
-      const POINTS = 5;
+      // supplied count simply go unused. With a takeaway band the column is
+      // shorter, and five boxes would each lose a line of text — four boxes
+      // keep every point's room, which matters more than a fifth bullet.
+      const POINTS = hasTakeaway ? 4 : 5;
       const pointH = (BODY_BOTTOM - BODY_TOP - 0.03) / POINTS;
       for (let p = 0; p < POINTS; p++) {
         placeholders.push({
@@ -697,9 +770,10 @@ const METRICS_LAYOUT: LayoutDefinition = {
   purpose: "Emphasise two to four figures",
   supports: ["data"],
   capacity: { min: 2, max: 4 },
-  build: (count) => {
-    // The lead becomes this layout's "Key takeaway" band, so the header omits
-    // it; printing both put the same sentence on the slide twice.
+  build: (count, { hasTakeaway }) => {
+    // The lead becomes this layout's "Key takeaway" band when the slide has no
+    // takeaway of its own, so the header omits it; printing both put the same
+    // sentence on the slide twice.
     const base = header(false);
     const cells = columns(count, 0.267, 0.253);
     const panels: Panel[] = [...base.panels];
@@ -762,7 +836,7 @@ const METRICS_LAYOUT: LayoutDefinition = {
         ink: "featureBody",
       },
       {
-        path: "lead",
+        path: hasTakeaway ? "takeaway" : "lead",
         role: "lead",
         x: 0.075,
         y: 0.66,
@@ -793,14 +867,18 @@ const PROCESS_LAYOUT: LayoutDefinition = {
   purpose: "An ordered sequence of three to five stages",
   supports: ["process", "architecture", "caseStudy"],
   capacity: { min: 3, max: 6 },
-  build: (count, { hasLead }) => {
+  build: (count, { hasLead, hasTakeaway }) => {
     const base = header(hasLead);
     // Past four, one row would leave each stage too narrow to read, so the
     // stages wrap into two rows of the template's own column width.
     const twoRows = count > 4;
     const perRow = twoRows ? Math.ceil(count / 2) : count;
-    const rowH = twoRows ? 0.26 : 0.5;
     const top = hasLead ? 0.333 : 0.29;
+    // Six stages already reach the footer, so a band would have to squeeze the
+    // stages themselves. A crowded slide keeps its stages and loses the band.
+    const band = hasTakeaway && !twoRows ? takeawayBand() : { panels: [], placeholders: [] };
+    const drawsBand = band.panels.length > 0;
+    const rowH = twoRows ? 0.26 : contentBottom(drawsBand, top + 0.5) - top;
     const cells = twoRows
       ? Array.from({ length: count }, (_, i) => {
           const row = Math.floor(i / perRow);
@@ -808,8 +886,8 @@ const PROCESS_LAYOUT: LayoutDefinition = {
           return inRow[i % perRow];
         })
       : columns(count, top, rowH);
-    const panels: Panel[] = [...base.panels];
-    const placeholders: Placeholder[] = [...base.placeholders, FOOTER];
+    const panels: Panel[] = [...base.panels, ...band.panels];
+    const placeholders: Placeholder[] = [...base.placeholders, ...band.placeholders, FOOTER];
 
     cells.forEach((cell, i) => {
       panels.push({

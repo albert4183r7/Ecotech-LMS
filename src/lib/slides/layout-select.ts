@@ -55,6 +55,13 @@ function hasLead(content: SlideContent): boolean {
   return "lead" in content && typeof content.lead === "string" && content.lead.length > 0;
 }
 
+/** Whether the slide carries a takeaway, which the layout draws a band for. */
+function hasTakeaway(content: SlideContent): boolean {
+  return (
+    "takeaway" in content && typeof content.takeaway === "string" && content.takeaway.length > 0
+  );
+}
+
 /**
  * Pick the template layout for a slide.
  *
@@ -83,7 +90,13 @@ export function selectLayout(content: SlideContent, position?: number): LayoutCh
     const best = candidates.reduce((a, b) =>
       b.capacity.max - items < a.capacity.max - items ? b : a,
     );
-    return { definition: best, layout: best.build(items, { hasLead: hasLead(content) }) };
+    return {
+      definition: best,
+      layout: best.build(items, {
+        hasLead: hasLead(content),
+        hasTakeaway: hasTakeaway(content),
+      }),
+    };
   }
 
   // No layout supports this shape at this size. Use one that supports the type
@@ -94,7 +107,10 @@ export function selectLayout(content: SlideContent, position?: number): LayoutCh
 
   return {
     definition: fallback,
-    layout: fallback.build(clamped, { hasLead: hasLead(content) }),
+    layout: fallback.build(clamped, {
+      hasLead: hasLead(content),
+      hasTakeaway: hasTakeaway(content),
+    }),
     overflowWarning:
       `${content.type} with ${items} item(s) has no template layout; ` +
       `using "${fallback.id}" at ${clamped}. Content beyond that is not shown.`,
@@ -136,7 +152,9 @@ export function contentLimitsFor(type: SlideContent["type"], items: number): str
   const atCapacity = Math.max(items, definition.capacity.max);
   const layout = definition.build(
     Math.min(Math.max(atCapacity, definition.capacity.min), definition.capacity.max),
-    { hasLead: true },
+    // The tightest case: a slide carrying both a lead and a takeaway band has
+    // the least room for its content, and that is the budget to quote.
+    { hasLead: true, hasTakeaway: true },
   );
 
   const rename = SLOT_NAMES[type] ?? {};

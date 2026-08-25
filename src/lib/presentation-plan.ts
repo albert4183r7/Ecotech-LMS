@@ -18,6 +18,31 @@ export const MAX_SLIDES = 30;
 
 export const PlannedSectionSchema = z.object({
   title: z.string().min(3).max(90).describe("What this part of the presentation covers"),
+  /**
+   * What this section asserts.
+   *
+   * A section title is a topic, and a topic can be filled with definitions.
+   * A claim cannot: "the three families differ by what signal is available"
+   * commits the section to teaching something, and every slide under it
+   * inherits that commitment.
+   */
+  claim: z
+    .string()
+    .min(15)
+    .max(240)
+    .describe("What this section asserts, in one sentence — not what it 'covers'"),
+  /**
+   * The concrete device that carries the section.
+   *
+   * Reference decks teach through artefacts — one request walked end to end, a
+   * before-and-after table, a failure traced to its cause. Naming the artefact
+   * in the plan is what stops the slides beneath it becoming prose.
+   */
+  vehicle: z
+    .string()
+    .min(10)
+    .max(200)
+    .describe("The example, comparison, walkthrough or failure this section teaches through"),
   summary: z
     .string()
     .min(20)
@@ -28,6 +53,11 @@ export const PlannedSectionSchema = z.object({
     .min(2)
     .max(8)
     .describe("The specific points this section must teach, concrete enough to review"),
+  slideTitles: z
+    .array(z.string().min(3).max(90))
+    .max(12)
+    .optional()
+    .describe("A real title for each slide in this section, in order — never 'Topic (1/2)'"),
   slideBudget: z
     .number()
     .int()
@@ -39,6 +69,48 @@ export const PlannedSectionSchema = z.object({
 export const PresentationPlanSchema = z.object({
   title: z.string().min(3).max(120).describe("Title of the whole presentation"),
   subtitle: z.string().min(3).max(160).describe("One line describing what it covers"),
+  /**
+   * Who the lesson is for, decided by the planner and shown to the instructor.
+   *
+   * The planner always had an audience in mind; it was simply never written
+   * down, so nobody could see it was "general business professionals" until
+   * the slides came out reading that way.
+   */
+  audience: z
+    .string()
+    .min(15)
+    .max(300)
+    .describe("Who this is for and what they already know, inferred from the request"),
+  /** The one claim the whole lesson makes; every section serves it. */
+  thesis: z
+    .string()
+    .min(20)
+    .max(300)
+    .describe("The single claim the lesson makes, that its sections are evidence for"),
+  /** What the audience believes now that the lesson corrects. Optional: not
+   *  every subject has one, and an invented one is worse than none. */
+  misconception: z
+    .string()
+    .max(240)
+    .optional()
+    .describe("What this audience is likely to believe now that the lesson corrects"),
+  outcomes: z
+    .array(z.string().min(10).max(160))
+    .min(2)
+    .max(4)
+    .describe("What the audience can do afterwards that they could not before"),
+  /**
+   * What the subject actually needs, which the user's slide budget may not
+   * match. Recorded so a syllabus compressed into too few slides is visible
+   * rather than silently flattened into definitions.
+   */
+  recommendedSlides: z
+    .number()
+    .int()
+    .min(MIN_SLIDES)
+    .max(MAX_SLIDES)
+    .optional()
+    .describe("How many slides this subject really needs to be taught properly"),
   sections: z.array(PlannedSectionSchema).min(1).max(12),
 });
 
@@ -125,6 +197,20 @@ export function repairPlan(parsed: unknown): unknown {
 
   if (typeof plan.title === "string") plan.title = trimToWord(plan.title, 120);
   if (typeof plan.subtitle === "string") plan.subtitle = trimToWord(plan.subtitle, 160);
+  // The argued fields overrun the same way subtopics do — a model given room
+  // to think about an audience writes a paragraph about them. Reshaping costs
+  // nothing; failing validation costs a retry of the whole plan.
+  if (typeof plan.audience === "string") plan.audience = trimToWord(plan.audience, 300);
+  if (typeof plan.thesis === "string") plan.thesis = trimToWord(plan.thesis, 300);
+  if (typeof plan.misconception === "string") {
+    plan.misconception = trimToWord(plan.misconception, 240);
+  }
+  if (Array.isArray(plan.outcomes)) {
+    plan.outcomes = plan.outcomes
+      .filter((o): o is string => typeof o === "string" && o.trim().length >= 10)
+      .map((o) => trimToWord(o, 160))
+      .slice(0, 4);
+  }
 
   if (!Array.isArray(plan.sections)) return plan;
 
@@ -135,6 +221,13 @@ export function repairPlan(parsed: unknown): unknown {
     if (typeof section.title === "string") section.title = trimToWord(section.title, TITLE_MAX);
     if (typeof section.summary === "string") {
       section.summary = trimToWord(section.summary, SUMMARY_MAX);
+    }
+    if (typeof section.claim === "string") section.claim = trimToWord(section.claim, 240);
+    if (typeof section.vehicle === "string") section.vehicle = trimToWord(section.vehicle, 200);
+    if (Array.isArray(section.slideTitles)) {
+      section.slideTitles = section.slideTitles
+        .filter((t): t is string => typeof t === "string" && t.trim().length >= 3)
+        .map((t) => trimToWord(t, TITLE_MAX));
     }
 
     if (Array.isArray(section.subtopics)) {
@@ -168,8 +261,15 @@ function mergeSections(a: PlannedSection, b: PlannedSection): PlannedSection {
   const subtopics = [...a.subtopics, ...b.subtopics];
   return {
     title: `${a.title} & ${b.title}`.slice(0, 90),
+    // Both claims survive the merge: a merged section still has to assert
+    // both things, and dropping one would quietly discard half the argument.
+    claim: `${a.claim} ${b.claim}`.slice(0, 240),
+    vehicle: `${a.vehicle}; ${b.vehicle}`.slice(0, 200),
     summary: `${a.summary} ${b.summary}`.slice(0, 400),
     subtopics,
+    // The titles no longer describe one slide each, so the slot builder falls
+    // back to naming the merged section.
+    slideTitles: undefined,
     slideBudget: 1,
   };
 }
@@ -271,6 +371,12 @@ export interface SlideSlot {
   /** Subtopics this particular slide is responsible for. */
   subtopics: string[];
   role: "cover" | "section-opener" | "content" | "closing";
+  /** The planner's title for this slide, when it named one. */
+  title?: string;
+  /** What the section asserts, so the slide knows what it is arguing. */
+  sectionClaim: string;
+  /** How the section makes its case. */
+  sectionVehicle: string;
 }
 
 /**
@@ -285,8 +391,18 @@ export function buildSlideSlots(plan: BalancedPlan): SlideSlot[] {
 
   plan.sections.forEach((section, sectionIndex) => {
     const budget = section.slideBudget;
+
+    // Contiguous runs, not a round-robin deal.
+    //
+    // Subtopics were dealt out like cards — slide 1 got topics 1 and 3, slide 2
+    // got 2 and 4 — which split a section's argument across slides and put
+    // unrelated points together. The planner writes subtopics in the order it
+    // means them to be taught, so consecutive points stay on the same slide.
     const perSlide: string[][] = Array.from({ length: budget }, () => []);
-    section.subtopics.forEach((topic, i) => perSlide[i % budget].push(topic));
+    const perSlideCount = Math.ceil(section.subtopics.length / budget);
+    section.subtopics.forEach((topic, i) => {
+      perSlide[Math.min(budget - 1, Math.floor(i / perSlideCount))].push(topic);
+    });
 
     for (let i = 0; i < budget; i++) {
       const isFirstOverall = index === 0;
@@ -297,6 +413,9 @@ export function buildSlideSlots(plan: BalancedPlan): SlideSlot[] {
         positionInSection: i + 1,
         slidesInSection: budget,
         subtopics: perSlide[i],
+        title: section.slideTitles?.[i],
+        sectionClaim: section.claim,
+        sectionVehicle: section.vehicle,
         role: isFirstOverall ? "cover" : i === 0 && budget > 1 ? "section-opener" : "content",
       });
       index++;

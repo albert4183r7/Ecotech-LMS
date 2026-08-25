@@ -47,6 +47,13 @@ export const SlideDraftSchema = z.object({
   title: z.string().min(3).max(90),
   subtitle: z.string().max(180).optional().describe("Used by title and closing slides"),
   lead: z.string().max(280).optional().describe("One sentence framing the slide"),
+  takeaway: z
+    .string()
+    .max(115)
+    .optional()
+    .describe(
+      "One sentence: what the audience should carry away. The point of the slide, not a summary of it",
+    ),
   blocks: z
     .array(SlideBlockSchema)
     .min(1)
@@ -63,8 +70,17 @@ export type SlideBlock = z.infer<typeof SlideBlockSchema>;
 // Narrowing helpers
 // ────────────────────────────────────────────────
 
-const pad = (text: string, min: number, filler: string): string =>
-  text.length >= min ? text : `${text} ${filler}`.slice(0, Math.max(min + 40, text.length + 40));
+/**
+ * Whether a block said enough to be worth a slot.
+ *
+ * Short blocks used to be padded up to the schema's minimum with a canned
+ * phrase — "— explained on this slide." reached real decks. Padding also
+ * inflated the content-weight check that is supposed to catch a thin slide and
+ * regenerate it, so the filler hid the very problem it was papering over.
+ * Thin blocks are now dropped, and a slide left with too little fails to
+ * narrow and is regenerated instead.
+ */
+const substantial = (text: string, min: number): boolean => text.trim().length >= min;
 
 /**
  * An icon name the typed schema will accept.
@@ -90,22 +106,23 @@ function toPoints(blocks: SlideBlock[]): {
   icon?: string;
 }[] {
   const points = blocks
+    .filter((b) => substantial(blockText(b), 15))
     .map((b) => ({
       heading: (b.heading ?? "").trim() || "Key point",
-      description: pad(blockText(b), 15, "— explained on this slide."),
+      description: blockText(b),
       icon: blockIcon(b),
-    }))
-    .filter((p) => p.description.length >= 15);
+    }));
 
   // A concept slide needs at least two points; split a single rich block's
   // items rather than failing the slide.
   if (points.length >= 2) return points.slice(0, 5);
 
   const items = blocks.flatMap((b) => b.items ?? []);
-  if (items.length >= 2) {
-    return items.slice(0, 5).map((item, i) => ({
+  const usable = items.filter((item) => substantial(item, 15));
+  if (usable.length >= 2) {
+    return usable.slice(0, 5).map((item, i) => ({
       heading: `Point ${i + 1}`,
-      description: pad(item, 15, "— explained on this slide."),
+      description: item.trim(),
     }));
   }
   return points;
@@ -122,40 +139,32 @@ export function draftToContent(
   draft: SlideDraft,
   fallbackType: SlideType = "concept",
 ): SlideContent {
-  const { title, lead, blocks, eyebrow } = draft;
-  // The eyebrow goes on whichever branch wins, rather than being threaded
-  // through every candidate: it is the same field on all of them, and the
-  // schema drops it on the two types that have no such slot.
+  const { title, lead, blocks, eyebrow, takeaway } = draft;
+  // The eyebrow and the takeaway go on whichever branch wins, rather than
+  // being threaded through every candidate: they are the same field on all of
+  // them, and the schema drops them on the types that have no such slot.
   const attempt = (candidate: unknown): SlideContent | null => {
-    const withLabel =
-      eyebrow && eyebrow.trim() && candidate && typeof candidate === "object"
-        ? { eyebrow: eyebrow.trim(), ...candidate }
-        : candidate;
-    const parsed = SlideContentSchema.safeParse(withLabel);
+    if (!candidate || typeof candidate !== "object") return null;
+    const extras: Record<string, string> = {};
+    if (eyebrow?.trim()) extras.eyebrow = eyebrow.trim();
+    if (takeaway && takeaway.trim().length >= 15) extras.takeaway = takeaway.trim();
+    const parsed = SlideContentSchema.safeParse({ ...extras, ...candidate });
     return parsed.success ? parsed.data : null;
   };
 
   const points = toPoints(blocks);
   const conceptFallback = () =>
-    attempt({
-      type: "concept",
-      title,
-      lead: lead && lead.length >= 20 ? lead : undefined,
-      points:
-        points.length >= 2
-          ? points
-          : [
-              {
-                heading: points[0]?.heading ?? "Overview",
-                description: points[0]?.description ?? pad(title, 15, "is covered on this slide."),
-              },
-              {
-                heading: "Detail",
-                description: pad(blockText(blocks[0] ?? {}), 15, "— explained on this slide."),
-              },
-            ],
-    }) ??
+    (points.length >= 2
+      ? attempt({
+          type: "concept",
+          title,
+          lead: lead && lead.length >= 20 ? lead : undefined,
+          points,
+        })
+      : null) ??
     // Last resort: a closing-style card, which has the loosest requirements.
+    // A slide that lands here is thin, and the caller's weight check will see
+    // that and generate it again rather than shipping the shortfall.
     (attempt({ type: "closing", title, subtitle: lead ?? draft.subtitle }) as SlideContent);
 
   switch (draft.type) {
@@ -190,9 +199,10 @@ export function draftToContent(
 
     case "process": {
       const steps = blocks
+        .filter((b) => substantial(blockText(b), 10))
         .map((b) => ({
           label: (b.heading ?? "Step").slice(0, 50),
-          description: pad(blockText(b), 10, "happens at this stage."),
+          description: blockText(b),
           icon: blockIcon(b),
         }))
         .slice(0, 6);
@@ -219,9 +229,10 @@ export function draftToContent(
         byHeading("action") ?? blocks[2],
         byHeading("outcome") ?? blocks[3],
       ];
-      const [situation, problem, action, outcome] = parts.map((b) =>
-        pad(blockText(b ?? {}), 20, "— described on this slide."),
-      );
+      // Every stage has to have been written. A case study missing its outcome
+      // is not a case study, so it narrows to a concept slide instead of
+      // shipping a stage that says nothing.
+      const [situation, problem, action, outcome] = parts.map((b) => blockText(b ?? {}));
       return (
         attempt({ type: "caseStudy", title, situation, problem, action, outcome }) ??
         conceptFallback()

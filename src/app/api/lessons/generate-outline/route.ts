@@ -118,47 +118,102 @@ function buildPlannerPrompt(params: {
   slideCount: number;
   language: string;
   reference: string;
+  /** The course this lesson belongs to, which says who is being taught. */
+  course: { title: string; description: string | null; category: string | null };
+  /** The lessons already in the course, so a new one does not repeat them. */
+  siblingLessons: string[];
 }): string {
-  const { topic, slideCount, language, reference } = params;
+  const { topic, slideCount, language, reference, course, siblingLessons } = params;
 
   return `WHAT THE USER ASKED FOR: ${topic}
+
+THE COURSE THIS BELONGS TO: ${course.title}${
+    course.description ? `\n${course.description}` : ""
+  }${course.category ? `\nCategory: ${course.category}` : ""}${
+    siblingLessons.length
+      ? `\nOther lessons already in this course — do not repeat them:\n${siblingLessons
+          .map((t) => `- ${t}`)
+          .join("\n")}`
+      : ""
+  }
 
 SLIDE BUDGET: ${slideCount} slides in total.
 LANGUAGE: write everything in ${language}.
 ${
   reference
     ? `\nSOURCE MATERIAL — this is the substance of the presentation, not background reading:\n<reference>\n${reference}\n</reference>\n\nThe sections must come out of this document. Name the specific concepts, terms,\nfigures and examples it actually uses. A plan that would read the same without\nthis document has failed. Where the document and general knowledge disagree,\nthe document wins. Do not introduce major topics it never mentions.\n`
-    : "\nNo source material was supplied. Plan from established knowledge of the subject, and do not promise figures you cannot support.\n"
+    : "\nNo source material was supplied. Plan from established knowledge of the subject. You may name the subject's real tools, methods and terms; do not promise figures or study findings you cannot support.\n"
 }
-Plan this presentation as a set of logical SECTIONS.
+FIRST, DECIDE WHO THIS IS FOR AND WHAT IT ARGUES
 
-A section is a part of the subject, not a slide. Decide how many sections the
-subject genuinely needs — usually between three and seven. Do not create one
-section per slide, and do not pad the count to match the slide budget.
+- audience: who will sit through this, and what they already know. Infer it
+  from the request and the course above. Never write "general business
+  audience" or "anyone interested in the topic" — that is not an answer, and a
+  lesson written for nobody in particular teaches nobody in particular.
+- thesis: the one claim this lesson makes, that all of its sections are
+  evidence for. Not a description of the contents.
+- misconception: what this audience probably believes now that the lesson
+  corrects. Leave it out if the subject genuinely has none; do not invent one.
+- outcomes: two to four things they can do afterwards that they could not
+  before. Actions, not feelings — "read a learning curve and say which failure
+  it shows", not "understand machine learning".
+
+THEN PLAN THE SECTIONS
+
+Teach the subject in the order a good teacher would take it. For most subjects
+that is the conventional order — what it is, what it is made of, how it works,
+what goes wrong, what to do about it — and there is nothing wrong with that
+order. Depth is what separates a good lesson from a bad one, not novelty of
+structure.
+
+Decide how many sections the subject genuinely needs — usually three to six. A
+section is a part of the subject, not a slide. Do not create one section per
+slide, and do not pad the count to match the slide budget.
 
 For each section give:
-- title: what this part of the presentation covers, at most 90 characters
+- title: what this part covers, at most 90 characters
+- claim: what this section asserts, in one sentence. "The three families differ
+  by what signal is available" is a claim. "Overview of the types of machine
+  learning" is not — it is a heading, and a heading can be filled with
+  definitions. Every section must assert something.
+- vehicle: the concrete thing this section teaches through — a worked example,
+  a before-and-after comparison, one request walked end to end, a failure
+  traced to its cause. Naming it here is what stops the slides beneath it
+  turning into prose.
 - summary: what the audience should understand once this section is done, at
   most 400 characters
-- subtopics: 2 to 8 specific points this section must teach. Be concrete enough
-  that the user can tell from reading them what the presentation will say.
-  Write the actual points, not instructions like "explain the basics".
-  HARD LIMIT: each subtopic must be at most 160 characters. One point per
-  entry. If a point needs more room than that, it is really two points — split
-  it into two entries rather than writing a long one.
+- subtopics: 2 to 8 specific points this section must teach, in the order they
+  should be taught. Be concrete enough that the user can tell from reading them
+  what the presentation will actually say. Write the actual points, not
+  instructions like "explain the basics". Name the subject's real terms and
+  methods — the vocabulary is the lesson, not decoration on it.
+  HARD LIMIT: each subtopic at most 160 characters. One point per entry. If a
+  point needs more room, it is two points; split it.
+- slideTitles: one real title per slide in this section, in order, as many as
+  slideBudget. Write the title the finished slide will carry — "Overfitting,
+  read from a learning curve", not "Section 2 (1/2)".
 - slideBudget: how many of the ${slideCount} slides this section needs,
   proportional to how much there is to teach. A dense section deserves more.
 
-Rules:
-- The slideBudget values should add up to roughly ${slideCount}. They will be
-  adjusted to fit exactly, so approximate is fine.
-- One slide is reserved for the opening title and one for the close; account
-  for that when spreading the budget.
-- Infer the audience and depth from the request itself. Do not ask for them.
-- Generic scaffolding such as "Introduction", "Overview", "Conclusion" as
-  section titles is not acceptable. Name what is actually being taught.
+Also give: a title and one-line subtitle for the whole presentation, and
+recommendedSlides — how many slides this subject really needs to be taught
+properly, which may be more than the ${slideCount} budgeted. Say what the
+subject needs; the budget is reconciled afterwards.
 
-Also give the presentation a title and a one-line subtitle.`;
+WHAT MAKES A PLAN FAIL
+
+- Section titles that are scaffolding: "Introduction", "Overview", "Key
+  Concepts", "Conclusion". Name what is being taught.
+- Subtopics that would be true of any subject. Test each one: could this line
+  appear unchanged in a lesson about something else? Then it is filler.
+- Definitions where an explanation belongs. "X is a technique for Y" teaches
+  nothing on its own; plan the part that shows how X behaves, what it costs,
+  or when it fails.
+- Compliance boilerplate, HR-policy language or generic corporate safety
+  guidance, unless the request is specifically about those.
+- A plan shaped Definition → Components → Benefits → Challenges → Conclusion.
+  That is the shape of a deck nobody remembers. If yours resembles it, the
+  sections are topics rather than claims — plan it again.`;
 }
 
 export async function POST(request: NextRequest) {
@@ -197,7 +252,17 @@ export async function POST(request: NextRequest) {
 
     const requestedSlides = Math.max(MIN_SLIDES, Math.min(MAX_SLIDES, Math.round(slideCount)));
 
-    const course = await db.course.findUnique({ where: { id: courseId } });
+    // The course says who is being taught, which is the planner's best source
+    // for an audience. It used to be read only to check the course existed,
+    // so a lesson inside "AI Adoption for Sales Teams" was planned as though
+    // the topic line were the only thing known about it.
+    const course = await db.course.findUnique({
+      where: { id: courseId },
+      include: {
+        category: { select: { name: true } },
+        lessons: { select: { id: true, title: true }, orderBy: { order: "asc" } },
+      },
+    });
     if (!course) {
       return NextResponse.json({ success: false, error: "Course not found" }, { status: 404 });
     }
@@ -224,6 +289,14 @@ export async function POST(request: NextRequest) {
           slideCount: requestedSlides,
           language,
           reference,
+          course: {
+            title: course.title,
+            description: course.description,
+            category: course.category?.name ?? null,
+          },
+          siblingLessons: course.lessons
+            .filter((l) => l.id !== existingLessonId)
+            .map((l) => l.title),
         }),
         PresentationPlanSchema,
         {
@@ -233,8 +306,11 @@ export async function POST(request: NextRequest) {
           // less destructive than spending a retry on them.
           repair: repairPlan,
           systemInstruction:
-            "You plan presentations. You decide the logical structure of a subject; the user decides how many slides they get. Never equate sections with slides.",
-          temperature: 0.4,
+            "You plan lessons. You decide the logical structure of a subject and how deeply each part must be taught; the user decides how many slides they get. Never equate sections with slides. A plan that could have been written without knowing the subject is a failed plan.",
+          // Planning is an open task, and a low temperature returns the modal
+          // plan for a topic — which for any business subject is the generic
+          // one. The rules above are what make a warmer setting safe.
+          temperature: 0.75,
         },
       );
     } catch (error) {
@@ -260,6 +336,19 @@ export async function POST(request: NextRequest) {
     // Reconcile the model's structure with the user's budget. Nothing is
     // dropped here — budgets shift, and sections merge only if they must.
     const balanced = balancePlan(plan, requestedSlides);
+
+    // A syllabus squeezed into too few slides is the quietest way a lesson
+    // becomes shallow: every section still appears, each one reduced to a
+    // definition. The planner says what the subject needs, and the shortfall
+    // is reported rather than silently absorbed.
+    if (balanced.recommendedSlides && balanced.recommendedSlides > requestedSlides + 1) {
+      balanced.adjustments.push(
+        `This subject needs about ${balanced.recommendedSlides} slides to be taught properly; ` +
+          `${requestedSlides} were requested, so each section is covered more briefly. ` +
+          `Raise the slide count to give it room.`,
+      );
+    }
+
     const slots = buildSlideSlots(balanced);
 
     const outlineData = {
@@ -269,6 +358,14 @@ export async function POST(request: NextRequest) {
       language,
       title: balanced.title,
       subtitle: balanced.subtitle,
+      // What the plan decided about its own audience and argument. Stored so
+      // every slide generated from it is written to the same brief, and so the
+      // instructor can see and correct it before any slide is written.
+      audience: balanced.audience,
+      thesis: balanced.thesis,
+      misconception: balanced.misconception,
+      outcomes: balanced.outcomes,
+      recommendedSlides: balanced.recommendedSlides,
       sections: balanced.sections,
       adjustments: balanced.adjustments,
       referenceContext: reference || undefined,
@@ -317,12 +414,16 @@ export async function POST(request: NextRequest) {
       data: slots.map((slot) => ({
         lessonId: lesson.id,
         sectionId: sectionRows[slot.sectionIndex].id,
+        // The planner's own title for this slide. It used to be assembled here
+        // as "Section (1/2)", so half of what the instructor reviewed in the
+        // outline was string formatting rather than anything a model wrote.
         title:
           slot.role === "cover"
             ? balanced.title
-            : slot.slidesInSection > 1
-              ? `${slot.sectionTitle} (${slot.positionInSection}/${slot.slidesInSection})`
-              : slot.sectionTitle,
+            : (slot.title ??
+              (slot.slidesInSection > 1
+                ? `${slot.sectionTitle} (${slot.positionInSection}/${slot.slidesInSection})`
+                : slot.sectionTitle)),
         htmlBody: "",
         status: "DRAFT_OUTLINE",
         order: slot.index,
@@ -346,6 +447,13 @@ export async function POST(request: NextRequest) {
         requestedSlideCount: requestedSlides,
         totalSlides: slots.length,
         adjustments: balanced.adjustments,
+        // The brief the plan wrote for itself. Shown in the outline so the
+        // instructor can correct a wrong audience or a flat argument before
+        // any slide is generated from it.
+        audience: balanced.audience,
+        thesis: balanced.thesis,
+        misconception: balanced.misconception,
+        outcomes: balanced.outcomes,
         // Surfaced so a reference that could not be read is visible rather
         // than silently ignored.
         referenceUsed: sources.map((s) => s.file),
@@ -358,6 +466,8 @@ export async function POST(request: NextRequest) {
           title: row.title,
           summary: row.summary,
           subtopics: balanced.sections[i].subtopics,
+          claim: balanced.sections[i].claim,
+          vehicle: balanced.sections[i].vehicle,
           slideBudget: row.slideBudget,
           order: row.order,
         })),

@@ -29,6 +29,8 @@ interface StoredSection {
   summary: string;
   subtopics: string[];
   slideBudget: number;
+  claim?: string;
+  vehicle?: string;
 }
 
 interface StoredOutlinePlan {
@@ -39,6 +41,10 @@ interface StoredOutlinePlan {
   subtitle?: string;
   sections?: StoredSection[];
   referenceContext?: string;
+  /** What the plan decided about who it is for and what it argues. */
+  audience?: string;
+  thesis?: string;
+  misconception?: string;
 }
 
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
@@ -92,12 +98,18 @@ async function generateAllSlides(lessonId: string, languageOverride?: string): P
 
   // Sections come from the database, which holds exactly what the user
   // approved. The outline JSON is only a fallback for older lessons.
+  // Claim and vehicle live in the stored plan rather than on the Section row,
+  // so they are matched back by title — the two lists are written together and
+  // in the same order.
+  const plannedByTitle = new Map((plan.sections ?? []).map((s) => [s.title, s]));
   const sections: StoredSection[] = lesson.sections.length
     ? lesson.sections.map((s) => ({
         title: s.title,
         summary: s.summary,
         subtopics: JSON.parse(s.subtopics) as string[],
         slideBudget: s.slideBudget,
+        claim: plannedByTitle.get(s.title)?.claim,
+        vehicle: plannedByTitle.get(s.title)?.vehicle,
       }))
     : (plan.sections ?? []);
 
@@ -109,11 +121,13 @@ async function generateAllSlides(lessonId: string, languageOverride?: string): P
   for (const section of lesson.sections) {
     const owned = deck.filter((s) => s.sectionId === section.id);
     const topics = JSON.parse(section.subtopics) as string[];
+    // Contiguous runs, not a round-robin deal. Dealing topics out like cards
+    // put points 1 and 3 on one slide and 2 and 4 on the next, which split an
+    // argument down the middle and paired unrelated points. The planner writes
+    // them in teaching order, so neighbours belong together.
+    const perSlide = Math.ceil(topics.length / Math.max(1, owned.length));
     owned.forEach((slide, i) => {
-      subtopicsForSlide.set(
-        slide.id,
-        topics.filter((_, t) => t % Math.max(1, owned.length) === i),
-      );
+      subtopicsForSlide.set(slide.id, topics.slice(i * perSlide, (i + 1) * perSlide));
     });
   }
 
@@ -149,6 +163,8 @@ async function generateAllSlides(lessonId: string, languageOverride?: string): P
             ? "section-opener"
             : "content";
 
+    const planned = section ? plannedByTitle.get(section.title) : sections[sectionIndex];
+
     const brief: SlideBrief = {
       position: position + 1,
       totalSlides: deck.length,
@@ -159,6 +175,14 @@ async function generateAllSlides(lessonId: string, languageOverride?: string): P
       subtopics: subtopicsForSlide.get(slide.id) ?? [],
       role,
       language,
+      // The lesson's brief, so a slide knows what it is arguing and for whom.
+      // Without these the model had a section title and a few words of
+      // subtopic to fill a whole slide from.
+      audience: plan.audience,
+      thesis: plan.thesis,
+      misconception: plan.misconception,
+      sectionClaim: planned?.claim,
+      sectionVehicle: planned?.vehicle,
       alreadyCovered: covered.length ? covered.slice(-8).join("\n") : undefined,
       referenceText: plan.referenceContext,
     };

@@ -22,6 +22,16 @@ export interface SlideBrief {
   sectionSummary: string;
   /** The reviewed points this slide is responsible for. */
   subtopics: string[];
+  /** Who the lesson is for, as the plan named them. */
+  audience?: string;
+  /** The one claim the whole lesson makes. */
+  thesis?: string;
+  /** What the audience believes now that the lesson corrects. */
+  misconception?: string;
+  /** What this section asserts — the reason it exists. */
+  sectionClaim?: string;
+  /** How the section makes its case: the example, comparison or walkthrough. */
+  sectionVehicle?: string;
   role: "cover" | "section-opener" | "content" | "closing";
   language: string;
   /** What earlier slides already said, so nothing is repeated. */
@@ -51,20 +61,55 @@ this slide has to teach:
 - summary: the points worth remembering
 - title / closing: reserved for the first and last slides
 
-Rules:
-- Teach the subject. Never describe the presentation or what the audience will do.
-- Write in full, informative sentences. A heading plus four vague words is not content.
+TEACH THE SUBJECT, AT ITS OWN DEPTH
+
+- Name the real thing. A subject's own vocabulary is what the audience came
+  for — overfitting, gradient descent, retrieval, precision and recall,
+  whatever this subject's terms actually are. Using the real name is not
+  jargon; avoiding it is how a lesson becomes a page of definitions that could
+  be about anything.
+- Then explain it, in the same breath, in ordinary words. Assume a capable
+  person who has never met the term: what it means, and why it matters here.
+  A term you name and do not explain has taught nobody.
+- This is not a glossary. Do not write a list of definitions. Explain how the
+  thing works, what it is for, what goes wrong without it, or what decision it
+  drives. "X is a technique for Y" is the weakest sentence you can write.
+- Be concrete. A worked example, a situation the audience would recognise, a
+  comparison with what they already use, or the failure that makes the point
+  obvious — one of these beats another abstract sentence every time.
+- Depth over coverage. One idea explained properly is worth more than four
+  mentioned. If the material for this slide is thin, go deeper into it rather
+  than reaching for something else.
+- Never describe the presentation or what the audience will do. Never write
+  compliance boilerplate, HR-policy language or generic corporate safety
+  guidance unless the lesson is specifically about those.
+
+EVIDENCE
+
+- Naming well-known tools, standards, methods, patterns and terms is expected.
+  That is the subject's vocabulary, not a claim about the world.
+- Numbers inside a worked example are fine where they read as an illustration:
+  "say it scores 99% on the data it trained on and 71% on data held back".
+- Never state a figure, date, market claim, study finding or quotation as fact
+  about the world unless it appears in supplied source material. With no
+  source, no such figures at all.
+
+WRITING IT
+
 - Do not repeat anything listed as already covered.
 - Vary the type across a deck. Consecutive slides of the same type read as filler.
-- Statistics, percentages, currency amounts, dates and named studies may only be
-  used when they appear in the supplied source material. With no source, make
-  the point qualitatively.
 - Write every string in the requested language.
 - Every block needs a heading and either a body sentence or supporting items.
-  A heading alone is not content.
+  If a block has nothing substantial to say, write fewer blocks. Never pad one
+  to reach a length.
+- takeaway: one sentence for the band at the foot of the slide — what the
+  audience should carry away from it. The point of the slide, not a summary of
+  it, and never a restatement of the title. Leave it out rather than repeat.
 - Write to the length the layout allows. The limits below are not style advice:
-  the template's boxes are a fixed size, and text past them is cut. Aim comfortably
-  under each limit rather than at it.
+  the template's boxes are a fixed size, and text past them is shrunk and then
+  cut. Aim comfortably under each limit rather than at it. A heading is a
+  label, not a sentence — name the idea in the fewest precise words and put the
+  explanation in the body.
 - For a comparison, each block is one side. For a process or architecture, each
   block is one step or component in order. For a case study, use four blocks
   headed Situation, Problem, Action and Outcome. For a summary, put the
@@ -82,11 +127,20 @@ function buildPrompt(brief: SlideBrief): string {
 
   return [
     `PRESENTATION: ${brief.presentationTitle} — ${brief.presentationSubtitle}`,
+    // Who it is for and what it argues. Without these the model has only a
+    // section title and a few words of subtopic to fill a slide from, which is
+    // how every deck came out reading like the same deck.
+    brief.audience ? `WRITTEN FOR: ${brief.audience}` : "",
+    brief.thesis ? `THE LESSON ARGUES: ${brief.thesis}` : "",
+    brief.misconception ? `IT IS CORRECTING THE BELIEF THAT: ${brief.misconception}` : "",
+    "",
     `SLIDE ${brief.position} of ${brief.totalSlides}.`,
     roleLine,
     "",
     `SECTION: ${brief.sectionTitle}`,
     `What this section must achieve: ${brief.sectionSummary}`,
+    brief.sectionClaim ? `WHAT THIS SECTION ASSERTS: ${brief.sectionClaim}` : "",
+    brief.sectionVehicle ? `HOW THIS SECTION MAKES ITS CASE: ${brief.sectionVehicle}` : "",
     "",
     brief.subtopics.length
       ? `THIS SLIDE MUST COVER:\n${brief.subtopics.map((t) => `- ${t}`).join("\n")}`

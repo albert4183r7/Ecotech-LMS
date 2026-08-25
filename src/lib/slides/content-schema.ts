@@ -13,6 +13,21 @@ import { z } from "zod/v4";
 /** Name of a slide icon; see ICON_NAMES. Unknown names resolve to a fallback. */
 const Icon = z.string().max(24).optional().describe("Icon name that suits this item");
 
+/**
+ * The line the template prints in its gradient band at the foot of a content
+ * slide.
+ *
+ * Not a summary of the slide — the point of it. A slide that has taught
+ * something can say what the audience should now do differently, and a slide
+ * that cannot is usually a slide that only defined a word.
+ */
+const Takeaway = z
+  .string()
+  .min(15)
+  .max(115)
+  .optional()
+  .describe("One sentence: what the audience should carry away from this slide");
+
 const Point = z.object({
   heading: z.string().min(2).max(70).describe("A few words naming the idea"),
   description: z.string().min(15).max(260).describe("What it means, in a full sentence"),
@@ -42,6 +57,7 @@ export const ConceptSlideSchema = z.object({
   title: z.string().min(3).max(90),
   lead: z.string().min(20).max(280).optional().describe("A sentence framing the slide"),
   points: z.array(Point).min(2).max(5),
+  takeaway: Takeaway,
 });
 
 export const ComparisonSlideSchema = z.object({
@@ -69,6 +85,7 @@ export const ComparisonSlideSchema = z.object({
     )
     .min(2)
     .max(3),
+  takeaway: Takeaway,
 });
 
 export const ProcessSlideSchema = z.object({
@@ -96,6 +113,7 @@ export const ProcessSlideSchema = z.object({
     )
     .min(3)
     .max(6),
+  takeaway: Takeaway,
 });
 
 export const ArchitectureSlideSchema = z.object({
@@ -124,6 +142,7 @@ export const ArchitectureSlideSchema = z.object({
     .min(3)
     .max(6)
     .describe("Ordered stages of the flow, drawn as a chain"),
+  takeaway: Takeaway,
 });
 
 export const CaseStudySlideSchema = z.object({
@@ -144,6 +163,7 @@ export const CaseStudySlideSchema = z.object({
   problem: z.string().min(20).max(300),
   action: z.string().min(20).max(300),
   outcome: z.string().min(20).max(300),
+  takeaway: Takeaway,
 });
 
 export const DataSlideSchema = z.object({
@@ -173,6 +193,7 @@ export const DataSlideSchema = z.object({
     .min(2)
     .max(4)
     .describe("Only use when the figures come from supplied reference material"),
+  takeaway: Takeaway,
 });
 
 export const SummarySlideSchema = z.object({
@@ -190,6 +211,7 @@ export const SummarySlideSchema = z.object({
     .describe("Short section label above the title, e.g. the part of the lesson this belongs to"),
   title: z.string().min(3).max(90),
   takeaways: z.array(z.string().min(15).max(200)).min(3).max(6),
+  takeaway: Takeaway,
 });
 
 export const ClosingSlideSchema = z.object({
