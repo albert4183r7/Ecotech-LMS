@@ -25,7 +25,8 @@ import { repairQuiz, DraftQuizSchema } from "../src/lib/quiz/schema";
 import * as templateModule from "../src/lib/slides/template";
 import { SLIDE_TEMPLATE } from "../src/lib/slides/template";
 import { GRADIENT_SENTINEL } from "../src/lib/slides/pptx-gradient";
-import { LAYOUTS } from "../src/lib/slides/template-layouts";
+import { LAYOUTS, capacityOf } from "../src/lib/slides/template-layouts";
+import { resolveSlide } from "../src/lib/slides/resolve";
 import {
   buildLessonContext,
   buildSystemPrompt,
@@ -161,6 +162,48 @@ add("the craft guide reaches the writer, and the plan exemplar the planner", () 
     PLAN_EXEMPLAR.includes("claim:") &&
     PLAN_EXEMPLAR.includes("vehicle:")
   );
+});
+
+add("overflowing text never spins the fitter", () => {
+  // The fitter shrinks type until the text fits. Its exit test used to compare
+  // a rounded size against an unrounded floor, and at 15pt and 17pt — a card
+  // heading, a process step label — the rounding goes up and the comparison
+  // can never be true. Any slide whose text overflowed one of those boxes hung
+  // the Node process in a spin: no response, no log, no interrupt.
+  //
+  // Every box in every layout, with text far past what it can hold. A
+  // regression here does not fail this check, it hangs it — which is the
+  // honest signal, since that is exactly what it does in production.
+  const overflowing = "extremely long ".repeat(60);
+
+  for (const definition of LAYOUTS) {
+    for (const count of [definition.capacity.min, definition.capacity.max]) {
+      for (const hasTakeaway of [false, true]) {
+        const layout = definition.build(count, { hasLead: true, hasTakeaway });
+        for (const placeholder of layout.placeholders) {
+          // capacityOf is the same measurement the fitter shrinks against, so
+          // a box that cannot hold the string is one the fitter must resolve.
+          if (capacityOf(placeholder).maxChars >= overflowing.length) continue;
+          const drawn = resolveSlide(
+            {
+              type: "concept",
+              title: overflowing,
+              lead: overflowing,
+              takeaway: overflowing.slice(0, 110),
+              points: [
+                { heading: overflowing, description: overflowing },
+                { heading: overflowing, description: overflowing },
+              ],
+            } as SlideContent,
+            { slideNumber: 2 },
+          );
+          if (drawn.boxes.length === 0) return false;
+          break;
+        }
+      }
+    }
+  }
+  return true;
 });
 
 add("a takeaway reaches the slide's band", () => {

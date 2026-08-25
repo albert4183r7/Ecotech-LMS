@@ -133,12 +133,26 @@ function synthetic(content: SlideContent, path: string): string | undefined {
   }
 }
 
+/** Point sizes are drawn to one decimal; the fitter works in the same units. */
+function toDrawnSize(pt: number): number {
+  return Math.round(pt * 10) / 10;
+}
+
 /**
  * Shrink type until the text fits, then trim if it still does not.
  *
  * Returns the size to draw at. A box that would need to go below MIN_SCALE is
  * reported so the caller can say the slide is overloaded rather than quietly
  * dropping half a sentence.
+ *
+ * The exit test compares the unrounded size against the floor, and the loop is
+ * bounded besides. It used to compare the *rounded* size, which for a 15pt or
+ * 17pt box rounds up — 12.75 draws as 12.8, and 12.8 is never "at or below"
+ * 12.75 — so the loop could not end. Any slide whose card heading or step
+ * label overflowed its box hung the request in a spin, and with it the whole
+ * Node process: no response, no log line, no way to interrupt it. Two guards
+ * rather than one, because a renderer that can pin a server is worse than any
+ * slide it might have drawn.
  */
 function fit(
   text: string,
@@ -147,15 +161,17 @@ function fit(
   // Never below the readability floor, and never below a fixed point size:
   // a box that fits only by becoming illegible has not been solved.
   const floor = Math.max(placeholder.fontPt * MIN_SCALE, Math.min(placeholder.fontPt, MIN_FONT_PT));
+  const steps = Math.ceil((1 - MIN_SCALE) / SCALE_STEP) + 2;
 
-  for (let scale = 1; ; scale -= SCALE_STEP) {
-    const fontPt = Math.round(Math.max(placeholder.fontPt * scale, floor) * 10) / 10;
+  for (let step = 0; step <= steps; step++) {
+    const exact = Math.max(placeholder.fontPt * (1 - step * SCALE_STEP), floor);
+    const fontPt = toDrawnSize(exact);
     const capacity = capacityOf({ ...placeholder, fontPt });
     if (text.length <= capacity.maxChars) return { fontPt, text, truncated: false };
-    if (fontPt <= floor + 1e-9) break;
+    if (exact <= floor + 1e-9) break;
   }
 
-  const fontPt = Math.round(floor * 10) / 10;
+  const fontPt = toDrawnSize(floor);
   const capacity = capacityOf({ ...placeholder, fontPt });
   // Cut at a word boundary so the visible remainder reads as a phrase.
   const cut = text.slice(0, Math.max(1, capacity.maxChars - 1));

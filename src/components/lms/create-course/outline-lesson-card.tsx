@@ -148,6 +148,13 @@ export function OutlineLessonCard({
   // itself is finished, so it is shown rather than withheld until the whole
   // workflow ends — which is minutes later on a long lesson.
   const finishing = isGenerating && genStage === "quiz";
+  // The server logs the slide it has started; the progress figure counts the
+  // ones that have finished. Both are right, and reporting the second with the
+  // word "generating" made the page a slide behind the terminal.
+  const slideInFlight = Math.min(
+    genProgress.total,
+    genProgress.current + (currentGenSlideId ? 1 : 0),
+  );
   const showDeck = hasReadySlides && (!isGenerating || finishing);
 
   return (
@@ -188,7 +195,7 @@ export function OutlineLessonCard({
                 <Loader2 className="h-2.5 w-2.5 animate-spin" />
                 {finishing
                   ? `${genProgress.total} slides ready · writing the quiz`
-                  : `Generating ${genProgress.current}/${genProgress.total}`}
+                  : `Generating ${slideInFlight}/${genProgress.total}`}
               </span>
             ) : allComplete ? (
               <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
@@ -258,7 +265,7 @@ export function OutlineLessonCard({
                 <span className="text-muted-foreground">
                   {finishing
                     ? `All ${genProgress.total} slides are written. Reviewing them and writing the quiz…`
-                    : `Generating slide ${genProgress.current} of ${genProgress.total}...`}
+                    : `Generating slide ${slideInFlight} of ${genProgress.total} · ${genProgress.current} done`}
                 </span>
                 <Button
                   size="sm"
