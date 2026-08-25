@@ -29,6 +29,15 @@ import type { ReferenceFile } from "@/hooks/use-course-uploads";
 /** How often the page asks the server where generation has got to. */
 const POLL_INTERVAL_MS = 1500;
 
+/**
+ * Failed polls in a row before the page stops asking.
+ *
+ * Enough to ride out a restart or a dropped request, few enough that a route
+ * the server genuinely cannot answer is reported in seconds rather than
+ * filling the console until the tab is closed.
+ */
+const MAX_POLL_FAILURES = 5;
+
 /** The answer /api/lessons/[id]/progress gives: statuses, never markup. */
 interface LessonProgress {
   stage: "slides" | "finishing" | "ready" | "failed";
@@ -358,6 +367,11 @@ export function useLessonWorkflow({
       let pollInterval: ReturnType<typeof setInterval> | null = null;
       // Whether the markup of the first finished slide has been asked for.
       let htmlRequested = false;
+      // Consecutive failed polls. Generation runs on the server and survives
+      // this page, so a poll that cannot be answered is not a reason to fail
+      // the lesson — but it is a reason to stop asking and say so, rather than
+      // logging the same error every second and a half for the rest of the run.
+      let consecutiveFailures = 0;
 
       const stop = () => {
         stopped = true;
@@ -368,7 +382,22 @@ export function useLessonWorkflow({
       const poll = async () => {
         try {
           const pollRes = await fetch(`/api/lessons/${lessonId}/progress`);
+
+          // Anything but a JSON answer is a failure of the request, not a
+          // report about the lesson. Reading .json() on an HTML error page
+          // throws a parse error that says nothing about what went wrong —
+          // "Unexpected token '<'" is what a 404 page looks like from here.
+          if (!pollRes.ok) {
+            throw new Error(
+              `progress request failed with ${pollRes.status}` +
+                (pollRes.status === 404
+                  ? " — the lesson could not be read, or the dev server has not picked up this route yet"
+                  : ""),
+            );
+          }
+
           const pollJson = await pollRes.json();
+          consecutiveFailures = 0;
           if (stopped || !pollJson.success || !pollJson.data?.slides) return;
           const progress = pollJson.data as LessonProgress;
 
@@ -444,7 +473,20 @@ export function useLessonWorkflow({
             );
           }
         } catch (pollErr) {
-          console.error("[generate-slides] Poll error:", pollErr);
+          consecutiveFailures++;
+          console.error(
+            `[generate-slides] Poll error (${consecutiveFailures}/${MAX_POLL_FAILURES}):`,
+            pollErr,
+          );
+          if (consecutiveFailures >= MAX_POLL_FAILURES) {
+            stop();
+            setGeneratingLessonId(null);
+            setGenStage("idle");
+            setCurrentGenSlideId(null);
+            toast.warning(
+              "Lost track of this lesson's progress. Generation continues on the server — reload the page to pick it up again.",
+            );
+          }
         }
       };
 

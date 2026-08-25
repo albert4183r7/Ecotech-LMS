@@ -65,16 +65,18 @@ export interface OutlineLessonDraft {
   /** Notes about merges or compression the plan had to make. */
   adjustments?: string[];
   /**
-   * The brief the plan wrote for itself.
+   * The brief the plan wrote for itself: who it is for, what it argues, and
+   * the vocabulary it undertakes to teach.
    *
-   * The planner always had an audience and an argument in mind; they were
-   * never written down, so nobody could see that it had settled on "general
-   * business professionals" until the slides came out reading that way.
+   * Carried on the draft but not rendered. It is what the slide prompts are
+   * written against — a plan that has decided on an audience writes very
+   * differently from one that has not — but as a panel above the outline it
+   * was three paragraphs of preamble between the instructor and the thing
+   * they came to review.
    */
   audience?: string;
   thesis?: string;
   misconception?: string;
-  /** The vocabulary the lesson undertakes to teach. */
   keyTerms?: string[];
   language: string;
   style: string;
@@ -284,59 +286,6 @@ export function OutlineLessonCard({
                   finished — you can preview and edit them now, and the quiz appears here when it is
                   written.
                 </p>
-              )}
-            </div>
-          )}
-
-          {/* ---- Who it is for, and what it argues ----
-              The three lines worth reading before spending a generation on
-              this lesson: a wrong audience or a flat argument is visible here
-              in seconds, and costs a whole deck to discover afterwards. */}
-          {(lesson.audience || lesson.thesis || lesson.keyTerms?.length) && (
-            <div className="border-primary/20 bg-primary/[0.03] space-y-1.5 rounded-md border p-2.5">
-              {lesson.audience && (
-                <div className="flex gap-2 text-[11px]">
-                  <span className="text-muted-foreground w-20 shrink-0 font-semibold tracking-wide uppercase">
-                    For
-                  </span>
-                  <span className="text-foreground flex-1">{lesson.audience}</span>
-                </div>
-              )}
-              {lesson.misconception && (
-                <div className="flex gap-2 text-[11px]">
-                  <span className="text-muted-foreground w-20 shrink-0 font-semibold tracking-wide uppercase">
-                    Correcting
-                  </span>
-                  <span className="text-foreground flex-1">{lesson.misconception}</span>
-                </div>
-              )}
-              {lesson.thesis && (
-                <div className="flex gap-2 text-[11px]">
-                  <span className="text-muted-foreground w-20 shrink-0 font-semibold tracking-wide uppercase">
-                    Remember
-                  </span>
-                  <span className="text-foreground flex-1">{lesson.thesis}</span>
-                </div>
-              )}
-              {/* Coverage, at a glance. Whether the lesson on agents actually
-                  reaches RAG and function calling is the question an
-                  instructor wants answered before generating twelve slides. */}
-              {lesson.keyTerms && lesson.keyTerms.length > 0 && (
-                <div className="flex gap-2 text-[11px]">
-                  <span className="text-muted-foreground w-20 shrink-0 font-semibold tracking-wide uppercase">
-                    Teaches
-                  </span>
-                  <span className="flex flex-1 flex-wrap gap-1">
-                    {lesson.keyTerms.map((term) => (
-                      <span
-                        key={term}
-                        className="bg-primary/10 text-primary rounded px-1.5 py-0.5 text-[10px] font-medium"
-                      >
-                        {term}
-                      </span>
-                    ))}
-                  </span>
-                </div>
               )}
             </div>
           )}
