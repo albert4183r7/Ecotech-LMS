@@ -52,6 +52,7 @@ import {
   type SlideComposition,
 } from "../src/lib/slides/composition";
 import { resolveComposition, pointSizeFor } from "../src/lib/slides/composition-resolve";
+import { reviewComposition } from "../src/lib/slides/composition-generate";
 import { renderComposition } from "../src/lib/slides/composition-render";
 import { readCompositionField, writeCompositionField } from "../src/lib/slides/composition-path";
 import { parseSlideDoc, slideDocText } from "../src/lib/slides/document";
@@ -128,9 +129,53 @@ add("a section without a claim is rejected", () => {
   return !PresentationPlanSchema.safeParse(plan).success;
 });
 
-add("a section's subtopics stay in contiguous runs across its slides", () => {
-  // Dealing them round-robin put points 1 and 3 on one slide and 2 and 4 on
-  // the next, splitting an argument down the middle.
+add("a deck is a cover, a contents slide, one slide per section, and a closing", () => {
+  // Two slides of one section were written from the same summary and the same
+  // claim, so they came out saying the same thing twice. One section is one
+  // slide now, and the deck's furniture carries no section's points.
+  const section = (title: string, subtopics: string[]) => ({
+    title,
+    claim: "This part asserts something specific about the subject",
+    vehicle: "One worked example carried through the section",
+    summary: "y".repeat(40),
+    subtopics,
+    slideTitles: [`A real title for ${title}`],
+    slideBudget: 1,
+  });
+  const plan = {
+    title: "A plan title",
+    subtitle: "A plan subtitle",
+    audience: "People who have met the subject once and now have to use it",
+    thesis: "The subject is one mechanism, and its failures come from that mechanism",
+    outcomes: ["Name the parts of it", "Say which part a failure came from"],
+    sections: [
+      section("One", ["first", "second", "third"]),
+      section("Two", ["fourth", "fifth"]),
+      section("Three", ["sixth", "seventh"]),
+      section("Four", ["eighth", "ninth"]),
+    ],
+  };
+  const balanced = balancePlan(PresentationPlanSchema.parse(plan), 7);
+  const slots = buildSlideSlots(balanced);
+
+  return (
+    balanced.sections.length === 4 &&
+    balanced.totalSlides === 7 &&
+    slots.length === 7 &&
+    slots.map((s) => s.role).join() === "cover,contents,content,content,content,content,closing" &&
+    // The contents slide lists the sections; the cover and closing carry none.
+    slots[1].subtopics.join() === "One,Two,Three,Four" &&
+    slots[0].subtopics.length === 0 &&
+    slots[6].subtopics.length === 0 &&
+    // Every section's points land on exactly one slide, whole.
+    slots[2].subtopics.join() === "first,second,third" &&
+    slots[3].subtopics.join() === "fourth,fifth" &&
+    // and the planner's own title reaches the slot, rather than "Section (1/2)"
+    slots[2].title === "A real title for One"
+  );
+});
+
+add("a plan with too few sections is split rather than padded", () => {
   const plan = {
     title: "A plan title",
     subtitle: "A plan subtitle",
@@ -139,24 +184,27 @@ add("a section's subtopics stay in contiguous runs across its slides", () => {
     outcomes: ["Name the parts of it", "Say which part a failure came from"],
     sections: [
       {
-        title: "Section",
+        title: "The only section",
         claim: "This part asserts something specific about the subject",
         vehicle: "One worked example carried through the section",
         summary: "y".repeat(40),
         subtopics: ["first", "second", "third", "fourth"],
         slideTitles: ["A real first title", "A real second title"],
-        slideBudget: 2,
+        slideBudget: 1,
       },
     ],
   };
-  const parsed = PresentationPlanSchema.parse(plan);
-  const slots = buildSlideSlots(balancePlan(parsed, 2));
+  const balanced = balancePlan(PresentationPlanSchema.parse(plan), 4);
+  const slots = buildSlideSlots(balanced);
   return (
-    slots[0].subtopics.join() === "first,second" &&
-    slots[1].subtopics.join() === "third,fourth" &&
-    // and the planner's own titles reach the slots, rather than "Section (1/2)"
-    slots[0].title === "A real first title" &&
-    slots[1].title === "A real second title"
+    balanced.sections.length === 2 &&
+    balanced.totalSlides === 4 &&
+    // Split at the halfway point, taking the planner's own slide titles.
+    balanced.sections[0].title === "A real first title" &&
+    balanced.sections[0].subtopics.join() === "first,second" &&
+    balanced.sections[1].subtopics.join() === "third,fourth" &&
+    // Short deck: no contents slide, because there is nothing to list.
+    slots.map((s) => s.role).join() === "cover,content,content,closing"
   );
 });
 
@@ -720,6 +768,59 @@ add("two text boxes printing over each other are reported", () => {
     ],
   });
   return warnings.some((w) => w.includes("overlap"));
+});
+
+add("ink that cannot be read on what it sits on is corrected", () => {
+  const { elements, warnings, faults } = resolveComposition({
+    elements: [
+      { kind: "band", x: 0.045, y: 0.79, w: 0.91, h: 0.08, fill: "gradient" },
+      {
+        kind: "text",
+        x: 0.07,
+        y: 0.805,
+        w: 0.86,
+        h: 0.05,
+        text: "Navy type on the navy band is invisible",
+        role: "heading",
+        ink: "heading",
+      },
+      // Mint on pale mint: the number in the chip disappears.
+      {
+        kind: "chip",
+        x: 0.5,
+        y: 0.4,
+        w: 0.05,
+        h: 0.09,
+        fill: "accentSoft",
+        text: "1",
+        ink: "accent",
+      },
+    ],
+  });
+  const band = elements[1];
+  const chip = elements[2];
+  return (
+    faults.recoloured === 2 &&
+    (band.ink === "featureHeading" || band.ink === "onAccent") &&
+    (chip.ink === "heading" || chip.ink === "iconInk") &&
+    warnings.some((w) => w.includes("unreadable"))
+  );
+});
+
+add("a slide carrying a document's worth of text is sent back", () => {
+  const wordy = {
+    elements: Array.from({ length: 6 }, (_, i) => ({
+      kind: "text" as const,
+      x: 0.05,
+      y: 0.1 + i * 0.12,
+      w: 0.4,
+      h: 0.1,
+      role: "body" as const,
+      text: `Point ${i + 1}. ${"word ".repeat(24)}`.trim(),
+    })),
+  };
+  const faults = reviewComposition(wordy, []);
+  return faults.some((f) => /carries \d+ words/.test(f));
 });
 
 add("a composition's title and text are readable without its markup", () => {

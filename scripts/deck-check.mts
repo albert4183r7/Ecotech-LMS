@@ -80,6 +80,7 @@ const composed: SlideComposition = {
     { kind: "card", x: 0.365, y: 0.32, w: 0.27, h: 0.36, fill: "panel" },
     { kind: "chip", x: 0.39, y: 0.36, w: 0.05, h: 0.09, fill: "accent", text: "2" },
     { kind: "text", x: 0.39, y: 0.48, w: 0.22, h: 0.07, text: "Decide", role: "heading" },
+    { kind: "chip", x: 0.79, y: 0.1, w: 0.06, h: 0.107, fill: "accentSoft", icon: "refresh" },
     { kind: "band", x: 0.045, y: 0.78, w: 0.91, h: 0.08, fill: "gradient" },
     {
       kind: "text",
@@ -98,7 +99,7 @@ const pptx = new PptxGenJS();
 applyTemplateLayout(pptx, SLIDE_TEMPLATE);
 deck.forEach((c, i) => addContentSlide(pptx, c, SLIDE_TEMPLATE, { slideNumber: i + 1 }));
 // Both slide models go into one file: the export has to draw either.
-addCompositionSlide(pptx, composed, SLIDE_TEMPLATE, { slideNumber: deck.length + 1 });
+await addCompositionSlide(pptx, composed, SLIDE_TEMPLATE, { slideNumber: deck.length + 1 });
 const written = (await pptx.write({ outputType: "nodebuffer" })) as Buffer;
 const buffer = await applyGradients(written, SLIDE_TEMPLATE);
 
@@ -172,6 +173,11 @@ check(
   xml.includes('prst="rightArrow"'),
 );
 check("a composed chip is a circle", (xml.match(/prst="ellipse"/g)?.length ?? 0) > 0);
+check(
+  "a composed icon chip carries its glyph, not an empty disc",
+  Object.keys(zip.files).some((n) => /^ppt\/media\/.+\.png$/.test(n)),
+  "rasterised icon in ppt/media",
+);
 
 console.log(fail === 0 ? "\ndeck matches the template" : `\n${fail} mismatch(es)`);
 process.exit(fail === 0 ? 0 : 1);

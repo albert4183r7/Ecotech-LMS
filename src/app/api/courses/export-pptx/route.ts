@@ -148,15 +148,17 @@ export async function POST(request: NextRequest) {
     // The template numbers its own pages; the deck name is document metadata,
     // not slide furniture.
     const allWarnings: string[] = [];
-    slides.forEach((slide, index) => {
+    // Sequential, because slide order is the order they are added — and
+    // because a composed slide awaits its rasterised icons.
+    for (const [index, slide] of slides.entries()) {
       const { warnings } =
         slide.doc.kind === "composition"
-          ? addCompositionSlide(pptx, slide.doc.composition, template, {
+          ? await addCompositionSlide(pptx, slide.doc.composition, template, {
               slideNumber: index + 1,
             })
           : addContentSlide(pptx, slide.doc.content, template, { slideNumber: index + 1 });
       allWarnings.push(...warnings.map((w) => `slide ${index + 1}: ${w}`));
-    });
+    }
     if (allWarnings.length) {
       console.warn(
         `[export-pptx] ${allWarnings.length} fitting warning(s):`,

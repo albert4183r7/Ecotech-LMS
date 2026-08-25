@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { requireLessonOwner, AuthorizationError } from "@/lib/session";
 import { sanitizeHtml, wrapSlideHtml } from "@/lib/sanitize";
 import { isRetryable, SLIDE_ATTEMPTS } from "@/lib/slide-status";
+import { CONTENTS_FROM } from "@/lib/presentation-plan";
 import { renderComposition } from "@/lib/slides/composition-render";
 import { generateSlideComposition, summariseComposition } from "@/lib/slides/composition-generate";
 import { compositionTitle } from "@/lib/slides/composition";
@@ -146,21 +147,36 @@ async function generateAllSlides(lessonId: string, languageOverride?: string): P
 
   const sectionById = new Map(lesson.sections.map((s) => [s.id, s]));
 
-  // Deal each section's subtopics across the slides that belong to it, so
-  // every reviewed point lands somewhere and none is generated twice.
+  // The deck's furniture: a cover, a contents slide, and a closing. They carry
+  // no section's points — they are the frame around the teaching slides.
+  const roleAt = (position: number): SlideBrief["role"] =>
+    position === 0
+      ? "cover"
+      : position === 1 && deck.length >= CONTENTS_FROM
+        ? "contents"
+        : position === deck.length - 1
+          ? "closing"
+          : "content";
+
+  // Every section owns exactly one teaching slide, so its points all land
+  // there — no dealing, and no two slides written from the same section.
   const subtopicsForSlide = new Map<string, string[]>();
   for (const section of lesson.sections) {
-    const owned = deck.filter((s) => s.sectionId === section.id);
+    const owned = deck.filter(
+      (s) => s.sectionId === section.id && roleAt(deck.indexOf(s)) === "content",
+    );
     const topics = JSON.parse(section.subtopics) as string[];
-    // Contiguous runs, not a round-robin deal. Dealing topics out like cards
-    // put points 1 and 3 on one slide and 2 and 4 on the next, which split an
-    // argument down the middle and paired unrelated points. The planner writes
-    // them in teaching order, so neighbours belong together.
+    // A section with more than one slide only happens in a lesson planned
+    // before one-section-one-slide; those keep contiguous runs, which is what
+    // stops an argument being split down the middle.
     const perSlide = Math.ceil(topics.length / Math.max(1, owned.length));
     owned.forEach((slide, i) => {
       subtopicsForSlide.set(slide.id, topics.slice(i * perSlide, (i + 1) * perSlide));
     });
   }
+
+  /** What the contents slide lists: the lesson's sections, in order. */
+  const contentsList = lesson.sections.map((s) => s.title);
 
   console.log(
     `[generate-slides] lesson ${lessonId}: ${pending.length} pending of ${deck.length} slides, ${sections.length} sections`,
@@ -174,6 +190,9 @@ async function generateAllSlides(lessonId: string, languageOverride?: string): P
       return doc ? slideDocText(doc).slice(0, 240) : s.title;
     });
 
+  /** Arrangements already used, so the composer can do something else. */
+  const usedLayouts: string[] = [];
+
   const generateOne = async (slide: (typeof pending)[number]) => {
     const position = deck.findIndex((s) => s.id === slide.id);
     const label = `${position + 1}/${deck.length}`;
@@ -182,14 +201,7 @@ async function generateAllSlides(lessonId: string, languageOverride?: string): P
     const owned = deck.filter((s) => s.sectionId === slide.sectionId);
     const positionInSection = Math.max(1, owned.findIndex((s) => s.id === slide.id) + 1);
 
-    const role: SlideBrief["role"] =
-      position === 0
-        ? "cover"
-        : position === deck.length - 1
-          ? "closing"
-          : positionInSection === 1 && owned.length > 1
-            ? "section-opener"
-            : "content";
+    const role = roleAt(position);
 
     const planned = section ? plannedByTitle.get(section.title) : sections[sectionIndex];
 
@@ -200,7 +212,7 @@ async function generateAllSlides(lessonId: string, languageOverride?: string): P
       presentationSubtitle: plan.subtitle ?? "",
       sectionTitle: section?.title ?? sections[sectionIndex]?.title ?? lesson.title,
       sectionSummary: section?.summary ?? sections[sectionIndex]?.summary ?? "",
-      subtopics: subtopicsForSlide.get(slide.id) ?? [],
+      subtopics: role === "contents" ? contentsList : (subtopicsForSlide.get(slide.id) ?? []),
       role,
       language,
       // The lesson's brief, so a slide knows what it is arguing and for whom.
@@ -219,6 +231,9 @@ async function generateAllSlides(lessonId: string, languageOverride?: string): P
       sectionClaim: planned?.claim,
       sectionVehicle: planned?.vehicle,
       alreadyCovered: covered.length ? covered.slice(-8).join("\n") : undefined,
+      // What the finished slides came out looking like, so this one is not the
+      // third row of three cards in a row.
+      avoidLayouts: usedLayouts.slice(-4),
       referenceText: plan.referenceContext,
     };
 
@@ -260,6 +275,7 @@ async function generateAllSlides(lessonId: string, languageOverride?: string): P
         });
 
         covered.push(summariseComposition(composition));
+        if (composition.layoutNote) usedLayouts.push(composition.layoutNote);
         console.log(
           `[generate-slides] slide ${label} ready (${composition.layoutNote ?? "composed"})`,
         );

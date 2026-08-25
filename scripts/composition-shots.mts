@@ -137,7 +137,9 @@ const deck: SlideComposition[] = [
       { kind: "card", x: 0.7425, y: 0.34, w: 0.2125, h: 0.34, fill: "panel" },
       { kind: "chip", x: 0.819, y: 0.375, w: 0.06, h: 0.107, fill: "accent", text: "4" },
       text(0.7575, 0.51, 0.1825, 0.06, "Check", "heading", { align: "center" }),
-      text(0.7575, 0.575, 0.1825, 0.09, "Done, or round the loop again.", "body", { align: "center" }),
+      text(0.7575, 0.575, 0.1825, 0.09, "Done, or round the loop again.", "body", {
+        align: "center",
+      }),
       { kind: "band", x: 0.045, y: 0.79, w: 0.91, h: 0.08, fill: "gradient" },
       text(
         0.075,

@@ -177,6 +177,15 @@ export function renderComposition(
 ): string {
   const { elements } = resolveComposition(composition);
 
+  // Filled shapes first, so text and glyphs sit on top of their cards however
+  // the composition ordered them — the same order the PowerPoint renderer
+  // draws in, so one slide cannot come out two ways.
+  const depth = (el: ResolvedElement) =>
+    el.element.kind === "card" || el.element.kind === "band" ? 0 : 1;
+  const ordered = elements
+    .map((el, index) => ({ el, index }))
+    .sort((a, b) => depth(a.el) - depth(b.el) || a.index - b.index);
+
   const footer =
     options.slideNumber === undefined
       ? ""

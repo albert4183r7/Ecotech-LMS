@@ -41,7 +41,15 @@ export interface SlideBrief {
   sectionClaim?: string;
   /** How the section makes its case: the example, comparison or walkthrough. */
   sectionVehicle?: string;
-  role: "cover" | "section-opener" | "content" | "closing";
+  role: "cover" | "contents" | "section-opener" | "content" | "closing";
+  /**
+   * The arrangements slides already finished came out as.
+   *
+   * Consecutive slides in the same shape are what makes a deck look
+   * generated, and a model composing one slide has no other way to know what
+   * the slide before it looked like.
+   */
+  avoidLayouts?: string[];
   language: string;
   /** What earlier slides already said, so nothing is repeated. */
   alreadyCovered?: string;

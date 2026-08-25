@@ -4,6 +4,7 @@ import { resolveComposition, type ResolvedElement } from "./composition-resolve"
 import type { SlideTemplate } from "./template";
 import { GRADIENT_SENTINEL } from "./pptx-gradient";
 import { RADIUS } from "./template-layouts";
+import { iconPng } from "./icon-raster";
 
 // ============================================
 // Drawing a composition in PowerPoint
@@ -81,12 +82,12 @@ function inches(t: SlideTemplate, el: ResolvedElement): Frame {
  * Returns whatever the resolver had to compromise on, so a caller can report a
  * trimmed slide rather than shipping it silently.
  */
-export function addCompositionSlide(
+export async function addCompositionSlide(
   pptx: PptxGenJS,
   composition: SlideComposition,
   template: SlideTemplate,
   options: { slideNumber?: number } = {},
-): { warnings: string[] } {
+): Promise<{ warnings: string[] }> {
   const { elements, warnings } = resolveComposition(composition, template);
   const slide = pptx.addSlide();
   slide.background = { color: template.palette.surface };
@@ -130,6 +131,26 @@ export function addCompositionSlide(
     if (e.kind === "chip") {
       const colour = fill(template, e.fill) ?? template.palette.accent;
       slide.addShape("ellipse", { ...frame, fill: { color: colour }, line: { type: "none" } });
+      if (e.icon) {
+        // The glyph itself, at 55% of the chip, centred — the same proportion
+        // the web renderer draws it at.
+        const inner = frame.w * 0.55;
+        const data = await iconPng(
+          e.icon,
+          ink(template, el.ink ?? "iconInk"),
+          inner,
+          el.text ?? "",
+        );
+        if (data) {
+          slide.addImage({
+            data,
+            x: frame.x + (frame.w - inner) / 2,
+            y: frame.y + (frame.h - inner) / 2,
+            w: inner,
+            h: inner,
+          });
+        }
+      }
       if (el.text) {
         slide.addText(el.text, {
           ...frame,
@@ -173,14 +194,20 @@ export function addCompositionSlide(
     }
 
     if (e.kind === "icon") {
-      // The glyphs are stroke-only SVG, which pptxgenjs cannot place without
-      // rasterising. A tinted disc holds the icon's position in the exported
-      // deck, so the composition's spacing survives the export.
-      slide.addShape("ellipse", {
-        ...frame,
-        fill: { color: template.palette.accentSoft },
-        line: { type: "none" },
-      });
+      // Rasterised, because pptxgenjs places pictures rather than SVG. The
+      // square of the box keeps the glyph's aspect: an icon stretched to a
+      // wide box is worse than a smaller one drawn true.
+      const size = Math.min(frame.w, frame.h);
+      const data = await iconPng(e.icon, ink(template, el.ink ?? "iconInk"), size);
+      if (data) {
+        slide.addImage({
+          data,
+          x: frame.x + (frame.w - size) / 2,
+          y: frame.y + (frame.h - size) / 2,
+          w: size,
+          h: size,
+        });
+      }
       continue;
     }
 

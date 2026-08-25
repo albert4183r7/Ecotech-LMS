@@ -10,6 +10,7 @@ import {
   repairPlan,
   MIN_SLIDES,
   MAX_SLIDES,
+  sectionsFor,
   type PresentationPlan,
 } from "@/lib/presentation-plan";
 import { DEFAULT_STYLE } from "@/lib/slide-styles";
@@ -125,6 +126,9 @@ function buildPlannerPrompt(params: {
   siblingLessons: string[];
 }): string {
   const { topic, slideCount, language, reference, course, siblingLessons } = params;
+  // One section per teaching slide; the cover, contents and closing are the
+  // other three.
+  const sectionCount = sectionsFor(slideCount);
 
   return `WHAT THE USER ASKED FOR: ${topic}
 
@@ -138,7 +142,8 @@ THE COURSE THIS BELONGS TO: ${course.title}${
       : ""
   }
 
-SLIDE BUDGET: ${slideCount} slides in total.
+SLIDE BUDGET: ${slideCount} slides in total — a title slide, a contents slide,
+${sectionCount} teaching slides, and a closing slide.
 LANGUAGE: write everything in ${language}.
 ${
   reference
@@ -182,9 +187,13 @@ section — that is what makes this training rather than an overview. Related
 terms belong together on one slide with the distinction between them made
 explicit, not scattered across three.
 
-Decide how many sections the subject genuinely needs — usually four to seven. A
-section is a part of the subject, not a slide. Do not create one section per
-slide, and do not pad the count to match the slide budget.
+PLAN EXACTLY ${sectionCount} SECTIONS. One section is one slide. The other three
+slides of the ${slideCount} are the title slide, a contents slide and a closing
+slide, and they are written for you.
+
+Each section must teach something the others do not. If two sections would say
+the same thing in different words, they are one section — replace the other
+with something the lesson is currently missing.
 
 For each section give:
 - title: what this part covers, at most 90 characters
@@ -206,16 +215,13 @@ For each section give:
   methods — the vocabulary is the lesson, not decoration on it.
   HARD LIMIT: each subtopic at most 160 characters. One point per entry. If a
   point needs more room, it is two points; split it.
-  AT MOST THREE POINTS PER SLIDE OF THIS SECTION'S BUDGET. A one-slide section
-  carries three points; a two-slide section carries six. A slide holds three
-  ideas well and eight not at all — points past that are not taught, they are
-  crammed in and cut off. If the section has more to say than its budget
-  allows, give it more slides, or leave the surplus to another section.
-- slideTitles: one real title per slide in this section, in order, as many as
-  slideBudget. Write the title the finished slide will carry — "Overfitting,
+  THREE POINTS, FOUR AT MOST. This section is one slide, and a slide teaches
+  three ideas well and eight not at all — points past that are not taught, they
+  are crammed in and cut off. If there is more to say, it belongs to a
+  different section.
+- slideTitles: one entry, the real title this slide will carry — "Overfitting,
   read from a learning curve", not "Section 2 (1/2)".
-- slideBudget: how many of the ${slideCount} slides this section needs,
-  proportional to how much there is to teach. A dense section deserves more.
+- slideBudget: 1. Every section is one slide.
 
 Also give: a title and one-line subtitle for the whole presentation, and
 recommendedSlides — how many slides this subject really needs to be taught
@@ -334,7 +340,7 @@ export async function POST(request: NextRequest) {
           // less destructive than spending a retry on them.
           repair: repairPlan,
           systemInstruction:
-            "You plan lessons. You decide the logical structure of a subject and how deeply each part must be taught; the user decides how many slides they get. Never equate sections with slides. A plan that could have been written without knowing the subject is a failed plan.",
+            "You plan lessons. You decide what a subject's parts are and what each one has to teach; the user decides how many slides they get, and each teaching slide gets one part. A plan that could have been written without knowing the subject is a failed plan.",
           // Planning is an open task, and a low temperature returns the modal
           // plan for a topic — which for any business subject is the generic
           // one. The rules above are what make a warmer setting safe.

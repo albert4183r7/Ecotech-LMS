@@ -102,10 +102,24 @@ HOW TO COMPOSE ONE SLIDE
    not be. Consecutive identical arrangements are what make a deck look
    generated.
 
+WHAT ONE SLIDE CARRIES
+
+At most four blocks — four cards, four steps, two columns, one statement. Not
+one card per point you were given. If the brief hands you six points, they are
+the material for the slide, not its structure: group them, choose the three or
+four that carry the idea, and put the rest into the sentences.
+
+Forty to sixty words in total, across everything on the slide. Sixty is the
+ceiling, not the target. Every deck that reads well is under it; a slide of a
+hundred and thirty words is a document someone pasted onto a slide.
+
+Say it in fewer words rather than shrinking the type. If it does not fit in
+sixty words, you are trying to teach two things at once — teach one.
+
 WHAT MAKES A SLIDE BAD
 
-- Too much text. A slide carries one idea and its parts: about 40 to 60 words
-  in total, not 130. If there is more to say, say less.
+- Too much text. The single most common failure, and the one that makes a deck
+  look machine-made.
 - Boxes that touch or overlap.
 - A card with a heading and nothing else, or body copy with no heading.
 - Every slide the same shape.
@@ -121,9 +135,11 @@ function buildCompositionPrompt(brief: SlideBrief, revision?: string[]): string 
     `SLIDE ${brief.position} of ${brief.totalSlides}.`,
     brief.role === "cover"
       ? "This is the opening title slide: the deck's title, a subtitle, and nothing else. Use the display role, and give it a gradient band or a decorative shape rather than cards."
-      : brief.role === "closing"
-        ? "This is the closing slide: what to remember, briefly."
-        : `Section: ${brief.sectionTitle}.`,
+      : brief.role === "contents"
+        ? "This is the contents slide: the sections of this lesson, in order, as a numbered list of short lines. No paragraphs, no explanation — the titles are the content."
+        : brief.role === "closing"
+          ? "This is the closing slide: what to remember, briefly."
+          : `Section: ${brief.sectionTitle}.`,
     brief.plannedTitle && brief.role !== "cover"
       ? `THIS SLIDE'S TITLE: "${brief.plannedTitle}" — keep it, or improve the wording without changing what it promises.`
       : "",
@@ -131,10 +147,16 @@ function buildCompositionPrompt(brief: SlideBrief, revision?: string[]): string 
     brief.sectionVehicle ? `HOW IT TEACHES IT: ${brief.sectionVehicle}` : "",
     "",
     brief.subtopics.length
-      ? `THIS SLIDE COVERS:\n${brief.subtopics.map((t) => `- ${t}`).join("\n")}\n\nOne part of the composition per point above — ${brief.subtopics.length} in total, no more.`
+      ? `THIS SLIDE TEACHES:\n${brief.subtopics.map((t) => `- ${t}`).join("\n")}\n\n` +
+        (brief.subtopics.length > 4
+          ? `That is ${brief.subtopics.length} points for one slide. Do not make ${brief.subtopics.length} cards. Group them into at most four blocks and let the sentences carry the rest.`
+          : "One block per point, at most four blocks.")
       : "This slide frames the presentation rather than carrying detailed points.",
     brief.keyTerms?.length ? `\nTERMS THIS LESSON TEACHES: ${brief.keyTerms.join(", ")}` : "",
     brief.alreadyCovered ? `\nALREADY COVERED — do not restate:\n${brief.alreadyCovered}` : "",
+    brief.avoidLayouts?.length
+      ? `\nARRANGEMENTS ALREADY USED IN THIS DECK: ${brief.avoidLayouts.join("; ")}.\nCompose this one differently.`
+      : "",
     brief.referenceText
       ? `\nSOURCE MATERIAL — every figure must come from here:\n<reference>\n${brief.referenceText.slice(0, 4000)}\n</reference>`
       : "\nNo source material was supplied, so use no statistics.",
@@ -176,6 +198,50 @@ function buildCompositionPrompt(brief: SlideBrief, revision?: string[]): string 
  * it wrote. Handing back the measured faults is the nearest thing to looking
  * at the slide, and it is what the pipeline never did.
  */
+/** Words a slide may carry before it stops being a slide. */
+const WORD_CEILING = 75;
+/** Blocks — cards and bands — before a slide is a table rather than a slide. */
+const BLOCK_CEILING = 6;
+
+/** What the measurement objects to, in the words the composer needs back. */
+export function reviewComposition(composition: SlideComposition, warnings: string[]): string[] {
+  const faults = [...warnings];
+
+  const words = composition.elements.reduce(
+    (n, el) => n + (el.kind === "text" ? el.text.trim().split(/\s+/).filter(Boolean).length : 0),
+    0,
+  );
+  if (words > WORD_CEILING) {
+    faults.push(
+      `this slide carries ${words} words. A training slide carries 40 to 60. ` +
+        `Cut it to the idea and its parts — fewer blocks, shorter sentences, ` +
+        `no sentence that restates its own heading.`,
+    );
+  }
+
+  const blocks = composition.elements.filter(
+    (el) => el.kind === "card" || el.kind === "band",
+  ).length;
+  if (blocks > BLOCK_CEILING) {
+    faults.push(
+      `this slide has ${blocks} blocks. Four is the most a slide should carry — ` +
+        `group the points instead of giving each one its own card.`,
+    );
+  }
+
+  return faults;
+}
+
+/** How bad a composition is, weighted: not every fault is equally visible. */
+function score(faults: {
+  truncated: number;
+  overlapping: number;
+  recoloured: number;
+  moved: number;
+}): number {
+  return faults.truncated * 10 + faults.overlapping * 8 + faults.recoloured * 2 + faults.moved;
+}
+
 export async function generateSlideComposition(brief: SlideBrief): Promise<SlideComposition> {
   // What the slide says matters as much as how it is arranged, so the craft
   // guide travels with the canvas rules rather than only with the older
@@ -184,7 +250,7 @@ export async function generateSlideComposition(brief: SlideBrief): Promise<Slide
     `You are composing one slide of a training deck, in the Ecotech house style: ` +
     `${SLIDE_TEMPLATE.description}.\n\n${SLIDE_CRAFT}\n\n${SLIDE_EXEMPLARS}\n\n${CANVAS_RULES}`;
 
-  let best: { composition: SlideComposition; warnings: string[] } | null = null;
+  let best: { composition: SlideComposition; score: number } | null = null;
   let faults: string[] = [];
 
   for (let attempt = 1; attempt <= 2; attempt++) {
@@ -198,17 +264,21 @@ export async function generateSlideComposition(brief: SlideBrief): Promise<Slide
       },
     );
 
-    const { warnings } = resolveComposition(composition);
-    if (warnings.length === 0) return composition;
+    const resolved = resolveComposition(composition);
+    const found = reviewComposition(composition, resolved.warnings);
+    if (found.length === 0) return composition;
 
-    // Keep whichever attempt the measurement liked better, so a second pass
-    // that made things worse cannot be the one that ships.
-    if (!best || warnings.length < best.warnings.length) best = { composition, warnings };
+    // Weighted, so an attempt that fixed a cut sentence wins over one that
+    // merely has fewer complaints. A slide with text cut off mid-word is the
+    // worst thing this can ship; a nudged card is not.
+    const cost = score(resolved.faults) + (found.length - resolved.warnings.length) * 6;
+    if (!best || cost < best.score) best = { composition, score: cost };
 
-    faults = warnings;
+    faults = found;
     console.warn(
-      `[compose-slide] slide ${brief.position} attempt ${attempt}: ${warnings.length} fault(s)` +
-        (attempt === 1 ? ", composing again" : ", shipping the better of the two"),
+      `[compose-slide] slide ${brief.position} attempt ${attempt}: ${found.length} fault(s)` +
+        (attempt === 1 ? ", composing again" : ", shipping the better of the two") +
+        ` — ${found[0]}`,
     );
   }
 

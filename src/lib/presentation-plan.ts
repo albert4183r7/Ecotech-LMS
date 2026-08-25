@@ -144,7 +144,8 @@ const SUBTOPIC_MAX = 160;
 const SUBTOPIC_MIN = 5;
 const SUMMARY_MAX = 400;
 const TITLE_MAX = 90;
-const MAX_SUBTOPICS = 8;
+/** Points one section — and therefore one slide — may carry. */
+const SUBTOPICS_PER_SLIDE = 5;
 
 /** Words that read as broken when a trimmed value ends on them. */
 const DANGLING =
@@ -266,9 +267,10 @@ export function repairPlan(parsed: unknown): unknown {
       // truncated ones: the boxes are a fixed size, so the surplus is written,
       // shrunk, then cut off mid-sentence. Better to promise what a slide can
       // actually teach.
-      const budget = typeof section.slideBudget === "number" ? section.slideBudget : 1;
-      const perSlideCap = Math.max(2, Math.min(MAX_SUBTOPICS, budget * 3));
-      section.subtopics = expanded.slice(0, Math.min(MAX_SUBTOPICS, perSlideCap));
+      // One section is one slide, so this is the cap for a single slide. Five
+      // points is already the top of what a slide teaches; past that they are
+      // not taught, they are listed.
+      section.subtopics = expanded.slice(0, SUBTOPICS_PER_SLIDE);
     }
 
     return section;
@@ -277,9 +279,36 @@ export function repairPlan(parsed: unknown): unknown {
   return plan;
 }
 
+/**
+ * Slides a deck spends on furniture: the cover, the contents, the closing.
+ *
+ * A deck of N slides therefore teaches N-3 sections, one section per slide.
+ * That is the whole reason this number exists in code rather than in a
+ * comment: a lesson asked for ten slides used to plan five sections of two
+ * slides each, and the two slides of a section were written from the same
+ * summary and the same claim — so they came out saying the same thing twice.
+ * One section, one slide, one subject.
+ */
+export const FURNITURE_SLIDES = 3;
+
+/** Below this, a deck is too short to spend a slide listing its own contents. */
+export const CONTENTS_FROM = 6;
+
+/** Slides this deck spends on furniture: cover and closing, plus contents. */
+export function furnitureFor(slideCount: number): number {
+  return slideCount >= CONTENTS_FROM ? FURNITURE_SLIDES : FURNITURE_SLIDES - 1;
+}
+
+/** How many teaching sections a deck of this many slides has room for. */
+export function sectionsFor(slideCount: number): number {
+  return Math.max(1, slideCount - furnitureFor(slideCount));
+}
+
 /** A plan whose budgets are guaranteed to sum to the requested slide count. */
 export interface BalancedPlan extends PresentationPlan {
   totalSlides: number;
+  /** Whether the deck is long enough to carry a contents slide. */
+  hasContents: boolean;
   /** Human-readable notes about what balancing had to change. */
   adjustments: string[];
 }
@@ -306,6 +335,41 @@ function mergeSections(a: PlannedSection, b: PlannedSection): PlannedSection {
 }
 
 /**
+ * Split one section into two, each teaching its own half of the points.
+ *
+ * The counterpart of merging: when the planner returns fewer sections than the
+ * deck has room for, the alternative is a deck shorter than the user asked
+ * for. The halves take the planner's own slide titles where it wrote them,
+ * which is why splitting does not produce "Topic (1/2)" — those titles were
+ * always written as real titles for real slides.
+ */
+function splitSection(section: PlannedSection): [PlannedSection, PlannedSection] {
+  const mid = Math.ceil(section.subtopics.length / 2);
+  const titles = section.slideTitles ?? [];
+  return [
+    {
+      ...section,
+      title: (titles[0] ?? section.title).slice(0, 90),
+      subtopics: section.subtopics.slice(0, mid),
+      slideTitles: undefined,
+      slideBudget: 1,
+    },
+    {
+      ...section,
+      title: (titles[1] ?? `${section.title}, in practice`).slice(0, 90),
+      subtopics: section.subtopics.slice(mid),
+      slideTitles: undefined,
+      slideBudget: 1,
+    },
+  ];
+}
+
+/** A section can only be split if both halves still have points to teach. */
+function splittable(section: PlannedSection): boolean {
+  return section.subtopics.length >= 4;
+}
+
+/**
  * Force a plan's slide budgets to sum to exactly `requested`.
  *
  * Order of operations matters:
@@ -318,11 +382,13 @@ function mergeSections(a: PlannedSection, b: PlannedSection): PlannedSection {
  */
 export function balancePlan(plan: PresentationPlan, requested: number): BalancedPlan {
   const target = Math.max(MIN_SLIDES, Math.min(MAX_SLIDES, Math.round(requested)));
+  const sectionTarget = sectionsFor(target);
   const adjustments: string[] = [];
   let sections = plan.sections.map((s) => ({ ...s }));
 
-  // 1. Too many sections to give each one a slide: merge, never drop.
-  while (sections.length > target) {
+  // 1. More sections than the deck can teach: merge the lightest neighbours.
+  //    Merging keeps their content; dropping one would lose it.
+  while (sections.length > sectionTarget) {
     let bestIndex = 0;
     let bestWeight = Infinity;
     for (let i = 0; i < sections.length - 1; i++) {
@@ -339,55 +405,44 @@ export function balancePlan(plan: PresentationPlan, requested: number): Balanced
     sections.splice(bestIndex, 2, merged);
   }
 
-  // 2. Everything gets at least one slide.
-  sections = sections.map((s) => ({ ...s, slideBudget: Math.max(1, Math.round(s.slideBudget)) }));
-
-  // 3. Reconcile the remainder.
-  const sum = () => sections.reduce((n, s) => n + s.slideBudget, 0);
-
+  // 2. Fewer sections than slides: split the fullest one, so the extra slide
+  //    teaches its own points rather than restating a neighbour's.
   let guard = 0;
-  while (sum() > target && guard++ < 500) {
-    // Take from the section with the most slides; never take its last one.
-    const index = sections.reduce(
-      (best, s, i) => (s.slideBudget > sections[best].slideBudget ? i : best),
-      0,
-    );
-    if (sections[index].slideBudget <= 1) break;
-    sections[index].slideBudget--;
-  }
-
-  guard = 0;
-  while (sum() < target && guard++ < 500) {
-    // Give to the section with the most subtopics per slide — the one carrying
-    // the most content for the space it has.
+  while (sections.length < sectionTarget && guard++ < 100) {
     const index = sections.reduce(
       (best, s, i) =>
-        s.subtopics.length / s.slideBudget >
-        sections[best].subtopics.length / sections[best].slideBudget
-          ? i
-          : best,
-      0,
+        splittable(s) && s.subtopics.length > (sections[best]?.subtopics.length ?? 0) ? i : best,
+      -1,
     );
-    sections[index].slideBudget++;
+    if (index < 0 || !splittable(sections[index])) break;
+    const [a, b] = splitSection(sections[index]);
+    adjustments.push(`Split "${sections[index].title}" so each slide teaches its own points`);
+    sections.splice(index, 1, a, b);
   }
 
-  const total = sum();
+  // 3. One section, one slide. The cover, the contents and the closing are the
+  //    other three.
+  sections = sections.map((s) => ({ ...s, slideBudget: 1 }));
+
+  const hasContents = target >= CONTENTS_FROM;
+  const total = sections.length + furnitureFor(target);
   if (total !== target) {
-    adjustments.push(`Could not reach ${target} slides exactly; plan totals ${total}`);
+    adjustments.push(
+      `The subject divides into ${sections.length} section(s), so the deck is ${total} slides rather than ${target}`,
+    );
   }
 
-  // Say so when the budget forces heavy compression, rather than letting the
-  // user discover it in the finished deck.
+  // Say so when a slide is being asked to carry more than it can teach, rather
+  // than letting the user discover it in the finished deck.
   for (const section of sections) {
-    const perSlide = section.subtopics.length / section.slideBudget;
-    if (perSlide > 5) {
+    if (section.subtopics.length > 5) {
       adjustments.push(
-        `"${section.title}" carries ${section.subtopics.length} points across ${section.slideBudget} slide(s); content will be condensed`,
+        `"${section.title}" carries ${section.subtopics.length} points on one slide; the slide will group them`,
       );
     }
   }
 
-  return { ...plan, sections, totalSlides: total, adjustments };
+  return { ...plan, sections, totalSlides: total, hasContents, adjustments };
 }
 
 /** One slide's place in the finished deck, derived from the balanced plan. */
@@ -401,7 +456,7 @@ export interface SlideSlot {
   slidesInSection: number;
   /** Subtopics this particular slide is responsible for. */
   subtopics: string[];
-  role: "cover" | "section-opener" | "content" | "closing";
+  role: "cover" | "contents" | "section-opener" | "content" | "closing";
   /** The planner's title for this slide, when it named one. */
   title?: string;
   /** What the section asserts, so the slide knows what it is arguing. */
@@ -413,47 +468,74 @@ export interface SlideSlot {
 /**
  * Expand a balanced plan into one slot per slide.
  *
- * Each section's subtopics are dealt across its slides, so every subtopic the
- * user reviewed lands on exactly one slide and nothing is silently dropped.
+ * A deck is a cover, a contents slide, one slide per section, and a closing.
+ * Every section's points therefore land on exactly one slide, and no two
+ * slides are written from the same section — which is what stopped two slides
+ * of one section coming out as near-duplicates of each other.
  */
 export function buildSlideSlots(plan: BalancedPlan): SlideSlot[] {
   const slots: SlideSlot[] = [];
-  let index = 0;
+  const first = plan.sections[0];
+  const last = plan.sections[plan.sections.length - 1];
 
-  plan.sections.forEach((section, sectionIndex) => {
-    const budget = section.slideBudget;
-
-    // Contiguous runs, not a round-robin deal.
-    //
-    // Subtopics were dealt out like cards — slide 1 got topics 1 and 3, slide 2
-    // got 2 and 4 — which split a section's argument across slides and put
-    // unrelated points together. The planner writes subtopics in the order it
-    // means them to be taught, so consecutive points stay on the same slide.
-    const perSlide: string[][] = Array.from({ length: budget }, () => []);
-    const perSlideCount = Math.ceil(section.subtopics.length / budget);
-    section.subtopics.forEach((topic, i) => {
-      perSlide[Math.min(budget - 1, Math.floor(i / perSlideCount))].push(topic);
-    });
-
-    for (let i = 0; i < budget; i++) {
-      const isFirstOverall = index === 0;
-      slots.push({
-        index,
-        sectionIndex,
-        sectionTitle: section.title,
-        positionInSection: i + 1,
-        slidesInSection: budget,
-        subtopics: perSlide[i],
-        title: section.slideTitles?.[i],
-        sectionClaim: section.claim,
-        sectionVehicle: section.vehicle,
-        role: isFirstOverall ? "cover" : i === 0 && budget > 1 ? "section-opener" : "content",
-      });
-      index++;
-    }
+  slots.push({
+    index: 0,
+    sectionIndex: 0,
+    sectionTitle: first?.title ?? plan.title,
+    positionInSection: 1,
+    slidesInSection: 1,
+    subtopics: [],
+    title: plan.title,
+    sectionClaim: first?.claim ?? "",
+    sectionVehicle: first?.vehicle ?? "",
+    role: "cover",
   });
 
-  if (slots.length > 1) slots[slots.length - 1].role = "closing";
+  if (plan.hasContents) {
+    slots.push({
+      index: 1,
+      sectionIndex: 0,
+      sectionTitle: first?.title ?? plan.title,
+      positionInSection: 1,
+      slidesInSection: 1,
+      // The contents slide lists what the lesson covers, so its content is
+      // the section titles themselves.
+      subtopics: plan.sections.map((s) => s.title),
+      title: "What this lesson covers",
+      sectionClaim: first?.claim ?? "",
+      sectionVehicle: first?.vehicle ?? "",
+      role: "contents",
+    });
+  }
+
+  plan.sections.forEach((section, sectionIndex) => {
+    slots.push({
+      index: slots.length,
+      sectionIndex,
+      sectionTitle: section.title,
+      positionInSection: 1,
+      slidesInSection: 1,
+      subtopics: section.subtopics,
+      title: section.slideTitles?.[0] ?? section.title,
+      sectionClaim: section.claim,
+      sectionVehicle: section.vehicle,
+      role: "content",
+    });
+  });
+
+  slots.push({
+    index: slots.length,
+    sectionIndex: Math.max(0, plan.sections.length - 1),
+    sectionTitle: last?.title ?? plan.title,
+    positionInSection: 1,
+    slidesInSection: 1,
+    subtopics: [],
+    title: "What to take away",
+    sectionClaim: last?.claim ?? "",
+    sectionVehicle: last?.vehicle ?? "",
+    role: "closing",
+  });
+
   return slots;
 }
 
