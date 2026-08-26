@@ -115,7 +115,43 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json({ success: true, data: progress });
+    // ---- Roll the lesson up into the course ----
+    //
+    // Percentage is derived from these rows wherever it is shown, but the
+    // enrolment's own status was set once at enrolment and never again — so a
+    // learner who finished every lesson stayed "in progress" for ever and the
+    // completed list stayed empty. Recomputed here, where the last lesson is
+    // marked done.
+    const [totalLessons, completedLessons] = await Promise.all([
+      db.lesson.count({ where: { courseId: lesson.courseId } }),
+      db.progress.count({ where: { enrollmentId, completed: true } }),
+    ]);
+    const percent =
+      totalLessons > 0
+        ? Math.round((Math.min(completedLessons, totalLessons) / totalLessons) * 100)
+        : 0;
+    const finished = totalLessons > 0 && completedLessons >= totalLessons;
+
+    await db.enrollment.update({
+      where: { id: enrollmentId },
+      data: {
+        status: finished ? "completed" : "in_progress",
+        ...(finished ? {} : { completedAt: null }),
+      },
+    });
+    if (finished) {
+      // Stamped the first time the course is finished and left alone after,
+      // so revisiting a lesson does not reset when it was completed.
+      await db.enrollment.updateMany({
+        where: { id: enrollmentId, completedAt: null },
+        data: { completedAt: new Date() },
+      });
+    }
+
+    return NextResponse.json({
+      success: true,
+      data: { ...progress, courseProgress: percent, courseCompleted: finished },
+    });
   } catch (error) {
     const denied = authFailure(error);
     if (denied) return denied;

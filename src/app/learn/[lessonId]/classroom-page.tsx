@@ -9,6 +9,7 @@ import {
   RotateCcw,
   ChevronLeft,
   ChevronRight,
+  ClipboardCheck,
   X,
   Loader2,
   StickyNote,
@@ -229,8 +230,13 @@ export function ClassroomPage() {
         const enrollRes = await fetch("/api/enrollments");
         const enrollJson = await enrollRes.json();
         if (enrollJson.success && Array.isArray(enrollJson.data)) {
+          // The enrolments endpoint nests the course, so there is no
+          // top-level courseId to match on. Matching one anyway found nothing,
+          // every time — which is why a finished lesson never recorded any
+          // progress and a course sat at 0% however much of it was read.
           const enrollment = enrollJson.data.find(
-            (e: Record<string, unknown>) => e.courseId === localState.courseId,
+            (e: { id?: string; courseId?: string; course?: { id?: string } }) =>
+              (e.course?.id ?? e.courseId) === localState.courseId,
           );
           if (enrollment) {
             await fetch("/api/progress", {
@@ -511,10 +517,15 @@ export function ClassroomPage() {
   // the lesson index alone disabled Previous for every slide of lesson 1 and
   // disabled Next for every slide of the last lesson.
   const isFirst = currentIdx === 0 && localState.currentSlideIndex === 0;
-  const isLast =
-    totalLessons > 0 &&
-    currentIdx >= totalLessons - 1 &&
-    localState.currentSlideIndex >= localState.slides.length - 1;
+  /** On the last slide of this lesson, whichever lesson it is. */
+  const atLessonEnd = localState.currentSlideIndex >= localState.slides.length - 1;
+  const atCourseEnd = totalLessons > 0 && currentIdx >= totalLessons - 1 && atLessonEnd;
+  // The quiz is where a finished lesson goes, so Next still has somewhere to
+  // take the learner at the end of the last lesson. Disabling it there — which
+  // it did — made the final lesson's quiz unreachable: the button that leads
+  // to it was the one being switched off.
+  const quizAhead = atLessonEnd && lessonQuizId !== null;
+  const isLast = atCourseEnd && !quizAhead;
   const progressPercent =
     totalLessons > 1 ? Math.round(((currentIdx + 1) / totalLessons) * 100) : 100;
 
@@ -857,7 +868,7 @@ export function ClassroomPage() {
             </Button>
 
             <Button
-              variant="outline"
+              variant={quizAhead ? "default" : "outline"}
               size="sm"
               className={`gap-1.5 transition-opacity ${
                 isLast || navigating ? "cursor-not-allowed opacity-40" : ""
@@ -865,8 +876,12 @@ export function ClassroomPage() {
               onClick={goNext}
               disabled={isLast || navigating}
             >
-              <span className="hidden sm:inline">Next</span>
-              <ChevronRight className="h-4 w-4" />
+              <span className="hidden sm:inline">{quizAhead ? "Take the quiz" : "Next"}</span>
+              {quizAhead ? (
+                <ClipboardCheck className="h-4 w-4" />
+              ) : (
+                <ChevronRight className="h-4 w-4" />
+              )}
             </Button>
           </div>
 

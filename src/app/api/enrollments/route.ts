@@ -80,6 +80,9 @@ export async function GET(request: NextRequest) {
         enrolledAt: enrollment.enrolledAt,
         completedAt: enrollment.completedAt,
         progress: totalProgress,
+        /** The course this enrolment is for, beside the nested course itself:
+         *  callers match on an id and the nesting was easy to miss. */
+        courseId: enrollment.courseId,
         course: {
           id: enrollment.course.id,
           title: enrollment.course.title,
