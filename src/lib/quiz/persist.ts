@@ -18,6 +18,8 @@ export interface QuizResult {
   quizId?: string;
   questionCount?: number;
   dropped?: number;
+  /** How many were asked for, so a caller can say when fewer were possible. */
+  requested?: number;
   error?: string;
 }
 
@@ -97,6 +99,7 @@ export async function generateAndSaveQuiz(
       quizId,
       questionCount: report.quiz.questions.length,
       dropped: report.dropped.length,
+      requested: report.requested,
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Quiz generation failed";

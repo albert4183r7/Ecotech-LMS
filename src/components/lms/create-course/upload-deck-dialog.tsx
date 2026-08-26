@@ -98,20 +98,27 @@ export function UploadDeckDialog({
         return;
       }
 
-      const { lessonId, slideCount, warnings } = json.data as {
+      const { lessonId, slideCount, hiddenSlides, warnings } = json.data as {
         lessonId: string;
         slideCount: number;
+        hiddenSlides: number;
         warnings: string[];
       };
+
+      // Hidden slides are left out on purpose; saying so is the difference
+      // between "it worked" and "why are there fewer slides than I sent?".
+      const hiddenNote = hiddenSlides
+        ? ` ${hiddenSlides} hidden slide${hiddenSlides === 1 ? "" : "s"} left out.`
+        : "";
 
       // Anything the importer could not bring across is said once, here,
       // rather than left for the instructor to notice on slide nine.
       if (warnings.length) {
         toast.warning(
-          `${slideCount} slides imported. ${warnings.length} thing(s) did not come across: ${warnings[0]}`,
+          `${slideCount} slides imported.${hiddenNote} ${warnings.length} thing(s) did not come across: ${warnings[0]}`,
         );
       } else {
-        toast.success(`${slideCount} slides imported from ${file.name}.`);
+        toast.success(`${slideCount} slides imported from ${file.name}.${hiddenNote}`);
       }
 
       onOpenChange(false);

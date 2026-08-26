@@ -90,7 +90,19 @@ export function QuizReviewPanel({ lessonId, quiz, onChanged }: QuizReviewPanelPr
         toast.error(json.error || "Quiz generation failed.");
         return;
       }
-      toast.success(`Generated ${json.data.questionCount} question(s).`);
+      // A shortfall is said out loud. The generator drops a question the
+      // lesson cannot support, so asking for ten and getting six is a fact
+      // about the lesson — but silently returning six looked like a bug.
+      const made = json.data.questionCount as number;
+      const asked = json.data.requested as number | undefined;
+      if (asked && made < asked) {
+        toast.warning(
+          `${made} of the ${asked} questions you asked for could be grounded in this lesson. ` +
+            `Add your own below, or give the lesson more to quiz on.`,
+        );
+      } else {
+        toast.success(`Generated ${made} question(s).`);
+      }
       onChanged();
     } catch {
       toast.error("Network error. Please try again.");

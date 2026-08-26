@@ -136,6 +136,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (deck.slides.length === 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            deck.hidden > 0
+              ? `Every slide in that deck is hidden in PowerPoint, so there is nothing to teach from. Unhide the ones you want and upload it again.`
+              : "That presentation has no slides in it.",
+        },
+        { status: 400 },
+      );
+    }
+
     const title = (givenTitle || deck.title || file.name.replace(/\.pptx$/i, "")).slice(0, 120);
     const warnings = deck.slides.flatMap((s, i) => s.warnings.map((w) => `slide ${i + 1}: ${w}`));
 
@@ -156,6 +169,7 @@ export async function POST(request: NextRequest) {
           },
           title,
           slideCount: deck.slides.length,
+          hiddenSlides: deck.hidden,
           warnings,
         }),
       },
@@ -189,6 +203,7 @@ export async function POST(request: NextRequest) {
 
     console.log(
       `[import-pptx] ${file.name}: ${deck.slides.length} slide(s) into lesson ${lesson.id}` +
+        (deck.hidden ? `, ${deck.hidden} hidden slide(s) skipped` : "") +
         (warnings.length ? `, ${warnings.length} warning(s)` : "") +
         (askedForQuiz ? ", quiz requested" : ""),
     );
@@ -200,6 +215,7 @@ export async function POST(request: NextRequest) {
         courseId,
         title,
         slideCount: deck.slides.length,
+        hiddenSlides: deck.hidden,
         quiz: askedForQuiz ? "generating" : "none",
         warnings,
       },

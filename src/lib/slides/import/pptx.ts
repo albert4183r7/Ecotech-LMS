@@ -51,6 +51,8 @@ export interface ImportedSlide {
 export interface ImportedDeck {
   title: string;
   slides: ImportedSlide[];
+  /** Slides hidden in PowerPoint, which were left out. */
+  hidden: number;
 }
 
 export interface ImportOptions {
@@ -529,12 +531,22 @@ export async function importPptx(data: Buffer, options: ImportOptions): Promise<
         .sort((a, b) => Number(a.match(/\d+/)![0]) - Number(b.match(/\d+/)![0]));
 
   const slides: ImportedSlide[] = [];
+  let hidden = 0;
 
   for (const [index, path] of slidePaths.entries()) {
     const warnings: string[] = [];
     try {
       const slideXml = await readXml(zip, path);
       if (!slideXml) continue;
+
+      // A slide hidden in PowerPoint is one the author decided not to show.
+      // It is skipped rather than imported: it should not appear in the
+      // lesson, and — because the quiz is written from the lesson's slides —
+      // nothing should be asked about it either.
+      if (child(slideXml, "p:sld")?.attrs.show === "0") {
+        hidden++;
+        continue;
+      }
 
       const rels = await readRels(zip, path);
 
@@ -644,5 +656,6 @@ export async function importPptx(data: Buffer, options: ImportOptions): Promise<
   return {
     title: fromFirstSlide || docTitle || first,
     slides,
+    hidden,
   };
 }

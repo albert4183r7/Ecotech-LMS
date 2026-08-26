@@ -23,7 +23,14 @@ import type { LessonSource } from "./lesson-source";
 // cycle, which is expressed directly.
 // ============================================
 
-const MAX_REVISION_PASSES = 2;
+/**
+ * Rounds of asking again.
+ *
+ * Each round both replaces what the lesson would not support and makes up any
+ * shortfall, so the budget is spent on reaching the number the instructor
+ * asked for rather than on one fixed pass of repairs.
+ */
+const MAX_REVISION_PASSES = 3;
 
 const SYSTEM = `You write multiple-choice questions from a single lesson.
 
@@ -64,10 +71,17 @@ function buildRevisionPrompt(
   source: LessonSource,
   rejected: { question: DraftQuestion; reason: string }[],
   keep: DraftQuestion[],
+  wanted: number,
 ): string {
-  const problems = rejected
-    .map(({ question, reason }, i) => `[${i + 1}] "${question.prompt}"\n     REJECTED: ${reason}`)
-    .join("\n\n");
+  const problems = rejected.length
+    ? `${rejected.length} question(s) were rejected for not being grounded in this lesson:\n\n` +
+      rejected
+        .map(
+          ({ question, reason }, i) => `[${i + 1}] "${question.prompt}"\n     REJECTED: ${reason}`,
+        )
+        .join("\n\n") +
+      "\n"
+    : "";
 
   const kept = keep.length
     ? `\nThese questions were accepted. Do not repeat what they ask:\n${keep
@@ -81,12 +95,11 @@ function buildRevisionPrompt(
 ${source.text}
 </lesson>
 
-${rejected.length} question(s) were rejected for not being grounded in this lesson:
-
-${problems}
-${kept}
-Write ${rejected.length} replacement question(s), on the same lesson, that do not
-repeat those mistakes. Every one must quote the lesson in sourceQuote.`;
+${problems}${kept}
+Write ${wanted} more question(s) on this lesson${
+    rejected.length ? ", not repeating the mistakes above" : ""
+  }. Every one must quote the lesson in sourceQuote, and must ask about
+something the accepted questions do not already cover.`;
 }
 
 export interface QuizGenerationReport {
@@ -95,6 +108,8 @@ export interface QuizGenerationReport {
   passes: number;
   /** Questions dropped because they could not be grounded after every pass. */
   dropped: { prompt: string; reason: string }[];
+  /** How many were asked for, so a shortfall can be reported as a shortfall. */
+  requested: number;
 }
 
 /**
@@ -109,6 +124,8 @@ export async function generateQuiz(
   options: { questionCount?: number | null } = {},
 ): Promise<QuizGenerationReport> {
   const target = questionCountFor(source.slideCount, options.questionCount);
+  /** What the previous round could not ground, so the next one is told why. */
+  let lastFailed: { question: DraftQuestion; reason: string }[] = [];
 
   const draft = await generateStructuredJSON(buildPrompt(source, target), DraftQuizSchema, {
     task: "quiz-authoring",
@@ -117,38 +134,67 @@ export async function generateQuiz(
     temperature: 0.5,
   });
 
-  let accepted: DraftQuestion[] = [];
-  let pending = draft.questions;
+  const accepted: DraftQuestion[] = [];
+  /** Prompts already accepted, so a repeat never counts toward the target. */
+  const seen = new Set<string>();
+  const key = (q: DraftQuestion) => q.prompt.toLowerCase().replace(/\s+/g, " ").trim();
+  let pending = draft.questions.slice(0, target);
   let passes = 0;
   const dropped: { prompt: string; reason: string }[] = [];
 
-  while (pending.length > 0 && passes <= MAX_REVISION_PASSES) {
+  // Each round validates what is pending, then asks for however many are still
+  // missing — whether they are missing because the lesson would not support
+  // them or because the model simply wrote fewer than it was asked for. The
+  // loop used to replace only the rejected ones, once, so a strict lesson
+  // returned three questions when ten were asked for and said nothing about it.
+  while (passes <= MAX_REVISION_PASSES) {
     passes++;
-    const verdicts: QuestionVerdict[] = await validateQuestions(pending, source);
 
-    const failed: { question: DraftQuestion; reason: string }[] = [];
-    verdicts.forEach((verdict, index) => {
-      const question = pending[index];
-      if (verdict.ok) accepted.push(question);
-      else failed.push({ question, reason: verdict.reason ?? "not grounded in the lesson" });
-    });
+    if (pending.length > 0) {
+      const verdicts: QuestionVerdict[] = await validateQuestions(pending, source);
+      const failed: { question: DraftQuestion; reason: string }[] = [];
+      verdicts.forEach((verdict, index) => {
+        const question = pending[index];
+        if (!verdict.ok) {
+          failed.push({ question, reason: verdict.reason ?? "not grounded in the lesson" });
+          return;
+        }
+        // Deduplicated as they are accepted, not at the end: a round that
+        // repeats a question it already wrote would otherwise count toward the
+        // target and then be removed, leaving a quiz shorter than asked for
+        // with nothing to say why.
+        const id = key(question);
+        if (seen.has(id)) {
+          failed.push({ question, reason: "repeats a question already accepted" });
+          return;
+        }
+        seen.add(id);
+        accepted.push(question);
+      });
 
-    console.log(
-      `[quiz] pass ${passes}: ${verdicts.filter((v) => v.ok).length} accepted, ${failed.length} rejected`,
-    );
+      console.log(
+        `[quiz] pass ${passes}: ${verdicts.filter((v) => v.ok).length} accepted, ` +
+          `${failed.length} rejected, ${accepted.length}/${target} so far`,
+      );
 
-    if (failed.length === 0) break;
-
-    if (passes > MAX_REVISION_PASSES) {
-      for (const { question, reason } of failed) {
-        dropped.push({ prompt: question.prompt, reason });
+      // The last round has no round after it to check a replacement, so what
+      // failed in it is dropped rather than re-asked.
+      if (passes > MAX_REVISION_PASSES) {
+        for (const { question, reason } of failed) {
+          dropped.push({ prompt: question.prompt, reason });
+        }
+        break;
       }
-      break;
+      lastFailed = failed;
     }
+
+    const missing = target - accepted.length;
+    if (missing <= 0) break;
+    if (passes > MAX_REVISION_PASSES) break;
 
     try {
       const revision = await generateStructuredJSON(
-        buildRevisionPrompt(source, failed, accepted),
+        buildRevisionPrompt(source, lastFailed, accepted, missing),
         DraftQuizSchema,
         {
           task: "quiz-authoring",
@@ -157,30 +203,31 @@ export async function generateQuiz(
           temperature: 0.6,
         },
       );
-      pending = revision.questions.slice(0, failed.length);
+      pending = revision.questions.slice(0, missing);
+      if (pending.length === 0) break;
     } catch (error) {
       // A failed revision is not a failed quiz; keep what was already sound.
       console.warn("[quiz] revision pass failed:", error instanceof Error ? error.message : error);
-      for (const { question, reason } of failed) {
+      for (const { question, reason } of lastFailed) {
         dropped.push({ prompt: question.prompt, reason });
       }
       break;
     }
+    lastFailed = [];
   }
 
-  // Deduplicate: a revision pass can reintroduce a question close to one
-  // already accepted.
-  const seen = new Set<string>();
-  accepted = accepted.filter((q) => {
-    const key = q.prompt.toLowerCase().replace(/\s+/g, " ").trim();
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+  // Never more than was asked for: a generous revision round can overshoot.
+  const questions = accepted.slice(0, target);
+  if (questions.length < target) {
+    console.warn(
+      `[quiz] ${questions.length}/${target} question(s) could be grounded in this lesson`,
+    );
+  }
 
   return {
-    quiz: { title: draft.title, questions: accepted },
+    quiz: { title: draft.title, questions },
     passes,
     dropped,
+    requested: target,
   };
 }

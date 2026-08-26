@@ -64,6 +64,7 @@ import { readCompositionField, writeCompositionField } from "../src/lib/slides/c
 import { parseSlideDoc, slideDocText } from "../src/lib/slides/document";
 import { readFileSync } from "node:fs";
 import PptxGenJS from "pptxgenjs";
+import JSZip from "jszip";
 import { importPptx } from "../src/lib/slides/import/pptx";
 import { parseXml, find, findAll, textOf } from "../src/lib/slides/import/xml";
 
@@ -979,6 +980,32 @@ add("a screened-back shape imports screened back", () => {
   if (!match) return false;
   const alpha = Number(match[1]);
   return alpha > 0.1 && alpha < 0.2;
+});
+
+add("a slide hidden in PowerPoint is not imported", async () => {
+  const pptx = new PptxGenJS();
+  pptx.defineLayout({ name: "TEST2", width: 13.333, height: 7.5 });
+  pptx.layout = "TEST2";
+  for (const title of ["Shown one", "Hidden one", "Shown two"]) {
+    pptx.addSlide().addText(title, { x: 1, y: 1, w: 6, h: 1, fontSize: 28 });
+  }
+
+  // pptxgenjs writes no hidden flag, so the second slide is marked hidden the
+  // way PowerPoint does it — show="0" on the slide element itself.
+  const written = (await pptx.write({ outputType: "nodebuffer" })) as Buffer;
+  const zip = await JSZip.loadAsync(written);
+  const target = "ppt/slides/slide2.xml";
+  const xml = await zip.file(target)!.async("string");
+  zip.file(target, xml.replace("<p:sld ", '<p:sld show="0" '));
+  const withHidden = (await zip.generateAsync({ type: "nodebuffer" })) as Buffer;
+
+  const deck = await importPptx(withHidden, { saveMedia: async (n) => `/uploads/test/${n}` });
+  return (
+    deck.hidden === 1 &&
+    deck.slides.length === 2 &&
+    deck.slides.every((slide) => !slide.text.includes("Hidden one")) &&
+    deck.slides[1].text.includes("Shown two")
+  );
 });
 
 add("an imported slide survives the sanitiser with its colours", () => {
