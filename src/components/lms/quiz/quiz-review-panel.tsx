@@ -1,8 +1,20 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { Check, Loader2, Pencil, RefreshCw, AlertTriangle, Quote, Save, X } from "lucide-react";
+import {
+  AlertTriangle,
+  Check,
+  Loader2,
+  Pencil,
+  Plus,
+  Quote,
+  RefreshCw,
+  Save,
+  Trash2,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
+import { OPTIONS_PER_QUESTION } from "@/lib/quiz/schema";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -44,6 +56,13 @@ export interface QuizPreview {
   questions: QuizPreviewQuestion[];
 }
 
+/** A question the instructor is writing, before it has ids of its own. */
+interface NewQuestion {
+  prompt: string;
+  explanation?: string;
+  options: { text: string; isCorrect: boolean }[];
+}
+
 export interface QuizReviewPanelProps {
   lessonId: string;
   quiz: QuizPreview | null;
@@ -56,6 +75,10 @@ export function QuizReviewPanel({ lessonId, quiz, onChanged }: QuizReviewPanelPr
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<QuizPreviewQuestion | null>(null);
   const [saving, setSaving] = useState(false);
+  /** The question being written by hand, when the instructor is writing one. */
+  const [adding, setAdding] = useState<NewQuestion | null>(null);
+  const [savingNew, setSavingNew] = useState(false);
+  const [removingId, setRemovingId] = useState<string | null>(null);
 
   const regenerate = useCallback(async () => {
     if (regenerating) return;
@@ -79,7 +102,89 @@ export function QuizReviewPanel({ lessonId, quiz, onChanged }: QuizReviewPanelPr
   const startEdit = (question: QuizPreviewQuestion) => {
     setEditingId(question.id);
     setDraft(structuredClone(question));
+    setAdding(null);
   };
+
+  /** An empty question, with the four choices a quiz here always has. */
+  const blankQuestion = (): NewQuestion => ({
+    prompt: "",
+    explanation: "",
+    options: Array.from({ length: OPTIONS_PER_QUESTION }, (_, i) => ({
+      text: "",
+      isCorrect: i === 0,
+    })),
+  });
+
+  const addQuestion = useCallback(async () => {
+    if (!quiz || !adding || savingNew) return;
+
+    const prompt = adding.prompt.trim();
+    const options = adding.options.map((o) => ({ ...o, text: o.text.trim() }));
+    // Checked here as well as on the server, so a half-written question says
+    // what is missing instead of coming back as a validation error.
+    if (prompt.length < 10) {
+      toast.error("Write the question first — at least a sentence.");
+      return;
+    }
+    const filled = options.filter((o) => o.text);
+    if (filled.length < 2) {
+      toast.error("A question needs at least two answer choices.");
+      return;
+    }
+    if (!filled.some((o) => o.isCorrect)) {
+      toast.error("Mark which choice is the correct answer.");
+      return;
+    }
+
+    setSavingNew(true);
+    try {
+      const res = await fetch(`/api/quizzes/${quiz.id}/questions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt,
+          explanation: adding.explanation?.trim() || undefined,
+          options: filled,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        toast.error(json.error || "Could not add the question.");
+        return;
+      }
+      toast.success("Question added.");
+      setAdding(null);
+      onChanged();
+    } catch {
+      toast.error("Network error. Please try again.");
+    } finally {
+      setSavingNew(false);
+    }
+  }, [quiz, adding, savingNew, onChanged]);
+
+  const removeQuestion = useCallback(
+    async (questionId: string) => {
+      if (!quiz || removingId) return;
+      setRemovingId(questionId);
+      try {
+        const res = await fetch(`/api/quizzes/${quiz.id}/questions/${questionId}`, {
+          method: "DELETE",
+        });
+        const json = await res.json();
+        if (!res.ok || !json.success) {
+          toast.error(json.error || "Could not remove the question.");
+          return;
+        }
+        toast.success("Question removed.");
+        onChanged();
+      } catch {
+        toast.error("Network error. Please try again.");
+      } finally {
+        setRemovingId(null);
+      }
+    },
+    [quiz, removingId, onChanged],
+  );
 
   const save = useCallback(async () => {
     if (!quiz || !draft || saving) return;
@@ -152,6 +257,20 @@ export function QuizReviewPanel({ lessonId, quiz, onChanged }: QuizReviewPanelPr
             this lesson only
           </p>
         </div>
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-2"
+          onClick={() => {
+            setEditingId(null);
+            setDraft(null);
+            setAdding(blankQuestion());
+          }}
+          disabled={regenerating || adding !== null}
+        >
+          <Plus className="h-4 w-4" />
+          Add question
+        </Button>
         <Button
           variant="outline"
           size="sm"
@@ -296,20 +415,132 @@ export function QuizReviewPanel({ lessonId, quiz, onChanged }: QuizReviewPanelPr
                     </Button>
                   </>
                 ) : (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 w-8 p-0"
-                    onClick={() => startEdit(question)}
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                  </Button>
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0"
+                      aria-label="Edit this question"
+                      onClick={() => startEdit(question)}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-muted-foreground hover:text-destructive h-8 w-8 p-0"
+                      aria-label="Remove this question"
+                      disabled={removingId === question.id || quiz.questions.length <= 1}
+                      onClick={() => void removeQuestion(question.id)}
+                    >
+                      {removingId === question.id ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-3.5 w-3.5" />
+                      )}
+                    </Button>
+                  </>
                 )}
               </div>
             </div>
           </div>
         );
       })}
+
+      {/* ---- A question written by hand ---- */}
+      {adding && (
+        <div className="bg-card border-primary/40 rounded-xl border-2 border-dashed p-4">
+          <div className="flex items-start gap-3">
+            <span className="bg-primary/10 text-primary flex h-7 w-7 shrink-0 items-center justify-center rounded-full">
+              <Plus className="h-4 w-4" />
+            </span>
+            <div className="min-w-0 flex-1 space-y-3">
+              <Input
+                value={adding.prompt}
+                onChange={(e) => setAdding({ ...adding, prompt: e.target.value })}
+                placeholder="Your question"
+                className="font-medium"
+                autoFocus
+              />
+
+              <ul className="space-y-1.5">
+                {adding.options.map((option, n) => (
+                  <li key={n} className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant={option.isCorrect ? "default" : "outline"}
+                      size="sm"
+                      className="h-7 w-7 shrink-0 p-0"
+                      title="Mark as the correct answer"
+                      onClick={() =>
+                        setAdding({
+                          ...adding,
+                          options: adding.options.map((o, i) => ({ ...o, isCorrect: i === n })),
+                        })
+                      }
+                    >
+                      {option.isCorrect ? (
+                        <Check className="h-3.5 w-3.5" />
+                      ) : (
+                        <span className="text-xs">{String.fromCharCode(65 + n)}</span>
+                      )}
+                    </Button>
+                    <Input
+                      value={option.text}
+                      onChange={(e) =>
+                        setAdding({
+                          ...adding,
+                          options: adding.options.map((o, i) =>
+                            i === n ? { ...o, text: e.target.value } : o,
+                          ),
+                        })
+                      }
+                      placeholder={n < 2 ? `Answer ${String.fromCharCode(65 + n)}` : "Optional"}
+                      className="h-8"
+                    />
+                  </li>
+                ))}
+              </ul>
+
+              <Textarea
+                value={adding.explanation ?? ""}
+                onChange={(e) => setAdding({ ...adding, explanation: e.target.value })}
+                placeholder="Explanation shown after submission (optional)"
+                rows={2}
+              />
+              <p className="text-muted-foreground text-xs">
+                Your own question. It carries no lesson quote, because you wrote it rather than the
+                generator.
+              </p>
+            </div>
+
+            <div className="flex shrink-0 gap-1">
+              <Button
+                size="sm"
+                className="h-8 gap-1.5"
+                onClick={() => void addQuestion()}
+                disabled={savingNew}
+              >
+                {savingNew ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Save className="h-3.5 w-3.5" />
+                )}
+                Add
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0"
+                aria-label="Discard this question"
+                onClick={() => setAdding(null)}
+              >
+                <X className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <Badge variant="outline" className="text-muted-foreground">
         Students see these questions only after finishing the lesson, and never see which answer is

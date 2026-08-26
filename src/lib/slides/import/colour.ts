@@ -106,9 +106,38 @@ function modify(hex: string, node: XNode): string {
   return toHex(rgb);
 }
 
-/** How opaque a colour element asks to be, or 1. */
+/**
+ * A resolved colour and its opacity.
+ *
+ * Kept together because in OOXML they arrive together: the alpha is a child of
+ * the colour element, not of the fill around it. Reading the fill for an alpha
+ * — which is where it looks like it should be — finds nothing, and every
+ * screened-back shape in a deck imports at full strength. That is what made
+ * the decorative circles in the corners of an imported slide solid slabs of
+ * mint instead of the faint washes they are.
+ */
+export interface Paint {
+  hex: string;
+  /** 0 (invisible) to 1 (opaque). */
+  alpha: number;
+}
+
+/** The colour element inside a fill, whichever kind it is. */
+function colourElement(node: XNode): XNode | null {
+  return (
+    child(node, "a:srgbClr") ??
+    child(node, "a:schemeClr") ??
+    child(node, "a:sysClr") ??
+    child(node, "a:prstClr")
+  );
+}
+
+/** How opaque a colour asks to be, or 1. */
 export function alphaOf(node: XNode): number {
-  return pct(child(node, "a:alpha")) ?? 1;
+  const colour = colourElement(node);
+  // Both spellings are read: the alpha belongs on the colour, but a fill that
+  // carries one directly is not worth ignoring.
+  return pct(colour ? child(colour, "a:alpha") : null) ?? pct(child(node, "a:alpha")) ?? 1;
 }
 
 /**
@@ -134,6 +163,20 @@ export function colourOf(node: XNode, theme: Theme): string | null {
   return null;
 }
 
+/** A colour element with its opacity, or null when it names no colour. */
+export function paintOf(node: XNode, theme: Theme): Paint | null {
+  const hex = colourOf(node, theme);
+  if (!hex) return null;
+  return { hex, alpha: alphaOf(node) };
+}
+
+/** A paint as CSS: a hex when it is opaque, rgba() when it is not. */
+export function cssColour(paint: Paint): string {
+  if (paint.alpha >= 0.999) return `#${paint.hex}`;
+  const n = parseInt(paint.hex, 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${paint.alpha.toFixed(3)})`;
+}
+
 /** Read ppt/theme/themeN.xml into its colour slots. */
 export function readTheme(themeXml: XNode): Theme {
   const scheme = child(child(themeXml, "a:theme") ?? themeXml, "a:themeElements");
@@ -156,9 +199,11 @@ export function gradientOf(fill: XNode, theme: Theme): string | null {
 
   const parts = childrenNamed(stops, "a:gs")
     .map((gs) => {
-      const colour = colourOf(gs, theme);
+      const paint = paintOf(gs, theme);
       const at = Number(gs.attrs.pos ?? 0) / 1000;
-      return colour ? `#${colour} ${at.toFixed(1)}%` : null;
+      // A stop's own alpha matters as much as a fill's: a band that fades out
+      // is a gradient from opaque to transparent, not from navy to mint.
+      return paint ? `${cssColour(paint)} ${at.toFixed(1)}%` : null;
     })
     .filter((s): s is string => s !== null);
   if (parts.length < 2) return null;

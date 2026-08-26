@@ -15,6 +15,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { MAX_QUIZ_QUESTIONS, MIN_QUIZ_QUESTIONS } from "@/lib/quiz/schema";
+import { DEFAULT_QUIZ_QUESTIONS } from "@/lib/slide-styles";
 
 // ============================================
 // Upload a deck as a lesson
@@ -48,6 +50,7 @@ export function UploadDeckDialog({
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState("");
   const [wantsQuiz, setWantsQuiz] = useState(true);
+  const [questionCount, setQuestionCount] = useState(DEFAULT_QUIZ_QUESTIONS);
   const [importing, setImporting] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -55,6 +58,7 @@ export function UploadDeckDialog({
     setFile(null);
     setTitle("");
     setWantsQuiz(true);
+    setQuestionCount(DEFAULT_QUIZ_QUESTIONS);
   };
 
   const choose = (chosen: File | null) => {
@@ -84,6 +88,7 @@ export function UploadDeckDialog({
       body.append("courseId", courseId);
       body.append("file", file);
       body.append("generateQuiz", String(wantsQuiz));
+      if (wantsQuiz) body.append("questionCount", String(questionCount));
       if (title.trim()) body.append("title", title.trim());
 
       const res = await fetch("/api/lessons/import-pptx", { method: "POST", body });
@@ -216,6 +221,30 @@ export function UploadDeckDialog({
               disabled={importing}
             />
           </div>
+
+          {/* How many, when there is going to be a quiz at all. */}
+          {wantsQuiz && (
+            <div className="flex items-center justify-between gap-4 px-1">
+              <Label htmlFor="deck-questions" className="text-sm font-medium">
+                How many questions
+              </Label>
+              <Input
+                id="deck-questions"
+                type="number"
+                min={MIN_QUIZ_QUESTIONS}
+                max={MAX_QUIZ_QUESTIONS}
+                value={questionCount}
+                onChange={(e) => {
+                  const v = parseInt(e.target.value, 10);
+                  if (!isNaN(v)) {
+                    setQuestionCount(Math.max(MIN_QUIZ_QUESTIONS, Math.min(MAX_QUIZ_QUESTIONS, v)));
+                  }
+                }}
+                disabled={importing}
+                className="h-9 w-20 text-center"
+              />
+            </div>
+          )}
         </div>
 
         <DialogFooter>

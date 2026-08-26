@@ -21,7 +21,13 @@ import { writeField, editableFields } from "../src/lib/slides/content-path";
 import { renderSlideContent } from "../src/lib/slides/render";
 import { sanitizeHtml, wrapSlideHtml } from "../src/lib/sanitize";
 import { checkMechanically } from "../src/lib/quiz/validator";
-import { repairQuiz, DraftQuizSchema } from "../src/lib/quiz/schema";
+import {
+  repairQuiz,
+  DraftQuizSchema,
+  questionCountFor,
+  MIN_QUIZ_QUESTIONS,
+  MAX_QUIZ_QUESTIONS,
+} from "../src/lib/quiz/schema";
 import * as templateModule from "../src/lib/slides/template";
 import { SLIDE_TEMPLATE } from "../src/lib/slides/template";
 import { GRADIENT_SENTINEL } from "../src/lib/slides/pptx-gradient";
@@ -558,6 +564,37 @@ add("quiz repair yields exactly one correct option", () => {
     r.success && r.data.questions.every((x) => x.options.filter((o) => o.isCorrect).length === 1)
   );
 });
+add("the instructor's question count is honoured, and clamped", () => {
+  return (
+    questionCountFor(12, 9) === 9 &&
+    questionCountFor(12, 99) === MAX_QUIZ_QUESTIONS &&
+    questionCountFor(12, 1) === MIN_QUIZ_QUESTIONS &&
+    // No number given: scaled to the lesson, as before.
+    questionCountFor(10) === 6
+  );
+});
+
+add("a quiz of more than eight questions still validates", () => {
+  // The draft schema capped questions at eight, so asking for nine failed
+  // validation rather than producing nine.
+  const question = (n: number) => ({
+    prompt: `A question about the lesson, number ${n} of the set`,
+    options: [
+      { text: "The right answer", isCorrect: true },
+      { text: "A wrong answer", isCorrect: false },
+      { text: "Another wrong answer", isCorrect: false },
+      { text: "A fourth choice", isCorrect: false },
+    ],
+    sourceQuote: "A sentence from the lesson that supports it.",
+  });
+  const many = {
+    title: "A quiz title",
+    questions: Array.from({ length: 12 }, (_, i) => question(i)),
+  };
+  const one = { title: "A quiz title", questions: [question(1)] };
+  return DraftQuizSchema.safeParse(many).success && DraftQuizSchema.safeParse(one).success;
+});
+
 add(
   "filenames are slugged safely",
   () => safeFileName("Lesson 1: Agents & Tools!") === "lesson-1-agents-tools",
@@ -904,6 +941,14 @@ add("a real .pptx imports with its text, geometry and colour intact", async () =
   const two = pptx.addSlide();
   two.addShape("roundRect", { x: 0.6, y: 2, w: 3.5, h: 2.5, fill: { color: "F3F8F6" } });
   two.addText("Report it the same day", { x: 0.8, y: 2.4, w: 3, h: 0.8, fontSize: 16 });
+  // A screened-back decorative circle, as every deck puts in its corners.
+  two.addShape("ellipse", {
+    x: 9,
+    y: -1,
+    w: 5,
+    h: 5,
+    fill: { color: "7BBBA6", transparency: 85 },
+  });
 
   const buffer = (await pptx.write({ outputType: "nodebuffer" })) as Buffer;
   importedDeck = await importPptx(buffer, {
@@ -922,6 +967,18 @@ add("a real .pptx imports with its text, geometry and colour intact", async () =
     second.html.includes("#F3F8F6") &&
     second.html.includes("border-radius")
   );
+});
+
+add("a screened-back shape imports screened back", () => {
+  if (!importedDeck) return false;
+  // The alpha lives on the colour element, not on the fill around it. Reading
+  // the fill for one finds nothing, and every faint corner circle in a deck
+  // imports as a solid slab.
+  const html = importedDeck.slides[1].html;
+  const match = /rgba\(123,\s*187,\s*166,\s*([\d.]+)\)/.exec(html);
+  if (!match) return false;
+  const alpha = Number(match[1]);
+  return alpha > 0.1 && alpha < 0.2;
 });
 
 add("an imported slide survives the sanitiser with its colours", () => {

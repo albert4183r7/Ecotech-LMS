@@ -28,7 +28,10 @@ export interface QuizResult {
  * instructor can see it and retry, rather than failing a lesson whose slides
  * generated perfectly well.
  */
-export async function generateAndSaveQuiz(lessonId: string): Promise<QuizResult> {
+export async function generateAndSaveQuiz(
+  lessonId: string,
+  options: { questionCount?: number | null } = {},
+): Promise<QuizResult> {
   const source = await loadLessonSource(lessonId);
   if (!source) {
     const error = "The lesson has no generated slides to build a quiz from.";
@@ -37,7 +40,7 @@ export async function generateAndSaveQuiz(lessonId: string): Promise<QuizResult>
   }
 
   try {
-    const report = await generateQuiz(source);
+    const report = await generateQuiz(source, { questionCount: options.questionCount });
 
     if (report.quiz.questions.length < MIN_QUESTIONS) {
       const error =

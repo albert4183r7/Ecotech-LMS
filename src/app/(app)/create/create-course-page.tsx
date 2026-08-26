@@ -54,6 +54,7 @@ import { useNavigation } from "@/hooks/use-navigation";
 import type { CategoryItem } from "@/types/lms";
 import { toast } from "sonner";
 import { DEFAULT_STYLE, MIN_SLIDES, MAX_SLIDES, DEFAULT_SLIDE_COUNT } from "@/lib/slide-styles";
+import { MAX_QUIZ_QUESTIONS, MIN_QUIZ_QUESTIONS } from "@/lib/quiz/schema";
 import {
   OutlineLessonCard,
   OutlineLessonCardProps,
@@ -144,6 +145,8 @@ export function CreateCoursePage() {
     setOutlineTopic,
     outlineSlideCount,
     setOutlineSlideCount,
+    outlineQuestionCount,
+    setOutlineQuestionCount,
     outlineLanguage,
     setOutlineLanguage,
     outlineGenerating,
@@ -506,37 +509,80 @@ export function CreateCoursePage() {
               />
             </div>
 
-            {/* Slide Count */}
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">Slide Count</Label>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setOutlineSlideCount((p) => Math.max(MIN_SLIDES, p - 1))}
-                  disabled={outlineGenerating || outlineSlideCount <= MIN_SLIDES}
-                  className="border-border text-muted-foreground hover:bg-muted flex h-9 w-9 items-center justify-center rounded-md border transition-colors disabled:opacity-40"
-                >
-                  <Minus className="h-4 w-4" />
-                </button>
-                <Input
-                  type="number"
-                  min={MIN_SLIDES}
-                  max={MAX_SLIDES}
-                  value={outlineSlideCount}
-                  onChange={(e) => {
-                    const v = parseInt(e.target.value, 10);
-                    if (!isNaN(v))
-                      setOutlineSlideCount(Math.max(MIN_SLIDES, Math.min(MAX_SLIDES, v)));
-                  }}
-                  className="h-9 w-16 text-center"
-                  disabled={outlineGenerating}
-                />
-                <button
-                  onClick={() => setOutlineSlideCount((p) => Math.min(MAX_SLIDES, p + 1))}
-                  disabled={outlineGenerating || outlineSlideCount >= MAX_SLIDES}
-                  className="border-border text-muted-foreground hover:bg-muted flex h-9 w-9 items-center justify-center rounded-md border transition-colors disabled:opacity-40"
-                >
-                  <Plus className="h-4 w-4" />
-                </button>
+            {/* Slide count and quiz length, side by side: both are "how much of
+                this do I want", and both are the instructor's call. */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Slide Count</Label>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setOutlineSlideCount((p) => Math.max(MIN_SLIDES, p - 1))}
+                    disabled={outlineGenerating || outlineSlideCount <= MIN_SLIDES}
+                    className="border-border text-muted-foreground hover:bg-muted flex h-9 w-9 items-center justify-center rounded-md border transition-colors disabled:opacity-40"
+                  >
+                    <Minus className="h-4 w-4" />
+                  </button>
+                  <Input
+                    type="number"
+                    min={MIN_SLIDES}
+                    max={MAX_SLIDES}
+                    value={outlineSlideCount}
+                    onChange={(e) => {
+                      const v = parseInt(e.target.value, 10);
+                      if (!isNaN(v))
+                        setOutlineSlideCount(Math.max(MIN_SLIDES, Math.min(MAX_SLIDES, v)));
+                    }}
+                    className="h-9 w-16 text-center"
+                    disabled={outlineGenerating}
+                  />
+                  <button
+                    onClick={() => setOutlineSlideCount((p) => Math.min(MAX_SLIDES, p + 1))}
+                    disabled={outlineGenerating || outlineSlideCount >= MAX_SLIDES}
+                    className="border-border text-muted-foreground hover:bg-muted flex h-9 w-9 items-center justify-center rounded-md border transition-colors disabled:opacity-40"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Quiz questions */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Quiz Questions</Label>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() =>
+                      setOutlineQuestionCount((p) => Math.max(MIN_QUIZ_QUESTIONS, p - 1))
+                    }
+                    disabled={outlineGenerating || outlineQuestionCount <= MIN_QUIZ_QUESTIONS}
+                    className="border-border text-muted-foreground hover:bg-muted flex h-9 w-9 items-center justify-center rounded-md border transition-colors disabled:opacity-40"
+                  >
+                    <Minus className="h-4 w-4" />
+                  </button>
+                  <Input
+                    type="number"
+                    min={MIN_QUIZ_QUESTIONS}
+                    max={MAX_QUIZ_QUESTIONS}
+                    value={outlineQuestionCount}
+                    onChange={(e) => {
+                      const v = parseInt(e.target.value, 10);
+                      if (!isNaN(v))
+                        setOutlineQuestionCount(
+                          Math.max(MIN_QUIZ_QUESTIONS, Math.min(MAX_QUIZ_QUESTIONS, v)),
+                        );
+                    }}
+                    className="h-9 w-16 text-center"
+                    disabled={outlineGenerating}
+                  />
+                  <button
+                    onClick={() =>
+                      setOutlineQuestionCount((p) => Math.min(MAX_QUIZ_QUESTIONS, p + 1))
+                    }
+                    disabled={outlineGenerating || outlineQuestionCount >= MAX_QUIZ_QUESTIONS}
+                    className="border-border text-muted-foreground hover:bg-muted flex h-9 w-9 items-center justify-center rounded-md border transition-colors disabled:opacity-40"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
             </div>
 

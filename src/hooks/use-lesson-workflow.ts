@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { DEFAULT_SLIDE_COUNT, DEFAULT_STYLE } from "@/lib/slide-styles";
+import { DEFAULT_QUIZ_QUESTIONS, DEFAULT_SLIDE_COUNT, DEFAULT_STYLE } from "@/lib/slide-styles";
 import type {
   GenStage,
   OutlineLessonDraft,
@@ -76,6 +76,8 @@ export function useLessonWorkflow({
   const [modalOpen, setModalOpen] = useState(false);
   const [outlineTopic, setOutlineTopic] = useState("");
   const [outlineSlideCount, setOutlineSlideCount] = useState(DEFAULT_SLIDE_COUNT);
+  /** How many quiz questions the lesson should get. */
+  const [outlineQuestionCount, setOutlineQuestionCount] = useState(DEFAULT_QUIZ_QUESTIONS);
   const [outlineLanguage, setOutlineLanguage] = useState(language);
   const [outlineGenerating, setOutlineGenerating] = useState(false);
   const [editingOutlineLesson, setEditingOutlineLesson] = useState<string | null>(null);
@@ -190,6 +192,7 @@ export function useLessonWorkflow({
           courseId: savedCourseId,
           topic: outlineTopic.trim(),
           slideCount: outlineSlideCount,
+          quizQuestionCount: outlineQuestionCount,
           language: outlineLanguage,
           referenceFileUrls:
             referenceFiles.length > 0 ? referenceFiles.map((f) => f.url) : undefined,
@@ -321,6 +324,7 @@ export function useLessonWorkflow({
           courseId,
           topic: outlineTopic.trim(),
           slideCount: outlineSlideCount,
+          quizQuestionCount: outlineQuestionCount,
           language: outlineLanguage,
           existingLessonId: editingOutlineLesson,
           referenceFileUrls:
@@ -661,6 +665,8 @@ export function useLessonWorkflow({
     setOutlineTopic,
     outlineSlideCount,
     setOutlineSlideCount,
+    outlineQuestionCount,
+    setOutlineQuestionCount,
     outlineLanguage,
     setOutlineLanguage,
     outlineGenerating,

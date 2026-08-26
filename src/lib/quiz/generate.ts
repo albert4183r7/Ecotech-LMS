@@ -104,8 +104,11 @@ export interface QuizGenerationReport {
  * rather than shipped: a quiz of four sound questions is worth more than one of
  * six where two ask about things the lesson never said.
  */
-export async function generateQuiz(source: LessonSource): Promise<QuizGenerationReport> {
-  const target = questionCountFor(source.slideCount);
+export async function generateQuiz(
+  source: LessonSource,
+  options: { questionCount?: number | null } = {},
+): Promise<QuizGenerationReport> {
+  const target = questionCountFor(source.slideCount, options.questionCount);
 
   const draft = await generateStructuredJSON(buildPrompt(source, target), DraftQuizSchema, {
     task: "quiz-authoring",

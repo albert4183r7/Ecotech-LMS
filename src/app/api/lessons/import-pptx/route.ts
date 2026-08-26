@@ -61,6 +61,7 @@ export async function POST(request: NextRequest) {
     const courseId = String(form.get("courseId") ?? "");
     const file = form.get("file");
     const askedForQuiz = String(form.get("generateQuiz") ?? "") === "true";
+    const askedQuestions = Number(form.get("questionCount") ?? "");
     const givenTitle = String(form.get("title") ?? "").trim();
 
     if (!courseId || !(file instanceof File)) {
@@ -180,9 +181,10 @@ export async function POST(request: NextRequest) {
         create: { lessonId: lesson.id, title: "Quiz", status: "DRAFT", error: null },
         update: { status: "DRAFT", error: null },
       });
-      generateAndSaveQuiz(lesson.id).catch((error) =>
-        console.error(`[import-pptx] quiz for ${lesson.id} failed:`, error),
-      );
+      generateAndSaveQuiz(lesson.id, {
+        questionCount:
+          Number.isFinite(askedQuestions) && askedQuestions > 0 ? askedQuestions : null,
+      }).catch((error) => console.error(`[import-pptx] quiz for ${lesson.id} failed:`, error));
     }
 
     console.log(

@@ -11,6 +11,10 @@ import { z } from "zod/v4";
 /** Options per question. Four is the convention across the whole quiz. */
 export const OPTIONS_PER_QUESTION = 4;
 
+/** The range an instructor may ask for. */
+export const MIN_QUIZ_QUESTIONS = 2;
+export const MAX_QUIZ_QUESTIONS = 15;
+
 export const DraftOptionSchema = z.object({
   text: z.string().min(1).max(200).describe("One answer choice"),
   isCorrect: z.boolean().describe("Exactly one option per question is true"),
@@ -36,15 +40,31 @@ export const DraftQuestionSchema = z.object({
 
 export const DraftQuizSchema = z.object({
   title: z.string().min(3).max(120).describe("A title naming what the quiz covers"),
-  questions: z.array(DraftQuestionSchema).min(3).max(8),
+  /**
+   * Bounded by what an instructor may ask for, not by a fixed range.
+   *
+   * The floor is one rather than the quiz minimum because this schema also
+   * validates a revision, which replaces only the questions that were
+   * rejected — sometimes a single one. How many a finished quiz needs is
+   * enforced where the quiz is saved.
+   */
+  questions: z.array(DraftQuestionSchema).min(1).max(MAX_QUIZ_QUESTIONS),
 });
 
 export type DraftOption = z.infer<typeof DraftOptionSchema>;
 export type DraftQuestion = z.infer<typeof DraftQuestionSchema>;
 export type DraftQuiz = z.infer<typeof DraftQuizSchema>;
 
-/** How many questions a lesson gets, scaled to how much it actually teaches. */
-export function questionCountFor(slideCount: number): number {
+/**
+ * How many questions a lesson gets.
+ *
+ * The instructor's number when they gave one — they know what the lesson is
+ * for — and otherwise scaled to how much the lesson actually teaches.
+ */
+export function questionCountFor(slideCount: number, requested?: number | null): number {
+  if (requested && Number.isFinite(requested)) {
+    return Math.max(MIN_QUIZ_QUESTIONS, Math.min(MAX_QUIZ_QUESTIONS, Math.round(requested)));
+  }
   return Math.max(3, Math.min(8, Math.round(slideCount * 0.6)));
 }
 

@@ -14,6 +14,7 @@ import {
   type PresentationPlan,
 } from "@/lib/presentation-plan";
 import { DEFAULT_STYLE } from "@/lib/slide-styles";
+import { MAX_QUIZ_QUESTIONS, MIN_QUIZ_QUESTIONS } from "@/lib/quiz/schema";
 import { PLAN_EXEMPLAR } from "@/lib/slides/craft";
 import { extractTextFromFiles, selectRelevantSections } from "@/lib/extract-doc";
 
@@ -30,6 +31,8 @@ interface GenerateOutlineRequest {
   courseId: string;
   topic: string;
   slideCount: number;
+  /** How many quiz questions to write, when the instructor named a number. */
+  quizQuestionCount?: number;
   language?: string;
   existingLessonId?: string;
   referenceFileUrls?: string[];
@@ -253,7 +256,14 @@ ${PLAN_EXEMPLAR}`;
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as GenerateOutlineRequest;
-    const { courseId, topic, slideCount, language = "english", existingLessonId } = body;
+    const {
+      courseId,
+      topic,
+      slideCount,
+      quizQuestionCount,
+      language = "english",
+      existingLessonId,
+    } = body;
 
     if (!courseId) {
       return NextResponse.json({ success: false, error: "courseId is required" }, { status: 400 });
@@ -389,6 +399,15 @@ export async function POST(request: NextRequest) {
       topic,
       style: DEFAULT_STYLE,
       slideCount: requestedSlides,
+      // Carried on the plan so the quiz, which is written after the slides,
+      // gets the number the instructor chose when they planned the lesson.
+      quizQuestionCount:
+        quizQuestionCount && Number.isFinite(quizQuestionCount)
+          ? Math.max(
+              MIN_QUIZ_QUESTIONS,
+              Math.min(MAX_QUIZ_QUESTIONS, Math.round(quizQuestionCount)),
+            )
+          : undefined,
       language,
       title: balanced.title,
       subtitle: balanced.subtitle,

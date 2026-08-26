@@ -24,3 +24,6 @@ export const MAX_SLIDES = 20;
  * actually needs, and the instructor can still set any figure in range.
  */
 export const DEFAULT_SLIDE_COUNT = 12;
+
+/** Quiz questions a lesson gets unless the instructor names a number. */
+export const DEFAULT_QUIZ_QUESTIONS = 5;

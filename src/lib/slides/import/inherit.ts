@@ -1,4 +1,4 @@
-import { colourOf, type Theme } from "./colour";
+import { colourOf, cssColour, paintOf, type Theme } from "./colour";
 import { child, childrenNamed, find, findAll, type XNode } from "./xml";
 
 // ============================================
@@ -18,6 +18,7 @@ import { child, childrenNamed, find, findAll, type XNode } from "./xml";
 
 export interface TextStyle {
   sizePt: number;
+  /** A CSS colour — a hex when opaque, rgba() when the deck screened it back. */
   colour: string | null;
   bold: boolean;
   italic: boolean;
@@ -118,8 +119,10 @@ function apply(style: TextStyle, props: XNode | null, theme: Theme): void {
 
   const fill = child(rPr, "a:solidFill");
   if (fill) {
-    const colour = colourOf(fill, theme);
-    if (colour) style.colour = colour;
+    const paint = paintOf(fill, theme);
+    // Screened-back type is a real choice — a caption at 60% is how a deck
+    // says "secondary" — so the run keeps the opacity it asked for.
+    if (paint) style.colour = cssColour(paint);
   }
 
   const latin = child(rPr, "a:latin");
@@ -164,8 +167,8 @@ export function inheritedStyle(
   const shapeStyle = child(shape, "p:style");
   const fontRef = shapeStyle ? child(shapeStyle, "a:fontRef") : null;
   if (fontRef) {
-    const colour = colourOf(fontRef, inh.theme);
-    if (colour) style.colour = colour;
+    const paint = paintOf(fontRef, inh.theme);
+    if (paint) style.colour = cssColour(paint);
     if (fontRef.attrs.idx === "major" && inh.fonts.major) style.face = inh.fonts.major;
     if (fontRef.attrs.idx === "minor" && inh.fonts.minor) style.face = inh.fonts.minor;
   }
@@ -207,7 +210,10 @@ export function styleFill(shape: XNode, inh: Inheritance): string | null {
   const fillRef = style ? child(style, "a:fillRef") : null;
   if (!fillRef) return null;
   if (fillRef.attrs.idx === "0") return null;
-  return colourOf(fillRef, inh.theme);
+  const paint = paintOf(fillRef, inh.theme);
+  // Returned as CSS rather than as a hex: a themed fill can be screened back
+  // like any other, and the caller has no way to know that from a hex.
+  return paint ? cssColour(paint) : null;
 }
 
 /** The outline a shape takes from the theme's style matrix. */
@@ -226,14 +232,14 @@ export function backgroundOf(part: XNode | null, inh: Inheritance): string | nul
 
   const solid = child(bg, "a:solidFill") ?? find(bg, "a:solidFill");
   if (solid) {
-    const colour = colourOf(solid, inh.theme);
-    if (colour) return `#${colour}`;
+    const paint = paintOf(solid, inh.theme);
+    if (paint) return cssColour(paint);
   }
 
   const ref = find(bg, "p:bgRef");
   if (ref) {
-    const colour = colourOf(ref, inh.theme);
-    if (colour) return `#${colour}`;
+    const paint = paintOf(ref, inh.theme);
+    if (paint) return cssColour(paint);
   }
 
   return null;

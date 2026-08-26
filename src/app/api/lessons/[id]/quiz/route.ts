@@ -22,17 +22,21 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   });
 }
 
-export async function POST(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   return handleRoute("lessons.quiz.POST", async () => {
     const { id } = await params;
     await requireLessonOwner(id);
+
+    // How many questions, when the instructor asked for a number. Regenerating
+    // is where they most often want a different one.
+    const body = (await request.json().catch(() => null)) as { questionCount?: number } | null;
 
     const ready = await db.slide.count({ where: { lessonId: id, status: "READY" } });
     if (ready === 0) {
       return fail("Generate the lesson's slides before generating its quiz.", 400);
     }
 
-    const result = await generateAndSaveQuiz(id);
+    const result = await generateAndSaveQuiz(id, { questionCount: body?.questionCount });
     if (result.status === "ERROR") {
       return fail(result.error ?? "Quiz generation failed.", 502);
     }

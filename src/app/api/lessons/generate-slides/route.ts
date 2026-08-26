@@ -77,6 +77,8 @@ interface StoredOutlinePlan {
   thesis?: string;
   misconception?: string;
   keyTerms?: string[];
+  /** How many quiz questions the instructor asked for, when they said. */
+  quizQuestionCount?: number;
 }
 
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
@@ -375,7 +377,9 @@ async function generateAllSlides(lessonId: string, languageOverride?: string): P
   // the slides exist. A lesson with no ready slides has nothing to quiz on, so
   // the attempt is skipped rather than failed.
   if (ready.length > 0) {
-    const result = await generateAndSaveQuiz(lessonId);
+    const result = await generateAndSaveQuiz(lessonId, {
+      questionCount: plan.quizQuestionCount,
+    });
     if (result.status === "ERROR") {
       // Recorded on the quiz row, so the instructor sees it and can retry
       // without regenerating slides that came out fine.

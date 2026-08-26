@@ -1,5 +1,5 @@
 import JSZip from "jszip";
-import { alphaOf, colourOf, gradientOf, readTheme, type Theme } from "./colour";
+import { colourOf, cssColour, gradientOf, paintOf, readTheme, type Theme } from "./colour";
 import {
   backgroundOf,
   indexPlaceholders,
@@ -152,7 +152,7 @@ function runHtml(run: XNode, ctx: DeckContext, inherited: TextStyle): string {
     `font-weight:${style.bold ? 700 : 400};` +
     (style.italic ? "font-style:italic;" : "") +
     (style.underline ? "text-decoration:underline;" : "") +
-    (style.colour ? `color:#${style.colour};` : "") +
+    (style.colour ? `color:${style.colour};` : "") +
     (style.face ? `font-family:${esc(style.face)},sans-serif;` : "");
 
   return `<span style="${css}">${esc(text)}</span>`;
@@ -239,14 +239,8 @@ function shapeStyle(shape: XNode, ctx: DeckContext): string {
   const gradient = child(spPr, "a:gradFill");
   const noFill = child(spPr, "a:noFill");
   if (solid) {
-    const colour = colourOf(solid, ctx.theme);
-    const alpha = alphaOf(solid);
-    if (colour) {
-      style +=
-        alpha < 1
-          ? `background:rgba(${parseInt(colour.slice(0, 2), 16)},${parseInt(colour.slice(2, 4), 16)},${parseInt(colour.slice(4, 6), 16)},${alpha.toFixed(2)});`
-          : `background:#${colour};`;
-    }
+    const paint = paintOf(solid, ctx.theme);
+    if (paint) style += `background:${cssColour(paint)};`;
   } else if (gradient) {
     const css = gradientOf(gradient, ctx.theme);
     if (css) style += `background:${css};`;
@@ -255,15 +249,21 @@ function shapeStyle(shape: XNode, ctx: DeckContext): string {
     // from the theme's style matrix. Reading only explicit fills imported
     // them as invisible rectangles.
     const themed = styleFill(shape, ctx.inh);
-    if (themed) style += `background:#${themed};`;
+    if (themed) style += `background:${themed};`;
   }
 
   const line = child(spPr, "a:ln");
   if (line && !child(line, "a:noFill")) {
     const lineFill = child(line, "a:solidFill");
-    const colour = lineFill ? colourOf(lineFill, ctx.theme) : styleLine(shape, ctx.inh);
+    const paint = lineFill ? paintOf(lineFill, ctx.theme) : null;
+    const colour = paint
+      ? cssColour(paint)
+      : (() => {
+          const themed = styleLine(shape, ctx.inh);
+          return themed ? `#${themed}` : null;
+        })();
     const widthPt = line.attrs.w ? Number(line.attrs.w) / EMU_PER_POINT : 1;
-    if (colour) style += `border:${Math.max(1, widthPt).toFixed(1)}px solid #${colour};`;
+    if (colour) style += `border:${Math.max(1, widthPt).toFixed(1)}px solid ${colour};`;
   } else if (!line) {
     const themed = styleLine(shape, ctx.inh);
     if (themed) style += `border:1px solid #${themed};`;
