@@ -10,8 +10,15 @@ import { loadLessonSource } from "./lesson-source";
 // with two quizzes or with half of one.
 // ============================================
 
-/** Fewer than this and the quiz is not worth showing a learner. */
-const MIN_QUESTIONS = 2;
+/**
+ * A quiz with nothing in it is not a quiz; one with a single question is thin.
+ *
+ * Thin is kept rather than thrown away. The instructor asked for a quiz, and
+ * a short one they can add to by hand is worth more than an error with
+ * nothing behind it — which is what a strict lesson used to produce, as a 502
+ * and a red panel.
+ */
+const MIN_QUESTIONS = 1;
 
 export interface QuizResult {
   status: "READY" | "ERROR";
@@ -20,6 +27,9 @@ export interface QuizResult {
   dropped?: number;
   /** How many were asked for, so a caller can say when fewer were possible. */
   requested?: number;
+  /** Why questions were dropped, so a shortfall can be explained rather than
+   *  merely reported. */
+  droppedReasons?: string[];
   error?: string;
 }
 
@@ -46,8 +56,8 @@ export async function generateAndSaveQuiz(
 
     if (report.quiz.questions.length < MIN_QUESTIONS) {
       const error =
-        `Only ${report.quiz.questions.length} question(s) could be grounded in this lesson. ` +
-        `The lesson may be too short or too sparse to quiz on.`;
+        `No question could be grounded in this lesson. ` +
+        `It may be too short or too sparse to quiz on — or you can write the questions yourself.`;
       await recordFailure(lessonId, error);
       return { status: "ERROR", error };
     }
@@ -100,6 +110,7 @@ export async function generateAndSaveQuiz(
       questionCount: report.quiz.questions.length,
       dropped: report.dropped.length,
       requested: report.requested,
+      droppedReasons: [...new Set(report.dropped.map((d) => d.reason))].slice(0, 3),
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Quiz generation failed";

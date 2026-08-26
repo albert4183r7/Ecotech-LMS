@@ -551,6 +551,42 @@ add(
       source,
     ) !== null,
 );
+// A lesson written in Chinese, which is where the old term extraction gave up:
+// it split on anything outside a-z0-9, so a Chinese lesson produced no terms at
+// all and its quotes could not be compared to it.
+const cjkSource: LessonSource = {
+  lessonId: "l2",
+  lessonTitle: "AI 智能体",
+  slideCount: 4,
+  text: "智能体由三部分组成：大脑是语言模型，双手是工具，编排是循环。没有循环就不会自我纠正。",
+};
+
+add("a question grounded in a Chinese lesson is accepted", () => {
+  return (
+    checkMechanically(
+      {
+        prompt: "智能体的“双手”指的是什么？",
+        options: [opt("工具", true), opt("语言模型"), opt("循环"), opt("数据库")],
+        sourceQuote: "智能体由三部分组成：大脑是语言模型，双手是工具",
+      },
+      cjkSource,
+    ) === null
+  );
+});
+
+add("a question quoting something the Chinese lesson never says is rejected", () => {
+  return (
+    checkMechanically(
+      {
+        prompt: "本课如何描述向量数据库的分片策略？",
+        options: [opt("按租户分片", true), opt("按时间"), opt("按地区"), opt("不分片")],
+        sourceQuote: "向量数据库的分片策略应当按照租户来划分，以便隔离不同客户的数据。",
+      },
+      cjkSource,
+    ) !== null
+  );
+});
+
 add("quiz repair yields exactly one correct option", () => {
   const q = {
     title: "A quiz title",

@@ -95,10 +95,12 @@ export function QuizReviewPanel({ lessonId, quiz, onChanged }: QuizReviewPanelPr
       // about the lesson — but silently returning six looked like a bug.
       const made = json.data.questionCount as number;
       const asked = json.data.requested as number | undefined;
+      const why = (json.data.droppedReasons as string[] | undefined)?.[0];
       if (asked && made < asked) {
         toast.warning(
-          `${made} of the ${asked} questions you asked for could be grounded in this lesson. ` +
-            `Add your own below, or give the lesson more to quiz on.`,
+          `${made} of the ${asked} questions you asked for could be grounded in this lesson.` +
+            (why ? ` The rest were dropped: ${why}.` : "") +
+            ` Add your own below, or give the lesson more to quiz on.`,
         );
       } else {
         toast.success(`Generated ${made} question(s).`);

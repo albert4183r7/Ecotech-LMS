@@ -31,20 +31,61 @@ const STOPWORDS = new Set(
   ).split(" "),
 );
 
+/** Chinese, Japanese and Korean text, which is written without spaces. */
+const CJK = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uac00-\ud7af]/u;
+
+/**
+ * The words a piece of text is about.
+ *
+ * Splitting on anything outside a-z0-9 treated every Chinese character as a
+ * separator, so a lesson written in Chinese produced no terms at all: its
+ * quotes could not be compared to it, and the checks below passed or failed by
+ * accident rather than by reading. CJK runs are indexed as overlapping
+ * character pairs instead — the standard cheap way to compare text that has no
+ * spaces in it — and Latin words keep the length and stopword filter that
+ * makes them meaningful.
+ */
 function terms(text: string): Set<string> {
-  return new Set(
-    text
-      .toLowerCase()
-      .split(/[^a-z0-9]+/)
-      .filter((w) => w.length > 3 && !STOPWORDS.has(w)),
-  );
+  const found = new Set<string>();
+  const runs = text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
+
+  for (const run of runs) {
+    if (!CJK.test(run)) {
+      if (run.length > 3 && !STOPWORDS.has(run)) found.add(run);
+      continue;
+    }
+    // A mixed run — "rag检索" — is split into its scripts before indexing.
+    for (const part of run.match(
+      /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]+|[\p{L}\p{N}]+/gu,
+    ) ?? []) {
+      if (!CJK.test(part)) {
+        if (part.length > 3 && !STOPWORDS.has(part)) found.add(part);
+        continue;
+      }
+      const chars = [...part];
+      if (chars.length === 1) {
+        found.add(chars[0]);
+        continue;
+      }
+      for (let i = 0; i + 1 < chars.length; i++) found.add(chars[i] + chars[i + 1]);
+    }
+  }
+
+  return found;
 }
 
-/** Normalised for quote matching: case, punctuation and spacing collapsed. */
+/**
+ * Normalised for quote matching: case, punctuation and spacing collapsed.
+ *
+ * Letters and digits of every script survive. Keeping only a-z0-9 deleted a
+ * Chinese quote entirely, which made it the empty string — and the empty
+ * string is contained in every lesson, so the quote check silently passed
+ * whatever it was given.
+ */
 function normalise(text: string): string {
   return text
     .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
