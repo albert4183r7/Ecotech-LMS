@@ -1,5 +1,17 @@
 import JSZip from "jszip";
 import { alphaOf, colourOf, gradientOf, readTheme, type Theme } from "./colour";
+import {
+  backgroundOf,
+  indexPlaceholders,
+  inheritedStyle,
+  readFillStyles,
+  readFonts,
+  styleFill,
+  styleLine,
+  withRunProps,
+  type Inheritance,
+  type TextStyle,
+} from "./inherit";
 import { child, childrenNamed, find, findAll, parseXml, textOf, type XNode } from "./xml";
 
 // ============================================
@@ -116,6 +128,8 @@ function placeholderKey(shape: XNode): string | null {
 
 interface DeckContext {
   theme: Theme;
+  /** What the layout, master and theme say before the slide says anything. */
+  inh: Inheritance;
   /** Placeholder boxes inherited from the slide's layout, then its master. */
   placeholders: Map<string, Frame>;
   /** Relationship id → the URL a picture is served from. */
@@ -127,67 +141,56 @@ interface DeckContext {
 
 // ── Text ────────────────────────────────────────────────────────────────────
 
-/** Default type sizes, in points, when a run does not state one. */
-function defaultSize(key: string | null): number {
-  if (!key) return 18;
-  if (key.startsWith("title") || key.startsWith("ctrTitle")) return 36;
-  if (key.startsWith("subTitle")) return 20;
-  return 18;
-}
-
-function runHtml(run: XNode, ctx: DeckContext, fallbackPt: number): string {
+function runHtml(run: XNode, ctx: DeckContext, inherited: TextStyle): string {
   const text = textOf(child(run, "a:t") ?? { name: "", attrs: {}, children: [], text: "" });
   if (!text) return "";
 
-  const rPr = child(run, "a:rPr");
-  const sizePt = rPr?.attrs.sz ? Number(rPr.attrs.sz) / 100 : fallbackPt;
-  const bold = rPr?.attrs.b === "1";
-  const italic = rPr?.attrs.i === "1";
-  const underline = rPr?.attrs.u && rPr.attrs.u !== "none";
-  const fill = rPr ? child(rPr, "a:solidFill") : null;
-  const colour = fill ? colourOf(fill, ctx.theme) : null;
-  const latin = rPr ? child(rPr, "a:latin") : null;
-  const face = latin?.attrs.typeface;
+  const style = withRunProps(inherited, child(run, "a:rPr"), ctx.theme);
 
-  const style =
-    `font-size:${(sizePt * ctx.pxPerPoint).toFixed(2)}px;` +
-    (bold ? "font-weight:700;" : "") +
-    (italic ? "font-style:italic;" : "") +
-    (underline ? "text-decoration:underline;" : "") +
-    (colour ? `color:#${colour};` : "") +
-    (face && !face.startsWith("+") ? `font-family:${esc(face)},sans-serif;` : "");
+  const css =
+    `font-size:${(style.sizePt * ctx.pxPerPoint).toFixed(2)}px;` +
+    `font-weight:${style.bold ? 700 : 400};` +
+    (style.italic ? "font-style:italic;" : "") +
+    (style.underline ? "text-decoration:underline;" : "") +
+    (style.colour ? `color:#${style.colour};` : "") +
+    (style.face ? `font-family:${esc(style.face)},sans-serif;` : "");
 
-  return `<span style="${style}">${esc(text)}</span>`;
+  return `<span style="${css}">${esc(text)}</span>`;
 }
 
-function paragraphHtml(para: XNode, ctx: DeckContext, fallbackPt: number): string {
+function paragraphHtml(para: XNode, ctx: DeckContext, shape: XNode, key: string | null): string {
   const pPr = child(para, "a:pPr");
-  const align = { l: "left", ctr: "center", r: "right", just: "justify" }[pPr?.attrs.algn ?? "l"];
-  const indent = Number(pPr?.attrs.lvl ?? 0) * 24;
+  const level = Number(pPr?.attrs.lvl ?? 0);
+  const inherited = inheritedStyle(ctx.inh, key, level, shape, para);
+
+  const align = { l: "left", ctr: "center", r: "right", just: "justify" }[
+    pPr?.attrs.algn ?? inherited.align ?? "l"
+  ];
+  const indent = level * 24;
 
   // Only an explicit bullet is drawn. Inheriting one from the master's list
   // styles would put bullets on titles and captions that never had them.
   const bulletChar = pPr ? child(pPr, "a:buChar")?.attrs.char : undefined;
   const numbered = pPr ? child(pPr, "a:buAutoNum") : null;
-  const bullet = bulletChar ?? (numbered ? "•" : "");
+  const bullet = bulletChar ?? (numbered ? "\u2022" : "");
 
   const spacing = pPr ? child(pPr, "a:lnSpc") : null;
   const spacingPct = spacing ? child(spacing, "a:spcPct")?.attrs.val : undefined;
   const lineHeight = spacingPct ? Number(spacingPct) / 100000 : 1.25;
 
   const runs = childrenNamed(para, "a:r")
-    .map((r) => runHtml(r, ctx, fallbackPt))
+    .map((r) => runHtml(r, ctx, inherited))
     .join("");
   const breaks = childrenNamed(para, "a:br").length;
 
   if (!runs) return breaks ? '<p style="margin:0;">&nbsp;</p>' : "";
 
-  const style =
+  const css =
     `margin:0;text-align:${align};line-height:${lineHeight};` +
     (indent ? `padding-left:${indent}px;` : "") +
     (bullet ? "text-indent:-0.9em;padding-left:0.9em;" : "");
 
-  return `<p style="${style}">${bullet ? `${esc(bullet)} ` : ""}${runs}</p>`;
+  return `<p style="${css}">${bullet ? `${esc(bullet)} ` : ""}${runs}</p>`;
 }
 
 function bodyHtml(
@@ -198,9 +201,8 @@ function bodyHtml(
   const body = child(shape, "p:txBody");
   if (!body) return { html: "", text: "" };
 
-  const fallbackPt = defaultSize(key);
   const paragraphs = childrenNamed(body, "a:p");
-  const html = paragraphs.map((p) => paragraphHtml(p, ctx, fallbackPt)).join("");
+  const html = paragraphs.map((p) => paragraphHtml(p, ctx, shape, key)).join("");
   const text = paragraphs
     .map((p) => textOf(p).trim())
     .filter(Boolean)
@@ -235,6 +237,7 @@ function shapeStyle(shape: XNode, ctx: DeckContext): string {
   let style = "";
   const solid = child(spPr, "a:solidFill");
   const gradient = child(spPr, "a:gradFill");
+  const noFill = child(spPr, "a:noFill");
   if (solid) {
     const colour = colourOf(solid, ctx.theme);
     const alpha = alphaOf(solid);
@@ -247,14 +250,23 @@ function shapeStyle(shape: XNode, ctx: DeckContext): string {
   } else if (gradient) {
     const css = gradientOf(gradient, ctx.theme);
     if (css) style += `background:${css};`;
+  } else if (!noFill) {
+    // Most shapes drawn in PowerPoint state no fill of their own and take one
+    // from the theme's style matrix. Reading only explicit fills imported
+    // them as invisible rectangles.
+    const themed = styleFill(shape, ctx.inh);
+    if (themed) style += `background:#${themed};`;
   }
 
   const line = child(spPr, "a:ln");
   if (line && !child(line, "a:noFill")) {
     const lineFill = child(line, "a:solidFill");
-    const colour = lineFill ? colourOf(lineFill, ctx.theme) : null;
+    const colour = lineFill ? colourOf(lineFill, ctx.theme) : styleLine(shape, ctx.inh);
     const widthPt = line.attrs.w ? Number(line.attrs.w) / EMU_PER_POINT : 1;
     if (colour) style += `border:${Math.max(1, widthPt).toFixed(1)}px solid #${colour};`;
+  } else if (!line) {
+    const themed = styleLine(shape, ctx.inh);
+    if (themed) style += `border:1px solid #${themed};`;
   }
 
   const geom = child(spPr, "a:prstGeom")?.attrs.prst;
@@ -553,8 +565,19 @@ export async function importPptx(data: Buffer, options: ImportOptions): Promise<
         media.set(id, await options.saveMedia(target.split("/").pop() ?? "image", bytes));
       }
 
+      const theme = themeXml ? readTheme(themeXml) : {};
+      const inh: Inheritance = {
+        theme,
+        fonts: readFonts(themeXml),
+        layout: indexPlaceholders(layoutXml),
+        master: indexPlaceholders(masterXml),
+        txStyles: masterXml ? find(masterXml, "p:txStyles") : null,
+        fillStyles: readFillStyles(themeXml),
+      };
+
       const ctx: DeckContext = {
-        theme: themeXml ? readTheme(themeXml) : {},
+        theme,
+        inh,
         placeholders,
         media,
         slideW,
@@ -567,21 +590,32 @@ export async function importPptx(data: Buffer, options: ImportOptions): Promise<
         ? drawTree(tree, ctx, IDENTITY)
         : { html: "", text: "", title: null, warnings: [] };
 
-      // The slide's own background, when it sets one.
-      const bgFill = find(slideXml, "p:bg");
-      const bgSolid = bgFill ? child(bgFill, "a:solidFill") : null;
-      const bgGrad = bgFill ? child(bgFill, "a:gradFill") : null;
-      const background = bgSolid
-        ? `#${colourOf(bgSolid, ctx.theme) ?? "FFFFFF"}`
-        : bgGrad
-          ? (gradientOf(bgGrad, ctx.theme) ?? "#FFFFFF")
-          : "#FFFFFF";
+      // The background, from whichever part actually states one: the slide
+      // first, then its layout, then the master — the order PowerPoint reads
+      // them in, and the reason a deck on a dark master no longer imports
+      // onto white.
+      const gradientBackground = (part: XNode | null): string | null => {
+        const bg = part ? find(part, "p:bg") : null;
+        const grad = bg ? find(bg, "a:gradFill") : null;
+        return grad ? gradientOf(grad, ctx.theme) : null;
+      };
+      const background =
+        gradientBackground(slideXml) ??
+        backgroundOf(slideXml, inh) ??
+        gradientBackground(layoutXml) ??
+        backgroundOf(layoutXml, inh) ??
+        gradientBackground(masterXml) ??
+        backgroundOf(masterXml, inh) ??
+        "#FFFFFF";
 
       slides.push({
         title: drawn.title?.slice(0, 90) || `Slide ${index + 1}`,
+        // No font or colour on the container: every run carries what it
+        // inherited, and a default here would quietly override a deck whose
+        // theme says otherwise.
         html:
-          `<div style="position:relative;width:100%;height:100%;background:${background};` +
-          `font-family:Calibri,Candara,system-ui,sans-serif;color:#333333;">${drawn.html}</div>`,
+          `<div style="position:relative;width:100%;height:100%;background:${background};">` +
+          `${drawn.html}</div>`,
         text: drawn.text,
         warnings: [...warnings, ...drawn.warnings],
       });

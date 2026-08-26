@@ -91,6 +91,11 @@ export function ClassroomPage() {
   const [notesSidebarOpen, setNotesSidebarOpen] = useState(false);
   // The two side panels share the same column, so opening one closes the
   // other rather than splitting the slide's width three ways.
+  //
+  // The assistant starts open on a desktop screen: it is there to be used
+  // while the lesson is read, and behind an icon nobody clicked it was a
+  // feature most learners never found. It closes from its own corner, and a
+  // narrow screen has no room for it beside the slide.
   const [assistantOpen, setAssistantOpen] = useState(false);
 
   const {
@@ -123,6 +128,7 @@ export function ClassroomPage() {
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 1023px)");
     setIsMobile(mq.matches);
+    if (!mq.matches) setAssistantOpen(true);
     const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
     mq.addEventListener("change", handler);
     return () => mq.removeEventListener("change", handler);
@@ -712,12 +718,13 @@ export function ClassroomPage() {
             <div className="flex items-center justify-between border-b px-4 py-3">
               <div className="flex items-center gap-2">
                 <Sparkles className="text-primary h-4 w-4" />
-                <span className="text-sm font-semibold">Lesson Assistant</span>
+                <span className="text-sm font-semibold">Study Assistant</span>
               </div>
               <Button
                 variant="ghost"
                 size="icon"
                 className="h-7 w-7"
+                aria-label="Close the study assistant"
                 onClick={() => setAssistantOpen(false)}
               >
                 <X className="h-4 w-4" />
@@ -871,6 +878,9 @@ export function ClassroomPage() {
                   variant={assistantOpen ? "secondary" : "ghost"}
                   size="icon"
                   className="h-8 w-8"
+                  aria-label={
+                    assistantOpen ? "Hide the study assistant" : "Ask the study assistant"
+                  }
                   onClick={() => {
                     setAssistantOpen((v) => !v);
                     setNotesSidebarOpen(false);
@@ -887,6 +897,7 @@ export function ClassroomPage() {
                   variant={notesSidebarOpen ? "secondary" : "ghost"}
                   size="icon"
                   className="h-8 w-8"
+                  aria-label={notesSidebarOpen ? "Hide notes" : "Open notes"}
                   onClick={() => {
                     setNotesSidebarOpen((v) => !v);
                     setAssistantOpen(false);

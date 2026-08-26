@@ -18,12 +18,7 @@ export function Footer() {
   const sections: FooterSection[] = [
     {
       title: "Platform",
-      links: [
-        { label: "Browse Courses" },
-        { label: "My Learning" },
-        { label: "Create Course" },
-        { label: "Leaderboard" },
-      ],
+      links: [{ label: "Browse Courses" }, { label: "My Learning" }, { label: "Create Course" }],
     },
     {
       title: "Resources",

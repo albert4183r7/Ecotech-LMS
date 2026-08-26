@@ -24,7 +24,8 @@ export type AiTask =
   | "content-evaluation"
   | "visual-evaluation"
   | "agent-tool-loop"
-  | "lesson-tutor";
+  | "lesson-tutor"
+  | "platform-help";
 
 interface TaskModel {
   /** Model tag, as the provider names it. */
@@ -124,6 +125,14 @@ export const TASK_MODELS: Record<AiTask, TaskModel> = {
       "Drives the agent runtime, choosing which tool to call next. Needs function " +
       "calling and enough judgement to stop when the work is done.",
     tools: true,
+  },
+  "platform-help": {
+    model: "claude-sonnet-5",
+    envVar: "MODEL_PLATFORM_HELP",
+    rationale:
+      "Answers questions about using Ecotech itself — where things are, what a " +
+      "control does, what a role may do. Short, factual, and waited on directly, " +
+      "so it is sized like the tutor rather than like the authoring tasks.",
   },
   "lesson-tutor": {
     model: "claude-sonnet-5",

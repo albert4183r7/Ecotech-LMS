@@ -9,7 +9,6 @@ import {
   BookOpen,
   CheckCircle,
   Clock,
-  Download,
   Eye,
   Heart,
   MessageSquare,
@@ -217,11 +216,9 @@ export function CourseProgressCard({ enrollment }: { enrollment: EnrollmentItem 
 export function CompletedCourseCard({
   enrollment,
   userName,
-  onOpenCertificate,
 }: {
   enrollment: EnrollmentItem;
   userName: string;
-  onOpenCertificate: (enrollment: EnrollmentItem) => void;
 }) {
   const { openCourseDetail } = useNavigation();
   const [hoverRating, setHoverRating] = useState(0);
@@ -328,17 +325,6 @@ export function CompletedCourseCard({
 
             {/* Action Buttons */}
             <div className="flex flex-wrap items-center gap-2 pt-1">
-              <Button
-                size="sm"
-                className="gap-1.5 bg-gradient-to-r from-emerald-500 to-teal-500 font-semibold text-white shadow-sm hover:opacity-90"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onOpenCertificate(enrollment);
-                }}
-              >
-                <Download className="h-3.5 w-3.5" />
-                Download Certificate
-              </Button>
               <Button
                 size="sm"
                 variant="outline"

@@ -361,14 +361,17 @@ export function CreateCoursePage() {
           <Card className="border-border/50">
             <CardContent className="p-6">
               {/* Header */}
-              <div className="mb-4 flex items-center justify-between">
-                <div className="flex items-center gap-2">
+              {/* Wraps rather than overflowing: two buttons and a heading do not
+                  fit on one line in a narrow panel, and the second button used
+                  to run past the card's edge. */}
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex min-w-0 items-center gap-2">
                   <h2 className="text-foreground text-base font-semibold">Lessons</h2>
                   <Badge variant="secondary" className="text-xs font-normal">
                     {outlineLessons.length}/{MAX_LESSONS}
                   </Badge>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex shrink-0 items-center gap-2">
                   <Button
                     size="sm"
                     variant="outline"

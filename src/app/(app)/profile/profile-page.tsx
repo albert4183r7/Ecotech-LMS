@@ -9,7 +9,6 @@ import {
   Building2,
   ArrowRight,
   LayoutGrid,
-  FileBadge,
   Sparkles,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,9 +21,8 @@ import { toast } from "sonner";
 import { useUserStore } from "@/stores/lms-store";
 import { useNavigation } from "@/hooks/use-navigation";
 
-import { CertificateModal } from "@/components/lms/certificate-modal";
-
 import { ProfileSkeleton } from "@/components/lms/profile/profile-skeleton";
+import { startTour } from "@/components/lms/onboarding-tour";
 
 /* ------------------------------------------------------------------ */
 /*  Local types                                                       */
@@ -59,9 +57,6 @@ export function ProfilePage() {
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [certificateOpen, setCertificateOpen] = useState(false);
-  const [firstCompletedCourse, setFirstCompletedCourse] = useState<string | null>(null);
-  const [completedDate, setCompletedDate] = useState<string | null>(null);
 
   const fetchProfile = useCallback(async () => {
     setLoading(true);
@@ -76,29 +71,6 @@ export function ProfilePage() {
     } finally {
       setLoading(false);
     }
-  }, [currentUserId]);
-
-  // The certificate needs the first course this learner finished.
-  useEffect(() => {
-    async function fetchEnrollments() {
-      try {
-        const res = await fetch("/api/enrollments");
-        const json = await res.json();
-        if (json.success && json.data) {
-          const completed = json.data.find(
-            (e: { status: string; course: { title: string }; completedAt: string | null }) =>
-              e.status === "completed" && e.completedAt,
-          );
-          if (completed) {
-            setFirstCompletedCourse(completed.course.title);
-            setCompletedDate(completed.completedAt);
-          }
-        }
-      } catch {
-        /* silent */
-      }
-    }
-    fetchEnrollments();
   }, [currentUserId]);
 
   useEffect(() => {
@@ -245,33 +217,6 @@ export function ProfilePage() {
             <ArrowRight className="text-muted-foreground group-hover:text-primary h-4 w-4 shrink-0 transition-transform duration-200 group-hover:translate-x-0.5" />
           </button>
 
-          {/* View Certificate - STUDENT ONLY */}
-          {currentRole === "student" && (
-            <button
-              className="group border-border/50 disabled:hover:border-border/50 flex w-full items-center gap-4 rounded-xl border bg-gradient-to-r from-cyan-600/5 to-teal-500/5 p-4 text-left transition-all duration-200 hover:border-cyan-500/30 hover:bg-gradient-to-r hover:from-cyan-600/10 hover:to-teal-500/10 hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:from-cyan-600/5 disabled:hover:to-teal-500/5 disabled:hover:shadow-none"
-              onClick={() => {
-                if (firstCompletedCourse && completedDate) {
-                  setCertificateOpen(true);
-                } else {
-                  toast.info("Complete a course to earn a certificate!");
-                }
-              }}
-            >
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-600 to-teal-500 text-white shadow-sm transition-transform duration-200 group-hover:scale-110">
-                <FileBadge className="h-5 w-5" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-foreground text-sm font-semibold">View Certificate</p>
-                <p className="text-muted-foreground mt-0.5 text-xs">
-                  {firstCompletedCourse
-                    ? `View cert for "${firstCompletedCourse.length > 30 ? firstCompletedCourse.slice(0, 30) + "..." : firstCompletedCourse}"`
-                    : "Complete a course to earn a certificate"}
-                </p>
-              </div>
-              <ArrowRight className="text-muted-foreground group-hover:text-primary h-4 w-4 shrink-0 transition-transform duration-200 group-hover:translate-x-0.5" />
-            </button>
-          )}
-
           {/* My Learning - STUDENT ONLY */}
           {currentRole === "student" && (
             <button
@@ -295,8 +240,11 @@ export function ProfilePage() {
           <button
             className="group border-border/50 flex w-full items-center gap-4 rounded-xl border bg-gradient-to-r from-violet-600/5 to-purple-500/5 p-4 text-left transition-all duration-200 hover:border-violet-500/30 hover:bg-gradient-to-r hover:from-violet-600/10 hover:to-purple-500/10 hover:shadow-sm"
             onClick={() => {
-              localStorage.removeItem("ecotech_onboarding_done");
-              toast.success("Tour will show on next page refresh!");
+              // Starts now. It used to clear the flag the tour reads on mount
+              // and promise something for the next reload, which read as a
+              // button that did nothing.
+              localStorage.removeItem(`ecotech_onboarding_done_${currentRole}`);
+              startTour();
             }}
           >
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-purple-500 text-white shadow-sm transition-transform duration-200 group-hover:scale-110">
@@ -305,7 +253,9 @@ export function ProfilePage() {
             <div className="min-w-0 flex-1">
               <p className="text-foreground text-sm font-semibold">Retake Tour</p>
               <p className="text-muted-foreground mt-0.5 text-xs">
-                Replay the welcome guide and feature overview
+                {currentRole === "instructor"
+                  ? "Replay the guide to building and publishing courses"
+                  : "Replay the guide to finding and taking courses"}
               </p>
             </div>
             <ArrowRight className="text-muted-foreground group-hover:text-primary h-4 w-4 shrink-0 transition-transform duration-200 group-hover:translate-x-0.5" />
@@ -327,17 +277,6 @@ export function ProfilePage() {
           </Button>
         </CardContent>
       </Card>
-
-      {/* Certificate Modal - STUDENT ONLY */}
-      {currentRole === "student" && (
-        <CertificateModal
-          open={certificateOpen}
-          onOpenChange={setCertificateOpen}
-          userName={profile?.name || profile?.email || "Learner"}
-          courseName={firstCompletedCourse || "Course"}
-          completionDate={completedDate || new Date().toISOString()}
-        />
-      )}
     </div>
   );
 }

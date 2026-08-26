@@ -8,6 +8,7 @@ import { AnnouncementBanner } from "@/components/lms/announcement-banner";
 import { AuthPage } from "@/components/lms/auth-page";
 import { FloatingActions } from "@/components/lms/floating-actions";
 import { KeyboardShortcuts } from "@/components/lms/keyboard-shortcuts";
+import { PlatformChatbot } from "@/components/lms/platform-chatbot";
 import { SessionSync } from "@/components/lms/session-sync";
 
 /** Chrome shared by every signed-in page, plus the auth gate. */
@@ -27,6 +28,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <Footer />
           <FloatingActions />
           <KeyboardShortcuts />
+          <PlatformChatbot />
           <OnboardingTour />
         </>
       ) : (

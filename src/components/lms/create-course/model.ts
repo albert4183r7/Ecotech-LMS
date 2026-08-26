@@ -43,6 +43,8 @@ export function toLessonDraft(
     thesis?: string;
     misconception?: string;
     keyTerms?: string[];
+    /** Set when the lesson came from an uploaded deck rather than a plan. */
+    uploaded?: boolean;
   },
   meta: { language: string; style: string; topic: string },
 ): { lesson: OutlineLessonDraft; slides: OutlineSlideDraft[] } {
@@ -66,6 +68,7 @@ export function toLessonDraft(
       id: lessonData.id,
       title: lessonData.title,
       subtitle: lessonData.subtitle,
+      uploaded: lessonData.uploaded,
       slides,
       sections: sections.map((sec) => ({
         id: sec.id,

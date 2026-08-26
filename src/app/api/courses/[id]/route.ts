@@ -83,6 +83,10 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
           }
         : null,
       creator: course.creator || null,
+      creatorId: course.creatorId,
+      /** Whether the caller may edit this course, decided here rather than
+       *  left for a client to infer from ids it may not have. */
+      canEdit: isOwner,
       lessons: course.lessons.map((lesson) => ({
         id: lesson.id,
         title: lesson.title,

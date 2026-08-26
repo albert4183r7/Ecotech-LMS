@@ -6,6 +6,7 @@ import {
   AlertCircle,
   Check,
   Eye,
+  FileUp,
   LayoutList,
   Loader2,
   Pencil,
@@ -80,6 +81,14 @@ export interface OutlineLessonDraft {
   keyTerms?: string[];
   language: string;
   style: string;
+  /**
+   * True when the lesson came from a deck the instructor uploaded.
+   *
+   * There is nothing to review in an outline it never had, and nothing to
+   * generate: the slides arrived finished. The card says what it is and
+   * offers the preview, and stops there.
+   */
+  uploaded?: boolean;
   topic: string;
   // Generation state
   allReady?: boolean;
@@ -167,6 +176,56 @@ export function OutlineLessonCard({
     genProgress.current + (currentGenSlideId ? 1 : 0),
   );
   const showDeck = hasReadySlides && (!isGenerating || finishing);
+
+  // ---- An uploaded deck ----
+  //
+  // No outline, no slide list, no generate button: none of them mean anything
+  // for slides that arrived finished. What an instructor wants here is to look
+  // at it, and to be able to remove it.
+  if (lesson.uploaded) {
+    return (
+      <div className="group border-border/60 bg-card hover:bg-accent/30 rounded-lg border transition-colors">
+        <div className="flex items-center gap-3 p-3">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400">
+            <Check className="h-3.5 w-3.5" />
+          </div>
+
+          <div className="min-w-0 flex-1">
+            <p className="text-foreground truncate text-sm font-medium">{lesson.title}</p>
+            <div className="text-muted-foreground mt-0.5 flex items-center gap-1.5 text-xs">
+              <span className="inline-flex items-center gap-1 rounded-full bg-sky-100 px-1.5 py-0.5 text-[10px] font-medium text-sky-700 dark:bg-sky-900/30 dark:text-sky-400">
+                <FileUp className="h-2.5 w-2.5" />
+                Uploaded deck
+              </span>
+              <span>
+                {lesson.slides.length} slide{lesson.slides.length === 1 ? "" : "s"}
+              </span>
+            </div>
+          </div>
+
+          {onPreview && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 shrink-0 gap-1.5 text-xs"
+              onClick={() => onPreview()}
+            >
+              <Eye className="h-3 w-3" />
+              Preview
+            </Button>
+          )}
+
+          <button
+            onClick={onDelete}
+            className="text-muted-foreground/50 hover:bg-destructive/10 hover:text-destructive flex h-7 w-7 shrink-0 items-center justify-center rounded-md opacity-0 transition-all group-hover:opacity-100"
+            aria-label="Delete lesson"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div

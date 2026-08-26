@@ -123,6 +123,16 @@ export function useCourseDraft({ coverImage, setCoverImage }: UseCourseDraftOpti
         const json = await res.json();
         if (!json.success || cancelled) return;
         const c = json.data;
+
+        // An instructor may only edit what they created. The API refuses the
+        // writes either way, but loading someone else's course into the
+        // editor invites an instructor to make changes that are then rejected
+        // on save — so it is refused here, before any of that work.
+        if (c.canEdit === false) {
+          toast.error("You can only edit courses you created.");
+          router.replace(ROUTES.courses);
+          return;
+        }
         if (c.title) setTitle(c.title);
         if (c.description) setDescription(c.description);
         if (c.categoryId) setCategoryId(c.categoryId);
@@ -176,6 +186,9 @@ export function useCourseDraft({ coverImage, setCoverImage }: UseCourseDraftOpti
                   thesis: parsedOutline?.thesis,
                   misconception: parsedOutline?.misconception,
                   keyTerms: parsedOutline?.keyTerms,
+                  // An uploaded deck has no plan behind it; the card reads
+                  // this and offers the preview rather than an outline.
+                  uploaded: parsedOutline?.source?.kind === "upload",
                 },
                 {
                   language: c.language || "english",

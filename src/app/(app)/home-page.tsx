@@ -9,9 +9,7 @@ import {
   FolderOpen,
   Users,
   Play,
-  ChevronDown,
   TrendingUp,
-  BarChart3,
   BookMarked,
   ArrowRight,
   Zap,
@@ -23,13 +21,9 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { CourseCard } from "@/components/lms/course-card";
 import { SearchAutocomplete } from "@/components/lms/search-autocomplete";
-import { LeaderboardWidget } from "@/components/lms/leaderboard-widget";
 import { CourseRecommendations } from "@/components/lms/course-recommendations";
-import { DailyChallenges } from "@/components/lms/daily-challenges";
-import { SocialFeed } from "@/components/lms/social-feed";
 import { useCourseStore, useUserStore } from "@/stores/lms-store";
 import { useNavigation } from "@/hooks/use-navigation";
 import type { CourseItem, CategoryItem, HomeTab } from "@/types/lms";
@@ -195,7 +189,6 @@ export function HomePage() {
   const [heroPrompt, setHeroPrompt] = useState("");
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [loadingEnrollments, setLoadingEnrollments] = useState(true);
-  const [leaderboardOpen, setLeaderboardOpen] = useState(false);
   const [typingIndex, setTypingIndex] = useState(0);
   const [typingCharIndex, setTypingCharIndex] = useState(0);
   const [typingDeleting, setTypingDeleting] = useState(false);
@@ -729,13 +722,6 @@ export function HomePage() {
             </div>
           )}
 
-          {/* ── Daily Challenges (Student Only) ─────────────────────── */}
-          {currentRole === "student" && (
-            <div className="mb-5">
-              <DailyChallenges />
-            </div>
-          )}
-
           {/* Course Grid / Loading / Empty ────────────────────────── */}
           {loadingCourses ? (
             <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">
@@ -789,49 +775,7 @@ export function HomePage() {
           {/* ── Course Recommendations (Student Only) ────────────────── */}
           {currentRole === "student" && <CourseRecommendations />}
         </div>
-
-        {/* ── Desktop Right Sidebar (Student: Leaderboard + Social Feed) */}
-        {currentRole === "student" && (
-          <aside className="hidden w-72 shrink-0 lg:block">
-            <div className="sticky top-6 space-y-4">
-              <LeaderboardWidget />
-              <SocialFeed />
-            </div>
-          </aside>
-        )}
       </section>
-
-      {/* ── Mobile Leaderboard (Collapsible, Student Only) ────────── */}
-      {currentRole === "student" && (
-        <section className="px-4 pb-6 md:hidden">
-          <Collapsible open={leaderboardOpen} onOpenChange={setLeaderboardOpen}>
-            <CollapsibleTrigger className="border-border/50 bg-card hover:bg-muted/50 flex w-full items-center justify-between rounded-xl border p-4 transition-colors">
-              <div className="flex items-center gap-2">
-                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-cyan-500 to-teal-500">
-                  <BarChart3 className="h-4 w-4 text-white" aria-hidden="true" />
-                </div>
-                <span className="text-foreground text-sm font-semibold">Leaderboard</span>
-              </div>
-              <ChevronDown
-                className={`text-muted-foreground h-4 w-4 transition-transform duration-200 ${leaderboardOpen ? "rotate-180" : ""}`}
-                aria-hidden="true"
-              />
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <div className="mt-3">
-                <LeaderboardWidget />
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
-        </section>
-      )}
-
-      {/* ── Mobile Social Feed (Student Only) ─────────────────────── */}
-      {currentRole === "student" && (
-        <section className="px-4 pb-6 md:hidden">
-          <SocialFeed />
-        </section>
-      )}
     </div>
   );
 }

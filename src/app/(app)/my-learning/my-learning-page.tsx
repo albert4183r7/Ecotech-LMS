@@ -28,7 +28,6 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CourseCard } from "@/components/lms/course-card";
-import { CertificateModal } from "@/components/lms/certificate-modal";
 import { useMyLearningStore, useUserStore } from "@/stores/lms-store";
 import { useNavigation } from "@/hooks/use-navigation";
 import type { LearningStats, MyLearningTab, CourseItem } from "@/types/lms";
@@ -232,11 +231,6 @@ export function MyLearningPage() {
   const [loadingEnrollments, setLoadingEnrollments] = useState(true);
   const [loadingFavorites, setLoadingFavorites] = useState(true);
 
-  // Certificate modal state
-  const [certOpen, setCertOpen] = useState(false);
-  const [certCourseName, setCertCourseName] = useState("");
-  const [certCompletionDate, setCertCompletionDate] = useState("");
-
   const fetchStats = useCallback(async () => {
     setLoadingStats(true);
     try {
@@ -349,13 +343,6 @@ export function MyLearningPage() {
       : 0;
 
   const avgCompletionRate = stats?.avgProgress ?? 0;
-
-  /* Certificate handlers */
-  const handleOpenCertificate = useCallback((enrollment: EnrollmentItem) => {
-    setCertCourseName(enrollment.course.title);
-    setCertCompletionDate(enrollment.completedAt || new Date().toISOString());
-    setCertOpen(true);
-  }, []);
 
   /* Check which favorite courses are enrolled */
   const enrolledCourseIds = new Set(enrollments.map((e) => e.course.id));
@@ -495,7 +482,6 @@ export function MyLearningPage() {
                   key={enrollment.id}
                   enrollment={enrollment}
                   userName={userName || "Learner"}
-                  onOpenCertificate={handleOpenCertificate}
                 />
               ))}
             </div>
@@ -522,15 +508,6 @@ export function MyLearningPage() {
           )}
         </TabsContent>
       </Tabs>
-
-      {/* Certificate Modal */}
-      <CertificateModal
-        open={certOpen}
-        onOpenChange={setCertOpen}
-        userName={userName || "Learner"}
-        courseName={certCourseName}
-        completionDate={certCompletionDate}
-      />
     </div>
   );
 }
