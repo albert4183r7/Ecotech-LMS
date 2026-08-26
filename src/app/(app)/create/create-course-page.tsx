@@ -460,6 +460,11 @@ export function CreateCoursePage() {
         open={uploadOpen}
         onOpenChange={setUploadOpen}
         ensureCourseSaved={course.ensureCourseSaved}
+        blockedReason={
+          courseId || title.trim()
+            ? null
+            : "Give the course a title first — a deck is imported as a lesson of a course, and this one is not saved yet."
+        }
         onImported={(lessonId) => {
           // Straight to the review screen: the slides are already there, and
           // the quiz — if one was asked for — is written while it is read.

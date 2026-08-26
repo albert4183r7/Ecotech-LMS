@@ -1,9 +1,11 @@
 # Ecotech LMS
 
-A learning-management app that turns a prompt into a presentation-style lesson. An
-instructor describes a topic, chooses a slide count and a language, and optionally
-uploads reference documents; the system plans the presentation as logical sections,
-shows that plan for review, and then generates every slide.
+A learning-management app whose lessons are presentations. An instructor either
+**describes a topic** — the system plans the lesson, shows the plan for review and
+then composes every slide — or **uploads a deck they already have**, which is
+imported as they made it. Either way the lesson gets a quiz written from its own
+slides, reviewed before anyone sees it, and learners work through it slide by
+slide with an assistant beside them.
 
 Built with Next.js 16 (App Router), Prisma + SQLite, and LangChain over hosted
 models reached with an API key — with a local, open-source provider one branch
@@ -27,39 +29,93 @@ away.
 
 ## Features
 
-- **Two-phase generation** — the model plans sections first; slides are only written after the plan is reviewed
-- **Slide budget** — the requested slide count is honoured exactly, including the title slide
-- **Reference grounding** — upload PDF, DOCX, PPTX, TXT, CSV, XLSX or MD to ground the content
-- **Slide editing** — whole-slide AI edits, plus click-to-edit on a single element
+**Making a lesson**
+
+- **Two ways in** — describe a topic and have it written, or upload a `.pptx` and
+  keep it exactly as you made it
+- **Plan first** — the model plans the lesson as sections and shows them for review;
+  no slide is written until the plan is approved
+- **One section, one slide** — a deck of _n_ slides is a cover, a contents slide,
+  _n − 3_ sections and a closing, so no two slides are written from the same brief
+- **Composed slides** — the model lays each slide out itself: cards, numbered chips,
+  icons and connectors. It names roles, never values, so every slide is in the
+  template's own colours, fonts and type scale
+- **Measured, then fixed** — every slide is checked for text that would be cut off,
+  boxes that overlap and ink that cannot be read on what it sits on, and composed
+  again with the faults quoted back
+- **Reference grounding** — upload PDF, DOCX, PPTX, TXT, CSV, XLSX or MD to ground
+  the content
+
+**Importing a deck**
+
+- **As it was drawn** — shapes, fills, gradients, opacity, pictures, and text in the
+  size, weight, colour and font it inherits from the slide, its layout, the master
+  and the theme
+- **Hidden slides stay hidden** — a slide hidden in PowerPoint is not shown and not
+  quizzed on
+- **Honest about the rest** — SmartArt, charts, tables and embedded objects leave a
+  warning on their slide rather than vanishing quietly
+
+**Quizzes**
+
+- **Grounded in the lesson alone** — every question quotes the sentence that supports
+  its answer, and anything the lesson cannot support is dropped
+- **You choose the length** — 2 to 15 questions, on both paths
+- **Editable before publishing** — change any question, option, correct answer or
+  explanation, add your own questions, remove ones you do not want
+
+**Taking a lesson**
+
+- **Slides, then the quiz, then the next lesson** — the same order for the learner
+  and for the instructor reviewing it
+- **A study assistant beside the lesson** — answers from that lesson only, and says
+  so when a question is outside it
+- **Platform help in the corner** — answers about using Ecotech, and sends subject
+  questions to the study assistant
+- **Progress** — per-lesson completion rolls up into the course
+
+**Everywhere**
+
+- **PPTX export** — download a lesson as PowerPoint, built from the same slide model
+  and template as the web view; a course exports one file per lesson, zipped
 - **Courses & enrolment** — categories, ratings, favourites, cover images
-- **Learner tools** — per-lesson progress, notes, threaded comments
-- **Gamification** — XP, achievements, daily challenges, streaks, leaderboard
-- **PPTX export** — download a lesson as a PowerPoint file built from the same slide
-  model and template as the web view; a course exports one file per lesson, zipped
-- **Lesson preview** — instructors review the outline, every slide and the lesson's quiz
-  before publishing, and edit any text on a slide by clicking it
-- **Quizzes** — every generated lesson gets its own multiple-choice quiz, grounded in that
-  lesson alone, scored automatically when a student submits
+- **Learner tools** — notes and threaded comments
+- **Ownership** — an instructor can edit only the courses they created
 
 ---
 
 ## How it works
 
-An instructor describes a topic; the model plans the lesson as **sections**, not
-slides, each with the subtopics it must teach and a share of the slide budget.
+### From a prompt
+
+An instructor describes a topic; the model plans the lesson as **sections**,
+each with the points it must teach and a real title for the slide it becomes.
 That plan is shown for review before anything is written.
 
-Once approved, each slide is generated as **structured content** — never HTML —
-and laid out by picking a layout from the supplied `.pptx` template and filling
-its placeholders. Visual quality is owned by the renderer, so a thin answer
-cannot become a slide full of empty space, and the same content object drives
-both the web view and the PowerPoint export.
+Once approved, each slide is **composed**: the model decides what shapes the
+slide needs, where they go and what each one says. What keeps the deck on brand
+is that it cannot name a colour, a font or a point size — it names roles, and
+the roles resolve to the values measured from the `.pptx` template. The result
+is then measured, and anything a reader would notice — a cut sentence,
+overlapping boxes, invisible ink — is handed back and composed again.
 
-Every generated lesson also gets a quiz, written from that lesson's slides and
-nothing else, with each question quoting the sentence that supports its answer.
+### From a deck you already have
+
+Upload a `.pptx` and it becomes a lesson as it was drawn: the shapes, their
+fills and opacity, the pictures, and text in the size, weight, colour and font
+it inherits from the slide, its layout, the master and the theme. It is not
+converted into the house template — the reason to upload a deck is that it is
+already right.
+
+### Either way
+
+The lesson gets a quiz, written from its own slides and nothing else, with each
+question quoting the sentence that supports its answer. The instructor reviews
+the slides and the quiz, edits anything, and publishes.
 
 ```
   prompt → sections (reviewed) → slides → quality gate → quiz → preview → publish
+  .pptx  → imported as-is ─────────────────────────────→ quiz → preview → publish
 ```
 
 The full picture — the layers, every workflow drawn end to end, and which model
@@ -113,10 +169,10 @@ silent fallback.
 | `ECOAPI_API_KEY`           | —                              | The gateway's key. Required                        |
 | `ECOAPI_BASE_URL`          | `https://www.ecoapi.ai/api/v1` | The gateway's OpenAI-compatible endpoint           |
 | `CLAUDE_MAX_TOKENS`        | `16000`                        | Ceiling for one generation                         |
-| `MODEL_*` (ten of them)    | see below                      | Move one AI task to a different model              |
+| `MODEL_*` (eleven of them) | see below                      | Move one AI task to a different model              |
 | `CHROMIUM_EXECUTABLE_PATH` | unset                          | System Chromium for the renderer                   |
 
-**One model per task.** The project makes ten distinct kinds of model call and
+**One model per task.** The project makes eleven distinct kinds of model call and
 they do not want the same model — planning an outline and judging whether a quiz
 question is grounded are different jobs. Each names its own, and each has a
 `MODEL_*` override. The table, with the reasoning for every choice, is in
@@ -177,9 +233,9 @@ Anthropic's models:
 |                   | Tasks                                                                                                                     |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------- |
 | `claude-opus-5`   | outline planning, slide authoring, slide HTML, quiz authoring, content evaluation, visual evaluation, the agent tool loop |
-| `claude-sonnet-5` | single-field edits, the quiz grounding judge, the lesson tutor                                                            |
+| `claude-sonnet-5` | single-field edits, the quiz grounding judge, the study assistant, platform help                                          |
 
-Running everything on one model is a supported choice: set the ten `MODEL_*`
+Running everything on one model is a supported choice: set the eleven `MODEL_*`
 variables and the registry defers to them. The split is there because most of
 these calls do not need the largest model and all of them are billed — the
 grounding judge alone runs once per question.
@@ -216,12 +272,20 @@ errors, so nothing depends on the gateway enforcing it.
 | `npm run start`                   | Serve the production build                                  |
 | `npm run lint`                    | ESLint                                                      |
 | `npm run format` / `format:check` | Prettier                                                    |
+| `npm run verify`                  | The whole check suite — see below                           |
 | `npm run build:slide-css`         | Compile the slide stylesheet                                |
 | `npm run db:push`                 | Push schema to the database                                 |
 | `npm run db:generate`             | Regenerate the Prisma client                                |
 | `npm run db:migrate`              | Create and apply a migration                                |
 | `npm run db:reset`                | Drop and recreate the database                              |
 | `npm run db:seed`                 | Load demo courses                                           |
+
+`npm run verify` runs four checks in order and fails on the first one that
+breaks: `verify.mts` (the invariants the app depends on — template values,
+schema shapes, prompt contracts), `layout-coverage.mts` (every layout the
+model may ask for actually renders), `parity.mts` (the web view and the PPTX
+export agree) and `deck-check.mts` (an exported `.pptx` really contains the
+shapes, text and icon images it should). It needs no API key and no database.
 
 ## Project structure
 
@@ -239,9 +303,10 @@ src/
 ├── lib/
 │   ├── ai/             every model call, and which model runs which task
 │   ├── agent/          tool registry, runtime, evaluators, quality gate
-│   ├── assistant/      the lesson tutor's prompt and boundary
+│   ├── assistant/      the study assistant and platform help, and their limits
 │   ├── quiz/           generation, grounding, access, scoring
-│   ├── slides/         content schema, template layouts, both renderers
+│   ├── slides/         the two slide models, both renderers, the exporter
+│   │   └── import/     reading a .pptx: XML, theme colours, style inheritance
 │   ├── render/         Playwright rasterisation
 │   ├── session.ts      signed cookies and the authorization helpers
 │   └── sanitize.ts     HTML allowlist and the slide canvas
@@ -278,12 +343,22 @@ the main workflows end to end are in
 
 ## Data model
 
-`User`, `Category`, `Course`, `Lesson`, `Section`, `Slide`, `Enrollment`, `Progress`,
-`Note`, `Comment`, `Rating`, `Favorite`, `Notification`, `AgentRun`, `AgentStep`,
+`User`, `Category`, `Course`, `Lesson`, `Section`, `Slide`, `Quiz`, `Question`,
+`Option`, `QuizAttempt`, `StudentAnswer`, `Enrollment`, `Progress`, `Note`,
+`Comment`, `Rating`, `Favorite`, `Notification`, `AgentRun`, `AgentStep`,
 `Evaluation` — see `prisma/schema.prisma`.
 
-A `Lesson` owns `Section`s; a `Section` owns several `Slide`s. Sections are the unit of
-planning, slides are the unit of display.
+Three groupings carry most of the meaning:
+
+- **The lesson.** A `Lesson` owns `Section`s; a `Section` owns several `Slide`s.
+  Sections are the unit of planning, slides the unit of display. An imported
+  deck has slides but no sections — there was no plan behind it.
+- **The quiz.** A `Lesson` has one `Quiz`, which owns `Question`s, each owning
+  four `Option`s. A learner's sitting is a `QuizAttempt` with one
+  `StudentAnswer` per question.
+- **Progress.** An `Enrollment` joins a learner to a course; a `Progress` row
+  records one lesson finished, and the enrolment's percentage is recomputed
+  from them.
 
 ---
 

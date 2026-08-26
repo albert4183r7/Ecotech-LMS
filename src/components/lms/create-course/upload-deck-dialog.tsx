@@ -35,6 +35,15 @@ export interface UploadDeckDialogProps {
   onOpenChange: (open: boolean) => void;
   /** Saves the course if it is still a draft, and returns its id. */
   ensureCourseSaved: () => Promise<string | null>;
+  /**
+   * Why the deck cannot be imported yet, or null when it can.
+   *
+   * A deck is attached to a course, so an unsaved course with no title has
+   * nowhere to put it. Saying so here, before the button is pressed, is the
+   * difference between a dialog that explains itself and one whose primary
+   * button appears to do nothing.
+   */
+  blockedReason?: string | null;
   /** Called with the new lesson's id once the deck has been imported. */
   onImported: (lessonId: string, slideCount: number, quizRequested: boolean) => void;
 }
@@ -46,6 +55,7 @@ export function UploadDeckDialog({
   onOpenChange,
   ensureCourseSaved,
   onImported,
+  blockedReason = null,
 }: UploadDeckDialogProps) {
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState("");
@@ -80,7 +90,7 @@ export function UploadDeckDialog({
     try {
       const courseId = await ensureCourseSaved();
       if (!courseId) {
-        toast.error("Save the course details first, then upload the deck.");
+        toast.error("The course could not be saved, so there is nowhere to put the deck.");
         return;
       }
 
@@ -152,6 +162,13 @@ export function UploadDeckDialog({
         </DialogHeader>
 
         <div className="space-y-5 py-2">
+          {/* ---- Why this cannot run yet, if it cannot ---- */}
+          {blockedReason && (
+            <p className="border-destructive/30 bg-destructive/5 text-destructive rounded-lg border px-3 py-2 text-xs">
+              {blockedReason}
+            </p>
+          )}
+
           {/* ---- The file ---- */}
           <div className="space-y-2">
             <Label className="text-sm font-medium">PowerPoint file</Label>
@@ -258,7 +275,11 @@ export function UploadDeckDialog({
           <Button variant="ghost" disabled={importing} onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={submit} disabled={!file || importing} className="gap-1.5">
+          <Button
+            onClick={submit}
+            disabled={!file || importing || !!blockedReason}
+            className="gap-1.5"
+          >
             {importing ? (
               <>
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />

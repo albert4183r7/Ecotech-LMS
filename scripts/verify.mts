@@ -1061,6 +1061,17 @@ add("a file that is not a presentation is refused, not half-imported", async () 
   }
 });
 
+add("the toaster that is mounted is the one every screen writes to", () => {
+  // Screens report through sonner's `toast()`. The root layout used to mount
+  // the shadcn/Radix Toaster instead, which reads a store nothing writes to,
+  // so every message in the app — including the reason an action was refused
+  // — went nowhere and the button looked broken.
+  const layout = readFileSync("src/app/layout.tsx", "utf8");
+  const mountsSonner = /import \{ Toaster \} from "@\/components\/ui\/sonner"/.test(layout);
+  const rendered = /<Toaster[\s/>]/.test(layout);
+  return mountsSonner && rendered;
+});
+
 let pass = 0,
   fail = 0;
 for (const [name, fn] of checks) {

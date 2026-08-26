@@ -75,9 +75,10 @@ src/
 └── lib/
     ├── ai/                 every model call — see "The AI layer"
     ├── agent/              tool registry, runtime, evaluators, quality gate
-    ├── assistant/          the lesson tutor's prompt and boundary
+    ├── assistant/          the two assistants' prompts and boundaries
     ├── quiz/               generation, grounding validation, access, scoring
-    ├── slides/             content schema, template layouts, both renderers
+    ├── slides/             the two slide models, both renderers, the exporter
+    │   └── import/         reading someone else's .pptx back into slides
     ├── render/             Playwright rasterisation
     ├── session.ts          signed cookies and the authorization helpers
     ├── sanitize.ts         HTML allowlist and the slide canvas wrapper
@@ -95,6 +96,7 @@ src/
 | `use-classroom-state` | loads a lesson and its course, builds the classroom state                                              |
 | `use-lesson-notes`    | the notes panel                                                                                        |
 | `use-navigation`      | route helpers shared by every screen                                                                   |
+| `use-pptx-download`   | exporting a lesson or a whole course to PowerPoint                                                     |
 | `use-mobile`          | the one breakpoint the layout branches on                                                              |
 
 `create-course-page.tsx` is the worked example of the split: the page is the
@@ -165,9 +167,9 @@ expired, a model id the gateway does not sell.
 
 ### Model per task
 
-Ten distinct kinds of model call, and they do not want the same model. Planning
-an outline over a reference document and deciding whether a quiz question is
-answerable from its lesson are different jobs.
+Eleven distinct kinds of model call, and they do not want the same model.
+Planning an outline over a reference document and deciding whether a quiz
+question is answerable from its lesson are different jobs.
 
 | Task                   | Model             | Why this one                                                                                                 | Override                   |
 | ---------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------ | -------------------------- |
@@ -181,10 +183,12 @@ answerable from its lesson are different jobs.
 | `slide-field-edit`     | `claude-sonnet-5` | One short field; the stronger model buys nothing and bills more                                              | `MODEL_SLIDE_FIELD_EDIT`   |
 | `quiz-grounding-judge` | `claude-sonnet-5` | A verdict with a reason, not composition — and it runs once per question                                     | `MODEL_QUIZ_JUDGE`         |
 | `lesson-tutor`         | `claude-sonnet-5` | The one task a person waits on directly; responsiveness beats the extra quality on a short grounded answer   | `MODEL_LESSON_TUTOR`       |
+| `platform-help`        | `claude-sonnet-5` | Short factual answers about using the product, waited on directly like the tutor                             | `MODEL_PLATFORM_HELP`      |
 
 The ids are passed to the gateway verbatim, so they have to be ids it lists;
-the defaults assume it sells Anthropic's models. Running all ten on one model
-is a supported choice — set the ten variables and the registry defers to them.
+the defaults assume it sells Anthropic's models. Running all eleven on one
+model is a supported choice — set the eleven variables and the registry defers
+to them.
 The split is here because most of these calls do not need the strongest model
 and every one of them is billed.
 
@@ -208,7 +212,9 @@ restoring it is a rewrite rather than a swap; it is there for reference.
 
 ## Workflows
 
-### Creating a lesson
+A lesson is made in one of two ways, and everything after it is shared.
+
+### Creating a lesson from a prompt
 
 ```
   instructor fills the form                create/create-course-page.tsx
@@ -217,12 +223,13 @@ restoring it is a rewrite rather than a swap; it is there for reference.
         │
   useLessonWorkflow.handleGenerateOutline  POST /api/lessons/generate-outline
         │                                    └── AI: outline-planning
-        │                                        sections + slide budget
+        │                                        one section per teaching slide
         │
   instructor reviews and edits the plan    (no model call)
         │
   useLessonWorkflow.handleGenerateSlides   POST /api/lessons/generate-slides
         │                                    ├── AI: slide-authoring, per slide
+        │                                    │     compose → measure → recompose
         │                                    ├── runQualityGate
         │                                    │     ├── AI: content-evaluation
         │                                    │     └── revise and re-render
@@ -241,27 +248,90 @@ Generation runs inside the route handler and the client polls. There is no
 queue: a restart mid-run leaves slides pending until the next attempt, which a
 later pass picks up.
 
+**One section is one slide.** A deck of _n_ slides is a cover, a contents
+slide, _n − 3_ teaching sections and a closing — so the planner is asked for
+exactly that many sections, each teaching something the others do not. Two
+slides written from one section came out saying the same thing twice, which is
+what this arithmetic exists to prevent. A plan with too few sections is split
+at its own slide titles; one with too many is merged. Decks shorter than six
+slides drop the contents slide, since there is little to list.
+`sectionsFor()` and `buildSlideSlots()` in `src/lib/presentation-plan.ts` are
+the source of truth.
+
+### Importing a deck the instructor already has
+
+```
+  Upload a Deck → upload-deck-dialog.tsx
+        │
+  POST /api/lessons/import-pptx           multipart: courseId, file, quiz choice
+        ├── requireCourseOwner(courseId)
+        ├── importPptx()                  src/lib/slides/import/
+        │     ├── xml.ts        a small OOXML reader
+        │     ├── colour.ts     theme colours, modifiers, opacity
+        │     ├── inherit.ts    what the layout, master and theme supply
+        │     └── pptx.ts       shapes, text, pictures, groups → slide HTML
+        ├── slides saved READY, sanitised, with the deck kept for download
+        └── generateAndSaveQuiz()         only if the instructor asked for one
+        │
+  straight to /preview/[lessonId]         nothing to plan, so nothing to review
+```
+
+The deck is read as it was drawn rather than reinterpreted: shapes keep their
+boxes, fills, gradients and opacity; text keeps the size, weight, colour and
+font it inherits from the slide, its layout, the master and the theme, in that
+order. **Almost nothing in a real .pptx states its own formatting**, which is
+why the inheritance chain is walked rather than skipped — reading only what a
+slide carries imports every deck as black 18pt Calibri on white.
+
+What is deliberately left out: slides hidden in PowerPoint (`show="0"`), which
+are not shown in the lesson and not quizzed on; and SmartArt, charts, tables
+and embedded objects, each of which leaves a warning on its slide rather than
+disappearing quietly. Vector pictures are rasterised on the way in — SVG is the
+one image format that can carry script.
+
+An imported lesson has no plan behind it, so its card in the course offers
+Preview and nothing else, and its slides are not editable here: they are
+changed in PowerPoint and uploaded again.
+
 ### Rendering a slide
 
-One structured content object drives both outputs, which is why the deck and the
-lesson view are the same slide rather than two designs that resemble each other.
+Two slide models render through one path. A **composition** is what the model
+lays out itself — cards, chips, icons, text and connectors, placed as fractions
+of the canvas — and it names roles rather than values, so it cannot choose a
+colour, a font or a point size. **Typed content** is the older model: one of
+nine template layouts filled from a `SlideContent` object. Both still render,
+export and are edited field by field; new slides are compositions.
 
 ```
-  SlideContent (content-schema.ts)
-        │
-  selectLayout()      picks a layout from the .pptx template by type and count
-        │
-  resolveSlide()      text into placeholders, shrinking type until it fits
-        │
-    ┌───┴────┐
-    ▼        ▼
-  render.ts  pptx.ts        web HTML          PowerPoint
+  SlideComposition                          SlideContent
+  (composition.ts)                          (content-schema.ts)
+        │                                         │
+  resolveComposition()                      selectLayout() → resolveSlide()
+    clamp to the margins                      layout by type and item count
+    fit text to its box                       text into placeholders
+    correct unreadable ink                    shrink type until it fits
+    report what it could not honour
+        │                                         │
+    ┌───┴────┐                                ┌───┴────┐
+    ▼        ▼                                ▼        ▼
+  composition-render.ts                     render.ts  pptx.ts
+  composition-pptx.ts                        web       PowerPoint
 ```
 
-`scripts/parity.mts` asserts the two resolve to identical geometry.
-`scripts/layout-coverage.mts` asserts every content type renders at every
-permitted item count. `scripts/layout-shots.mts` screenshots one slide per
-layout and flags any box drawn outside the canvas.
+The measurement is the part a designer does by looking at the slide. Anything
+it has to correct — text that would be cut off, boxes that overlap, ink that
+has effectively disappeared against what it sits on — is handed back and the
+slide is composed again. A model that never sees its own slide cannot know a
+sentence was cut at the box edge; it only knows what it wrote.
+
+`parseSlideDoc()` in `src/lib/slides/document.ts` is the one place that decides
+which of the two a stored `contentJson` is. Nothing downstream parses it.
+
+`scripts/parity.mts` asserts the layout path resolves to identical geometry in
+both renderers. `scripts/layout-coverage.mts` asserts every content type
+renders at every permitted item count. `scripts/composition-shots.mts` and
+`scripts/layout-shots.mts` screenshot slides and flag any box drawn outside the
+canvas.
 
 #### The slide canvas
 
@@ -274,25 +344,55 @@ ones.
 Slide styling comes from `public/slide-runtime.css`, compiled from
 `src/styles/slide-runtime.css` by `npm run build:slide-css`. That runs
 automatically before `dev` and `build`, and the output is not committed.
+Generated slides carry colour as classes defined there; an imported slide's
+colours are its own and travel as filtered inline style, which is why the
+sanitiser's allowlist admits `color` and `background`.
 
 ### Generating a quiz
 
-Generating a lesson generates its quiz — one per lesson, written from that
-lesson's finished slides and nothing else.
+One quiz per lesson, written from that lesson's finished slides and nothing
+else. Generating a lesson generates its quiz; an uploaded deck gets one only if
+the instructor asked for one.
 
 ```
   the lesson's READY slides       loadLessonSource()
         │
-  AI: quiz-authoring              each question quotes the sentence
-        │                          supporting its correct answer
+  AI: quiz-authoring              N questions, each quoting the sentence
+        │                          that supports its correct answer
   mechanical check                one correct option, distinct choices,
         │                          and the quote really appears in the lesson
-  AI: quiz-grounding-judge        is this answerable from the lesson?
+  AI: quiz-grounding-judge        is this answerable from the lesson alone?
         │
-  regenerate with the reason quoted back, up to two passes
+  short of N?  ask for the difference, quoting what was rejected — 3 rounds
         │
-  anything still ungrounded is dropped rather than shipped
+  still short? ship what is grounded and say how many, and why
 ```
+
+**How many is the instructor's choice**, beside the slide count when planning a
+lesson and beside the quiz switch when uploading a deck (2–15, defaulting to
+five). It was derived from the slide count, which is a guess: a short deck
+taught for an hour may deserve a dozen questions and a long reference deck two.
+
+**Each round tops up as well as repairs.** Asking once and keeping whatever
+survived meant a request for ten could return three with nothing said about it.
+Duplicates are caught as questions are accepted rather than at the end, since a
+round that repeats itself is the same shortfall by another route.
+
+**Grounding reads whichever script the lesson is written in.** Splitting terms
+on `[^a-z0-9]` treated every Chinese character as a separator, so a Chinese
+lesson produced no terms at all and its quotes could not be compared to it —
+and normalising a quote to nothing made it the empty string, which every lesson
+contains. CJK runs are indexed as overlapping character pairs; letters and
+digits of every script survive normalisation.
+
+A quiz that comes up short is still a quiz: what was grounded is saved and the
+review panel says how many of the number asked for the lesson could support.
+Only a quiz with nothing in it fails.
+
+**Instructors write questions too.** `POST /api/quizzes/[id]/questions` adds one
+by hand, and the matching `DELETE` removes one. A hand-written question carries
+no source quote, because its source is the person who wrote it — inventing one
+would make it look audited when it is not.
 
 The supporting quote is stored, so grounding stays auditable rather than merely
 asserted. Correct answers are stripped server-side for anyone who is not the
@@ -314,24 +414,55 @@ Part of it is on the default path and part is not:
   and `GET /api/agent/runs?lessonId=…` reports progress, but nothing in the app
   calls either. It works; it has no UI.
 
-### A student asking the assistant
+### The two assistants
+
+There are two, and the split is deliberate: each answers what the other must
+not.
 
 ```
-  classroom side panel        lesson-assistant.tsx
-        │
-  POST /api/lessons/[id]/assistant
-        ├── requireLessonReader(id)   instructor, or enrolled + published
-        ├── loadLessonSource(id)      the same function the quiz grounds on
-        ├── buildLessonContext()      a window around the current slide
-        └── AI: lesson-tutor          streamed back as plain text
+  Study assistant                        Platform help
+  beside the lesson                      corner of every signed-in page
+  classroom/lesson-assistant.tsx         platform-chatbot.tsx
+        │                                      │
+  POST /api/lessons/[id]/assistant       POST /api/support/chat
+    requireLessonReader(id)                requireUser()
+    loadLessonSource(id)                   a written description of the product
+    buildLessonContext()                   no lesson content at all
+    AI: lesson-tutor                       AI: platform-help
+        │                                      │
+  answers from that lesson only          answers about using Ecotech only
+  refuses everything else                refuses subject matter, and points
+                                          at the study assistant
 ```
 
 The lesson is read from the database by the id in the URL. The request has no
-field that could carry material, so the scope cannot be widened by the client.
-The panel is keyed by lesson id, so moving to the next lesson starts a new
-conversation rather than carrying the last one's answers into it.
+field that could carry material, so a client cannot widen the scope. The panel
+is keyed by lesson id, so moving to the next lesson starts a new conversation
+rather than carrying the last one's answers into it, and it opens with the
+lesson on a desktop screen — behind an unlabelled icon it was a feature most
+learners never found.
 
----
+Platform help knows how the product works and nothing about what any lesson
+teaches. An assistant that answered subject questions from its own knowledge
+would be teaching material the course never checked, next to a lesson that says
+something else.
+
+### Taking a lesson
+
+```
+  classroom             learn/[lessonId]/classroom-page.tsx
+        │
+  last slide reached    POST /api/progress   completed: true
+        │                 └── recomputes the enrolment: percentage from the
+        │                     progress rows, status and completedAt with it
+  "Take the quiz"       /quizzes/[quizId]    when the lesson has one
+        │
+  otherwise             the next lesson
+```
+
+Progress belongs to an enrolment, and an enrolment to a person; both are
+checked on every read and write. A lesson is marked complete when its last
+slide is reached, and the course is marked complete when its last lesson is.
 
 ## Authorization
 
@@ -378,13 +509,36 @@ enrolments and progress.
 ```bash
 npm run lint          # eslint, zero warnings
 npx tsc --noEmit      # zero errors
-npm run verify        # 29 checks + layout coverage + web/PPT parity
+npm run verify        # 61 checks + layout coverage + parity + deck check
 npm run build         # production build
 ```
 
-`scripts/verify.mts` covers outline repair, template resolution, field
-addressing, sanitiser behaviour, quiz grounding and repair, the layout registry,
-the assistant's lesson boundary, and the AI task registry.
+`npm run verify` runs four scripts in order and stops at the first failure.
+None of them need an API key or a database:
+
+| Script                | Asks                                                                     |
+| --------------------- | ------------------------------------------------------------------------ |
+| `verify.mts`          | 61 checks — the invariants below                                         |
+| `layout-coverage.mts` | every layout the model may choose actually renders                       |
+| `parity.mts`          | the web view and the PPTX export say the same thing                      |
+| `deck-check.mts`      | an exported `.pptx` really contains the shapes, text and icons it should |
+
+`verify.mts` covers, in order: outline repair and the shape of a deck; text
+fitting and the template's own values; field addressing and the sanitiser; the
+layout registry; the AI task registry (every task names a model and an
+override, they are not all the same model, the vision task is on a multimodal
+model); the assistants' lesson boundary; quiz grounding in Latin and CJK text,
+repair, and the instructor's question count; and the import path — the XML
+reader, a real `.pptx` with its geometry and colour, a screened-back shape, a
+hidden slide staying out, and a file that is not a presentation being refused
+rather than half-read.
+
+`deck-check.mts` exists because the web view and the exporter are two separate
+renderers over one slide model, and a slide can look right in the browser while
+the exporter quietly skips something. It builds a deck, unzips it and reads the
+XML: the shapes are there, the text is there, and the icon images are in
+`ppt/media/`. Icons were missing from exports for a while precisely because
+nothing checked this.
 
 ---
 
@@ -401,7 +555,9 @@ the assistant's lesson boundary, and the AI task registry.
   and no queue.
 - **Type errors are ignored at build time** (`typescript.ignoreBuildErrors`).
   The backlog is currently zero; run `npx tsc --noEmit` to keep it there.
-- **`src/lib/slides/icons.ts` is unreferenced.** The template layouts use their
-  own numbered badges, and the slide content schema still asks the model for an
-  `icon` that the renderer discards.
+- **SmartArt, charts and tables do not import.** A deck that uses them loses
+  those objects; each leaves a warning on its slide rather than disappearing
+  silently.
+- **Uploaded slides cannot be edited in the app.** They are shown as uploaded;
+  changing them means editing the .pptx and uploading it again.
 - **No automated test suite** beyond `scripts/verify.mts`.
