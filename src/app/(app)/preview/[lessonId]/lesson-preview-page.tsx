@@ -75,6 +75,8 @@ interface PreviewData {
   template: { id: string; label: string };
   sections: PreviewSection[];
   slides: PreviewSlide[];
+  /** Where the lesson came from, when it was not planned here. */
+  source?: { kind: string; originalName?: string; file?: string } | null;
   quiz: QuizPreview | null;
 }
 
@@ -225,6 +227,36 @@ export function LessonPreviewPage() {
   const slidesOf = useCallback(
     (sectionId: string) => slides.filter((s) => s.sectionId === sectionId),
     [slides],
+  );
+
+  /** One row of the outline. Shared by the sectioned list and the flat one. */
+  const slideButton = useCallback(
+    (slide: PreviewSlide) => {
+      const position = slides.findIndex((s) => s.id === slide.id);
+      const isActive = position === index;
+      return (
+        <button
+          key={slide.id}
+          onClick={() => setIndex(position)}
+          className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors ${
+            isActive
+              ? "bg-primary/10 text-primary font-medium"
+              : "hover:bg-accent/50 text-muted-foreground"
+          }`}
+        >
+          <span className="bg-muted flex h-5 w-5 shrink-0 items-center justify-center rounded text-[10px] font-semibold">
+            {position + 1}
+          </span>
+          <span className="truncate">{slide.title}</span>
+          {slide.status === "READY" ? (
+            <CheckCircle2 className="ml-auto h-3 w-3 shrink-0 text-emerald-500" />
+          ) : (
+            <AlertTriangle className="ml-auto h-3 w-3 shrink-0 text-amber-500" />
+          )}
+        </button>
+      );
+    },
+    [slides, index],
   );
 
   // ─── Click-to-edit ────────────────────────────
@@ -518,12 +550,19 @@ export function LessonPreviewPage() {
             <div className="border-b px-4 py-3">
               <h2 className="text-sm font-semibold">Outline</h2>
               <p className="text-muted-foreground text-xs">
-                {data.sections.length} section{data.sections.length === 1 ? "" : "s"} ·{" "}
+                {data.sections.length > 0 &&
+                  `${data.sections.length} section${data.sections.length === 1 ? "" : "s"} · `}
                 {slides.length} slide{slides.length === 1 ? "" : "s"}
+                {data.source?.kind === "upload" ? " · uploaded" : ""}
               </p>
             </div>
             <ScrollArea className="h-[calc(100vh-19rem)]">
               <div className="space-y-4 p-3">
+                {/* An uploaded deck has no sections — it was never planned —
+                    so its slides are listed as they are, in order. */}
+                {data.sections.length === 0 && (
+                  <div className="space-y-1">{slides.map(slideButton)}</div>
+                )}
                 {data.sections.map((section) => (
                   <div key={section.id}>
                     <p className="text-foreground px-1 text-sm font-semibold">{section.title}</p>
@@ -537,33 +576,7 @@ export function LessonPreviewPage() {
                         ))}
                       </ul>
                     )}
-                    <div className="mt-2 space-y-1">
-                      {slidesOf(section.id).map((slide) => {
-                        const position = slides.findIndex((s) => s.id === slide.id);
-                        const isActive = position === index;
-                        return (
-                          <button
-                            key={slide.id}
-                            onClick={() => setIndex(position)}
-                            className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors ${
-                              isActive
-                                ? "bg-primary/10 text-primary font-medium"
-                                : "hover:bg-accent/50 text-muted-foreground"
-                            }`}
-                          >
-                            <span className="bg-muted flex h-5 w-5 shrink-0 items-center justify-center rounded text-[10px] font-semibold">
-                              {position + 1}
-                            </span>
-                            <span className="truncate">{slide.title}</span>
-                            {slide.status === "READY" ? (
-                              <CheckCircle2 className="ml-auto h-3 w-3 shrink-0 text-emerald-500" />
-                            ) : (
-                              <AlertTriangle className="ml-auto h-3 w-3 shrink-0 text-amber-500" />
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
+                    <div className="mt-2 space-y-1">{slidesOf(section.id).map(slideButton)}</div>
                   </div>
                 ))}
               </div>
@@ -641,7 +654,9 @@ export function LessonPreviewPage() {
               <p className="text-muted-foreground text-center text-xs">
                 {current?.editable
                   ? "Click any text on the slide to edit it with AI."
-                  : "This slide predates field-level editing; regenerate the lesson to edit it."}
+                  : data.source?.kind === "upload"
+                    ? "These slides are shown exactly as you uploaded them. Edit the deck in PowerPoint and upload it again to change them."
+                    : "This slide predates field-level editing; regenerate the lesson to edit it."}
               </p>
             )}
 

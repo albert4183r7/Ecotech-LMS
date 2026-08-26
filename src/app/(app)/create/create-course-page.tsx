@@ -20,6 +20,7 @@ import {
   Check,
   AlertCircle,
   Upload,
+  FileUp,
   Paperclip,
   Globe,
 } from "lucide-react";
@@ -60,6 +61,7 @@ import {
   OutlineSlideDraft,
   SlideGenState,
 } from "@/components/lms/create-course/outline-lesson-card";
+import { UploadDeckDialog } from "@/components/lms/create-course/upload-deck-dialog";
 import { useCourseUploads } from "@/hooks/use-course-uploads";
 import { useCourseDraft } from "@/hooks/use-course-draft";
 import { useLessonWorkflow } from "@/hooks/use-lesson-workflow";
@@ -101,6 +103,9 @@ export function CreateCoursePage() {
 
   const { goBack } = useNavigation();
   const router = useRouter();
+
+  // The second way to add a lesson: a deck the instructor already has.
+  const [uploadOpen, setUploadOpen] = useState(false);
 
   // The two halves of the page, in the order the data flows: the course record
   // reads the saved course, and the workflow adopts its lessons.
@@ -363,16 +368,29 @@ export function CreateCoursePage() {
                     {outlineLessons.length}/{MAX_LESSONS}
                   </Badge>
                 </div>
-                <Button
-                  size="sm"
-                  onClick={handleOpenModal}
-                  disabled={outlineLessons.length >= MAX_LESSONS || !!generatingLessonId}
-                  className="gap-1.5"
-                >
-                  <Wand2 className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">Generate Lesson with AI</span>
-                  <span className="sm:hidden">AI Generate</span>
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setUploadOpen(true)}
+                    disabled={outlineLessons.length >= MAX_LESSONS || !!generatingLessonId}
+                    className="gap-1.5"
+                  >
+                    <FileUp className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">Upload a Deck</span>
+                    <span className="sm:hidden">Upload</span>
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={handleOpenModal}
+                    disabled={outlineLessons.length >= MAX_LESSONS || !!generatingLessonId}
+                    className="gap-1.5"
+                  >
+                    <Wand2 className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">Generate Lesson with AI</span>
+                    <span className="sm:hidden">AI Generate</span>
+                  </Button>
+                </div>
               </div>
 
               {outlineLessons.length === 0 ? (
@@ -382,8 +400,9 @@ export function CreateCoursePage() {
                   </div>
                   <p className="text-muted-foreground mt-3 text-sm">No lessons yet</p>
                   <p className="text-muted-foreground/70 mt-1 text-xs">
-                    Click <span className="text-primary font-medium">Generate Lesson with AI</span>{" "}
-                    to create your first lesson.
+                    <span className="text-primary font-medium">Generate Lesson with AI</span>, or{" "}
+                    <span className="text-primary font-medium">Upload a Deck</span> you already
+                    have.
                   </p>
                 </div>
               ) : (
@@ -429,6 +448,18 @@ export function CreateCoursePage() {
           </Card>
         </div>
       </div>
+
+      {/* ======== Upload a deck as a lesson ======== */}
+      <UploadDeckDialog
+        open={uploadOpen}
+        onOpenChange={setUploadOpen}
+        ensureCourseSaved={course.ensureCourseSaved}
+        onImported={(lessonId) => {
+          // Straight to the review screen: the slides are already there, and
+          // the quiz — if one was asked for — is written while it is read.
+          router.push(lessonPreviewPath(lessonId));
+        }}
+      />
 
       {/* ======== Generate Lesson Modal (Unified Outline Flow) ======== */}
       <Dialog

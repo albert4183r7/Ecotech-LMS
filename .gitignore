@@ -71,3 +71,8 @@ public/slide-runtime.css
 
 *.patch
 *.bundle
+
+# Decks instructors upload, and the pictures pulled out of them. Runtime
+# content rather than source: covers and docs predate this and stayed tracked,
+# but a deck is megabytes and belongs to whoever uploaded it.
+public/uploads/decks/

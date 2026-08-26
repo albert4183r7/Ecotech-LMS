@@ -50,9 +50,24 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
     const template = SLIDE_TEMPLATE;
 
+    // An uploaded deck was never planned, so it has no outline — what it has
+    // is where it came from, and the screen says so rather than telling the
+    // instructor to regenerate a lesson nobody generated.
+    const source = (() => {
+      try {
+        const parsed = JSON.parse(lesson.outlineJson ?? "{}") as {
+          source?: { kind?: string; originalName?: string; file?: string };
+        };
+        return parsed.source?.kind ? parsed.source : null;
+      } catch {
+        return null;
+      }
+    })();
+
     return ok({
       id: lesson.id,
       title: lesson.title,
+      source,
       order: lesson.order,
       course: lesson.course,
       /** Every lesson of the course, in order, including this one. */

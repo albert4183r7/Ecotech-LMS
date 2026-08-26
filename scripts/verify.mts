@@ -57,9 +57,12 @@ import { renderComposition } from "../src/lib/slides/composition-render";
 import { readCompositionField, writeCompositionField } from "../src/lib/slides/composition-path";
 import { parseSlideDoc, slideDocText } from "../src/lib/slides/document";
 import { readFileSync } from "node:fs";
+import PptxGenJS from "pptxgenjs";
+import { importPptx } from "../src/lib/slides/import/pptx";
+import { parseXml, find, findAll, textOf } from "../src/lib/slides/import/xml";
 
-const checks: [string, () => boolean][] = [];
-const add = (n: string, f: () => boolean) => checks.push([n, f]);
+const checks: [string, () => boolean | Promise<boolean>][] = [];
+const add = (n: string, f: () => boolean | Promise<boolean>) => checks.push([n, f]);
 
 add("outline repair fixes an over-long subtopic", () => {
   const plan = {
@@ -855,12 +858,95 @@ add("an edit past the role's limit is refused", () => {
   return !written.ok && !missing.ok;
 });
 
+// ── Uploaded decks ──────────────────────────────────────────────────────────
+//
+// A deck someone already has should become a lesson without being rewritten.
+// The round trip below is the real one: a deck is written with pptxgenjs, read
+// back through the importer, and checked for the things a reader would notice
+// if they were lost — the words, where they sit, and the colours.
+
+add("the XML reader keeps elements, attributes and text", () => {
+  const doc = parseXml(
+    `<?xml version="1.0"?><p:sp><p:nvSpPr><p:ph type="title" idx="1"/></p:nvSpPr>` +
+      `<a:p><a:r><a:t>Hello &amp; welcome</a:t></a:r><a:r><a:t> again</a:t></a:r></a:p>` +
+      `<a:empty/></p:sp>`,
+  );
+  const sp = find(doc, "p:sp");
+  const ph = find(doc, "p:ph");
+  return (
+    sp !== null &&
+    ph?.attrs.type === "title" &&
+    ph?.attrs.idx === "1" &&
+    findAll(doc, "a:t").length === 2 &&
+    textOf(find(doc, "a:p")!) === "Hello & welcome again"
+  );
+});
+
+let importedDeck: Awaited<ReturnType<typeof importPptx>> | null = null;
+
+add("a real .pptx imports with its text, geometry and colour intact", async () => {
+  const pptx = new PptxGenJS();
+  pptx.defineLayout({ name: "TEST", width: 13.333, height: 7.5 });
+  pptx.layout = "TEST";
+
+  const one = pptx.addSlide();
+  one.addText("Quarterly Safety Briefing", {
+    x: 0.6,
+    y: 0.8,
+    w: 8,
+    h: 1,
+    fontSize: 36,
+    bold: true,
+    color: "43699F",
+  });
+  one.addText("What changed this quarter", { x: 0.6, y: 2, w: 8, h: 0.6, fontSize: 18 });
+
+  const two = pptx.addSlide();
+  two.addShape("roundRect", { x: 0.6, y: 2, w: 3.5, h: 2.5, fill: { color: "F3F8F6" } });
+  two.addText("Report it the same day", { x: 0.8, y: 2.4, w: 3, h: 0.8, fontSize: 16 });
+
+  const buffer = (await pptx.write({ outputType: "nodebuffer" })) as Buffer;
+  importedDeck = await importPptx(buffer, {
+    saveMedia: async (name) => `/uploads/test/${name}`,
+  });
+
+  const [first, second] = importedDeck.slides;
+  return (
+    importedDeck.slides.length === 2 &&
+    first.text.includes("Quarterly Safety Briefing") &&
+    first.title === "Quarterly Safety Briefing" &&
+    // 0.6in into a 13.333in slide is 4.5% across, and the navy survives.
+    /left:4\.500%/.test(first.html) &&
+    first.html.includes("#43699F") &&
+    second.text.includes("Report it the same day") &&
+    second.html.includes("#F3F8F6") &&
+    second.html.includes("border-radius")
+  );
+});
+
+add("an imported slide survives the sanitiser with its colours", () => {
+  if (!importedDeck) return false;
+  const clean = sanitizeHtml(importedDeck.slides[0].html);
+  return clean.includes("#43699F") && /left:4\.500%/.test(clean) && clean.includes("font-size");
+});
+
+add("a file that is not a presentation is refused, not half-imported", async () => {
+  try {
+    await importPptx(Buffer.from("this is not a zip at all"), {
+      saveMedia: async () => "/nowhere",
+    });
+    return false;
+  } catch {
+    return true;
+  }
+});
+
 let pass = 0,
   fail = 0;
 for (const [name, fn] of checks) {
   let ok = false;
   try {
-    ok = fn();
+    ok = await fn();
   } catch (e) {
     console.log("   threw:", e instanceof Error ? e.message : e);
   }

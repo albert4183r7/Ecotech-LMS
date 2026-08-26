@@ -125,6 +125,21 @@ function isValidImgSrc(src: string): boolean {
 // ============================================
 
 const STYLE_PROPERTIES = new Set([
+  // Colour, for slides imported from a deck someone else designed. The
+  // generated slides carry colour as template classes and never needed these;
+  // an imported slide's colours are its own and cannot be expressed that way.
+  // Both are inert — a colour cannot fetch or execute anything, and url() is
+  // rejected below whatever property it appears in.
+  "color",
+  "background",
+  "background-color",
+  "object-fit",
+  "text-decoration",
+  "text-indent",
+  "padding-left",
+  "padding-right",
+  "padding-top",
+  "padding-bottom",
   "position",
   "left",
   "top",
