@@ -507,7 +507,10 @@ export function OutlineLessonCard({
                 <div className="border-border/40 overflow-hidden rounded-md border">
                   <iframe
                     srcDoc={firstCompletedHtml}
-                    sandbox="allow-same-origin allow-scripts"
+                    // Display only, so the frame needs no reach into this page.
+                    // Without allow-same-origin it runs on an opaque origin and
+                    // cannot touch the session behind it.
+                    sandbox="allow-scripts"
                     className="w-full border-0"
                     style={{ aspectRatio: "16/9" }}
                     title={`Preview of ${lesson.title}`}

@@ -3,6 +3,11 @@
 // path. Owning the client here also keeps the app's query logging out of the
 // seed output and closes the connection deterministically.
 import { PrismaClient } from '@prisma/client'
+// Relative with an explicit extension: this file is run directly by node, so
+// the app's "@/..." path alias does not resolve here. Sharing the hasher
+// rather than repeating it keeps the seeded accounts on the same parameters
+// the login route verifies against.
+import { hashPassword } from '../src/lib/password.ts'
 
 const db = new PrismaClient()
 
@@ -442,7 +447,7 @@ async function main() {
     data: {
       id: 'user_instructor_001',
       email: 'instructor@ecotech.com',
-      password: 'instructor123',
+      password: await hashPassword('instructor123'),
       name: 'Dr. Sarah Chen',
       avatar: null,
       role: 'instructor',
@@ -455,7 +460,7 @@ async function main() {
     data: {
       id: 'user_student_001',
       email: 'alex.student@ecotech.com',
-      password: 'student123',
+      password: await hashPassword('student123'),
       name: 'Alex Johnson',
       avatar: null,
       role: 'student',
@@ -467,7 +472,7 @@ async function main() {
     data: {
       id: 'user_student_002',
       email: 'maria.student@ecotech.com',
-      password: 'student123',
+      password: await hashPassword('student123'),
       name: 'Maria Garcia',
       avatar: null,
       role: 'student',
@@ -577,10 +582,10 @@ async function main() {
   // Create additional demo users for comments
   // ============================================
   const demoUser2 = await db.user.create({
-    data: { id: 'user_demo_002', email: 'sarah.trainer@company.com', password: 'demo123', name: 'Sarah Chen', avatar: null, role: 'instructor', department: 'Product' },
+    data: { id: 'user_demo_002', email: 'sarah.trainer@company.com', password: await hashPassword('demo123'), name: 'Sarah Chen', avatar: null, role: 'instructor', department: 'Product' },
   })
   const demoUser3 = await db.user.create({
-    data: { id: 'user_demo_003', email: 'mike.jones@company.com', password: 'demo123', name: 'Mike Jones', avatar: null, role: 'student', department: 'Engineering' },
+    data: { id: 'user_demo_003', email: 'mike.jones@company.com', password: await hashPassword('demo123'), name: 'Mike Jones', avatar: null, role: 'student', department: 'Engineering' },
   })
   console.log(`Created users: ${demoUser2.name}, ${demoUser3.name}`)
 

@@ -14,7 +14,10 @@ export interface ReferenceFile {
   type: string;
 }
 
-const VALID_COVER_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif", "image/svg+xml"];
+// SVG is deliberately absent: an SVG is a script-capable document, and covers
+// are served from this application's own origin. The upload endpoint rejects it
+// too — this list only keeps the file picker from offering it.
+const VALID_COVER_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif", "image/bmp"];
 const MAX_COVER_BYTES = 5 * 1024 * 1024;
 
 export function useCourseUploads() {
@@ -34,7 +37,7 @@ export function useCourseUploads() {
     if (!file) return;
 
     if (!VALID_COVER_TYPES.includes(file.type)) {
-      toast.error("Please select a valid image (JPEG, PNG, WebP, GIF, SVG)");
+      toast.error("Please select a valid image (JPEG, PNG, WebP, GIF or BMP)");
       return;
     }
     if (file.size > MAX_COVER_BYTES) {

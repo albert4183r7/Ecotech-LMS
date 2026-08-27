@@ -93,9 +93,6 @@ interface Selection {
   path: string;
   label: string;
   currentText: string;
-  /** Where to anchor the instruction box, in iframe coordinates. */
-  x: number;
-  y: number;
 }
 
 /** Which lesson the slide index and the open tab belong to.
@@ -260,50 +257,60 @@ export function LessonPreviewPage() {
   );
 
   // ─── Click-to-edit ────────────────────────────
-  // The rendered slide marks each field with data-path, so a click resolves to
-  // the content field behind it rather than to a guess about the markup.
-  const attachClickHandler = useCallback(() => {
-    const doc = iframeRef.current?.contentDocument;
-    if (!doc) return;
+  //
+  // The slide runs in a frame this page cannot reach into: it is sandboxed
+  // without allow-same-origin, so a slide whose markup got past the sanitizer
+  // cannot act with this application's origin behind it. The two therefore
+  // talk by message rather than by the page reaching through the frame.
+  //
+  // The rendered slide marks each field with data-path, so a click still
+  // resolves to the content field behind it rather than to a guess about the
+  // markup — the frame just reports which one, instead of this page finding out.
+  const SLIDE_CHANNEL = "ecotech-slide";
 
-    const onClick = (event: MouseEvent) => {
-      const target = (event.target as HTMLElement | null)?.closest?.("[data-path]");
-      if (!target) return;
-      event.preventDefault();
-      const path = target.getAttribute("data-path");
-      if (!path) return;
-
-      const rect = target.getBoundingClientRect();
-      setSelection({
-        path,
-        label: path,
-        currentText: (target.textContent ?? "").trim(),
-        x: rect.left,
-        y: rect.bottom,
-      });
-      setInstruction("");
-
-      for (const el of Array.from(doc.querySelectorAll<HTMLElement>("[data-path]"))) {
-        el.style.outline = el === target ? "2px solid #43699F" : "";
-        el.style.outlineOffset = el === target ? "3px" : "";
-      }
-    };
-
-    // Make editable text look editable.
-    for (const el of Array.from(doc.querySelectorAll<HTMLElement>("[data-path]"))) {
-      el.style.cursor = "pointer";
-    }
-    doc.addEventListener("click", onClick);
-    return () => doc.removeEventListener("click", onClick);
+  /** Ask the frame to make its fields selectable. Sent on every slide load,
+   *  because each srcDoc change is a fresh document with a fresh listener. */
+  const enableEditing = useCallback(() => {
+    iframeRef.current?.contentWindow?.postMessage(
+      { channel: SLIDE_CHANNEL, type: "enable-editing" },
+      "*",
+    );
   }, []);
 
   useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      // The frame's origin is opaque ("null") because it is sandboxed, so the
+      // origin cannot identify it. Its window can: this accepts messages from
+      // the frame this page rendered and from nothing else.
+      if (event.source !== iframeRef.current?.contentWindow) return;
+
+      const data = event.data as { channel?: string; type?: string; path?: string; text?: string };
+      if (data?.channel !== SLIDE_CHANNEL) return;
+
+      if (data.type === "field-click" && data.path) {
+        setSelection({ path: data.path, label: data.path, currentText: data.text ?? "" });
+        setInstruction("");
+      }
+    };
+
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, []);
+
+  // A new slide is a new document, so any selection made in the last one no
+  // longer refers to anything on screen.
+  useEffect(() => {
     setSelection(null);
-    const iframe = iframeRef.current;
-    if (!iframe) return;
-    const timer = setTimeout(attachClickHandler, 150);
-    return () => clearTimeout(timer);
-  }, [current?.htmlBody, attachClickHandler]);
+  }, [current?.htmlBody]);
+
+  // The frame draws the selection outline, so cancelling here has to tell it —
+  // otherwise the highlight would outlive the edit box that explains it.
+  useEffect(() => {
+    iframeRef.current?.contentWindow?.postMessage(
+      { channel: SLIDE_CHANNEL, type: "select", path: selection?.path ?? null },
+      "*",
+    );
+  }, [selection]);
 
   const applyEdit = useCallback(async () => {
     if (!current || !selection || !instruction.trim() || editing) return;
@@ -590,14 +597,15 @@ export function LessonPreviewPage() {
                 <iframe
                   ref={iframeRef}
                   srcDoc={current.htmlBody}
-                  // Click-to-edit reads the frame's document to find which
-                  // field was clicked, which needs same-origin. The document
-                  // itself arrives sanitized from the preview endpoint.
-                  sandbox="allow-same-origin allow-scripts"
+                  // No allow-same-origin: the frame gets an opaque origin, so
+                  // a slide whose markup got past the sanitizer cannot read
+                  // this session or act as the signed-in user. Click-to-edit
+                  // works over postMessage instead of through the document.
+                  sandbox="allow-scripts"
                   className="w-full border-0"
                   style={{ aspectRatio: "16 / 9" }}
                   title={`Preview of ${current.title}`}
-                  onLoad={attachClickHandler}
+                  onLoad={enableEditing}
                 />
               ) : (
                 <div className="text-muted-foreground flex aspect-video flex-col items-center justify-center gap-2 text-sm">

@@ -364,6 +364,116 @@ export const SLIDE_WIDTH = 1280;
 export const SLIDE_HEIGHT = 720;
 
 /**
+ * Marks a document as carrying the slide runtime below.
+ *
+ * Slides are stored wrapped, so a document written before the runtime existed
+ * is still served from the database long afterwards. This lets those be
+ * topped up on the way out instead of being rewritten in place.
+ */
+const SLIDE_RUNTIME_MARKER = "data-slide-runtime";
+
+/**
+ * The script every slide document carries.
+ *
+ * Two jobs. Fitting the canvas to whatever box the slide is shown in, which
+ * every embedder needs; and the field-selection channel the preview screen's
+ * click-to-edit runs on, which only one of them does.
+ *
+ * That second part exists because the frame is sandboxed *without*
+ * `allow-same-origin`. The page around it therefore cannot reach into this
+ * document — which is the point, since a slide's markup is written by a model
+ * from material a user uploaded, and must not run with the application's
+ * origin behind it. Everything the embedder needs travels by postMessage
+ * instead.
+ *
+ * It stays inert until the embedder asks for it. The classroom shows the same
+ * stored document to students, and there the text is a slide, not a row of
+ * buttons.
+ */
+function slideRuntimeScript(): string {
+  return `<script ${SLIDE_RUNTIME_MARKER}="1">
+    (function () {
+      var CHANNEL = "ecotech-slide";
+      var root = document.documentElement;
+
+      function fit() {
+        root.style.setProperty(
+          "--slide-scale",
+          String(Math.min(window.innerWidth / ${SLIDE_WIDTH}, window.innerHeight / ${SLIDE_HEIGHT}))
+        );
+      }
+      fit();
+      window.addEventListener("resize", fit);
+
+      var editable = false;
+
+      function fields() {
+        return document.querySelectorAll("[data-path]");
+      }
+
+      function highlight(path) {
+        var all = fields();
+        for (var i = 0; i < all.length; i++) {
+          var on = all[i].getAttribute("data-path") === path;
+          all[i].style.outline = on ? "2px solid #43699F" : "";
+          all[i].style.outlineOffset = on ? "3px" : "";
+        }
+      }
+
+      window.addEventListener("message", function (event) {
+        var data = event.data;
+        if (!data || data.channel !== CHANNEL) return;
+
+        if (data.type === "enable-editing") {
+          editable = true;
+          var all = fields();
+          for (var i = 0; i < all.length; i++) all[i].style.cursor = "pointer";
+          // Report what is selectable, so the embedder can say so rather than
+          // leaving the user clicking at a slide that will never respond.
+          parent.postMessage({ channel: CHANNEL, type: "ready", fields: all.length }, "*");
+        } else if (data.type === "select") {
+          highlight(data.path);
+        }
+      });
+
+      document.addEventListener("click", function (event) {
+        if (!editable) return;
+        var node = event.target;
+        var target = node && node.closest ? node.closest("[data-path]") : null;
+        if (!target) return;
+        event.preventDefault();
+        var path = target.getAttribute("data-path");
+        if (!path) return;
+        highlight(path);
+        parent.postMessage(
+          {
+            channel: CHANNEL,
+            type: "field-click",
+            path: path,
+            text: (target.textContent || "").trim()
+          },
+          "*"
+        );
+      });
+    })();
+  </script>`;
+}
+
+/**
+ * Give a stored slide document the current runtime.
+ *
+ * A document wrapped before the runtime existed has the old fit-only script.
+ * Appending rather than rewriting means the slide's own markup is untouched:
+ * the old script still fits the canvas, and the new one adds the channel.
+ */
+export function ensureSlideRuntime(html: string): string {
+  if (html.includes(`${SLIDE_RUNTIME_MARKER}="1"`)) return html;
+  return html.includes("</body>")
+    ? html.replace("</body>", `${slideRuntimeScript()}\n</body>`)
+    : `${html}${slideRuntimeScript()}`;
+}
+
+/**
  * Wrap sanitized HTML in a full slide document for iframe srcDoc or rendering.
  *
  * The template is written in as custom properties rather than baked into the
@@ -409,19 +519,7 @@ export function wrapSlideHtml(bodyHtml: string, options?: { title?: string }): s
       ${bodyHtml}
     </div>
   </div>
-  <script>
-    (function () {
-      var root = document.documentElement;
-      function fit() {
-        root.style.setProperty(
-          "--slide-scale",
-          String(Math.min(window.innerWidth / ${SLIDE_WIDTH}, window.innerHeight / ${SLIDE_HEIGHT}))
-        );
-      }
-      fit();
-      window.addEventListener("resize", fit);
-    })();
-  </script>
+  ${slideRuntimeScript()}
 </body>
 </html>`;
 }
@@ -446,7 +544,9 @@ export function isCanvasDocument(html: string): boolean {
  * renderer does, not because of what every historical writer remembered to do.
  */
 export function ensureCanvasDocument(html: string, title?: string): string {
-  if (isCanvasDocument(html)) return html;
+  // A canvas document is already laid out correctly; it may still predate the
+  // runtime, which is added rather than regenerated so its markup is untouched.
+  if (isCanvasDocument(html)) return ensureSlideRuntime(html);
   const body = /<body[^>]*>([\s\S]*)<\/body>/i.exec(html)?.[1] ?? html;
   return wrapSlideHtml(sanitizeHtml(body), { title });
 }

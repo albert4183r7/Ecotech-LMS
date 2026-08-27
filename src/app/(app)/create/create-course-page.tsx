@@ -245,7 +245,7 @@ export function CreateCoursePage() {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="image/jpeg,image/png,image/webp,image/gif,image/svg+xml"
+                  accept="image/jpeg,image/png,image/webp,image/gif,image/bmp"
                   className="hidden"
                   onChange={handleCoverFileChange}
                 />
