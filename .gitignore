@@ -76,3 +76,7 @@ public/slide-runtime.css
 # content rather than source: covers and docs predate this and stayed tracked,
 # but a deck is megabytes and belongs to whoever uploaded it.
 public/uploads/decks/
+
+# written by `next dev` on every run, and its block is re-added if edited
+AGENTS.md
+CLAUDE.md
