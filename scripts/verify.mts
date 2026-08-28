@@ -45,6 +45,7 @@ import {
   isMultimodal,
   type AiTask,
 } from "../src/lib/ai/models";
+import { throwFriendlyError } from "../src/lib/ai/provider";
 import { safeFileName } from "../src/lib/download";
 import type { SlideContent } from "../src/lib/slides/content-schema";
 import {
@@ -439,6 +440,87 @@ add("an environment variable overrides a task's model", () => {
   const after = modelFor("lesson-tutor");
   delete process.env.MODEL_LESSON_TUTOR;
   return before !== after && after === "mistral:7b-instruct" && modelFor("lesson-tutor") === before;
+});
+
+// ── Provider error classification ───────────────────────────────────────────
+//
+// The classifier decides what an operator is told to go and fix, and getting it
+// wrong sends them somewhere the problem is not. A proxy refusing to open a
+// tunnel answers 403 exactly as a rejected key does; that used to be reported
+// as "check that ECOAPI_API_KEY is set and valid", which is the wrong place to
+// look and an expensive place to spend an afternoon.
+
+/** The bracketed label throwFriendlyError puts at the front of its message. */
+function classify(err: unknown): string {
+  try {
+    throwFriendlyError(err, "verify", "outline-planning");
+  } catch (thrown) {
+    return /^\[([^\]]+)\]/.exec((thrown as Error).message)?.[1] ?? "(no label)";
+  }
+  return "(did not throw)";
+}
+
+const withStatus = (status: number, message: string) =>
+  Object.assign(new Error(message), { status });
+
+add("a blocked proxy tunnel is a network failure, not a bad key", () => {
+  return (
+    classify(withStatus(403, "Connection error: 403 response to CONNECT host:443")) ===
+      "LLM Network Error" &&
+    classify(new Error("tunneling socket could not be established")) === "LLM Network Error"
+  );
+});
+
+add("an unreachable gateway is still a network failure", () => {
+  return (
+    classify(new Error("getaddrinfo ENOTFOUND gateway.example")) === "LLM Network Error" &&
+    classify(new Error("connect ECONNREFUSED 127.0.0.1:443")) === "LLM Network Error" &&
+    classify(new Error("unable to verify the first certificate")) === "LLM Network Error"
+  );
+});
+
+add("a rejected key is still an auth failure", () => {
+  return (
+    classify(withStatus(401, "Unauthorized")) === "LLM Auth Error" &&
+    classify(withStatus(403, "Invalid API key provided")) === "LLM Auth Error" &&
+    classify(withStatus(403, "You do not have permission for this model")) === "LLM Auth Error"
+  );
+});
+
+add("a 403 that says nothing admits it could be either", () => {
+  const message = (() => {
+    try {
+      throwFriendlyError(withStatus(403, "Forbidden"), "verify", "outline-planning");
+    } catch (thrown) {
+      return (thrown as Error).message;
+    }
+    return "";
+  })();
+  // Naming one cause would be a guess; the message has to name both and give
+  // the reader a way to separate them.
+  return (
+    message.startsWith("[LLM Blocked]") &&
+    /key is not accepted/.test(message) &&
+    /refused the request/.test(message) &&
+    /curl/.test(message)
+  );
+});
+
+add("counting tokens is not a credential problem", () => {
+  // "maximum context length is 8192 tokens" contains the word token, which an
+  // over-eager credentials pattern matched.
+  return (
+    classify(new Error("This model's maximum context length is 8192 tokens")) ===
+    "LLM Context Error"
+  );
+});
+
+add("quota and unknown-model failures keep their own labels", () => {
+  return (
+    classify(withStatus(429, "Too Many Requests")) === "LLM Rate Limited" &&
+    classify(new Error("insufficient balance")) === "LLM Rate Limited" &&
+    classify(withStatus(404, "model not found")) === "LLM Model Error"
+  );
 });
 
 // ── Lesson assistant scope ──────────────────────────────────────────────────

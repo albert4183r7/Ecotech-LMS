@@ -144,17 +144,61 @@ export function getChatModel(task: AiTask, options: ChatModelOptions = {}): Chat
   return chat;
 }
 
+/** The gateway's host, for a message that says what to allow through. */
+function gatewayHost(): string {
+  try {
+    return new URL(BASE_URL).host;
+  } catch {
+    return BASE_URL;
+  }
+}
+
+/**
+ * Whether the request never reached the gateway.
+ *
+ * DNS, a refused socket, a TLS failure — and, importantly, a proxy or firewall
+ * refusing the tunnel. A blocked CONNECT answers 403, which reads exactly like
+ * a rejected key unless the wording is examined, so the wording is examined.
+ */
+function looksUnreachable(msg: string): boolean {
+  return /socket|ECONNREFUSED|ECONNRESET|ENOTFOUND|EAI_AGAIN|ETIMEDOUT|EHOSTUNREACH|ENETUNREACH|fetch failed|network|tunnel|CONNECT |proxy|self.?signed|certificate|unable to verify|SSL|TLS/i.test(
+    msg,
+  );
+}
+
+/**
+ * Whether the failure actually names a credential problem.
+ *
+ * Deliberately not a bare "token": every context-length error counts tokens,
+ * and matching that word sent "maximum context length is 8192 tokens" down the
+ * auth branch. Only the phrases that mean an identity are here.
+ */
+function looksLikeCredentials(msg: string): boolean {
+  return /api.?key|apikey|bearer|auth.?token|access.?token|credential|unauthor|not authorized|invalid.?auth|permission|entitle|access denied/i.test(
+    msg,
+  );
+}
+
 /**
  * Classify a provider error and throw a clean, actionable message.
  *
  * The failures worth naming for a hosted gateway are the ones a key and a bill
  * bring with them: an exhausted quota, a key that is wrong or expired, a model
  * id the gateway does not sell.
+ *
+ * Reachability is decided before credentials, which is the opposite of the
+ * obvious order and the only one that is right. A proxy or firewall that
+ * refuses to open the tunnel answers **403**, so a request that never left the
+ * network was being reported as "check that ECOAPI_API_KEY is set and valid" —
+ * sending whoever read it to look at a key that was never the problem. A 403
+ * that says nothing either way now names both possibilities and how to tell
+ * them apart, because guessing wrong costs more than admitting the ambiguity.
  */
 export function throwFriendlyError(err: unknown, context: string, task: AiTask): never {
   const status = extractStatus(err);
   const msg = extractErrorMessage(err);
   const model = modelFor(task);
+  const host = gatewayHost();
 
   if (status === 429 || /rate.?limit|quota|insufficient|balance/i.test(msg)) {
     throw new Error(
@@ -162,20 +206,34 @@ export function throwFriendlyError(err: unknown, context: string, task: AiTask):
         `Check the account balance, or retry shortly. (${msg})`,
     );
   }
-  if (status === 401 || status === 403 || /api.?key|unauthor|forbidden/i.test(msg)) {
+  if (looksUnreachable(msg)) {
     throw new Error(
-      `[LLM Auth Error] ${context} — check that ECOAPI_API_KEY is set and valid for ${BASE_URL}.`,
+      `[LLM Network Error] ${context} — could not reach the gateway at ${BASE_URL}. ` +
+        `Check that this host can open connections to ${host}; a proxy or firewall ` +
+        `refusing the tunnel also answers 403. (${msg})`,
+    );
+  }
+  if (status === 401 || (status === 403 && looksLikeCredentials(msg)) || looksLikeCredentials(msg)) {
+    throw new Error(
+      `[LLM Auth Error] ${context} — check that ECOAPI_API_KEY is set and valid for ${BASE_URL}. (${msg})`,
+    );
+  }
+  if (status === 403) {
+    // Nothing in the response says which it is, and the two fixes are very
+    // different, so say so rather than picking one and being wrong half the time.
+    throw new Error(
+      `[LLM Blocked] ${context} — ${BASE_URL} answered 403 without saying why. ` +
+        `Either the key is not accepted for "${model}", or something between this ` +
+        `host and ${host} refused the request. To tell them apart, run: ` +
+        `curl -sS -o /dev/null -w '%{http_code}' ${BASE_URL}/models ` +
+        `-H "Authorization: Bearer $ECOAPI_API_KEY" — a connection error means the ` +
+        `network, a 401 or 403 with a body means the key. (${msg})`,
     );
   }
   if (status === 404 || /not.?found|no such model|unknown model/i.test(msg)) {
     throw new Error(
       `[LLM Model Error] ${context} — the gateway does not recognise "${model}". ` +
         `Set the ${task} entry in src/lib/ai/models.ts, or its MODEL_* variable, to a model id it lists.`,
-    );
-  }
-  if (/socket|ECONNREFUSED|ENOTFOUND|ETIMEDOUT|fetch failed|network/i.test(msg)) {
-    throw new Error(
-      `[LLM Network Error] ${context} — could not reach the gateway at ${BASE_URL}. (${msg})`,
     );
   }
   if (/context length|too many tokens|exceeds/i.test(msg)) {
