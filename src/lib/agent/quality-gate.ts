@@ -1,7 +1,6 @@
 import { db } from "@/lib/db";
 import { evaluateContent, evaluatePedagogy, type LessonSnapshot } from "./evaluators/content";
 import { passes, blockingFindings, type EvaluationResult, type Finding } from "./evaluators/schema";
-import { recordEvaluation } from "./persistence";
 import { generateSlideContent, type SlideBrief } from "@/lib/slides/generate";
 import { generateSlideComposition } from "@/lib/slides/composition-generate";
 import {
@@ -25,16 +24,15 @@ import { sanitizeHtml, wrapSlideHtml } from "@/lib/sanitize";
 // what is wrong, and the generator decides how to say it better. Nothing here
 // chooses what happens next.
 //
-// It previously operated on raw slide HTML through the agent's tool registry.
-// Slides are structured content now, so a revision regenerates the content and
-// re-renders it through the template rather than asking a model to rewrite
-// markup.
+// It once operated on raw slide HTML through an agent tool registry, which has
+// since been removed. Slides are structured now, so a revision regenerates the
+// content and re-renders it through the template rather than asking a model to
+// rewrite markup. This file and its two critics are all that remains of that
+// subsystem, because they are the only part of it anything called.
 // ============================================
 
 export interface GateOptions {
   lessonId: string;
-  /** Persists evaluations against an agent run, when one is recording. */
-  runId?: string;
   audience?: string;
   referenceText?: string;
   /** Evaluate-and-revise cycles. Two is usually enough; more rarely converges. */
@@ -222,25 +220,6 @@ export async function runQualityGate(options: GateOptions): Promise<GateReport> 
         error instanceof Error ? error.message : error,
       );
       return { passed: false, passes: reports, remaining };
-    }
-
-    if (options.runId) {
-      await Promise.all([
-        recordEvaluation({
-          runId: options.runId,
-          scope: "content",
-          score: content.score,
-          passed: passes(content),
-          findings: content.findings,
-        }),
-        recordEvaluation({
-          runId: options.runId,
-          scope: "pedagogy",
-          score: pedagogy.score,
-          passed: passes(pedagogy),
-          findings: pedagogy.findings,
-        }),
-      ]).catch(() => undefined);
     }
 
     const blocking = groupBlocking([content, pedagogy]);

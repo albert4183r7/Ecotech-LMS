@@ -43,7 +43,6 @@ import {
   TASK_MODELS,
   modelFor,
   isMultimodal,
-  VISION_MODEL_PATTERN,
   type AiTask,
 } from "../src/lib/ai/models";
 import { safeFileName } from "../src/lib/download";
@@ -429,15 +428,10 @@ add("the tasks do not all share one model", () => {
   const tasks = Object.keys(TASK_MODELS) as AiTask[];
   return new Set(tasks.map(modelFor)).size > 1;
 });
-add("the task that sends images is on a multimodal model", () => {
-  // visual-evaluation posts screenshots. A text-only model here fails at
-  // request time, with an error that does not say why.
-  const vision = (Object.keys(TASK_MODELS) as AiTask[]).filter(isMultimodal);
-  return (
-    vision.length === 1 &&
-    vision[0] === "visual-evaluation" &&
-    VISION_MODEL_PATTERN.test(modelFor("visual-evaluation"))
-  );
+add("no task claims to need a capability the registry cannot describe", () => {
+  // Nothing sends images or calls tools since the agent runtime was removed.
+  // If a task starts doing either, it has to say so here first.
+  return (Object.keys(TASK_MODELS) as AiTask[]).every((t) => !isMultimodal(t));
 });
 add("an environment variable overrides a task's model", () => {
   const before = modelFor("lesson-tutor");

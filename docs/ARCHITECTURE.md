@@ -74,7 +74,7 @@ src/
 │
 └── lib/
     ├── ai/                 every model call — see "The AI layer"
-    ├── agent/              tool registry, runtime, evaluators, quality gate
+    ├── agent/              the quality gate and its two critics
     ├── assistant/          the two assistants' prompts and boundaries
     ├── quiz/               generation, grounding validation, access, scoring
     ├── slides/             the two slide models, both renderers, the exporter
@@ -121,9 +121,6 @@ which provider is running or which model serves a given job.
   previous-providers.ts  earlier providers, commented, restorable
   structured.ts          JSON conforming to a Zod schema
   streaming.ts           text streamed as it arrives
-  tools.ts               one turn with function calling
-  vision.ts              structured JSON over images
-  slide-html.ts          the agent's HTML-authoring prompts
   index.ts               the public surface
 ```
 
@@ -144,9 +141,8 @@ model happens to be the default.
 Every model call is a **LangChain** chat model. The framework owns the message
 types, the streaming protocol and the tool-call schema, so the files above
 `provider.ts` describe what they want rather than how one vendor's HTTP API
-spells it: `invoke()` for structured JSON, `stream()` for the tutor and slide
-HTML, `bindTools()` for the agent turn, and content blocks for the images the
-visual evaluator sends.
+spells it: `invoke()` for structured JSON and `stream()` for the two
+assistants.
 
 On this branch the integration is `@langchain/openai`, pointed at an
 OpenAI-compatible gateway and authenticated with `ECOAPI_API_KEY`.
@@ -167,7 +163,7 @@ expired, a model id the gateway does not sell.
 
 ### Model per task
 
-Eleven distinct kinds of model call, and they do not want the same model.
+Eight distinct kinds of model call, and they do not want the same model.
 Planning an outline over a reference document and deciding whether a quiz
 question is answerable from its lesson are different jobs.
 
@@ -175,11 +171,8 @@ question is answerable from its lesson are different jobs.
 | ---------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------ | -------------------------- |
 | `outline-planning`     | `claude-opus-5`   | Longest context and most reasoning here; output must satisfy per-field length limits a weaker model overruns | `MODEL_OUTLINE_PLANNING`   |
 | `slide-authoring`      | `claude-opus-5`   | Writes to the character budget its chosen layout allows; overrunning costs a retry                           | `MODEL_SLIDE_AUTHORING`    |
-| `slide-html-legacy`    | `claude-opus-5`   | Long output that has to stay inside a tag and class allowlist                                                | `MODEL_SLIDE_HTML`         |
 | `quiz-authoring`       | `claude-opus-5`   | Nested schema, and must stay inside the source text — a weaker model invents distractors that are not in it  | `MODEL_QUIZ_AUTHORING`     |
 | `content-evaluation`   | `claude-opus-5`   | Critique is only useful if specific, which is where model strength shows                                     | `MODEL_CONTENT_EVALUATION` |
-| `agent-tool-loop`      | `claude-opus-5`   | Needs function calling and enough judgement to stop                                                          | `MODEL_AGENT_TOOL_LOOP`    |
-| `visual-evaluation`    | `claude-opus-5`   | Sends screenshots. The only task that must see                                                               | `MODEL_VISUAL_EVALUATION`  |
 | `slide-field-edit`     | `claude-sonnet-5` | One short field; the stronger model buys nothing and bills more                                              | `MODEL_SLIDE_FIELD_EDIT`   |
 | `quiz-grounding-judge` | `claude-sonnet-5` | A verdict with a reason, not composition — and it runs once per question                                     | `MODEL_QUIZ_JUDGE`         |
 | `lesson-tutor`         | `claude-sonnet-5` | The one task a person waits on directly; responsiveness beats the extra quality on a short grounded answer   | `MODEL_LESSON_TUTOR`       |
@@ -399,20 +392,23 @@ asserted. Correct answers are stripped server-side for anyone who is not the
 course's instructor, and a student reaches a quiz only when the course is
 published _and_ they are enrolled.
 
-### The agent layer
+### The quality gate
 
-`src/lib/agent/` is a tool-calling runtime: a registry of Zod-typed tools, a
-loop with step, token and time limits, content and pedagogy critics, a visual
-critic that judges rendered slides, and run persistence (`AgentRun`,
-`AgentStep`, `Evaluation`).
+`src/lib/agent/` is now just the gate and the two critics it runs:
+`generate-slides` calls `runQualityGate` between writing the slides and writing
+the quiz, and it revises only the slides a critic faulted.
 
-Part of it is on the default path and part is not:
+This directory used to hold an autonomous tool-calling runtime as well — a Zod
+tool registry, a bounded loop, a visual critic, and run persistence, behind
+`POST /api/agent/runs`. It worked and nothing in the application ever called
+it, so it was removed rather than left as a second way to generate a lesson
+that no one maintained. Its three model tasks (`agent-tool-loop`,
+`visual-evaluation`, `slide-html-legacy`) and the AI-layer helpers only it used
+(`tools.ts`, `vision.ts`, `slide-html.ts`) went with it.
 
-- **`runQualityGate` is** — `generate-slides` calls it between writing the
-  slides and writing the quiz, using the content and pedagogy evaluators.
-- **`runLessonAgent` is not** — `POST /api/agent/runs` starts an autonomous run
-  and `GET /api/agent/runs?lessonId=…` reports progress, but nothing in the app
-  calls either. It works; it has no UI.
+The `AgentRun`, `AgentStep` and `Evaluation` tables are still in the schema.
+Dropping them is a data decision rather than a code one, so they were left
+alone; nothing writes to them now.
 
 ### The two assistants
 
@@ -549,8 +545,6 @@ nothing checked this.
   seeded accounts.
 - **`AgentRun.lessonId` is `onDelete: SetNull`.** Both API delete paths clear
   agent runs in the same transaction, but the database does not enforce it.
-- **`/api/agent/runs` has no UI.** The autonomous agent runtime works and is
-  authorized, but nothing in the app calls it.
 - **Generation is fire-and-forget** inside a route handler, with client polling
   and no queue.
 - **Type errors are ignored at build time** (`typescript.ignoreBuildErrors`).

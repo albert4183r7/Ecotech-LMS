@@ -18,12 +18,9 @@ export type AiTask =
   | "outline-planning"
   | "slide-authoring"
   | "slide-field-edit"
-  | "slide-html-legacy"
   | "quiz-authoring"
   | "quiz-grounding-judge"
   | "content-evaluation"
-  | "visual-evaluation"
-  | "agent-tool-loop"
   | "lesson-tutor"
   | "platform-help";
 
@@ -36,8 +33,6 @@ interface TaskModel {
   rationale: string;
   /** Whether the task sends images; a text-only model cannot serve it. */
   multimodal?: boolean;
-  /** Whether the task needs function calling. */
-  tools?: boolean;
 }
 
 /**
@@ -77,13 +72,6 @@ export const TASK_MODELS: Record<AiTask, TaskModel> = {
       "Rewrites one field of one slide on an instruction. A small, local edit " +
       "returning a short object; the stronger model buys nothing and bills more.",
   },
-  "slide-html-legacy": {
-    model: "claude-opus-5",
-    envVar: "MODEL_SLIDE_HTML",
-    rationale:
-      "Writes raw slide HTML for the agent's authoring tools. Long output that has " +
-      "to stay inside a tag and class allowlist.",
-  },
   "quiz-authoring": {
     model: "claude-opus-5",
     envVar: "MODEL_QUIZ_AUTHORING",
@@ -109,23 +97,6 @@ export const TASK_MODELS: Record<AiTask, TaskModel> = {
       "revision notes the quality gate acts on. Critique is only useful if it is " +
       "specific, which is where model size shows.",
   },
-  "visual-evaluation": {
-    model: "claude-opus-5",
-    envVar: "MODEL_VISUAL_EVALUATION",
-    rationale:
-      "Looks at screenshots of rendered slides for clipping and overlap. Must be " +
-      "multimodal — every model here is, so this flag travels with the task rather " +
-      "than constraining it.",
-    multimodal: true,
-  },
-  "agent-tool-loop": {
-    model: "claude-opus-5",
-    envVar: "MODEL_AGENT_TOOL_LOOP",
-    rationale:
-      "Drives the agent runtime, choosing which tool to call next. Needs function " +
-      "calling and enough judgement to stop when the work is done.",
-    tools: true,
-  },
   "platform-help": {
     model: "claude-sonnet-5",
     envVar: "MODEL_PLATFORM_HELP",
@@ -149,17 +120,6 @@ export function modelFor(task: AiTask): string {
   const entry = TASK_MODELS[task];
   return process.env[entry.envVar]?.trim() || entry.model;
 }
-
-/**
- * Model ids that accept images.
- *
- * The multimodal flag above says which task *needs* to see; this says which
- * models here can. It lives next to the models rather than in the check that
- * uses it, because the answer is a property of this branch's provider: every
- * Claude model accepts images, so the id prefix is the whole rule. Point the
- * registry at a gateway selling something else and this has to say so too.
- */
-export const VISION_MODEL_PATTERN = /^claude-/i;
 
 /** Tasks needing a multimodal model, for start-up checks and documentation. */
 export function isMultimodal(task: AiTask): boolean {
