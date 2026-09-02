@@ -6,6 +6,7 @@ import { constants } from "node:fs";
 const copies = [
   ["./.next/static", "./.next/standalone/.next/static"],
   ["./public", "./.next/standalone/public"],
+  ["./slide-benchmarks/cache", "./.next/standalone/slide-benchmarks/cache"],
 ];
 
 for (const [from, to] of copies) {

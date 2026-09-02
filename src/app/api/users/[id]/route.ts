@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { requireUser, AuthorizationError } from "@/lib/session";
+import { ACCOUNT_ROLES, requireUser, AuthorizationError } from "@/lib/session";
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -71,7 +71,8 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
         email: user.email,
         name: user.name,
         avatar: user.avatar,
-        role: user.role,
+        role: sessionUser.role,
+        roles: [...ACCOUNT_ROLES],
         department: user.department,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,

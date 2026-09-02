@@ -69,6 +69,8 @@ export function contentToText(content: SlideContent): string {
   switch (content.type) {
     case "title":
       return [content.eyebrow, content.title, content.subtitle].filter(Boolean).join(". ");
+    case "contents":
+      return [content.eyebrow, content.title, ...content.sections].filter(Boolean).join(". ");
     case "closing":
       return [content.title, content.subtitle].filter(Boolean).join(". ");
     case "concept":
@@ -77,6 +79,10 @@ export function contentToText(content: SlideContent): string {
         content.lead,
         ...content.points.map((p) => `${p.heading}: ${p.description}`),
       ]
+        .filter(Boolean)
+        .join(" ");
+    case "custom":
+      return [content.title, content.lead, `${content.heading}: ${content.description}`]
         .filter(Boolean)
         .join(" ");
     case "comparison":

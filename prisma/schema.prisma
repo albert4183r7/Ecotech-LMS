@@ -17,6 +17,10 @@ model User {
   name       String?
   avatar     String?
   role       String   @default("student") // student, instructor
+  /// JSON-encoded capabilities for compatibility with existing databases.
+  /// Every Ecotech account can use both modes; the signed session chooses the
+  /// active one. `role` remains the preferred/default mode for legacy rows.
+  roles      String   @default("[\"student\",\"instructor\"]")
   department String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
@@ -84,10 +88,11 @@ model Lesson {
   updatedAt   DateTime @updatedAt
 
   courseId   String
-  course     Course     @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  course     Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
   slides     Slide[]
   sections   Section[]
   quiz       Quiz?
+  video      LessonVideo?
   agentRuns  AgentRun[]
   progresses Progress[]
   comments   Comment[]
@@ -117,8 +122,62 @@ model Slide {
   sectionId String?
   section   Section? @relation(fields: [sectionId], references: [id], onDelete: SetNull)
 
+  videoScenes VideoScene[]
+
   @@unique([lessonId, order])
   @@index([sectionId])
+}
+
+// ============================================
+// Narrated lesson video
+//
+// This is a scene-based player, not a pre-encoded MP4. Each final slide owns
+// one narration scene and one generated audio file. Keeping the media beside
+// the source slide makes retries granular and lets an edit mark the lesson
+// video stale instead of silently playing narration for an older deck.
+// ============================================
+
+model LessonVideo {
+  id         String   @id @default(cuid())
+  status     String   @default("DRAFT") // DRAFT | GENERATING | READY | ERROR | STALE
+  voice      String   @default("af_heart")
+  language   String   @default("english")
+  sourceHash String?
+  error      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  lessonId String @unique
+  lesson   Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  scenes VideoScene[]
+
+  @@index([status])
+}
+
+model VideoScene {
+  id         String   @id @default(cuid())
+  order      Int
+  narration  String
+  caption    String
+  audioUrl   String?
+  durationMs Int?
+  status     String   @default("DRAFT") // DRAFT | GENERATING | READY | ERROR
+  sourceHash String
+  error      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  videoId String
+  video   LessonVideo @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  slideId String
+  slide   Slide  @relation(fields: [slideId], references: [id], onDelete: Cascade)
+
+  @@unique([videoId, order])
+  @@unique([videoId, slideId])
+  @@index([slideId])
+  @@index([status])
 }
 
 // ============================================

@@ -1,4 +1,4 @@
-import type { ClassroomSlide, ClassroomState } from "@/types/lms";
+import type { ClassroomSlide, ClassroomState, LessonVideoItem } from "@/types/lms";
 
 // ============================================
 // Classroom state construction
@@ -43,6 +43,7 @@ export interface BuildClassroomStateParams {
   courseTitle: string;
   lessonId: string;
   lessonTitle: string;
+  video?: LessonVideoItem | null;
   /** Raw slides from the lesson endpoint. */
   slides: unknown;
   allLessonIds: string[];
@@ -57,6 +58,7 @@ export function buildClassroomState(params: BuildClassroomStateParams): Classroo
     courseTitle: params.courseTitle,
     lessonId: params.lessonId,
     lessonTitle: params.lessonTitle,
+    video: params.video ?? null,
     slides:
       slides.length > 0
         ? slides

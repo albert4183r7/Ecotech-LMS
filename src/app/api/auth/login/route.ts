@@ -1,14 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { createSession } from "@/lib/session";
+import { ACCOUNT_ROLES, createSession } from "@/lib/session";
+import type { UserRole } from "@/lib/session";
 import { hashPassword, needsRehash, verifyPassword } from "@/lib/password";
-import {
-  clientIp,
-  consume,
-  reset,
-  LOGIN_ACCOUNT_RULE,
-  LOGIN_IP_RULE,
-} from "@/lib/rate-limit";
+import { clientIp, consume, reset, LOGIN_ACCOUNT_RULE, LOGIN_IP_RULE } from "@/lib/rate-limit";
 
 // ============================================
 // POST /api/auth/login
@@ -30,7 +25,7 @@ const INVALID = "Invalid email or password";
 
 export async function POST(request: NextRequest) {
   try {
-    const { email, password } = await request.json();
+    const { email, password, role: requestedRole } = await request.json();
 
     if (!email || !password || typeof email !== "string" || typeof password !== "string") {
       return NextResponse.json(
@@ -39,10 +34,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const address = email.trim();
-    // Lowercased for the limiter key only. The lookup stays exact, because
-    // this database matches email case-sensitively and normalising here would
-    // lock out any account stored with a capital in it.
+    const address = email.trim().toLowerCase();
+    // Registration normalises addresses to lowercase; applying the same rule
+    // here keeps sign-in predictable when a user types capital letters.
     const account = address.toLowerCase();
     const ip = clientIp(request.headers);
 
@@ -97,9 +91,23 @@ export async function POST(request: NextRequest) {
     reset(`login:account:${account}`);
     reset(`login:ip:${ip}`);
 
+    const storedRole: UserRole = user.role === "instructor" ? "instructor" : "student";
+
+    if (
+      requestedRole !== undefined &&
+      requestedRole !== "student" &&
+      requestedRole !== "instructor"
+    ) {
+      return NextResponse.json({ success: false, error: "Invalid role." }, { status: 400 });
+    }
+    const activeRole: UserRole =
+      (requestedRole as UserRole | undefined) && ACCOUNT_ROLES.includes(requestedRole as UserRole)
+        ? (requestedRole as UserRole)
+        : storedRole;
+
     // The signed cookie is what the API authorizes against from here on; the
     // returned user is only for the UI to render with.
-    await createSession(user.id);
+    await createSession(user.id, activeRole);
 
     return NextResponse.json({
       success: true,
@@ -107,7 +115,8 @@ export async function POST(request: NextRequest) {
         id: user.id,
         email: user.email,
         name: user.name,
-        role: user.role,
+        role: activeRole,
+        roles: [...ACCOUNT_ROLES],
       },
     });
   } catch (error) {

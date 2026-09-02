@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
           },
         },
       });
-      if (!lesson || !(await mayReadLesson(body.lessonId, user.id))) {
+      if (!lesson || !(await mayReadLesson(body.lessonId, user))) {
         return NextResponse.json({ error: "Lesson not found" }, { status: 404 });
       }
       rows = lesson.slides;
@@ -110,7 +110,7 @@ export async function POST(request: NextRequest) {
       // checking only the first would let a readable slide carry unreadable
       // ones into the same deck.
       const lessonIds = [...new Set(found.map((row) => row.lessonId))];
-      const readable = await Promise.all(lessonIds.map((id) => mayReadLesson(id, user.id)));
+      const readable = await Promise.all(lessonIds.map((id) => mayReadLesson(id, user)));
       if (readable.some((allowed) => !allowed)) {
         return NextResponse.json({ error: "Slides not found" }, { status: 404 });
       }

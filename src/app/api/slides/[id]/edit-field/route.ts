@@ -124,16 +124,25 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const html = sanitizeHtml(renderSlideDoc(edited, { slideNumber: slide.order + 1 }));
     const title = slideDocTitle(edited, slide.title);
 
-    await db.slide.update({
-      where: { id: slide.id },
-      data: {
-        contentJson: JSON.stringify(
-          edited.kind === "composition" ? edited.composition : edited.content,
-        ),
-        htmlBody: wrapSlideHtml(html, { title }),
-        title,
-      },
-    });
+    await db.$transaction([
+      db.slide.update({
+        where: { id: slide.id },
+        data: {
+          contentJson: JSON.stringify(
+            edited.kind === "composition" ? edited.composition : edited.content,
+          ),
+          htmlBody: wrapSlideHtml(html, { title }),
+          title,
+        },
+      }),
+      db.lessonVideo.updateMany({
+        where: { lessonId: slide.lessonId },
+        data: {
+          status: "STALE",
+          error: "Slides changed after narration was generated.",
+        },
+      }),
+    ]);
 
     return ok({
       slideId: slide.id,

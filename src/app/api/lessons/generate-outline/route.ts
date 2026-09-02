@@ -355,6 +355,11 @@ export async function POST(request: NextRequest) {
           // plan for a topic — which for any business subject is the generic
           // one. The rules above are what make a warmer setting safe.
           temperature: 0.75,
+          // EcoAPI JSON mode receives the schema in the prompt. Deterministic
+          // repair handles known length overruns, so a second full planning
+          // call would add latency without adding planning quality.
+          maxRetries: 0,
+          maxOutputTokens: 6144,
         },
       );
     } catch (error) {
@@ -380,18 +385,6 @@ export async function POST(request: NextRequest) {
     // Reconcile the model's structure with the user's budget. Nothing is
     // dropped here — budgets shift, and sections merge only if they must.
     const balanced = balancePlan(plan, requestedSlides);
-
-    // A syllabus squeezed into too few slides is the quietest way a lesson
-    // becomes shallow: every section still appears, each one reduced to a
-    // definition. The planner says what the subject needs, and the shortfall
-    // is reported rather than silently absorbed.
-    if (balanced.recommendedSlides && balanced.recommendedSlides > requestedSlides + 1) {
-      balanced.adjustments.push(
-        `This subject needs about ${balanced.recommendedSlides} slides to be taught properly; ` +
-          `${requestedSlides} were requested, so each section is covered more briefly. ` +
-          `Raise the slide count to give it room.`,
-      );
-    }
 
     const slots = buildSlideSlots(balanced);
 
@@ -500,6 +493,9 @@ export async function POST(request: NextRequest) {
         outlineJson: lesson.outlineJson,
         requestedSlideCount: requestedSlides,
         totalSlides: slots.length,
+        // What the planner says the subject needs, so the frontend can ask the
+        // user whether to accept it rather than silently compressing.
+        recommendedSlides: balanced.recommendedSlides,
         adjustments: balanced.adjustments,
         // The brief the plan wrote for itself. Shown in the outline so the
         // instructor can correct a wrong audience or a flat argument before

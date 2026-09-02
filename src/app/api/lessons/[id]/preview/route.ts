@@ -35,6 +35,9 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
             },
           },
         },
+        video: {
+          include: { scenes: { orderBy: { order: "asc" } } },
+        },
       },
     });
     if (!lesson) return ok(null);
@@ -112,6 +115,26 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
                 isCorrect: option.isCorrect,
                 order: option.order,
               })),
+            })),
+          }
+        : null,
+      video: lesson.video
+        ? {
+            id: lesson.video.id,
+            status: lesson.video.status,
+            voice: lesson.video.voice,
+            language: lesson.video.language,
+            error: lesson.video.error,
+            scenes: lesson.video.scenes.map((scene) => ({
+              id: scene.id,
+              slideId: scene.slideId,
+              order: scene.order,
+              narration: scene.narration,
+              caption: scene.caption,
+              audioUrl: scene.audioUrl,
+              durationMs: scene.durationMs,
+              status: scene.status,
+              error: scene.error,
             })),
           }
         : null,

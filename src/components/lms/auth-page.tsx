@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Eye, EyeOff, Mail, Lock, Loader2, BookOpen } from "lucide-react";
+import { Eye, EyeOff, Mail, Lock, Loader2, BookOpen, GraduationCap } from "lucide-react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,6 +16,7 @@ export function AuthPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [loginRole, setLoginRole] = useState<"student" | "instructor">("student");
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -28,7 +30,7 @@ export function AuthPage() {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim(), password: password.trim() }),
+        body: JSON.stringify({ email: email.trim(), password: password.trim(), role: loginRole }),
       });
       const json = await res.json();
       if (!json.success) {
@@ -45,13 +47,17 @@ export function AuthPage() {
     }
   };
 
-  const handleDemoLogin = async (demoEmail: string, demoPassword: string) => {
+  const handleDemoLogin = async (
+    demoEmail: string,
+    demoPassword: string,
+    role: "student" | "instructor",
+  ) => {
     setLoading(true);
     try {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: demoEmail, password: demoPassword }),
+        body: JSON.stringify({ email: demoEmail, password: demoPassword, role }),
       });
       const json = await res.json();
       if (!json.success) {
@@ -117,6 +123,30 @@ export function AuthPage() {
               </button>
             </div>
           </div>
+          <fieldset className="space-y-2">
+            <legend className="text-sm font-medium">Sign in as</legend>
+            <div className="grid grid-cols-2 gap-2">
+              {(["student", "instructor"] as const).map((role) => (
+                <label
+                  key={role}
+                  className={`cursor-pointer rounded-lg border p-2.5 text-center text-sm capitalize transition-colors ${loginRole === role ? "border-primary bg-primary/5 font-medium" : "border-border hover:bg-muted/50"}`}
+                >
+                  <input
+                    type="radio"
+                    name="login-role"
+                    value={role}
+                    checked={loginRole === role}
+                    onChange={() => setLoginRole(role)}
+                    className="sr-only"
+                  />
+                  <span className="inline-flex items-center gap-1.5">
+                    <GraduationCap className="h-4 w-4" />
+                    {role}
+                  </span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
           <Button type="submit" className="w-full" disabled={loading}>
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Sign In
@@ -130,7 +160,7 @@ export function AuthPage() {
           <div className="grid gap-2">
             <button
               type="button"
-              onClick={() => handleDemoLogin("alex.student@ecotech.com", "student123")}
+              onClick={() => handleDemoLogin("alex.student@ecotech.com", "student123", "student")}
               disabled={loading}
               className="border-border/50 bg-card flex items-center gap-3 rounded-xl border p-3 text-left transition-all hover:border-cyan-500/30 hover:bg-cyan-500/5 disabled:opacity-50"
             >
@@ -145,7 +175,9 @@ export function AuthPage() {
             </button>
             <button
               type="button"
-              onClick={() => handleDemoLogin("instructor@ecotech.com", "instructor123")}
+              onClick={() =>
+                handleDemoLogin("instructor@ecotech.com", "instructor123", "instructor")
+              }
               disabled={loading}
               className="border-border/50 bg-card flex items-center gap-3 rounded-xl border p-3 text-left transition-all hover:border-violet-500/30 hover:bg-violet-500/5 disabled:opacity-50"
             >
@@ -160,6 +192,12 @@ export function AuthPage() {
             </button>
           </div>
         </div>
+        <p className="text-muted-foreground text-center text-sm">
+          New to Ecotech?{" "}
+          <Link href="/register" className="text-primary font-medium hover:underline">
+            Create an account
+          </Link>
+        </p>
       </div>
     </div>
   );

@@ -451,6 +451,7 @@ async function main() {
       name: 'Dr. Sarah Chen',
       avatar: null,
       role: 'instructor',
+      roles: '["student","instructor"]',
       department: 'Faculty',
     },
   })
@@ -464,6 +465,7 @@ async function main() {
       name: 'Alex Johnson',
       avatar: null,
       role: 'student',
+      roles: '["student","instructor"]',
       department: 'Computer Science',
     },
   })
@@ -476,6 +478,7 @@ async function main() {
       name: 'Maria Garcia',
       avatar: null,
       role: 'student',
+      roles: '["student","instructor"]',
       department: 'Data Science',
     },
   })
@@ -582,10 +585,10 @@ async function main() {
   // Create additional demo users for comments
   // ============================================
   const demoUser2 = await db.user.create({
-    data: { id: 'user_demo_002', email: 'sarah.trainer@company.com', password: await hashPassword('demo123'), name: 'Sarah Chen', avatar: null, role: 'instructor', department: 'Product' },
+    data: { id: 'user_demo_002', email: 'sarah.trainer@company.com', password: await hashPassword('demo123'), name: 'Sarah Chen', avatar: null, role: 'instructor', roles: '["student","instructor"]', department: 'Product' },
   })
   const demoUser3 = await db.user.create({
-    data: { id: 'user_demo_003', email: 'mike.jones@company.com', password: await hashPassword('demo123'), name: 'Mike Jones', avatar: null, role: 'student', department: 'Engineering' },
+    data: { id: 'user_demo_003', email: 'mike.jones@company.com', password: await hashPassword('demo123'), name: 'Mike Jones', avatar: null, role: 'student', roles: '["student","instructor"]', department: 'Engineering' },
   })
   console.log(`Created users: ${demoUser2.name}, ${demoUser3.name}`)
 

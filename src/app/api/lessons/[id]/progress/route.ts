@@ -15,7 +15,7 @@ import { requireLessonOwner } from "@/lib/session";
 // which is what the poll actually reads.
 //
 // It also names the stage the workflow is in. Slides are followed by a review
-// pass and then the quiz, and both run after the last slide reports READY —
+// pass and then quiz + narrated-video generation, which run in parallel —
 // without a name for that stretch the page looked stuck on a finished deck.
 // ============================================
 
@@ -30,13 +30,13 @@ import { requireLessonOwner } from "@/lib/session";
  */
 const FINISHING_WINDOW_MS = 60_000;
 
-/** Where a lesson is in the generate → review → quiz workflow. */
+/** Where a lesson is in the generate → review → media workflow. */
 export type LessonStage =
   /** Slides are still being written. */
   | "slides"
-  /** Every slide has settled; the review pass and the quiz are still running. */
-  | "finishing"
-  /** Slides and quiz are both settled — the lesson can be reviewed. */
+  /** Every slide has settled; review, quiz, or narrated video is still running. */
+  | "media"
+  /** Slides, quiz, and narrated video are settled — the lesson can be reviewed. */
   | "ready"
   /** Nothing generated, so no review or quiz will follow. */
   | "failed";
@@ -59,6 +59,14 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
         quiz: {
           select: { id: true, status: true, error: true, _count: { select: { questions: true } } },
         },
+        video: {
+          select: {
+            id: true,
+            status: true,
+            error: true,
+            scenes: { select: { status: true } },
+          },
+        },
       },
     });
     if (!lesson) return fail("Lesson not found.", 404);
@@ -69,9 +77,10 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     const generating = slides.find((s) => s.status === "GENERATING") ?? null;
     const settled = ready + errored;
 
-    // A quiz still in DRAFT is the workflow saying it is reviewing the deck and
-    // writing the quiz; READY and ERROR are both the end of it.
+    // Each artifact owns its own terminal state. One can fail while the other
+    // still completes, so the lesson remains in media until both have settled.
     const quizPending = lesson.quiz?.status === "DRAFT";
+    const videoPending = lesson.video?.status === "DRAFT" || lesson.video?.status === "GENERATING";
     const lastWrite = slides.reduce((latest, s) => Math.max(latest, s.updatedAt.getTime()), 0);
     const justWritten = Date.now() - lastWrite < FINISHING_WINDOW_MS;
 
@@ -82,9 +91,13 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
           ? // A lesson with no ready slide never starts a quiz, so waiting for
             // one would leave the page spinning forever.
             "failed"
-          : quizPending || (!lesson.quiz && justWritten)
-            ? "finishing"
+          : quizPending ||
+              videoPending ||
+              (errored === 0 && !lesson.quiz && !lesson.video && justWritten)
+            ? "media"
             : "ready";
+
+    const videoScenes = lesson.video?.scenes ?? [];
 
     return ok({
       lessonId: lesson.id,
@@ -107,6 +120,16 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
             status: lesson.quiz.status,
             error: lesson.quiz.error,
             questionCount: lesson.quiz._count.questions,
+          }
+        : null,
+      video: lesson.video
+        ? {
+            id: lesson.video.id,
+            status: lesson.video.status,
+            error: lesson.video.error,
+            readyScenes: videoScenes.filter((scene) => scene.status === "READY").length,
+            errorScenes: videoScenes.filter((scene) => scene.status === "ERROR").length,
+            totalScenes: videoScenes.length,
           }
         : null,
     });

@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
     // by naming them; other people's courses are now published-only.
     if (creatorId) {
       where.creatorId = creatorId;
-      if (creatorId !== user.id) where.status = "published";
+      if (creatorId !== user.id || user.role !== "instructor") where.status = "published";
     } else {
       where.status = "published";
     }

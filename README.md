@@ -3,9 +3,9 @@
 A learning-management app whose lessons are presentations. An instructor either
 **describes a topic** — the system plans the lesson, shows the plan for review and
 then composes every slide — or **uploads a deck they already have**, which is
-imported as they made it. Either way the lesson gets a quiz written from its own
-slides, reviewed before anyone sees it, and learners work through it slide by
-slide with an assistant beside them.
+imported as they made it. A generated lesson gets a quiz and a narrated,
+captioned scene player written from its final slides; learners watch the
+explanation and then take the quiz with an assistant beside them.
 
 Built with Next.js 16 (App Router), Prisma + SQLite, and LangChain over hosted
 models reached with an API key — with a local, open-source provider one branch
@@ -66,8 +66,10 @@ away.
 
 **Taking a lesson**
 
-- **Slides, then the quiz, then the next lesson** — the same order for the learner
-  and for the instructor reviewing it
+- **Narrated slide video** — TTS audio, captions, previous/play/next, volume and
+  speed controls, with light scene transitions
+- **Video, then the quiz, then the next lesson** — the same order for the learner
+  and for the instructor reviewing it; legacy lessons fall back to slides
 - **A study assistant beside the lesson** — answers from that lesson only, and says
   so when a question is outside it
 - **Platform help in the corner** — answers about using Ecotech, and sends subject
@@ -109,13 +111,15 @@ already right.
 
 ### Either way
 
-The lesson gets a quiz, written from its own slides and nothing else, with each
-question quoting the sentence that supports its answer. The instructor reviews
-the slides and the quiz, edits anything, and publishes.
+After the slides pass review, quiz and narrated-video generation start together.
+The two jobs settle independently, so one can be retried without discarding the
+other. Narration is synthesized through an OpenAI-compatible `/audio/speech`
+endpoint and is disclosed to learners as an AI-generated voice.
 
 ```
-  prompt → sections (reviewed) → slides → quality gate → quiz → preview → publish
-  .pptx  → imported as-is ─────────────────────────────→ quiz → preview → publish
+  prompt → sections → slides → quality gate ─┬→ quiz ──┐
+                                              └→ video ─┴→ preview → publish
+  .pptx  → imported as-is → generate video / quiz on demand → preview → publish
 ```
 
 The full picture — the layers, every workflow drawn end to end, and which model
@@ -128,6 +132,7 @@ runs which AI task — is in **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
 ### Prerequisites
 
 - Node.js 20 or newer
+- Docker Desktop (for the free local narration service)
 - An API key for an OpenAI-compatible gateway. The default is
   [EcoAPI](https://www.ecoapi.ai/api); any endpoint that speaks that surface
   works.
@@ -162,15 +167,21 @@ silent fallback.
 > `prisma/schema.prisma`, not the project root, so `file:./db/custom.db` would create
 > `prisma/db/custom.db` and leave the intended database untouched. See `db/README.md`.
 
-| Variable                   | Default                        | Purpose                                            |
-| -------------------------- | ------------------------------ | -------------------------------------------------- |
-| `DATABASE_URL`             | —                              | SQLite path, relative to `prisma/`                 |
-| `SESSION_SECRET`           | —                              | Signs session cookies; 32+ chars, required in prod |
-| `ECOAPI_API_KEY`           | —                              | The gateway's key. Required                        |
-| `ECOAPI_BASE_URL`          | `https://www.ecoapi.ai/api/v1` | The gateway's OpenAI-compatible endpoint           |
-| `CLAUDE_MAX_TOKENS`        | `16000`                        | Ceiling for one generation                         |
-| `MODEL_*` (eleven of them) | see below                      | Move one AI task to a different model              |
-| `CHROMIUM_EXECUTABLE_PATH` | unset                          | System Chromium for the renderer                   |
+| Variable                   | Default                            | Purpose                                            |
+| -------------------------- | ---------------------------------- | -------------------------------------------------- |
+| `DATABASE_URL`             | —                                  | SQLite path, relative to `prisma/`                 |
+| `SESSION_SECRET`           | —                                  | Signs session cookies; 32+ chars, required in prod |
+| `ECOAPI_API_KEY`           | —                                  | The gateway's key. Required                        |
+| `ECOAPI_BASE_URL`          | `https://www.ecoapi.ai/api/v1`     | The gateway's OpenAI-compatible endpoint           |
+| `CLAUDE_MAX_TOKENS`        | `16000`                            | Ceiling for one generation                         |
+| `MODEL_*` (eleven of them) | see below                          | Move one AI task to a different model              |
+| `TTS_BASE_URL`             | `http://127.0.0.1:8000/v1`         | OpenAI-compatible speech endpoint root             |
+| `TTS_API_KEY`              | unset                              | Optional key for an explicitly configured provider |
+| `TTS_MODEL`                | `speaches-ai/Kokoro-82M-v1.0-ONNX` | Local speech model                                 |
+| `TTS_VOICE`                | `af_heart`                         | Default Kokoro narration voice                     |
+| `TTS_TIMEOUT_MS`           | `300000`                           | Per-scene speech request timeout                   |
+| `TTS_CONCURRENCY`          | `2`                                | CPU audio scenes synthesized at once               |
+| `CHROMIUM_EXECUTABLE_PATH` | unset                              | System Chromium for the renderer                   |
 
 **One model per task.** The project makes eleven distinct kinds of model call and
 they do not want the same model — planning an outline and judging whether a quiz
@@ -183,7 +194,34 @@ is `src/lib/ai/models.ts`.
 setting — see [This branch runs hosted models](#this-branch-runs-hosted-models-behind-an-api-key)
 below.
 
-### 3. Database
+### 3. Start local narration
+
+```bash
+npm run tts:setup
+```
+
+This starts the CPU image from [Speaches](https://github.com/speaches-ai/speaches),
+persists its Hugging Face cache in a Docker volume, and downloads
+`speaches-ai/Kokoro-82M-v1.0-ONNX` on the first run. The first download and first
+speech request are slower; later runs reuse the cache. No TTS API key or paid
+speech call is involved.
+
+Useful commands:
+
+```bash
+npm run tts:check   # health + installed-model check
+npm run tts:smoke   # synthesize one short sentence in memory
+npm run tts:logs
+npm run tts:down
+```
+
+The default concurrency is `2`, which is intentionally conservative for CPU
+development on a 32 GB laptop. Increase it only after measuring generation time
+and memory use. A hosted OpenAI-compatible TTS service remains possible by
+setting `TTS_BASE_URL` and, when required, `TTS_API_KEY`; there is no automatic
+fallback to EcoAPI or OpenAI.
+
+### 4. Database
 
 ```bash
 npm run db:generate
@@ -191,7 +229,7 @@ npm run db:push
 npm run db:seed   # optional demo content
 ```
 
-### 4. Run
+### 5. Run
 
 ```bash
 npm run dev
@@ -201,10 +239,11 @@ npm run dev
 
 ## This branch runs hosted models, behind an API key
 
-Every model call goes through LangChain, and `src/lib/ai/provider.ts` on this
+Every chat-model call goes through LangChain, and `src/lib/ai/provider.ts` on this
 branch builds a **`ChatOpenAI`** per task, pointed at the gateway in
 `ECOAPI_BASE_URL` and authenticated with `ECOAPI_API_KEY`. Every generation is
-billed.
+billed by that gateway. Narration speech is separate and defaults to the free,
+local Speaches/Kokoro service described above.
 
 The same application on local, open-source models is
 **`claude/llm-open-source`**, which swaps that one file for a `ChatOllama`
@@ -364,7 +403,8 @@ Three groupings carry most of the meaning:
 
 ## Known limitations
 
-Passwords are plaintext, generation is fire-and-forget with client polling, and
-there is no test suite beyond `npm run verify`. The full list, with what each
-one actually means, is in
+Generation is fire-and-forget with client polling, and there is no test suite
+beyond `npm run verify`. Accounts are created at `/register`; every account has
+Student and Instructor modes, with one active at a time. The full list, with
+what each limitation means, is in
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#known-limitations).

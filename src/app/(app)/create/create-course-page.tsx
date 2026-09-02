@@ -47,6 +47,16 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogAction,
+  AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
 import { useUserStore, useCourseStore } from "@/stores/lms-store";
 import { useRouter, useSearchParams } from "next/navigation";
 import { lessonPreviewPath, ROUTES } from "@/lib/routes";
@@ -154,6 +164,9 @@ export function CreateCoursePage() {
     setEditingOutlineLesson,
     outlineEditingSlides,
     setOutlineEditingSlides,
+    slideCountSuggestion,
+    handleAcceptRecommendedSlides,
+    handleDeclineSuggestion,
     outlineLessons,
     setOutlineLessons,
     expandedOutlineLessonId,
@@ -838,6 +851,48 @@ export function CreateCoursePage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* ---- Slide count recommendation dialog ---- */}
+      <AlertDialog open={slideCountSuggestion !== null}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>This topic needs more slides</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                <p>
+                  The AI planner determined this subject needs about{" "}
+                  <strong className="text-foreground">{slideCountSuggestion?.recommended}</strong>{" "}
+                  slides to be taught properly, but you requested{" "}
+                  <strong className="text-foreground">{slideCountSuggestion?.requested}</strong>.
+                </p>
+                <p>
+                  Increasing the slide count gives each section more room.
+                  Keeping your original count means the content will be covered
+                  more briefly.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleDeclineSuggestion}>
+              Keep {slideCountSuggestion?.requested} slides
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleAcceptRecommendedSlides}
+              disabled={outlineGenerating}
+            >
+              {outlineGenerating ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Regenerating…
+                </>
+              ) : (
+                <>Use {slideCountSuggestion?.recommended} slides</>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

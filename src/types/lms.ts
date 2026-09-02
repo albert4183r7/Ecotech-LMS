@@ -81,6 +81,7 @@ export interface UserProfile {
   name: string | null;
   avatar: string | null;
   role: string;
+  roles: Array<"student" | "instructor">;
   department: string | null;
   createdAt: string;
 }
@@ -125,11 +126,35 @@ export interface ClassroomSlide {
   order: number;
 }
 
+export type LessonVideoStatus = "DRAFT" | "GENERATING" | "READY" | "ERROR" | "STALE";
+
+export interface VideoSceneItem {
+  id: string;
+  slideId: string;
+  order: number;
+  narration: string;
+  caption: string;
+  audioUrl: string | null;
+  durationMs: number | null;
+  status: "DRAFT" | "GENERATING" | "READY" | "ERROR";
+  error: string | null;
+}
+
+export interface LessonVideoItem {
+  id: string;
+  status: LessonVideoStatus;
+  voice: string;
+  language: string;
+  error: string | null;
+  scenes: VideoSceneItem[];
+}
+
 export interface ClassroomState {
   courseId: string;
   courseTitle: string;
   lessonId: string;
   lessonTitle: string;
+  video: LessonVideoItem | null;
   // Every slide in the lesson. The classroom previously held only the first
   // slide's HTML, so a lesson of any length displayed a single slide.
   slides: ClassroomSlide[];

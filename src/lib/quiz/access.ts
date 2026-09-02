@@ -119,8 +119,12 @@ export async function resolveQuizAccess(where: {
   });
   if (!course) throw new AuthorizationError("Quiz not found.", 404);
 
-  if (course.creatorId === user.id) {
+  if (user.role === "instructor" && course.creatorId === user.id) {
     return { user, quiz, isOwner: true };
+  }
+
+  if (user.role !== "student") {
+    throw new AuthorizationError("Sign in as a Student to take this quiz.", 403);
   }
 
   if (course.status !== "published") {

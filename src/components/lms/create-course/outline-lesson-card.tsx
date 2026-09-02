@@ -33,12 +33,10 @@ export interface SlideGenState {
 /**
  * Which stage of "generate a lesson" is running.
  *
- * "quiz" covers everything that happens after the last slide reports READY:
- * the review pass over the deck, and the quiz written from it. Both run for as
- * long as the slides did, which is why the stage is named rather than folded
- * into a single "generating".
+ * "media" covers everything after the last slide reports READY: the quality
+ * review, then quiz and narrated-video generation in parallel.
  */
-export type GenStage = "idle" | "slides" | "quiz";
+export type GenStage = "idle" | "slides" | "media";
 
 /** A planned section of the presentation. One section owns several slides. */
 export interface OutlineSectionDraft {
@@ -156,10 +154,10 @@ export function OutlineLessonCard({
     return found?.slideId ? slideGenStates[found.slideId]?.htmlBody || "" : "";
   })();
 
-  // Everything after the last slide: the review pass and the quiz. The deck
+  // Everything after the last slide: review, quiz, and narrated video. The deck
   // itself is finished, so it is shown rather than withheld until the whole
   // workflow ends — which is minutes later on a long lesson.
-  const finishing = isGenerating && genStage === "quiz";
+  const finishing = isGenerating && genStage === "media";
   // The server logs the slide it has started; the progress figure counts the
   // ones that have finished. Both are right, and reporting the second with the
   // word "generating" made the page a slide behind the terminal.
@@ -264,7 +262,7 @@ export function OutlineLessonCard({
               <span className="bg-primary/10 text-primary inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium">
                 <Loader2 className="h-2.5 w-2.5 animate-spin" />
                 {finishing
-                  ? `${genProgress.total} slides ready · writing the quiz`
+                  ? `${genProgress.total} slides ready · generating quiz and video`
                   : `Generating ${slideInFlight}/${genProgress.total}`}
               </span>
             ) : allComplete ? (
@@ -334,7 +332,7 @@ export function OutlineLessonCard({
               <div className="flex items-center justify-between gap-2 text-xs">
                 <span className="text-muted-foreground">
                   {finishing
-                    ? `All ${genProgress.total} slides are written. Reviewing them and writing the quiz…`
+                    ? `All ${genProgress.total} slides are written. Reviewing them, then generating quiz and video in parallel…`
                     : `Generating slide ${slideInFlight} of ${genProgress.total} · ${genProgress.current} done`}
                   {remaining && !finishing ? ` · ${remaining}` : ""}
                 </span>
@@ -361,8 +359,7 @@ export function OutlineLessonCard({
               {finishing && (
                 <p className="text-muted-foreground text-[11px] leading-relaxed">
                   This last step usually takes a minute or two. The slides below are already
-                  finished — you can preview and edit them now, and the quiz appears here when it is
-                  written.
+                  finished — you can preview them now while the quiz and narrated video finish.
                 </p>
               )}
             </div>

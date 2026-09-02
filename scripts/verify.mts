@@ -39,12 +39,7 @@ import {
   MAX_LESSON_CHARS,
 } from "../src/lib/assistant/lesson-tutor";
 import type { LessonSource } from "../src/lib/quiz/lesson-source";
-import {
-  TASK_MODELS,
-  modelFor,
-  isMultimodal,
-  type AiTask,
-} from "../src/lib/ai/models";
+import { TASK_MODELS, modelFor, isMultimodal, type AiTask } from "../src/lib/ai/models";
 import { throwFriendlyError } from "../src/lib/ai/provider";
 import { safeFileName } from "../src/lib/download";
 import type { SlideContent } from "../src/lib/slides/content-schema";
@@ -67,9 +62,89 @@ import PptxGenJS from "pptxgenjs";
 import JSZip from "jszip";
 import { importPptx } from "../src/lib/slides/import/pptx";
 import { parseXml, find, findAll, textOf } from "../src/lib/slides/import/xml";
+import { buildClassroomState } from "../src/lib/classroom";
+import { deterministicEdgeNarration, narrationSourceHash } from "../src/lib/video/narration";
 
 const checks: [string, () => boolean | Promise<boolean>][] = [];
 const add = (n: string, f: () => boolean | Promise<boolean>) => checks.push([n, f]);
+
+add("classroom keeps a ready narrated lesson", () => {
+  const video = {
+    id: "video-1",
+    status: "READY" as const,
+    voice: "af_heart",
+    language: "english",
+    error: null,
+    scenes: [
+      {
+        id: "scene-1",
+        slideId: "slide-1",
+        order: 0,
+        narration: "A grounded explanation for the visible slide.",
+        caption: "A grounded explanation for the visible slide.",
+        audioUrl: "/uploads/audio/lesson-1/1.mp3",
+        durationMs: null,
+        status: "READY" as const,
+        error: null,
+      },
+    ],
+  };
+  const state = buildClassroomState({
+    courseId: "course-1",
+    courseTitle: "Course",
+    lessonId: "lesson-1",
+    lessonTitle: "Lesson",
+    video,
+    slides: [{ id: "slide-1", title: "Slide", htmlBody: "<p>Text</p>", order: 0 }],
+    allLessonIds: ["lesson-1"],
+  });
+  return state.video === video && state.video.scenes[0].audioUrl?.endsWith("1.mp3") === true;
+});
+
+add("narration source hash changes with slide content", () => {
+  const base = { id: "slide-1", title: "Energy", text: "Solar output is variable." };
+  return (
+    narrationSourceHash(base) !==
+    narrationSourceHash({ ...base, text: "Solar output varies with available light." })
+  );
+});
+
+add("cover narration uses only its visible title", () => {
+  const narration = deterministicEdgeNarration(
+    { title: "AI Agents", text: "AI Agents A practical introduction" },
+    0,
+    3,
+    "english",
+  );
+  return narration === "AI Agents.";
+});
+
+add("a thank-you closing cannot inherit earlier lesson points", () => {
+  const narration = deterministicEdgeNarration(
+    {
+      title: "谢谢 Thank You",
+      text: "谢谢 Thank You Happy learning, Enjoy learning! Global Ecotech Systems Pte. Ltd.",
+    },
+    2,
+    3,
+    "english",
+  );
+  return (
+    narration === "Thank you. Happy learning! Enjoy learning!" &&
+    !narration.includes("stopping rule")
+  );
+});
+
+add(
+  "an ordinary final teaching slide keeps its generated narration",
+  () =>
+    deterministicEdgeNarration(
+      { title: "Key findings", text: "Solar output changes with available light." },
+      2,
+      3,
+      "english",
+    ) === null,
+);
 
 add("outline repair fixes an over-long subtopic", () => {
   const plan = {
@@ -344,6 +419,22 @@ const concept: SlideContent = {
   ],
 };
 
+const contentsSlide: SlideContent = {
+  type: "contents",
+  eyebrow: "Course map",
+  title: "What we will build",
+  sections: ["Foundations", "Applied workflow", "Review and next steps"],
+};
+
+const customSlide: SlideContent = {
+  type: "custom",
+  eyebrow: "Core idea",
+  title: "One mechanism deserves the full canvas",
+  heading: "Feedback changes the next decision",
+  description:
+    "A useful feedback loop does more than report an outcome: it changes the next action, then measures whether that change improved the result.",
+};
+
 add("editing a field changes only that field", () => {
   const r = writeField(concept, "points.0.heading", "Renamed");
   return (
@@ -380,7 +471,14 @@ add("slides carry the template layout they were drawn with", () => {
   const html = renderSlideContent(concept);
   return /data-layout="options"/.test(html);
 });
-add("every layout is a slide that exists in the template file", () => {
+add("contents reuses the Ecotech numbered-list layout directly", () => {
+  const resolved = resolveSlide(contentsSlide, { slideNumber: 2 });
+  return (
+    resolved.layoutId === "agenda" &&
+    contentsSlide.sections.every((section) => resolved.boxes.some((box) => box.text === section))
+  );
+});
+add("every layout is either an exact template slide or the guarded Ecotech fallback", () => {
   // The registry drew three layouts the .pptx does not contain. Every id here
   // names a real slide in it, so a regression that reintroduces an invented
   // layout fails rather than shipping.
@@ -395,7 +493,24 @@ add("every layout is a slide that exists in the template file", () => {
     "process",
     "closing",
   ]);
-  return LAYOUTS.every((l) => fromTemplate.has(l.id));
+  return LAYOUTS.every((layout) => fromTemplate.has(layout.id) || layout.id === "editorial");
+});
+add("the derived editorial layout stays inside the Ecotech design grammar", () => {
+  const resolved = resolveSlide(customSlide, { slideNumber: 4 });
+  const paletteRoles = new Set(["panel", "surface", "accent", "accentSoft", "heading", "gradient", "none"]);
+  const measuredType = new Set([10, 12, 12.5, 13, 13.5, 15, 18, 30, 44, 48, 54]);
+  return (
+    resolved.layoutId === "editorial" &&
+    resolved.panels.every((panel) => paletteRoles.has(panel.fill)) &&
+    resolved.boxes.every(
+      (box) =>
+        box.x >= 0.041 &&
+        box.y >= 0.055 &&
+        box.x + box.w <= 0.96 &&
+        box.y + box.h <= 0.98 &&
+        measuredType.has(box.fontPt),
+    )
+  );
 });
 add("a mid-deck title becomes the template's section divider", () => {
   const first = renderSlideContent(titleSlide, { slideNumber: 1 });

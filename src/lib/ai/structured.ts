@@ -1,6 +1,7 @@
 import { AIMessage, HumanMessage, SystemMessage, type BaseMessage } from "@langchain/core/messages";
 import { z } from "zod/v4";
 import { type AiTask } from "./models";
+import type { GeminiImageInput } from "./gemini";
 import {
   getChatModel,
   throwFriendlyError,
@@ -46,6 +47,14 @@ export interface StructuredOptions {
   repair?: (parsed: unknown) => unknown;
   systemInstruction?: string;
   temperature?: number;
+  /** Provider-enforced output ceiling for this job. */
+  maxOutputTokens?: number;
+  /** Additional attempts after the first. Interactive deck jobs normally use zero. */
+  maxRetries?: number;
+  /** Rendered evidence reserved for a multimodal provider route. */
+  images?: GeminiImageInput[];
+  /** Simpler provider schema; the original schema still performs local validation. */
+  providerSchema?: z.ZodType;
 }
 
 /**
@@ -112,7 +121,18 @@ export async function generateStructuredJSON<T>(
   schema: z.ZodType<T>,
   options: StructuredOptions,
 ): Promise<T> {
-  const jsonSchema = toJsonSchema(schema);
+  // Native Gemini calling is intentionally disabled. Keep this block as the
+  // single switch if that provider is restored later; outline and deck tasks
+  // now continue through getChatModel(), which authenticates with
+  // ECOAPI_API_KEY.
+  // if (isGeminiTask(options.task)) {
+  //   return generateGeminiStructured(prompt, { ...options, schema });
+  // }
+
+  // Complete decks use a compact wire schema at the provider boundary, then
+  // deterministic repair inflates it before the authoritative local schema is
+  // checked. This applies equally to the EcoAPI JSON prompt.
+  const jsonSchema = toJsonSchema(options.providerSchema ?? schema);
   const system = [
     options.systemInstruction ?? "",
     "Reply with a single JSON object and nothing else — no prose, no code fences.",
@@ -126,13 +146,15 @@ export async function generateStructuredJSON<T>(
 
   const model = getChatModel(options.task, {
     temperature: options.temperature ?? 0.4,
+    maxOutputTokens: options.maxOutputTokens,
     format: "json",
   });
 
   let lastError: Error | null = null;
   let correction: { badOutput: string; issues: string } | null = null;
 
-  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+  const maxRetries = options.maxRetries ?? MAX_RETRIES;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
     const messages: BaseMessage[] = [new SystemMessage(system), new HumanMessage(prompt)];
     if (correction) {
       messages.push(new AIMessage(correction.badOutput));
@@ -163,7 +185,7 @@ export async function generateStructuredJSON<T>(
         "[LLM Error] generateStructuredJSON — the model returned an empty response.",
       );
       console.error(
-        `[generateStructuredJSON:${options.task}] Attempt ${attempt + 1}/${MAX_RETRIES + 1}: empty response, retrying...`,
+        `[generateStructuredJSON:${options.task}] Attempt ${attempt + 1}/${maxRetries + 1}: empty response, retrying...`,
       );
       continue;
     }
@@ -176,7 +198,7 @@ export async function generateStructuredJSON<T>(
         `[LLM Error] generateStructuredJSON — invalid JSON. Raw response:\n${rawContent.slice(0, 500)}`,
       );
       console.error(
-        `[generateStructuredJSON:${options.task}] Attempt ${attempt + 1}/${MAX_RETRIES + 1}: invalid JSON, retrying...`,
+        `[generateStructuredJSON:${options.task}] Attempt ${attempt + 1}/${maxRetries + 1}: invalid JSON, retrying...`,
       );
       continue;
     }
@@ -201,7 +223,7 @@ export async function generateStructuredJSON<T>(
       `[LLM Schema Error] generateStructuredJSON — response does not match the expected schema.\n\nValidation issues:\n${issues}\n\nReceived (first 500 chars):\n${JSON.stringify(parsed, null, 2).slice(0, 500)}`,
     );
     console.error(
-      `[generateStructuredJSON:${options.task}] Attempt ${attempt + 1}/${MAX_RETRIES + 1}: schema validation failed, retrying...\n${issues}`,
+      `[generateStructuredJSON:${options.task}] Attempt ${attempt + 1}/${maxRetries + 1}: schema validation failed, retrying...\n${issues}`,
     );
   }
 

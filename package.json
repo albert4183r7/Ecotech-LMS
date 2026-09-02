@@ -9,6 +9,7 @@
     "start": "node .next/standalone/server.js",
     "lint": "eslint .",
     "build:slide-css": "tailwindcss -i src/styles/slide-runtime.css -o public/slide-runtime.css --minify",
+    "slides:benchmark": "node node_modules/jiti/lib/jiti-cli.mjs scripts/build-slide-benchmark.mts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "db:push": "prisma db push --accept-data-loss",
@@ -16,6 +17,12 @@
     "db:migrate": "prisma migrate dev",
     "db:reset": "prisma migrate reset",
     "db:seed": "node --experimental-strip-types prisma/seed.mts",
+    "tts:up": "docker compose -f compose.tts.yaml up --detach --wait --wait-timeout 300",
+    "tts:setup": "npm run tts:up && node scripts/tts-local.mjs setup",
+    "tts:check": "node scripts/tts-local.mjs check",
+    "tts:smoke": "node scripts/tts-local.mjs smoke",
+    "tts:logs": "docker compose -f compose.tts.yaml logs --follow speaches",
+    "tts:down": "docker compose -f compose.tts.yaml down",
     "verify": "npx --yes tsx scripts/verify.mts && npx --yes tsx scripts/layout-coverage.mts && npx --yes tsx scripts/parity.mts && npx --yes tsx scripts/deck-check.mts"
   },
   "dependencies": {

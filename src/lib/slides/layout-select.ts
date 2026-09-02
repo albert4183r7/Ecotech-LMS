@@ -24,8 +24,12 @@ import {
 /** How many repeated items a slide's content carries. */
 export function itemCountOf(content: SlideContent): number {
   switch (content.type) {
+    case "contents":
+      return content.sections.length;
     case "concept":
       return content.points.length;
+    case "custom":
+      return 1;
     case "comparison":
       return content.columns.length;
     case "process":

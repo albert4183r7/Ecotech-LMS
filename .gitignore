@@ -77,6 +77,13 @@ public/slide-runtime.css
 # but a deck is megabytes and belongs to whoever uploaded it.
 public/uploads/decks/
 
+# Generated narration is reproducible runtime output and can be large. Docker's
+# Kokoro model cache lives in a named volume and is not written into the repo.
+public/uploads/audio/
+
+# Private source deck used to build the compact, committable slide benchmark.
+slide-benchmarks/input/*.pptx
+
 # written by `next dev` on every run, and its block is re-added if edited
 AGENTS.md
 CLAUDE.md

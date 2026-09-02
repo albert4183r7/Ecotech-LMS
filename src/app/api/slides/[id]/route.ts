@@ -39,13 +39,22 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return fail("order must be an integer.", 400);
     }
 
-    const updated = await db.slide.update({
-      where: { id },
-      data: {
-        ...(title !== undefined && { title: title.trim().slice(0, 90) }),
-        ...(order !== undefined && { order }),
-      },
-    });
+    const [updated] = await db.$transaction([
+      db.slide.update({
+        where: { id },
+        data: {
+          ...(title !== undefined && { title: title.trim().slice(0, 90) }),
+          ...(order !== undefined && { order }),
+        },
+      }),
+      db.lessonVideo.updateMany({
+        where: { lessonId: slide.lessonId },
+        data: {
+          status: "STALE",
+          error: "Slides changed after narration was generated.",
+        },
+      }),
+    ]);
 
     return ok(updated);
   });
@@ -65,7 +74,16 @@ export async function DELETE(
     if (!slide) return fail("Slide not found.", 404);
 
     await requireLessonOwner(slide.lessonId);
-    await db.slide.delete({ where: { id } });
+    await db.$transaction([
+      db.slide.delete({ where: { id } }),
+      db.lessonVideo.updateMany({
+        where: { lessonId: slide.lessonId },
+        data: {
+          status: "STALE",
+          error: "Slides changed after narration was generated.",
+        },
+      }),
+    ]);
 
     return ok({ id });
   });

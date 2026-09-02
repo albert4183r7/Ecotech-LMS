@@ -41,6 +41,14 @@ export const TitleSlideSchema = z.object({
   subtitle: z.string().min(10).max(180),
 });
 
+/** The Ecotech numbered-list slide, used only for the deck contents. */
+export const ContentsSlideSchema = z.object({
+  type: z.literal("contents"),
+  eyebrow: z.string().max(40).optional(),
+  title: z.string().min(3).max(90),
+  sections: z.array(z.string().min(2).max(90)).min(2).max(6),
+});
+
 export const ConceptSlideSchema = z.object({
   type: z.literal("concept"),
   /**
@@ -57,6 +65,21 @@ export const ConceptSlideSchema = z.object({
   title: z.string().min(3).max(90),
   lead: z.string().min(20).max(280).optional().describe("A sentence framing the slide"),
   points: z.array(Point).min(2).max(5),
+  takeaway: Takeaway,
+});
+
+/**
+ * A single, substantial idea that cannot honestly be split into parallel
+ * concept cards. It routes to the one derived Ecotech layout; the model still
+ * supplies content only and never supplies geometry or style values.
+ */
+export const CustomSlideSchema = z.object({
+  type: z.literal("custom"),
+  eyebrow: z.string().max(40).optional(),
+  title: z.string().min(3).max(90),
+  lead: z.string().min(20).max(220).optional(),
+  heading: z.string().min(2).max(70),
+  description: z.string().min(30).max(420),
   takeaway: Takeaway,
 });
 
@@ -222,7 +245,9 @@ export const ClosingSlideSchema = z.object({
 
 export const SlideContentSchema = z.discriminatedUnion("type", [
   TitleSlideSchema,
+  ContentsSlideSchema,
   ConceptSlideSchema,
+  CustomSlideSchema,
   ComparisonSlideSchema,
   ProcessSlideSchema,
   ArchitectureSlideSchema,
@@ -238,6 +263,7 @@ export type SlideType = SlideContent["type"];
 /** Slide types the model may choose for an ordinary content slide. */
 export const CONTENT_SLIDE_TYPES: SlideType[] = [
   "concept",
+  "custom",
   "comparison",
   "process",
   "architecture",
@@ -251,8 +277,12 @@ export function contentWeight(content: SlideContent): number {
   switch (content.type) {
     case "title":
       return content.title.length + content.subtitle.length;
+    case "contents":
+      return content.title.length + content.sections.join(" ").length;
     case "concept":
       return content.points.reduce((n, p) => n + p.heading.length + p.description.length, 0);
+    case "custom":
+      return content.heading.length + content.description.length;
     case "comparison":
       return content.columns.reduce((n, c) => n + c.points.join(" ").length, 0);
     case "process":

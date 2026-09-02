@@ -12,22 +12,23 @@ import { db } from "./db";
 // request behind them.
 //
 // A session is a signed, HTTP-only cookie: the browser sends it automatically
-// and cannot read or forge it. The payload is the user id and an expiry, and
-// the signature is an HMAC over both. Nothing about the user's role is trusted
-// from the cookie — the role is read from the database on every check, so a
-// change of role takes effect immediately.
+// and cannot read or forge it. The payload is the user id, active role and
+// expiry, and the signature is an HMAC over all three. Every account has both
+// capabilities; the signed value selects which authorization mode is active.
 // ============================================
 
 const COOKIE_NAME = "ecotech_session";
 const MAX_AGE_SECONDS = 60 * 60 * 24 * 14;
 
 export type UserRole = "student" | "instructor";
+export const ACCOUNT_ROLES: readonly UserRole[] = ["student", "instructor"];
 
 export interface SessionUser {
   id: string;
   email: string;
   name: string | null;
   role: UserRole;
+  roles: UserRole[];
 }
 
 /**
@@ -69,30 +70,38 @@ function signatureMatches(payload: string, signature: string): boolean {
   return expected.length === received.length && timingSafeEqual(expected, received);
 }
 
-function encode(userId: string): string {
-  const payload = `${userId}.${Date.now() + MAX_AGE_SECONDS * 1000}`;
+function encode(userId: string, role: UserRole): string {
+  const payload = `${userId}.${role}.${Date.now() + MAX_AGE_SECONDS * 1000}`;
   return `${payload}.${sign(payload)}`;
 }
 
-/** The user id in a cookie, if it is well-formed, correctly signed and current. */
-function decode(token: string | undefined): string | null {
+/** The signed session payload, if it is well-formed and current. */
+function decode(token: string | undefined): { userId: string; role: UserRole | null } | null {
   if (!token) return null;
   const parts = token.split(".");
-  if (parts.length !== 3) return null;
+  if (parts.length !== 3 && parts.length !== 4) return null;
 
-  const [userId, expiresAt, signature] = parts;
-  if (!signatureMatches(`${userId}.${expiresAt}`, signature)) return null;
+  // Accept the pre-role cookie shape during rolling deployments. It will be
+  // replaced with a role-aware cookie on the next successful login.
+  const legacy = parts.length === 3;
+  const userId = parts[0];
+  const role = legacy ? null : (parts[1] as UserRole);
+  const expiresAt = legacy ? parts[1] : parts[2];
+  const signature = legacy ? parts[2] : parts[3];
+  if (!legacy && role !== "student" && role !== "instructor") return null;
+  const payload = legacy ? `${userId}.${expiresAt}` : `${userId}.${role}.${expiresAt}`;
+  if (!signatureMatches(payload, signature)) return null;
 
   const expiry = Number(expiresAt);
   if (!Number.isFinite(expiry) || expiry < Date.now()) return null;
 
-  return userId;
+  return { userId, role };
 }
 
 /** Start a session for a user who has just proved who they are. */
-export async function createSession(userId: string): Promise<void> {
+export async function createSession(userId: string, role: UserRole): Promise<void> {
   const store = await cookies();
-  store.set(COOKIE_NAME, encode(userId), {
+  store.set(COOKIE_NAME, encode(userId, role), {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
@@ -109,25 +118,30 @@ export async function destroySession(): Promise<void> {
 /**
  * The signed-in user, or null.
  *
- * The role comes from the database rather than the cookie, so a session cannot
- * outlive the permissions it was issued under.
+ * The active role comes from the signed cookie. Every account can use either
+ * mode; signing the selection prevents the client from changing it without
+ * going through the role-switch endpoint.
  */
 export async function getSessionUser(): Promise<SessionUser | null> {
   const store = await cookies();
-  const userId = decode(store.get(COOKIE_NAME)?.value);
-  if (!userId) return null;
+  const token = decode(store.get(COOKIE_NAME)?.value);
+  if (!token) return null;
 
   const user = await db.user.findUnique({
-    where: { id: userId },
+    where: { id: token.userId },
     select: { id: true, email: true, name: true, role: true },
   });
   if (!user) return null;
+
+  const storedRole: UserRole = user.role === "instructor" ? "instructor" : "student";
+  const activeRole = token.role ?? storedRole;
 
   return {
     id: user.id,
     email: user.email,
     name: user.name,
-    role: user.role === "instructor" ? "instructor" : "student",
+    role: activeRole,
+    roles: [...ACCOUNT_ROLES],
   };
 }
 
@@ -149,6 +163,18 @@ export async function requireUser(): Promise<SessionUser> {
   return user;
 }
 
+/** The signed-in user in the role selected for this session. */
+export async function requireRole(role: UserRole): Promise<SessionUser> {
+  const user = await requireUser();
+  if (user.role !== role) {
+    throw new AuthorizationError(
+      `Sign in as ${role === "student" ? "a Student" : "an Instructor"} to do this.`,
+      403,
+    );
+  }
+  return user;
+}
+
 /**
  * The signed-in user, who must own the course.
  *
@@ -157,7 +183,7 @@ export async function requireUser(): Promise<SessionUser> {
  * other people's courses to a caller enumerating ids.
  */
 export async function requireCourseOwner(courseId: string): Promise<SessionUser> {
-  const user = await requireUser();
+  const user = await requireRole("instructor");
   const course = await db.course.findUnique({
     where: { id: courseId },
     select: { creatorId: true },
@@ -171,7 +197,7 @@ export async function requireCourseOwner(courseId: string): Promise<SessionUser>
 export async function requireLessonOwner(
   lessonId: string,
 ): Promise<{ user: SessionUser; courseId: string }> {
-  const user = await requireUser();
+  const user = await requireRole("instructor");
   const lesson = await db.lesson.findUnique({
     where: { id: lessonId },
     select: { courseId: true, course: { select: { creatorId: true } } },
@@ -189,17 +215,17 @@ export async function requireLessonOwner(
  * apply, kept in one place so reading a lesson through the lesson endpoint,
  * the preview endpoint or a PPTX export cannot disagree.
  */
-export async function mayReadLesson(lessonId: string, userId: string): Promise<boolean> {
+export async function mayReadLesson(lessonId: string, user: SessionUser): Promise<boolean> {
   const lesson = await db.lesson.findUnique({
     where: { id: lessonId },
     select: { courseId: true, course: { select: { creatorId: true, status: true } } },
   });
   if (!lesson) return false;
-  if (lesson.course.creatorId === userId) return true;
+  if (user.role === "instructor") return lesson.course.creatorId === user.id;
   if (lesson.course.status !== "published") return false;
 
   const enrollment = await db.enrollment.findUnique({
-    where: { userId_courseId: { userId, courseId: lesson.courseId } },
+    where: { userId_courseId: { userId: user.id, courseId: lesson.courseId } },
     select: { id: true },
   });
   return Boolean(enrollment);
@@ -220,8 +246,8 @@ export async function requireLessonReader(
     select: { course: { select: { creatorId: true } } },
   });
   if (!lesson) throw new AuthorizationError("Lesson not found.", 404);
-  if (!(await mayReadLesson(lessonId, user.id))) {
+  if (!(await mayReadLesson(lessonId, user))) {
     throw new AuthorizationError("Lesson not found.", 404);
   }
-  return { user, isOwner: lesson.course.creatorId === user.id };
+  return { user, isOwner: user.role === "instructor" && lesson.course.creatorId === user.id };
 }

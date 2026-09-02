@@ -78,6 +78,7 @@ export function useClassroomState(lessonId: string | undefined): ClassroomLoad {
           courseTitle: course.title ?? "",
           lessonId: lesson.id,
           lessonTitle: lesson.title ?? "",
+          video: lesson.video,
           slides: lesson.slides,
           allLessonIds,
         });

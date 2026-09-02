@@ -40,7 +40,7 @@ const MAX_POLL_FAILURES = 5;
 
 /** The answer /api/lessons/[id]/progress gives: statuses, never markup. */
 interface LessonProgress {
-  stage: "slides" | "finishing" | "ready" | "failed";
+  stage: "slides" | "media" | "ready" | "failed";
   done: boolean;
   totalSlides: number;
   readySlides: number;
@@ -48,6 +48,14 @@ interface LessonProgress {
   generatingSlideId: string | null;
   slides: { id: string; title: string; status: string; order: number }[];
   quiz: { id: string; status: string; error: string | null; questionCount: number } | null;
+  video: {
+    id: string;
+    status: string;
+    error: string | null;
+    readyScenes: number;
+    errorScenes: number;
+    totalScenes: number;
+  } | null;
 }
 
 export interface UseLessonWorkflowOptions {
@@ -82,6 +90,17 @@ export function useLessonWorkflow({
   const [outlineGenerating, setOutlineGenerating] = useState(false);
   const [editingOutlineLesson, setEditingOutlineLesson] = useState<string | null>(null);
   const [outlineEditingSlides, setOutlineEditingSlides] = useState<OutlineSlideDraft[]>([]);
+
+  // ---- Slide count recommendation ----
+  //
+  // When the AI planner decides the topic needs more slides than the user
+  // requested, this surfaces the recommendation so the UI can ask rather than
+  // silently compressing the content.
+  const [slideCountSuggestion, setSlideCountSuggestion] = useState<{
+    lessonId: string;
+    requested: number;
+    recommended: number;
+  } | null>(null);
 
   // ---- Lessons ----
   const [outlineLessons, setOutlineLessons] = useState<OutlineLessonDraft[]>([]);
@@ -216,9 +235,28 @@ export function useLessonWorkflow({
       setEditingOutlineLesson(newLesson.id);
       setOutlineEditingSlides(slides);
       setOutlineGenerating(false);
-      toast.success(
-        `Plan ready: ${newLesson.sections?.length ?? 0} sections across ${slides.length} slides`,
-      );
+
+      // When the planner says the topic needs more slides than the user asked
+      // for, surface the recommendation instead of silently compressing.
+      const recommended = json.data?.recommendedSlides as number | undefined;
+      if (
+        recommended &&
+        recommended > outlineSlideCount + 1 &&
+        json.data?.id
+      ) {
+        setSlideCountSuggestion({
+          lessonId: json.data.id as string,
+          requested: outlineSlideCount,
+          recommended,
+        });
+        toast.success(
+          `Plan ready — the AI recommends ${recommended} slides for this topic`,
+        );
+      } else {
+        toast.success(
+          `Plan ready: ${newLesson.sections?.length ?? 0} sections across ${slides.length} slides`,
+        );
+      }
     } catch {
       toast.error("Failed to generate outline. Please try again.");
       setOutlineGenerating(false);
@@ -356,6 +394,62 @@ export function useLessonWorkflow({
     }
   };
 
+  // ---- Accept the AI's recommended slide count ----
+  //
+  // Regenerates the outline with the recommended count so the content gets the
+  // room it needs, rather than being silently compressed.
+  const handleAcceptRecommendedSlides = useCallback(async () => {
+    if (!slideCountSuggestion) return;
+    const { lessonId, recommended } = slideCountSuggestion;
+    setSlideCountSuggestion(null);
+    setOutlineSlideCount(recommended);
+    setOutlineGenerating(true);
+    try {
+      const res = await fetch("/api/lessons/generate-outline", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          courseId,
+          topic: outlineTopic.trim(),
+          slideCount: recommended,
+          quizQuestionCount: outlineQuestionCount,
+          language: outlineLanguage,
+          existingLessonId: lessonId,
+          referenceFileUrls:
+            referenceFiles.length > 0 ? referenceFiles.map((f) => f.url) : undefined,
+        }),
+      });
+      const json = await res.json();
+      if (!json.success) {
+        toast.error(json.error || "Failed to regenerate with recommended slides");
+        setOutlineGenerating(false);
+        return;
+      }
+      const { lesson: regenerated, slides } = toLessonDraft(json.data, {
+        language: outlineLanguage,
+        style: DEFAULT_STYLE,
+        topic: outlineTopic.trim(),
+      });
+      setOutlineEditingSlides(slides);
+      setOutlineLessons((prev) =>
+        prev.map((ol) => (ol.id === lessonId ? { ...ol, ...regenerated } : ol)),
+      );
+      setOutlineGenerating(false);
+      toast.success(
+        `Plan updated to ${recommended} slides: ${regenerated.sections?.length ?? 0} sections`,
+      );
+    } catch {
+      toast.error("Failed to regenerate outline. Please try again.");
+      setOutlineGenerating(false);
+    }
+  }, [slideCountSuggestion, courseId, outlineTopic, outlineQuestionCount, outlineLanguage, referenceFiles]);
+
+  // ---- Decline the recommendation, keep the current outline ----
+  const handleDeclineSuggestion = useCallback(() => {
+    setSlideCountSuggestion(null);
+    toast.success("Outline kept as planned");
+  }, []);
+
   // ============================================
   // GENERATE SLIDES — Polling approach (proxy-safe)
   // ============================================
@@ -451,7 +545,7 @@ export function useLessonWorkflow({
           // declaring success at the last slide left the instructor on a
           // preview with no quiz — and naming the stage is what stops a
           // finished deck from looking stuck.
-          setGenStage(progress.done ? "idle" : progress.stage === "slides" ? "slides" : "quiz");
+          setGenStage(progress.done ? "idle" : progress.stage === "slides" ? "slides" : "media");
 
           // Show the deck the moment there is one, rather than at the end of a
           // workflow whose remaining stages take as long as the slides did.
@@ -471,7 +565,7 @@ export function useLessonWorkflow({
             // the finished deck is read once more here.
             void loadSlideHtml(lessonId);
 
-            const { readySlides, errorSlides, totalSlides, quiz } = progress;
+            const { readySlides, errorSlides, totalSlides, quiz, video } = progress;
             if (errorSlides > 0) {
               toast.warning(
                 `${readySlides} of ${totalSlides} slides generated. ${errorSlides} failed.`,
@@ -480,10 +574,15 @@ export function useLessonWorkflow({
               toast.warning(
                 `All ${readySlides} slides generated, but the quiz could not be built. You can retry it from the preview.`,
               );
+            } else if (video?.status === "ERROR") {
+              toast.warning(
+                `All ${readySlides} slides and the quiz are ready, but narration failed. You can retry the video from the preview.`,
+              );
             } else {
               toast.success(
                 `All ${readySlides} slides generated` +
-                  (quiz?.questionCount ? `, with a ${quiz.questionCount}-question quiz.` : "."),
+                  (quiz?.questionCount ? `, with a ${quiz.questionCount}-question quiz` : "") +
+                  (video?.status === "READY" ? " and narrated video." : "."),
               );
             }
 
@@ -674,6 +773,10 @@ export function useLessonWorkflow({
     setEditingOutlineLesson,
     outlineEditingSlides,
     setOutlineEditingSlides,
+    // slide count recommendation
+    slideCountSuggestion,
+    handleAcceptRecommendedSlides,
+    handleDeclineSuggestion,
     // lessons
     outlineLessons,
     setOutlineLessons,

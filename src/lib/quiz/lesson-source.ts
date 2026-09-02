@@ -14,6 +14,7 @@ import { parseSlideDoc, slideDocText } from "@/lib/slides/document";
 
 /** One slide's words, kept separately so a caller can point at one of them. */
 export interface LessonSourceSlide {
+  id: string;
   /** 1-based, as the learner sees it. */
   number: number;
   title: string;
@@ -49,7 +50,7 @@ export async function loadLessonSource(lessonId: string): Promise<LessonSource |
       slides: {
         where: { status: "READY" },
         orderBy: { order: "asc" },
-        select: { title: true, contentJson: true, htmlBody: true, order: true },
+        select: { id: true, title: true, contentJson: true, htmlBody: true, order: true },
       },
     },
   });
@@ -61,7 +62,12 @@ export async function loadLessonSource(lessonId: string): Promise<LessonSource |
     let body = doc ? slideDocText(doc) : "";
     if (!body) body = extractSlideText(slide.htmlBody);
     if (body.trim()) {
-      slides.push({ number: slide.order + 1, title: slide.title, text: body.trim() });
+      slides.push({
+        id: slide.id,
+        number: slide.order + 1,
+        title: slide.title,
+        text: body.trim(),
+      });
     }
   }
 

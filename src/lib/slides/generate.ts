@@ -70,6 +70,7 @@ You return structured content, not HTML and not prose. Put the substance in
 this slide has to teach:
 
 - concept: an idea broken into named parts
+- custom: one substantial idea that cannot honestly be split into two parts
 - comparison: two or three things set against each other
 - process: an ordered sequence of steps
 - architecture: how components connect, as a flow
@@ -77,6 +78,7 @@ this slide has to teach:
 - data: figures, only when the figures come from supplied source material
 - summary: the points worth remembering
 - title / closing: reserved for the first and last slides
+- contents: reserved for the numbered section list after the cover
 
 TEACH THE SUBJECT, AT ITS OWN DEPTH
 
@@ -261,8 +263,12 @@ export function summariseForContext(content: SlideContent): string {
     case "title":
     case "closing":
       return content.title;
+    case "contents":
+      return `${content.title}: ${content.sections.join(", ")}`;
     case "concept":
       return `${content.title}: ${content.points.map((p) => p.heading).join(", ")}`;
+    case "custom":
+      return `${content.title}: ${content.heading}`;
     case "comparison":
       return `${content.title}: ${content.columns.map((c) => c.heading).join(" vs ")}`;
     case "process":

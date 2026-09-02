@@ -81,7 +81,12 @@ export function toLessonDraft(
         order: sec.order,
       })),
       requestedSlideCount: lessonData.requestedSlideCount,
-      adjustments: lessonData.adjustments,
+      // Older saved plans may still contain the former slide-count advisory.
+      // The dedicated recommendation dialog handles that choice now, so do
+      // not repeat the passive note in the presentation plan.
+      adjustments: lessonData.adjustments?.filter(
+        (note) => !note.includes("slides to be taught properly"),
+      ),
       audience: lessonData.audience,
       thesis: lessonData.thesis,
       misconception: lessonData.misconception,

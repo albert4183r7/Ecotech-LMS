@@ -41,7 +41,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ success: false, error: "Course not found" }, { status: 404 });
     }
 
-    const isOwner = course.creatorId === userId;
+    const isOwner = sessionUser.role === "instructor" && course.creatorId === userId;
 
     // A course nobody has published is the instructor's private draft. Anyone
     // else is told it does not exist rather than that it exists and is closed,
@@ -54,7 +54,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       db.enrollment.findUnique({ where: { userId_courseId: { userId, courseId: id } } }),
       db.favorite.findUnique({ where: { userId_courseId: { userId, courseId: id } } }),
     ]);
-    const isEnrolled = !!enrollment;
+    const isEnrolled = sessionUser.role === "student" && !!enrollment;
     const isFavorited = !!favorite;
 
     // The syllabus — lesson and slide titles — is what the course page is for,

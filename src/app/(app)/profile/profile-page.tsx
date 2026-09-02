@@ -42,6 +42,7 @@ interface UserProfile {
   name: string | null;
   avatar: string | null;
   role: string;
+  roles: string[];
   department: string | null;
   createdAt: string;
   stats: UserStats;
@@ -52,7 +53,7 @@ interface UserProfile {
 /* ------------------------------------------------------------------ */
 
 export function ProfilePage() {
-  const { currentUserId, currentRole, logout } = useUserStore();
+  const { currentUserId, currentRole, setCurrentRole, logout } = useUserStore();
   const { navigateTo } = useNavigation();
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -99,6 +100,26 @@ export function ProfilePage() {
     month: "long",
     year: "numeric",
   });
+
+  const switchRole = async (role: "student" | "instructor") => {
+    try {
+      const response = await fetch("/api/auth/role", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role }),
+      });
+      const json = await response.json();
+      if (!response.ok || !json.success) {
+        toast.error(json.error || "Unable to switch role.");
+        return;
+      }
+      setCurrentRole(role);
+      toast.success(`Switched to ${role === "student" ? "Student" : "Instructor"} mode.`);
+      navigateTo("home");
+    } catch {
+      toast.error("Failed to switch role. Please try again.");
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -157,11 +178,28 @@ export function ProfilePage() {
                 {/* Role badge */}
                 <Badge className="gap-1 bg-gradient-to-r from-cyan-600 to-teal-500 text-[10px] font-semibold text-white hover:from-cyan-700 hover:to-teal-600">
                   <Shield className="h-3 w-3" />
-                  {profile.role}
+                  {currentRole}
                 </Badge>
+                {profile.roles.length > 1 && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => switchRole(currentRole === "student" ? "instructor" : "student")}
+                  >
+                    Switch to {currentRole === "student" ? "Instructor" : "Student"}
+                  </Button>
+                )}
               </div>
               <p className="text-muted-foreground text-sm">{profile.email}</p>
               <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                {profile.roles.length > 1 && (
+                  <span className="text-muted-foreground text-xs">
+                    Also available as{" "}
+                    {profile.roles.filter((role) => role !== currentRole).join(" & ")}
+                  </span>
+                )}
                 {profile.department && (
                   <Badge variant="secondary" className="gap-1 text-xs">
                     <Building2 className="h-3 w-3" />

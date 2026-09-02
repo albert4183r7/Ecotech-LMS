@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authFailure } from "@/lib/api-response";
 import { db } from "@/lib/db";
-import { requireUser, AuthorizationError } from "@/lib/session";
+import { requireUser, requireRole, AuthorizationError } from "@/lib/session";
 
 export async function GET(request: NextRequest) {
   try {
@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
     // the courses you teach. The ids used to come from the query string, so
     // anyone could read another student's enrolments or another instructor's
     // student list by naming them.
-    const user = await requireUser();
+    const user = wantsRoster ? await requireRole("instructor") : await requireRole("student");
     const userId = user.id;
 
     if (wantsRoster) {
@@ -118,7 +118,7 @@ export async function POST(request: NextRequest) {
   try {
     let actingUserId: string;
     try {
-      actingUserId = (await requireUser()).id;
+      actingUserId = (await requireRole("student")).id;
     } catch (error) {
       if (error instanceof AuthorizationError) {
         return NextResponse.json(

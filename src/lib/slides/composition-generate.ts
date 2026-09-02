@@ -254,15 +254,30 @@ export async function generateSlideComposition(brief: SlideBrief): Promise<Slide
   let faults: string[] = [];
 
   for (let attempt = 1; attempt <= 2; attempt++) {
-    const composition = await generateStructuredJSON(
-      buildCompositionPrompt(brief, attempt === 1 ? undefined : faults),
-      SlideCompositionSchema,
-      {
-        task: "slide-authoring",
-        systemInstruction: system,
-        temperature: attempt === 1 ? 0.7 : 0.5,
-      },
-    );
+    let composition: SlideComposition;
+    try {
+      composition = await generateStructuredJSON(
+        buildCompositionPrompt(brief, attempt === 1 ? undefined : faults),
+        SlideCompositionSchema,
+        {
+          task: "slide-authoring",
+          systemInstruction: system,
+          temperature: attempt === 1 ? 0.7 : 0.5,
+        },
+      );
+    } catch (error) {
+      // A repair is an improvement pass, not permission to discard a complete
+      // first composition. The deck agent can still build and round-trip that
+      // best version when the provider fails during the optional second look.
+      if (best) {
+        console.warn(
+          `[compose-slide] slide ${brief.position} repair unavailable, shipping the first composition — ` +
+            `${error instanceof Error ? error.message : "unknown error"}`,
+        );
+        return best.composition;
+      }
+      throw error;
+    }
 
     const resolved = resolveComposition(composition);
     const found = reviewComposition(composition, resolved.warnings);

@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { requireUser, AuthorizationError } from "@/lib/session";
+import { requireRole, AuthorizationError } from "@/lib/session";
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
     let actingUserId: string;
     try {
-      actingUserId = (await requireUser()).id;
+      actingUserId = (await requireRole("student")).id;
     } catch (error) {
       if (error instanceof AuthorizationError) {
         return NextResponse.json(

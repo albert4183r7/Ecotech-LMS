@@ -41,6 +41,13 @@ const MIN_FONT_PT = 10.5;
 
 /** Read a dotted path out of the content object. */
 function read(content: SlideContent, path: string): string | undefined {
+  // Contents uses the template's exact numbered-list layout. That layout was
+  // originally named for summary takeaways, so translate only its item path;
+  // geometry and styling remain the inherited Ecotech layout unchanged.
+  if (content.type === "contents" && path.startsWith("takeaways.")) {
+    const index = Number(path.split(".")[1]);
+    return content.sections[index];
+  }
   let current: unknown = content;
   for (const part of path.split(".")) {
     if (current === null || typeof current !== "object") return undefined;

@@ -167,16 +167,17 @@ Eight distinct kinds of model call, and they do not want the same model.
 Planning an outline over a reference document and deciding whether a quiz
 question is answerable from its lesson are different jobs.
 
-| Task                   | Model             | Why this one                                                                                                 | Override                   |
-| ---------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------ | -------------------------- |
-| `outline-planning`     | `claude-opus-5`   | Longest context and most reasoning here; output must satisfy per-field length limits a weaker model overruns | `MODEL_OUTLINE_PLANNING`   |
-| `slide-authoring`      | `claude-opus-5`   | Writes to the character budget its chosen layout allows; overrunning costs a retry                           | `MODEL_SLIDE_AUTHORING`    |
-| `quiz-authoring`       | `claude-opus-5`   | Nested schema, and must stay inside the source text — a weaker model invents distractors that are not in it  | `MODEL_QUIZ_AUTHORING`     |
-| `content-evaluation`   | `claude-opus-5`   | Critique is only useful if specific, which is where model strength shows                                     | `MODEL_CONTENT_EVALUATION` |
-| `slide-field-edit`     | `claude-sonnet-5` | One short field; the stronger model buys nothing and bills more                                              | `MODEL_SLIDE_FIELD_EDIT`   |
-| `quiz-grounding-judge` | `claude-sonnet-5` | A verdict with a reason, not composition — and it runs once per question                                     | `MODEL_QUIZ_JUDGE`         |
-| `lesson-tutor`         | `claude-sonnet-5` | The one task a person waits on directly; responsiveness beats the extra quality on a short grounded answer   | `MODEL_LESSON_TUTOR`       |
-| `platform-help`        | `claude-sonnet-5` | Short factual answers about using the product, waited on directly like the tutor                             | `MODEL_PLATFORM_HELP`      |
+| Task                     | Model             | Why this one                                                                                                 | Override                       |
+| ------------------------ | ----------------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------ |
+| `outline-planning`       | `claude-opus-5`   | Longest context and most reasoning here; output must satisfy per-field length limits a weaker model overruns | `MODEL_OUTLINE_PLANNING`       |
+| `slide-authoring`        | `claude-opus-5`   | Writes to the character budget its chosen layout allows; overrunning costs a retry                           | `MODEL_SLIDE_AUTHORING`        |
+| `video-script-authoring` | `claude-sonnet-5` | Grounded spoken rewriting with a strict per-scene limit; it runs beside quiz generation                      | `MODEL_VIDEO_SCRIPT_AUTHORING` |
+| `quiz-authoring`         | `claude-opus-5`   | Nested schema, and must stay inside the source text — a weaker model invents distractors that are not in it  | `MODEL_QUIZ_AUTHORING`         |
+| `content-evaluation`     | `claude-opus-5`   | Critique is only useful if specific, which is where model strength shows                                     | `MODEL_CONTENT_EVALUATION`     |
+| `slide-field-edit`       | `claude-sonnet-5` | One short field; the stronger model buys nothing and bills more                                              | `MODEL_SLIDE_FIELD_EDIT`       |
+| `quiz-grounding-judge`   | `claude-sonnet-5` | A verdict with a reason, not composition — and it runs once per question                                     | `MODEL_QUIZ_JUDGE`             |
+| `lesson-tutor`           | `claude-sonnet-5` | The one task a person waits on directly; responsiveness beats the extra quality on a short grounded answer   | `MODEL_LESSON_TUTOR`           |
+| `platform-help`          | `claude-sonnet-5` | Short factual answers about using the product, waited on directly like the tutor                             | `MODEL_PLATFORM_HELP`          |
 
 The ids are passed to the gateway verbatim, so they have to be ids it lists;
 the defaults assume it sells Anthropic's models. Running all eleven on one
@@ -226,12 +227,15 @@ A lesson is made in one of two ways, and everything after it is shared.
         │                                    ├── runQualityGate
         │                                    │     ├── AI: content-evaluation
         │                                    │     └── revise and re-render
-        │                                    └── generateAndSaveQuiz
-        │                                          ├── AI: quiz-authoring
-        │                                          └── AI: quiz-grounding-judge
+        │                                    └── Promise.allSettled
+        │                                          ├── generateAndSaveQuiz
+        │                                          │     ├── AI: quiz-authoring
+        │                                          │     └── AI: quiz-grounding-judge
+        │                                          └── generateAndSaveNarratedLesson
+        │                                                ├── AI: video-script-authoring
+        │                                                └── POST /audio/speech per scene
         │
-  the hook polls GET /api/lessons/[id]     until every slide is READY and the
-                                            quiz has settled
+  the hook polls GET /api/lessons/[id]/progress until slides, quiz and video settle
         │
   instructor previews                      /preview/[lessonId]
   instructor publishes                     PUT /api/courses/[id] status=published
@@ -392,6 +396,31 @@ asserted. Correct answers are stripped server-side for anyone who is not the
 course's instructor, and a student reaches a quiz only when the course is
 published _and_ they are enrolled.
 
+### Generating a narrated lesson
+
+The narrated artifact is an interactive scene player, not an encoded MP4. Each
+final READY slide becomes one scene. `video-script-authoring` turns only that
+slide's grounded content into concise spoken narration; the same text is the
+accessible caption. Scene audio is synthesized as MP3 through an
+OpenAI-compatible `POST /audio/speech` endpoint and stored under
+`public/uploads/audio/<lessonId>/`.
+
+In development that endpoint is the CPU-only Speaches service in
+`compose.tts.yaml`. It defaults to the open-source
+`speaches-ai/Kokoro-82M-v1.0-ONNX` model and `af_heart` voice, with a concurrency
+of two scenes. `npm run tts:setup` starts the service and installs the model into
+a persistent Docker volume. Before narration fans out, the backend checks
+`/health` and `/v1/models`; a missing service or model produces one actionable
+video error instead of one failure per scene. There is deliberately no implicit
+fallback to a paid chat or speech provider.
+
+After the quality gate, quiz and video start together with `Promise.allSettled`.
+Their `READY`/`ERROR` states remain independent, which makes a TTS outage
+retryable from instructor preview without regenerating slides or quiz. Editing,
+renaming, reordering or deleting a source slide marks its existing narration
+`STALE`. The learner player provides previous/play/next, seek, volume/mute,
+speed and captions, and discloses that its voice is AI-generated.
+
 ### The quality gate
 
 `src/lib/agent/` is now just the gate and the two critics it runs:
@@ -540,9 +569,9 @@ nothing checked this.
 
 ## Known limitations
 
-- **Passwords are stored and compared in plaintext.** `api/auth/login` does
-  `user.password !== password`. Fixing it needs hashing and a re-hash of the
-  seeded accounts.
+- **Role mode is session-scoped.** Every account has Student and Instructor
+  capabilities. The selected mode is signed into the session, and every
+  authorization decision checks that active mode.
 - **`AgentRun.lessonId` is `onDelete: SetNull`.** Both API delete paths clear
   agent runs in the same transaction, but the database does not enforce it.
 - **Generation is fire-and-forget** inside a route handler, with client polling

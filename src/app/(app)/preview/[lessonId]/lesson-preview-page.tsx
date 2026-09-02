@@ -14,6 +14,8 @@ import {
   CheckCircle2,
   FileDown,
   BookOpen,
+  Clapperboard,
+  RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -23,6 +25,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { courseDetailPath, lessonPreviewPath } from "@/lib/routes";
 import { usePptxDownload } from "@/hooks/use-pptx-download";
 import { QuizReviewPanel, type QuizPreview } from "@/components/lms/quiz/quiz-review-panel";
+import { NarratedLessonPlayer } from "@/components/lms/classroom/narrated-lesson-player";
+import type { LessonVideoItem } from "@/types/lms";
 
 // ============================================
 // Lesson preview
@@ -78,15 +82,24 @@ interface PreviewData {
   /** Where the lesson came from, when it was not planned here. */
   source?: { kind: string; originalName?: string; file?: string } | null;
   quiz: QuizPreview | null;
+  video: LessonVideoItem | null;
 }
 
 /** What /api/lessons/[id]/progress reports while a lesson is being written. */
 interface LessonProgress {
-  stage: "slides" | "finishing" | "ready" | "failed";
+  stage: "slides" | "media" | "ready" | "failed";
   done: boolean;
   totalSlides: number;
   readySlides: number;
   errorSlides: number;
+  video: {
+    id: string;
+    status: string;
+    error: string | null;
+    readyScenes: number;
+    errorScenes: number;
+    totalScenes: number;
+  } | null;
 }
 
 interface Selection {
@@ -103,7 +116,7 @@ interface Selection {
 interface ViewState {
   lessonId: string;
   index: number;
-  tab: "slides" | "quiz";
+  tab: "slides" | "video" | "quiz";
 }
 
 /** How often the page re-checks a lesson that is still being generated. */
@@ -117,6 +130,9 @@ export function LessonPreviewPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<LessonProgress | null>(null);
+  const [generationEpoch, setGenerationEpoch] = useState(0);
+  const [videoVoice, setVideoVoice] = useState("af_heart");
+  const [videoStarting, setVideoStarting] = useState(false);
 
   const [view, setView] = useState<ViewState>({ lessonId: "", index: 0, tab: "slides" });
   const active: ViewState =
@@ -133,7 +149,7 @@ export function LessonPreviewPage() {
     [lessonId],
   );
   const setTab = useCallback(
-    (next: "slides" | "quiz") =>
+    (next: "slides" | "video" | "quiz") =>
       setView((prev) => {
         const base =
           prev.lessonId === lessonId ? prev : { lessonId, index: 0, tab: "slides" as const };
@@ -210,7 +226,7 @@ export function LessonPreviewPage() {
       cancelled = true;
       if (timer) clearInterval(timer);
     };
-  }, [lessonId, load]);
+  }, [lessonId, load, generationEpoch]);
 
   const slides = useMemo(() => data?.slides ?? [], [data]);
   const current = slides[Math.min(index, Math.max(0, slides.length - 1))] ?? null;
@@ -335,6 +351,13 @@ export function LessonPreviewPage() {
                   ? { ...s, htmlBody: json.data.htmlBody, title: json.data.title }
                   : s,
               ),
+              video: prev.video
+                ? {
+                    ...prev.video,
+                    status: "STALE",
+                    error: "Slides changed after narration was generated.",
+                  }
+                : null,
             }
           : prev,
       );
@@ -353,6 +376,63 @@ export function LessonPreviewPage() {
     if (!nextLesson) return;
     router.push(lessonPreviewPath(nextLesson.id));
   }, [nextLesson, router]);
+
+  const generateVideo = useCallback(async () => {
+    if (!lessonId || videoStarting) return;
+    setVideoStarting(true);
+    try {
+      const res = await fetch(`/api/lessons/${lessonId}/video`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ voice: videoVoice }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        toast.error(json.error || "Could not start narrated lesson generation.");
+        return;
+      }
+      setData((previous) =>
+        previous
+          ? {
+              ...previous,
+              video: previous.video
+                ? { ...previous.video, status: "GENERATING", voice: videoVoice, error: null }
+                : {
+                    id: json.data.id,
+                    status: "GENERATING",
+                    voice: videoVoice,
+                    language: json.data.language,
+                    error: null,
+                    scenes: [],
+                  },
+            }
+          : previous,
+      );
+      setProgress((previous) =>
+        previous
+          ? {
+              ...previous,
+              stage: "media",
+              done: false,
+              video: {
+                id: json.data.id,
+                status: "GENERATING",
+                error: null,
+                readyScenes: 0,
+                errorScenes: 0,
+                totalScenes: 0,
+              },
+            }
+          : previous,
+      );
+      setGenerationEpoch((value) => value + 1);
+      toast.success("Narrated lesson generation started.");
+    } catch {
+      toast.error("Network error. Please try again.");
+    } finally {
+      setVideoStarting(false);
+    }
+  }, [lessonId, videoStarting, videoVoice]);
 
   if (loading && !data) {
     // A deck of a dozen slides is a large document to read, so say what is
@@ -383,6 +463,9 @@ export function LessonPreviewPage() {
   const readyCount = slides.filter((s) => s.status === "READY").length;
   const generating = Boolean(progress && !progress.done);
   const quizReady = data.quiz?.status === "READY";
+  const videoStatus = progress?.video?.status ?? data.video?.status ?? null;
+  const videoReady = videoStatus === "READY" && data.video?.status === "READY";
+  const videoPending = videoStatus === "DRAFT" || videoStatus === "GENERATING";
   // While the lesson is still being written, an absent quiz means "not yet",
   // not "generate one" — the workflow is already doing exactly that.
   const quizPending = generating && !quizReady;
@@ -449,7 +532,7 @@ export function LessonPreviewPage() {
             <p className="font-medium">
               {progress.stage === "slides"
                 ? `Writing the slides — ${progress.readySlides + progress.errorSlides} of ${progress.totalSlides} done`
-                : `All ${progress.totalSlides} slides are written. Reviewing them and building the quiz…`}
+                : `All ${progress.totalSlides} slides are written. Reviewing them, then generating the quiz and narrated video in parallel…`}
             </p>
             <p className="mt-0.5 text-xs">
               You can read and edit whatever is already here. This page updates itself as the rest
@@ -472,6 +555,25 @@ export function LessonPreviewPage() {
           <Badge variant="outline" className="ml-1">
             {readyCount}
           </Badge>
+        </Button>
+        <ChevronRight className="text-muted-foreground/50 h-4 w-4" />
+        <Button
+          variant={tab === "video" ? "secondary" : "ghost"}
+          size="sm"
+          className="gap-2"
+          onClick={() => setTab("video")}
+        >
+          <Clapperboard className="h-4 w-4" />
+          Video
+          {videoReady ? (
+            <Badge variant="outline" className="ml-1">
+              {data.video?.scenes.length}
+            </Badge>
+          ) : videoPending ? (
+            <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <AlertTriangle className="ml-1 h-3.5 w-3.5 text-amber-500" />
+          )}
         </Button>
         <ChevronRight className="text-muted-foreground/50 h-4 w-4" />
         <Button
@@ -503,7 +605,96 @@ export function LessonPreviewPage() {
         )}
       </div>
 
-      {tab === "quiz" ? (
+      {tab === "video" ? (
+        <div className="space-y-4">
+          {videoReady && data.video ? (
+            <NarratedLessonPlayer
+              slides={slides}
+              video={data.video}
+              sceneIndex={index}
+              onSceneChange={setIndex}
+              onFinish={() => setTab("quiz")}
+            />
+          ) : videoPending ? (
+            <div className="bg-card rounded-xl border p-8 text-center">
+              <Loader2 className="text-primary mx-auto h-8 w-8 animate-spin" />
+              <p className="text-foreground mt-3 font-medium">Generating the narrated lesson</p>
+              <p className="text-muted-foreground mx-auto mt-1 max-w-lg text-sm">
+                The final slides are being turned into narration and synthesized scene by scene.
+                Quiz generation runs beside this job, so neither waits for the other.
+              </p>
+              {progress?.video && progress.video.totalScenes > 0 && (
+                <p className="text-muted-foreground mt-3 text-xs tabular-nums">
+                  {progress.video.readyScenes + progress.video.errorScenes} of{" "}
+                  {progress.video.totalScenes} audio scenes settled
+                </p>
+              )}
+            </div>
+          ) : (
+            <div className="bg-card mx-auto max-w-2xl rounded-xl border p-6">
+              <div className="flex items-start gap-3">
+                <Clapperboard className="text-primary mt-0.5 h-5 w-5 shrink-0" />
+                <div>
+                  <h2 className="font-semibold">
+                    {videoStatus === "STALE"
+                      ? "Narration needs to be regenerated"
+                      : videoStatus === "ERROR"
+                        ? "Narrated lesson generation failed"
+                        : "Generate a narrated lesson"}
+                  </h2>
+                  <p className="text-muted-foreground mt-1 text-sm">
+                    {data.video?.error ??
+                      "Ecotech will explain each final slide with an AI-generated voice, captions, and scene controls."}
+                  </p>
+                </div>
+              </div>
+              <div className="mt-5 flex flex-wrap items-end gap-3">
+                <label className="space-y-1 text-sm">
+                  <span className="text-muted-foreground block text-xs font-medium">Voice</span>
+                  <select
+                    value={videoVoice}
+                    onChange={(event) => setVideoVoice(event.target.value)}
+                    className="border-input bg-background h-9 rounded-md border px-3"
+                    disabled={videoStarting || readyCount !== slides.length}
+                  >
+                    {[
+                      ["af_heart", "Heart (Female)"],
+                      ["af_alloy", "Alloy (Female)"],
+                      ["af_bella", "Bella (Female)"],
+                      ["af_jessica", "Jessica (Female)"],
+                      ["af_aoede", "Aoede (Female)"],
+                    ].map(([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <Button
+                  className="gap-2"
+                  onClick={generateVideo}
+                  disabled={videoStarting || readyCount !== slides.length || slides.length === 0}
+                >
+                  {videoStarting ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4" />
+                  )}
+                  {data.video ? "Regenerate video" : "Generate video"}
+                </Button>
+              </div>
+              {readyCount !== slides.length && (
+                <p className="text-muted-foreground mt-3 text-xs">
+                  Every slide must be ready before narration can be generated.
+                </p>
+              )}
+              <p className="text-muted-foreground mt-4 text-xs">
+                Learners are shown a disclosure that the narration voice is AI-generated.
+              </p>
+            </div>
+          )}
+        </div>
+      ) : tab === "quiz" ? (
         <div className="space-y-4">
           {quizPending ? (
             <div className="bg-card rounded-xl border p-8 text-center">
@@ -525,12 +716,12 @@ export function LessonPreviewPage() {
               size="sm"
               className="gap-1.5"
               onClick={() => {
-                setTab("slides");
-                setIndex(Math.max(0, slides.length - 1));
+                setTab("video");
+                setIndex(Math.max(0, (data.video?.scenes.length ?? slides.length) - 1));
               }}
             >
               <ChevronLeft className="h-4 w-4" />
-              Back to slides
+              Back to video
             </Button>
             {nextLesson ? (
               <Button size="sm" className="gap-1.5" onClick={goToNextLesson}>
@@ -668,10 +859,8 @@ export function LessonPreviewPage() {
               </p>
             )}
 
-            {/* Slide navigation.
-                The last slide leads to the quiz rather than to a dead end: the
-                quiz is part of the lesson, and reviewing one without the other
-                is how a lesson ships with a quiz nobody read. */}
+            {/* Slide navigation. The review follows the learner-facing order:
+                source slides, narrated experience, then quiz. */}
             <div className="flex items-center justify-between gap-2">
               <Button
                 variant="outline"
@@ -687,9 +876,9 @@ export function LessonPreviewPage() {
                 Slide {slides.length === 0 ? 0 : index + 1} of {slides.length}
               </span>
               {index >= slides.length - 1 ? (
-                <Button size="sm" className="gap-1.5" onClick={() => setTab("quiz")}>
-                  <ListChecks className="h-4 w-4" />
-                  Continue to quiz
+                <Button size="sm" className="gap-1.5" onClick={() => setTab("video")}>
+                  <Clapperboard className="h-4 w-4" />
+                  Continue to video
                 </Button>
               ) : (
                 <Button

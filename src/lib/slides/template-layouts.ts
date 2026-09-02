@@ -598,7 +598,7 @@ const AGENDA_LAYOUT: LayoutDefinition = {
   id: "agenda",
   name: "Numbered list",
   purpose: "An ordered set of points, each a line or two",
-  supports: ["summary"],
+  supports: ["summary", "contents"],
   capacity: { min: 3, max: 6 },
   build: (count, { hasLead, hasTakeaway }) => {
     const base = header(hasLead);
@@ -954,6 +954,92 @@ const PROCESS_LAYOUT: LayoutDefinition = {
   },
 };
 
+/**
+ * Derived Ecotech fallback — one substantial idea.
+ *
+ * The source template has no honest slot for a single explanatory block: its
+ * concept slides begin at two cards. This layout is therefore assembled only
+ * from furniture already present elsewhere in the template: the standard
+ * header, content margin, pale panel, mint rule, screened mint circle, 18pt
+ * Cambria heading, 13.5pt Calibri body and optional gradient takeaway band.
+ */
+const EDITORIAL_LAYOUT: LayoutDefinition = {
+  id: "editorial",
+  name: "Editorial focus",
+  purpose: "Develop one substantial idea when parallel cards would be artificial",
+  supports: ["custom"],
+  capacity: { min: 1, max: 1 },
+  build: (_count, { hasLead, hasTakeaway }) => {
+    const base = header(hasLead);
+    const band = hasTakeaway ? takeawayBand() : { panels: [], placeholders: [] };
+    const bottom = contentBottom(hasTakeaway, 0.865);
+    return {
+      id: "editorial",
+      panels: [
+        ...base.panels,
+        ...band.panels,
+        {
+          kind: "card",
+          x: MARGIN_X,
+          y: 0.313,
+          w: CONTENT_W,
+          h: bottom - 0.313,
+          fill: "panel",
+          radius: RADIUS.card,
+        },
+        {
+          kind: "rule",
+          x: MARGIN_X + 0.024,
+          y: 0.36,
+          w: 0.006,
+          h: Math.max(0.2, bottom - 0.407),
+          fill: "accent",
+          radius: 1,
+        },
+        {
+          kind: "decor",
+          x: 0.79,
+          y: 0.43,
+          w: 0.24,
+          h: 0.427,
+          fill: "accent",
+          radius: 0.5,
+          alpha: 0.12,
+        },
+      ],
+      placeholders: [
+        ...base.placeholders,
+        ...band.placeholders,
+        FOOTER,
+        {
+          path: "heading",
+          role: "heading",
+          x: MARGIN_X + 0.052,
+          y: 0.36,
+          w: 0.66,
+          h: 0.073,
+          fontPt: 18,
+          align: "left",
+          bold: true,
+          ink: "heading",
+        },
+        {
+          path: "description",
+          role: "body",
+          x: MARGIN_X + 0.052,
+          y: 0.455,
+          w: 0.68,
+          h: Math.max(0.15, bottom - 0.495),
+          fontPt: 13.5,
+          align: "left",
+          bold: false,
+          ink: "body",
+        },
+      ],
+    };
+  },
+};
+
 export const LAYOUTS: LayoutDefinition[] = [
   TITLE_LAYOUT,
   CLOSING_LAYOUT,
@@ -964,6 +1050,7 @@ export const LAYOUTS: LayoutDefinition[] = [
   COMPARISON_LAYOUT,
   METRICS_LAYOUT,
   PROCESS_LAYOUT,
+  EDITORIAL_LAYOUT,
 ];
 
 export function layoutById(id: string): LayoutDefinition | undefined {

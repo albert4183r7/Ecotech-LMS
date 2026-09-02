@@ -27,7 +27,9 @@ export const SlideBlockSchema = z.object({
 
 export const SLIDE_TYPES = [
   "title",
+  "contents",
   "concept",
+  "custom",
   "comparison",
   "process",
   "architecture",
@@ -177,6 +179,14 @@ export function draftToContent(
         }) ?? conceptFallback()
       );
 
+    case "contents": {
+      const sections = blocks
+        .map((block) => (block.heading ?? block.body ?? "").trim())
+        .filter((section) => section.length >= 2)
+        .slice(0, 6);
+      return attempt({ type: "contents", title, sections }) ?? conceptFallback();
+    }
+
     case "closing":
       return (
         attempt({ type: "closing", title, subtitle: draft.subtitle ?? lead }) ?? conceptFallback()
@@ -281,5 +291,23 @@ export function draftToContent(
           points,
         }) ?? conceptFallback()
       );
+
+    case "custom": {
+      // Two substantial blocks already have an exact Ecotech concept layout,
+      // so the derived layout is reserved for a genuinely singular idea.
+      if (points.length >= 2) return conceptFallback();
+      const block = blocks.find((candidate) => substantial(blockText(candidate), 30));
+      return (
+        (block
+          ? attempt({
+              type: "custom",
+              title,
+              lead: lead && lead.length >= 20 ? lead : undefined,
+              heading: (block.heading ?? title).slice(0, 70),
+              description: blockText(block),
+            })
+          : null) ?? conceptFallback()
+      );
+    }
   }
 }

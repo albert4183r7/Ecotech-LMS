@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { requireUser, AuthorizationError } from "@/lib/session";
+import { requireRole, AuthorizationError } from "@/lib/session";
 import { authFailure } from "@/lib/api-response";
 
 export async function GET(request: NextRequest) {
@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
     // it needs both: a session, and that session owning the enrolment. The
     // enrolment id was previously taken on trust, so anyone could read another
     // student's progress through a course.
-    const actingUserId = (await requireUser()).id;
+    const actingUserId = (await requireRole("student")).id;
 
     if (!enrollmentId) {
       return NextResponse.json(
@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
   try {
     let actingUserId: string;
     try {
-      actingUserId = (await requireUser()).id;
+      actingUserId = (await requireRole("student")).id;
     } catch (error) {
       const denied = authFailure(error);
       if (denied) return denied;

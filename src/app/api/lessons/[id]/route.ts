@@ -25,6 +25,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         quiz: {
           select: { id: true, status: true, error: true, _count: { select: { questions: true } } },
         },
+        video: {
+          include: { scenes: { orderBy: { order: "asc" } } },
+        },
       },
     });
 
@@ -58,6 +61,26 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
             status: lesson.quiz.status,
             error: lesson.quiz.error,
             questionCount: lesson.quiz._count.questions,
+          }
+        : null,
+      video: lesson.video
+        ? {
+            id: lesson.video.id,
+            status: lesson.video.status,
+            voice: lesson.video.voice,
+            language: lesson.video.language,
+            error: lesson.video.error,
+            scenes: lesson.video.scenes.map((scene) => ({
+              id: scene.id,
+              slideId: scene.slideId,
+              order: scene.order,
+              narration: scene.narration,
+              caption: scene.caption,
+              audioUrl: scene.audioUrl,
+              durationMs: scene.durationMs,
+              status: scene.status,
+              error: scene.error,
+            })),
           }
         : null,
       createdAt: lesson.createdAt,

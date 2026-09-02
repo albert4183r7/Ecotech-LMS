@@ -25,6 +25,7 @@ import {
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { LessonAssistant } from "@/components/lms/classroom/lesson-assistant";
+import { NarratedLessonPlayer } from "@/components/lms/classroom/narrated-lesson-player";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import {
@@ -80,6 +81,10 @@ export function ClassroomPage() {
   } = useClassroomState(routeLessonId);
   const userId = useUserStore((s) => s.currentUserId);
   const [localState, setLocalState] = useState<ClassroomState | null>(null);
+  const hasNarratedVideo =
+    localState?.video?.status === "READY" &&
+    localState.video.scenes.length > 0 &&
+    localState.video.scenes.every((scene) => scene.status === "READY" && scene.audioUrl);
   const [zoom, setZoom] = useState(100);
   // Set once the learner touches a zoom control, so an automatic fit never
   // overrides a deliberate choice on the next resize.
@@ -267,6 +272,7 @@ export function ClassroomPage() {
   const completedLessonsRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     if (!localState || !userId) return;
+    if (hasNarratedVideo) return;
     const onLastSlide = localState.currentSlideIndex >= localState.slides.length - 1;
     if (!onLastSlide) return;
     if (completedLessonsRef.current.has(localState.lessonId)) return;
@@ -278,6 +284,7 @@ export function ClassroomPage() {
     localState?.slides.length,
     userId,
     markLessonCompleted,
+    hasNarratedVideo,
   ]);
 
   // The slide currently on screen. Everything that used to read a single
@@ -318,6 +325,9 @@ export function ClassroomPage() {
     function handleKeyDown(e: KeyboardEvent) {
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      // The narrated player owns playback and scene navigation. In particular,
+      // Space must never silently skip a scene while audio is playing.
+      if (hasNarratedVideo && e.key !== "Escape") return;
 
       switch (e.key) {
         case "Escape":
@@ -351,7 +361,7 @@ export function ClassroomPage() {
       document.removeEventListener("keydown", handleKeyDown);
       document.removeEventListener("lms:next-slide", handleCustomNextSlide);
     };
-  }, [closeClassroom, goPrev, goNext]);
+  }, [closeClassroom, goPrev, goNext, hasNarratedVideo]);
 
   /** The space the slide has to live in, inside the viewport's padding. */
   const measureViewport = useCallback((): { width: number; height: number } | null => {
@@ -629,9 +639,13 @@ export function ClassroomPage() {
         {/* Position: slide within the lesson, and the lesson within the course */}
         <div className="flex shrink-0 items-center gap-2">
           <span className="bg-primary/10 text-primary inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm tabular-nums">
-            <span className="font-semibold">Slide {localState.currentSlideIndex + 1}</span>
+            <span className="font-semibold">
+              {hasNarratedVideo ? "Scene" : "Slide"} {localState.currentSlideIndex + 1}
+            </span>
             <span className="text-primary/40 font-normal">of</span>
-            <span className="font-semibold">{localState.slides.length}</span>
+            <span className="font-semibold">
+              {hasNarratedVideo ? localState.video?.scenes.length : localState.slides.length}
+            </span>
           </span>
           {totalLessons > 1 && (
             <span className="text-muted-foreground inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs tabular-nums">
@@ -653,19 +667,38 @@ export function ClassroomPage() {
           and scrolls when it does not fit.
         */}
         <div ref={viewportRef} className="grid flex-1 place-items-center overflow-auto p-4 sm:p-6">
-          <div
-            ref={slideWrapRef}
-            className="bg-card paper-texture overflow-hidden rounded-2xl border shadow-lg ring-1 ring-black/5 dark:ring-white/5"
-            style={{
-              width: (SLIDE_NATURAL_WIDTH * zoom) / 100,
-              aspectRatio: `${SLIDE_NATURAL_WIDTH} / ${SLIDE_NATURAL_HEIGHT}`,
-            }}
-          >
-            {navigating ? (
-              <div className="flex h-full items-center justify-center">
-                <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
-              </div>
-            ) : (
+          {navigating ? (
+            <div className="flex h-full items-center justify-center">
+              <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
+            </div>
+          ) : hasNarratedVideo && localState.video ? (
+            <NarratedLessonPlayer
+              slides={localState.slides}
+              video={localState.video}
+              sceneIndex={localState.currentSlideIndex}
+              onSceneChange={(nextIndex) =>
+                setLocalState((previous) =>
+                  previous ? { ...previous, currentSlideIndex: nextIndex } : previous,
+                )
+              }
+              onFinish={() => {
+                if (!completedLessonsRef.current.has(localState.lessonId)) {
+                  completedLessonsRef.current.add(localState.lessonId);
+                  void markLessonCompleted(localState.lessonId);
+                }
+                goNext();
+              }}
+              className="w-full max-w-5xl"
+            />
+          ) : (
+            <div
+              ref={slideWrapRef}
+              className="bg-card paper-texture overflow-hidden rounded-2xl border shadow-lg ring-1 ring-black/5 dark:ring-white/5"
+              style={{
+                width: (SLIDE_NATURAL_WIDTH * zoom) / 100,
+                aspectRatio: `${SLIDE_NATURAL_WIDTH} / ${SLIDE_NATURAL_HEIGHT}`,
+              }}
+            >
               <iframe
                 ref={iframeRef}
                 srcDoc={currentSlide?.htmlBody || ""}
@@ -678,8 +711,8 @@ export function ClassroomPage() {
                 className="h-full w-full border-0"
                 title={`${localState.lessonTitle || "Slide"} content`}
               />
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         {/* ─── Desktop Notes Sidebar (slide-in panel) ── */}
@@ -754,136 +787,142 @@ export function ClassroomPage() {
       </div>
 
       {/* ─── Keyboard Shortcuts Hint (auto-fades) ── */}
-      <div
-        className={`frosted-glass shrink-0 border-t px-4 py-1.5 text-center transition-opacity duration-700 ${
-          showKeyboardHint
-            ? "opacity-100"
-            : "pointer-events-none h-0 overflow-hidden py-0 opacity-0"
-        }`}
-      >
-        <p className="text-muted-foreground/70 text-xs tracking-wide">
-          ← → Navigate&nbsp;&nbsp;|&nbsp;&nbsp;Space: Next&nbsp;&nbsp;|&nbsp;&nbsp;Esc: Exit
-        </p>
-      </div>
+      {!hasNarratedVideo && (
+        <div
+          className={`frosted-glass shrink-0 border-t px-4 py-1.5 text-center transition-opacity duration-700 ${
+            showKeyboardHint
+              ? "opacity-100"
+              : "pointer-events-none h-0 overflow-hidden py-0 opacity-0"
+          }`}
+        >
+          <p className="text-muted-foreground/70 text-xs tracking-wide">
+            ← → Navigate&nbsp;&nbsp;|&nbsp;&nbsp;Space: Next&nbsp;&nbsp;|&nbsp;&nbsp;Esc: Exit
+          </p>
+        </div>
+      )}
 
       {/* ─── Bottom Controls (Frosted Glass) ───────── */}
       <footer className="frosted-glass shrink-0 border-t">
         <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-4 sm:px-6">
           {/* Zoom Controls */}
-          <div className="flex items-center gap-1">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={zoomOut}
-                  disabled={zoom <= MIN_ZOOM}
-                >
-                  <ZoomOut className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Zoom Out</TooltipContent>
-            </Tooltip>
+          {!hasNarratedVideo && (
+            <div className="flex items-center gap-1">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={zoomOut}
+                    disabled={zoom <= MIN_ZOOM}
+                  >
+                    <ZoomOut className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Zoom Out</TooltipContent>
+              </Tooltip>
 
-            <span className="text-muted-foreground w-12 text-center text-xs font-medium tabular-nums">
-              {zoom}%
-            </span>
+              <span className="text-muted-foreground w-12 text-center text-xs font-medium tabular-nums">
+                {zoom}%
+              </span>
 
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={zoomIn}
-                  disabled={zoom >= MAX_ZOOM}
-                >
-                  <ZoomIn className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Zoom In</TooltipContent>
-            </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={zoomIn}
+                    disabled={zoom >= MAX_ZOOM}
+                  >
+                    <ZoomIn className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Zoom In</TooltipContent>
+              </Tooltip>
 
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={zoomFitAll}>
-                  <Maximize2 className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Fit Slide</TooltipContent>
-            </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={zoomFitAll}>
+                    <Maximize2 className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Fit Slide</TooltipContent>
+              </Tooltip>
 
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={zoomFitWidth}>
-                  <MoveHorizontal className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Fit Width</TooltipContent>
-            </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={zoomFitWidth}>
+                    <MoveHorizontal className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Fit Width</TooltipContent>
+              </Tooltip>
 
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={zoomReset}>
-                  <RotateCcw className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Actual Size (100%)</TooltipContent>
-            </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={zoomReset}>
+                    <RotateCcw className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Actual Size (100%)</TooltipContent>
+              </Tooltip>
 
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={handleDownloadPptx}
-                  disabled={downloadingPptx}
-                >
-                  {downloadingPptx ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <FileDown className="h-4 w-4" />
-                  )}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Download this lesson as PPT</TooltipContent>
-            </Tooltip>
-          </div>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={handleDownloadPptx}
+                    disabled={downloadingPptx}
+                  >
+                    {downloadingPptx ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <FileDown className="h-4 w-4" />
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Download this lesson as PPT</TooltipContent>
+              </Tooltip>
+            </div>
+          )}
 
           {/* Navigation Buttons */}
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className={`gap-1.5 transition-opacity ${
-                isFirst || navigating ? "cursor-not-allowed opacity-40" : ""
-              }`}
-              onClick={goPrev}
-              disabled={isFirst || navigating}
-            >
-              <ChevronLeft className="h-4 w-4" />
-              <span className="hidden sm:inline">Previous</span>
-            </Button>
+          {!hasNarratedVideo && (
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className={`gap-1.5 transition-opacity ${
+                  isFirst || navigating ? "cursor-not-allowed opacity-40" : ""
+                }`}
+                onClick={goPrev}
+                disabled={isFirst || navigating}
+              >
+                <ChevronLeft className="h-4 w-4" />
+                <span className="hidden sm:inline">Previous</span>
+              </Button>
 
-            <Button
-              variant={quizAhead ? "default" : "outline"}
-              size="sm"
-              className={`gap-1.5 transition-opacity ${
-                isLast || navigating ? "cursor-not-allowed opacity-40" : ""
-              }`}
-              onClick={goNext}
-              disabled={isLast || navigating}
-            >
-              <span className="hidden sm:inline">{quizAhead ? "Take the quiz" : "Next"}</span>
-              {quizAhead ? (
-                <ClipboardCheck className="h-4 w-4" />
-              ) : (
-                <ChevronRight className="h-4 w-4" />
-              )}
-            </Button>
-          </div>
+              <Button
+                variant={quizAhead ? "default" : "outline"}
+                size="sm"
+                className={`gap-1.5 transition-opacity ${
+                  isLast || navigating ? "cursor-not-allowed opacity-40" : ""
+                }`}
+                onClick={goNext}
+                disabled={isLast || navigating}
+              >
+                <span className="hidden sm:inline">{quizAhead ? "Take the quiz" : "Next"}</span>
+                {quizAhead ? (
+                  <ClipboardCheck className="h-4 w-4" />
+                ) : (
+                  <ChevronRight className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
+          )}
 
           {/* Close + Assistant + Notes Toggle */}
           <div className="flex items-center gap-3">

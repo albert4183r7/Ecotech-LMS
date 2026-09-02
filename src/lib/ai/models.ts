@@ -1,7 +1,7 @@
 // ============================================
 // AI tasks and the model each one runs on
 //
-// The project makes ten distinct kinds of model call, and they do not want the
+// The project makes several distinct kinds of model call, and they do not want the
 // same model. Planning a lesson outline and judging whether a quiz question is
 // grounded are different jobs: one needs reasoning over a long reference
 // document, the other is close to classification and wants to be cheap. Naming
@@ -16,8 +16,11 @@
 /** Every distinct kind of model call the project makes. */
 export type AiTask =
   | "outline-planning"
+  | "deck-authoring"
+  | "deck-review"
   | "slide-authoring"
   | "slide-field-edit"
+  | "video-script-authoring"
   | "quiz-authoring"
   | "quiz-grounding-judge"
   | "content-evaluation"
@@ -51,12 +54,24 @@ interface TaskModel {
  */
 export const TASK_MODELS: Record<AiTask, TaskModel> = {
   "outline-planning": {
-    model: "claude-opus-5",
+    model: "claude-sonnet-5",
     envVar: "MODEL_OUTLINE_PLANNING",
     rationale:
-      "Reads a reference document and plans the lesson's sections and slide budget. " +
-      "The longest context and the most reasoning of any task here, and its output " +
-      "has to satisfy per-field length limits that a weaker model overruns.",
+      "Plans the complete lesson in one schema-constrained EcoAPI call. Sonnet keeps " +
+      "the interactive outline step responsive while deterministic repair enforces limits.",
+  },
+  "deck-authoring": {
+    model: "claude-sonnet-5",
+    envVar: "MODEL_DECK_AUTHORING",
+    rationale:
+      "Authors the complete ordered deck in one response so narrative and visual rhythm " +
+      "are coordinated without one model round trip per slide, through EcoAPI.",
+  },
+  "deck-review": {
+    model: "claude-sonnet-5",
+    envVar: "MODEL_DECK_REVIEW",
+    rationale:
+      "Reviews the rendered deck through EcoAPI and returns one batch of targeted replacements.",
   },
   "slide-authoring": {
     model: "claude-opus-5",
@@ -71,6 +86,14 @@ export const TASK_MODELS: Record<AiTask, TaskModel> = {
     rationale:
       "Rewrites one field of one slide on an instruction. A small, local edit " +
       "returning a short object; the stronger model buys nothing and bills more.",
+  },
+  "video-script-authoring": {
+    model: "claude-sonnet-5",
+    envVar: "MODEL_VIDEO_SCRIPT_AUTHORING",
+    rationale:
+      "Turns the final slide deck into a concise spoken explanation, one scene per slide. " +
+      "It is grounded rewriting with strict length limits rather than slide composition, " +
+      "so the faster model keeps generation responsive while the quiz runs beside it.",
   },
   "quiz-authoring": {
     model: "claude-opus-5",
@@ -118,7 +141,14 @@ export const TASK_MODELS: Record<AiTask, TaskModel> = {
 /** The model to use for a task, honouring its environment override. */
 export function modelFor(task: AiTask): string {
   const entry = TASK_MODELS[task];
-  return process.env[entry.envVar]?.trim() || entry.model;
+  const taskOverride = process.env[entry.envVar]?.trim();
+  if (taskOverride) return taskOverride;
+  return entry.model;
+}
+
+/** Native Gemini routing is intentionally disabled; all tasks use EcoAPI. */
+export function isGeminiTask(_task: AiTask): boolean {
+  return false;
 }
 
 /** Tasks needing a multimodal model, for start-up checks and documentation. */

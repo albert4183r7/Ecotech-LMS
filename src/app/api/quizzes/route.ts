@@ -19,11 +19,15 @@ export async function GET() {
     const user = await requireUser();
 
     const [enrollments, ownedCourses] = await Promise.all([
-      db.enrollment.findMany({
-        where: { userId: user.id, course: { status: "published" } },
-        select: { id: true, courseId: true },
-      }),
-      db.course.findMany({ where: { creatorId: user.id }, select: { id: true } }),
+      user.role === "student"
+        ? db.enrollment.findMany({
+            where: { userId: user.id, course: { status: "published" } },
+            select: { id: true, courseId: true },
+          })
+        : Promise.resolve([]),
+      user.role === "instructor"
+        ? db.course.findMany({ where: { creatorId: user.id }, select: { id: true } })
+        : Promise.resolve([]),
     ]);
 
     const enrolledCourseIds = enrollments.map((e) => e.courseId);
