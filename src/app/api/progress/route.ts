@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
 
     const enrollment = await db.enrollment.findUnique({
       where: { id: enrollmentId },
-      select: { userId: true },
+      select: { userId: true, courseId: true },
     });
     if (!enrollment || enrollment.userId !== actingUserId) {
       return NextResponse.json({ success: false, error: "Enrollment not found" }, { status: 404 });
@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
     // learner's progress by guessing an id.
     const enrollment = await db.enrollment.findUnique({
       where: { id: enrollmentId },
-      select: { userId: true },
+      select: { userId: true, courseId: true },
     });
     if (!enrollment || enrollment.userId !== actingUserId) {
       return NextResponse.json({ success: false, error: "Enrollment not found" }, { status: 404 });
@@ -96,6 +96,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Lesson not found" }, { status: 404 });
     }
 
+    // Progress is only meaningful inside the course the enrolment belongs to.
+    // Checking the two rows independently allowed a learner to complete course
+    // A by posting lesson ids from course B.
+    if (lesson.courseId !== enrollment.courseId) {
+      return NextResponse.json({ success: false, error: "Lesson not found" }, { status: 404 });
+    }
+
+    if (currentPage !== undefined && (!Number.isInteger(currentPage) || currentPage < 1)) {
+      return NextResponse.json(
+        { success: false, error: "currentPage must be a positive integer" },
+        { status: 400 },
+      );
+    }
+
     // Upsert progress record
     const progress = await db.progress.upsert({
       where: {
@@ -104,12 +118,13 @@ export async function POST(request: NextRequest) {
       create: {
         enrollmentId,
         lessonId,
-        currentPage: currentPage || 1,
-        completed: completed || false,
+        currentPage: currentPage ?? 1,
+        completed: completed ?? false,
         lastAccessedAt: new Date(),
       },
       update: {
-        currentPage: currentPage || 1,
+        // Omitting a page while marking completion must not rewind a learner.
+        ...(currentPage !== undefined && { currentPage }),
         completed: completed !== undefined ? completed : undefined,
         lastAccessedAt: new Date(),
       },
@@ -123,8 +138,14 @@ export async function POST(request: NextRequest) {
     // completed list stayed empty. Recomputed here, where the last lesson is
     // marked done.
     const [totalLessons, completedLessons] = await Promise.all([
-      db.lesson.count({ where: { courseId: lesson.courseId } }),
-      db.progress.count({ where: { enrollmentId, completed: true } }),
+      db.lesson.count({ where: { courseId: enrollment.courseId } }),
+      db.progress.count({
+        where: {
+          enrollmentId,
+          completed: true,
+          lesson: { courseId: enrollment.courseId },
+        },
+      }),
     ]);
     const percent =
       totalLessons > 0

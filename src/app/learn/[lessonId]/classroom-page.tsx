@@ -224,7 +224,7 @@ export function ClassroomPage() {
 
   /** Mark lesson as completed and save progress */
   const markLessonCompleted = useCallback(
-    async (lessonId: string) => {
+    async (lessonId: string, currentPage: number) => {
       if (!userId || !localState) return;
       try {
         const enrollRes = await fetch("/api/enrollments");
@@ -245,7 +245,7 @@ export function ClassroomPage() {
               body: JSON.stringify({
                 enrollmentId: enrollment.id,
                 lessonId,
-                currentPage: 1,
+                currentPage,
                 completed: true,
               }),
             });
@@ -258,7 +258,9 @@ export function ClassroomPage() {
     [userId, localState],
   );
 
-  // Mark the lesson complete once its last slide has been reached.
+  // Mark a multi-slide lesson complete once its last slide is reached. A
+  // single-slide lesson needs an explicit Next action below; otherwise opening
+  // it satisfies 0 >= 0 and completes it without any learner interaction.
   //
   // This used to fire on a 500ms timer as soon as the lesson opened, so simply
   // landing on a lesson marked it finished — a two-lesson course reported
@@ -267,11 +269,12 @@ export function ClassroomPage() {
   const completedLessonsRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     if (!localState || !userId) return;
+    if (localState.slides.length <= 1) return;
     const onLastSlide = localState.currentSlideIndex >= localState.slides.length - 1;
     if (!onLastSlide) return;
     if (completedLessonsRef.current.has(localState.lessonId)) return;
     completedLessonsRef.current.add(localState.lessonId);
-    markLessonCompleted(localState.lessonId);
+    markLessonCompleted(localState.lessonId, localState.currentSlideIndex + 1);
   }, [
     localState?.lessonId,
     localState?.currentSlideIndex,
@@ -304,6 +307,13 @@ export function ClassroomPage() {
       );
       return;
     }
+    if (
+      localState.slides.length === 1 &&
+      !completedLessonsRef.current.has(localState.lessonId)
+    ) {
+      completedLessonsRef.current.add(localState.lessonId);
+      void markLessonCompleted(localState.lessonId, 1);
+    }
     // The lesson is finished. Its quiz comes before the next lesson does —
     // moving straight on would skip the check the lesson was building to.
     if (lessonQuizId) {
@@ -311,7 +321,7 @@ export function ClassroomPage() {
       return;
     }
     goToLesson(localState.currentLessonIndex + 1);
-  }, [localState, goToLesson, lessonQuizId, router]);
+  }, [localState, goToLesson, lessonQuizId, router, markLessonCompleted]);
 
   // ─── Keyboard shortcuts ──────────────────────────────────────
   useEffect(() => {

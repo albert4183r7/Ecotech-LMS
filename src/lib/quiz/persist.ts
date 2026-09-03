@@ -33,6 +33,66 @@ export interface QuizResult {
   error?: string;
 }
 
+export interface GeneratedQuizForPersistence {
+  title: string;
+  questions: {
+    prompt: string;
+    explanation?: string | null;
+    sourceQuote?: string | null;
+    options: { text: string; isCorrect: boolean }[];
+  }[];
+}
+
+/**
+ * Persist generated questions without replacing the quiz identity.
+ * Exported so the grade-preservation invariant can be exercised against a
+ * real temporary database without making a model call.
+ */
+export async function saveGeneratedQuiz(
+  lessonId: string,
+  generated: GeneratedQuizForPersistence,
+): Promise<string> {
+  return db.$transaction(async (tx) => {
+    const quiz = await tx.quiz.upsert({
+      where: { lessonId },
+      create: {
+        lessonId,
+        title: generated.title,
+        status: "READY",
+        error: null,
+      },
+      update: {
+        title: generated.title,
+        status: "READY",
+        error: null,
+      },
+    });
+
+    await tx.question.deleteMany({ where: { quizId: quiz.id } });
+
+    for (const [index, question] of generated.questions.entries()) {
+      await tx.question.create({
+        data: {
+          quizId: quiz.id,
+          prompt: question.prompt,
+          explanation: question.explanation ?? null,
+          sourceQuote: question.sourceQuote ?? null,
+          order: index,
+          options: {
+            create: question.options.map((option, position) => ({
+              text: option.text,
+              isCorrect: option.isCorrect,
+              order: position,
+            })),
+          },
+        },
+      });
+    }
+
+    return quiz.id;
+  });
+}
+
 /**
  * Generate and store the quiz for one lesson.
  *
@@ -62,41 +122,12 @@ export async function generateAndSaveQuiz(
       return { status: "ERROR", error };
     }
 
-    // Replace-in-place: delete-then-create inside one transaction, so a lesson
-    // is never briefly quizless and never ends up with two.
-    const quizId = await db.$transaction(async (tx) => {
-      await tx.quiz.deleteMany({ where: { lessonId } });
-
-      const quiz = await tx.quiz.create({
-        data: {
-          lessonId,
-          title: report.quiz.title,
-          status: "READY",
-          error: null,
-        },
-      });
-
-      for (const [index, question] of report.quiz.questions.entries()) {
-        await tx.question.create({
-          data: {
-            quizId: quiz.id,
-            prompt: question.prompt,
-            explanation: question.explanation ?? null,
-            sourceQuote: question.sourceQuote,
-            order: index,
-            options: {
-              create: question.options.map((option, position) => ({
-                text: option.text,
-                isCorrect: option.isCorrect,
-                order: position,
-              })),
-            },
-          },
-        });
-      }
-
-      return quiz.id;
-    });
+    // Replace the questions, not the quiz. QuizAttempt points at the quiz row,
+    // so deleting that row erased the gradebook through the cascade. Keeping
+    // its id preserves every submitted attempt and its immutable score. The
+    // old StudentAnswer detail is removed with the retired questions, while
+    // the attempt's score/correctCount/totalCount remains available.
+    const quizId = await saveGeneratedQuiz(lessonId, report.quiz);
 
     console.log(
       `[quiz] lesson ${lessonId}: ${report.quiz.questions.length} question(s) saved ` +

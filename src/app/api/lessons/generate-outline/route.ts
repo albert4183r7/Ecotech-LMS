@@ -10,6 +10,7 @@ import {
   repairPlan,
   MIN_SLIDES,
   MAX_SLIDES,
+  CONTENTS_FROM,
   sectionsFor,
   type PresentationPlan,
 } from "@/lib/presentation-plan";
@@ -17,6 +18,10 @@ import { DEFAULT_STYLE } from "@/lib/slide-styles";
 import { MAX_QUIZ_QUESTIONS, MIN_QUIZ_QUESTIONS } from "@/lib/quiz/schema";
 import { PLAN_EXEMPLAR } from "@/lib/slides/craft";
 import { extractTextFromFiles, selectRelevantSections } from "@/lib/extract-doc";
+import {
+  AI_GENERATION_RULE,
+  consumeAuthenticatedRequest,
+} from "@/lib/rate-limit";
 
 // ============================================
 // POST /api/lessons/generate-outline   — phase one
@@ -44,19 +49,34 @@ const MAX_REFERENCE_CHARS = 12_000;
 async function loadReference(
   fileUrls: string[] | undefined,
   topic: string,
+  ownerId: string,
 ): Promise<{
   text: string;
   sources: { file: string; charCount: number }[];
   failures: { file: string; reason: string }[];
+  files: string[];
 }> {
-  if (!fileUrls?.length) return { text: "", sources: [], failures: [] };
+  if (!fileUrls?.length) return { text: "", sources: [], failures: [], files: [] };
 
-  const root = path.join(process.cwd(), "public");
-  const paths = fileUrls
-    .map((u) => path.join(root, u.replace(/^\//, "")))
-    .filter((p) => path.normalize(p).startsWith(root));
+  const root = path.resolve(process.cwd(), "public");
+  const ownedRoot = path.resolve(root, "uploads", "docs", ownerId);
+  const ownedPrefix = `${ownedRoot}${path.sep}`;
+  const accepted: { url: string; filePath: string }[] = [];
+  const rejected: { file: string; reason: string }[] = [];
 
-  if (paths.length === 0) return { text: "", sources: [], failures: [] };
+  for (const url of [...new Set(fileUrls)]) {
+    const expectedPrefix = `/uploads/docs/${ownerId}/`;
+    const filePath = path.resolve(root, url.replace(/^\//, ""));
+    if (!url.startsWith(expectedPrefix) || !filePath.startsWith(ownedPrefix)) {
+      rejected.push({ file: url, reason: "reference file does not belong to this instructor" });
+      continue;
+    }
+    accepted.push({ url, filePath });
+  }
+
+  const paths = accepted.map((item) => item.filePath);
+
+  if (paths.length === 0) return { text: "", sources: [], failures: rejected, files: [] };
 
   try {
     const { text, sources, failures } = await extractTextFromFiles(paths);
@@ -66,12 +86,25 @@ async function loadReference(
         failures.map((f) => `${f.file} (${f.reason})`).join("; "),
       );
     }
-    if (!text.trim()) return { text: "", sources, failures };
-    return { text: selectRelevantSections(text, topic, MAX_REFERENCE_CHARS), sources, failures };
+    const allFailures = [...rejected, ...failures];
+    if (!text.trim()) {
+      return { text: "", sources, failures: allFailures, files: accepted.map((item) => item.url) };
+    }
+    return {
+      text: selectRelevantSections(text, topic, MAX_REFERENCE_CHARS),
+      sources,
+      failures: allFailures,
+      files: accepted.map((item) => item.url),
+    };
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
     console.error("[generate-outline] reference extraction failed:", reason);
-    return { text: "", sources: [], failures: [{ file: "reference", reason }] };
+    return {
+      text: "",
+      sources: [],
+      failures: [...rejected, { file: "reference", reason }],
+      files: accepted.map((item) => item.url),
+    };
   }
 }
 
@@ -132,6 +165,7 @@ function buildPlannerPrompt(params: {
   // One section per teaching slide; the cover, contents and closing are the
   // other three.
   const sectionCount = sectionsFor(slideCount);
+  const hasContents = slideCount >= CONTENTS_FROM;
 
   return `WHAT THE USER ASKED FOR: ${topic}
 
@@ -145,8 +179,9 @@ THE COURSE THIS BELONGS TO: ${course.title}${
       : ""
   }
 
-SLIDE BUDGET: ${slideCount} slides in total — a title slide, a contents slide,
-${sectionCount} teaching slides, and a closing slide.
+  SLIDE BUDGET: ${slideCount} slides in total — a title slide, ${
+    hasContents ? "a contents slide, " : ""
+  }${sectionCount} teaching slide${sectionCount === 1 ? "" : "s"}, and a closing slide.
 LANGUAGE: write everything in ${language}.
 ${
   reference
@@ -190,9 +225,13 @@ section — that is what makes this training rather than an overview. Related
 terms belong together on one slide with the distinction between them made
 explicit, not scattered across three.
 
-PLAN EXACTLY ${sectionCount} SECTIONS. One section is one slide. The other three
-slides of the ${slideCount} are the title slide, a contents slide and a closing
-slide, and they are written for you.
+PLAN EXACTLY ${sectionCount} SECTIONS. One section is one slide. The other ${
+    slideCount - sectionCount
+  } slides are ${
+    hasContents
+      ? "the title slide, a contents slide and a closing slide"
+      : "the title slide and a closing slide"
+  }, and they are written for you.
 
 Each section must teach something the others do not. If two sections would say
 the same thing in different words, they are one section — replace the other
@@ -274,8 +313,9 @@ export async function POST(request: NextRequest) {
     // account's generation budget doing it. Checked before the rest of the
     // request's shape, so a caller with no business here learns nothing
     // about what this endpoint expects.
+    let ownerId: string;
     try {
-      await requireCourseOwner(courseId);
+      ownerId = (await requireCourseOwner(courseId)).id;
       if (existingLessonId) await requireLessonOwner(existingLessonId);
     } catch (error) {
       if (error instanceof AuthorizationError) {
@@ -285,6 +325,19 @@ export async function POST(request: NextRequest) {
         );
       }
       throw error;
+    }
+
+    const limited = consumeAuthenticatedRequest(
+      request.headers,
+      ownerId,
+      "ai:outline",
+      AI_GENERATION_RULE,
+    );
+    if (!limited.allowed) {
+      return NextResponse.json(
+        { success: false, error: "Too many outline generations. Please try again later." },
+        { status: 429, headers: { "Retry-After": String(limited.retryAfterSeconds) } },
+      );
     }
 
     if (!topic || !slideCount) {
@@ -315,7 +368,8 @@ export async function POST(request: NextRequest) {
       text: reference,
       sources,
       failures: referenceFailures,
-    } = await loadReference(body.referenceFileUrls, topic);
+      files: referenceFileUrls,
+    } = await loadReference(body.referenceFileUrls, topic, ownerId);
     // Record what the plan is actually grounded in. Silence here previously
     // hid a reference that had failed to parse.
     if (body.referenceFileUrls?.length) {
@@ -379,7 +433,13 @@ export async function POST(request: NextRequest) {
 
     // Reconcile the model's structure with the user's budget. Nothing is
     // dropped here — budgets shift, and sections merge only if they must.
-    const balanced = balancePlan(plan, requestedSlides);
+    let balanced;
+    try {
+      balanced = balancePlan(plan, requestedSlides);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "The outline could not fit the slide count";
+      return NextResponse.json({ success: false, error: message }, { status: 502 });
+    }
 
     // A syllabus squeezed into too few slides is the quietest way a lesson
     // becomes shallow: every section still appears, each one reduced to a
@@ -420,73 +480,86 @@ export async function POST(request: NextRequest) {
       keyTerms: balanced.keyTerms,
       outcomes: balanced.outcomes,
       recommendedSlides: balanced.recommendedSlides,
+      hasContents: balanced.hasContents,
       sections: balanced.sections,
       adjustments: balanced.adjustments,
       referenceContext: reference || undefined,
       referenceSources: sources.length ? sources : undefined,
+      referenceFileUrls: referenceFileUrls.length ? referenceFileUrls : undefined,
       referenceGrounding: grounding ?? undefined,
       referenceFailures: referenceFailures.length ? referenceFailures : undefined,
     };
 
     // ---- Persist: lesson, sections, and one empty slide per planned slot ----
-    const lesson = existingLessonId
-      ? await db.lesson.update({
-          where: { id: existingLessonId },
-          data: { title: balanced.title, outlineJson: JSON.stringify(outlineData) },
-        })
-      : await db.lesson.create({
-          data: {
-            courseId,
-            title: balanced.title,
-            order: await db.lesson.count({ where: { courseId } }),
-            outlineJson: JSON.stringify(outlineData),
-          },
-        });
+    const { lesson, sectionRows, createdSlides } = await db.$transaction(async (tx) => {
+      const lesson = existingLessonId
+        ? await tx.lesson.update({
+            where: { id: existingLessonId },
+            data: { title: balanced.title, outlineJson: JSON.stringify(outlineData) },
+          })
+        : await tx.lesson.create({
+            data: {
+              courseId,
+              title: balanced.title,
+              order: await tx.lesson.count({ where: { courseId } }),
+              outlineJson: JSON.stringify(outlineData),
+            },
+          });
 
-    if (existingLessonId) {
-      await db.slide.deleteMany({ where: { lessonId: lesson.id } });
-      await db.section.deleteMany({ where: { lessonId: lesson.id } });
-    }
+      if (existingLessonId) {
+        // The old quiz describes slides that are about to disappear. Retire
+        // its questions and mark it pending, but keep the Quiz row so attempts
+        // and their recorded scores survive regeneration.
+        const quiz = await tx.quiz.findUnique({ where: { lessonId: lesson.id }, select: { id: true } });
+        if (quiz) {
+          await tx.question.deleteMany({ where: { quizId: quiz.id } });
+          await tx.quiz.update({
+            where: { id: quiz.id },
+            data: { status: "DRAFT", error: null },
+          });
+        }
+        await tx.slide.deleteMany({ where: { lessonId: lesson.id } });
+        await tx.section.deleteMany({ where: { lessonId: lesson.id } });
+      }
 
-    await db.section.createMany({
-      data: balanced.sections.map((section, i) => ({
-        lessonId: lesson.id,
-        title: section.title,
-        summary: section.summary,
-        subtopics: JSON.stringify(section.subtopics),
-        slideBudget: section.slideBudget,
-        order: i,
-      })),
-    });
+      await tx.section.createMany({
+        data: balanced.sections.map((section, i) => ({
+          lessonId: lesson.id,
+          title: section.title,
+          summary: section.summary,
+          subtopics: JSON.stringify(section.subtopics),
+          slideBudget: section.slideBudget,
+          order: i,
+        })),
+      });
 
-    const sectionRows = await db.section.findMany({
-      where: { lessonId: lesson.id },
-      orderBy: { order: "asc" },
-    });
+      const sectionRows = await tx.section.findMany({
+        where: { lessonId: lesson.id },
+        orderBy: { order: "asc" },
+      });
 
-    await db.slide.createMany({
-      data: slots.map((slot) => ({
-        lessonId: lesson.id,
-        sectionId: sectionRows[slot.sectionIndex].id,
-        // The planner's own title for this slide. It used to be assembled here
-        // as "Section (1/2)", so half of what the instructor reviewed in the
-        // outline was string formatting rather than anything a model wrote.
-        title:
-          slot.role === "cover"
-            ? balanced.title
-            : (slot.title ??
-              (slot.slidesInSection > 1
-                ? `${slot.sectionTitle} (${slot.positionInSection}/${slot.slidesInSection})`
-                : slot.sectionTitle)),
-        htmlBody: "",
-        status: "DRAFT_OUTLINE",
-        order: slot.index,
-      })),
-    });
+      await tx.slide.createMany({
+        data: slots.map((slot) => ({
+          lessonId: lesson.id,
+          sectionId: sectionRows[slot.sectionIndex].id,
+          title:
+            slot.role === "cover"
+              ? balanced.title
+              : (slot.title ??
+                (slot.slidesInSection > 1
+                  ? `${slot.sectionTitle} (${slot.positionInSection}/${slot.slidesInSection})`
+                  : slot.sectionTitle)),
+          htmlBody: "",
+          status: "DRAFT_OUTLINE",
+          order: slot.index,
+        })),
+      });
 
-    const createdSlides = await db.slide.findMany({
-      where: { lessonId: lesson.id },
-      orderBy: { order: "asc" },
+      const createdSlides = await tx.slide.findMany({
+        where: { lessonId: lesson.id },
+        orderBy: { order: "asc" },
+      });
+      return { lesson, sectionRows, createdSlides };
     });
 
     return NextResponse.json({

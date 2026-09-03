@@ -23,7 +23,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     const slide = await db.slide.findUnique({
       where: { id },
-      select: { id: true, lessonId: true },
+      select: { id: true, lessonId: true, order: true },
     });
     if (!slide) return fail("Slide not found.", 404);
 
@@ -39,13 +39,51 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return fail("order must be an integer.", 400);
     }
 
-    const updated = await db.slide.update({
-      where: { id },
-      data: {
-        ...(title !== undefined && { title: title.trim().slice(0, 90) }),
-        ...(order !== undefined && { order }),
-      },
+    const updated = await db.$transaction(async (tx) => {
+      if (order !== undefined && order !== slide.order) {
+        const count = await tx.slide.count({ where: { lessonId: slide.lessonId } });
+        if (order < 0 || order >= count) return null;
+
+        // Free the source position first, then shift neighbours one at a time
+        // in the direction that keeps every @@unique([lessonId, order]) value
+        // free. A direct update collides with the slide already at `order`.
+        const minimum = await tx.slide.aggregate({
+          where: { lessonId: slide.lessonId },
+          _min: { order: true },
+        });
+        const temporaryOrder = (minimum._min.order ?? 0) - 1;
+        await tx.slide.update({ where: { id }, data: { order: temporaryOrder } });
+        if (order > slide.order) {
+          const shifted = await tx.slide.findMany({
+            where: { lessonId: slide.lessonId, order: { gt: slide.order, lte: order } },
+            orderBy: { order: "asc" },
+            select: { id: true, order: true },
+          });
+          for (const row of shifted) {
+            await tx.slide.update({ where: { id: row.id }, data: { order: row.order - 1 } });
+          }
+        } else {
+          const shifted = await tx.slide.findMany({
+            where: { lessonId: slide.lessonId, order: { gte: order, lt: slide.order } },
+            orderBy: { order: "desc" },
+            select: { id: true, order: true },
+          });
+          for (const row of shifted) {
+            await tx.slide.update({ where: { id: row.id }, data: { order: row.order + 1 } });
+          }
+        }
+      }
+
+      return tx.slide.update({
+        where: { id },
+        data: {
+          ...(title !== undefined && { title: title.trim().slice(0, 90) }),
+          ...(order !== undefined && { order }),
+        },
+      });
     });
+
+    if (!updated) return fail("order is outside this lesson's slide range.", 400);
 
     return ok(updated);
   });

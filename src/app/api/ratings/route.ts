@@ -70,37 +70,53 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!score || typeof score !== "number" || score < 1 || score > 5) {
+    if (!Number.isInteger(score) || score < 1 || score > 5) {
       return NextResponse.json(
         { success: false, error: "Score must be an integer between 1 and 5" },
         { status: 400 },
       );
     }
 
-    const roundedScore = Math.round(score);
-
-    // Check if course exists
-    const course = await db.course.findUnique({ where: { id: courseId } });
+    const course = await db.course.findUnique({
+      where: { id: courseId },
+      select: { id: true, creatorId: true, status: true },
+    });
     if (!course) {
       return NextResponse.json({ success: false, error: "Course not found" }, { status: 404 });
     }
 
-    // Upsert rating
-    const rating = await db.rating.upsert({
+    if (course.creatorId === userId) {
+      return NextResponse.json(
+        { success: false, error: "You cannot rate your own course" },
+        { status: 403 },
+      );
+    }
+
+    const enrollment = await db.enrollment.findUnique({
       where: { userId_courseId: { userId, courseId } },
-      update: { score: roundedScore },
-      create: { userId, courseId, score: roundedScore },
+      select: { status: true },
     });
+    if (!enrollment || enrollment.status === "dropped" || course.status !== "published") {
+      return NextResponse.json(
+        { success: false, error: "Enroll in this course before rating it" },
+        { status: 403 },
+      );
+    }
 
-    // Recalculate average and update course
-    const allRatings = await db.rating.findMany({ where: { courseId } });
-    const count = allRatings.length;
-    const newAverage =
-      count > 0 ? Number((allRatings.reduce((sum, r) => sum + r.score, 0) / count).toFixed(1)) : 0;
-
-    await db.course.update({
-      where: { id: courseId },
-      data: { rating: newAverage },
+    const { rating, count, newAverage } = await db.$transaction(async (tx) => {
+      const rating = await tx.rating.upsert({
+        where: { userId_courseId: { userId, courseId } },
+        update: { score },
+        create: { userId, courseId, score },
+      });
+      const aggregate = await tx.rating.aggregate({
+        where: { courseId },
+        _avg: { score: true },
+        _count: { score: true },
+      });
+      const newAverage = Number((aggregate._avg.score ?? 0).toFixed(1));
+      await tx.course.update({ where: { id: courseId }, data: { rating: newAverage } });
+      return { rating, count: aggregate._count.score, newAverage };
     });
 
     return NextResponse.json({

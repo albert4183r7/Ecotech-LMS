@@ -4,6 +4,7 @@ import { handleRoute, ok, fail } from "@/lib/api-response";
 import { requireLessonOwner } from "@/lib/session";
 import { resolveQuizAccess, toQuizView } from "@/lib/quiz/access";
 import { generateAndSaveQuiz } from "@/lib/quiz/persist";
+import { AI_GENERATION_RULE, consumeAuthenticatedRequest } from "@/lib/rate-limit";
 
 // ============================================
 // /api/lessons/[id]/quiz
@@ -25,7 +26,19 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   return handleRoute("lessons.quiz.POST", async () => {
     const { id } = await params;
-    await requireLessonOwner(id);
+    const { user } = await requireLessonOwner(id);
+    const limited = consumeAuthenticatedRequest(
+      request.headers,
+      user.id,
+      "ai:quiz",
+      AI_GENERATION_RULE,
+    );
+    if (!limited.allowed) {
+      return fail(
+        `Too many quiz generations. Try again in ${limited.retryAfterSeconds} seconds.`,
+        429,
+      );
+    }
 
     // How many questions, when the instructor asked for a number. Regenerating
     // is where they most often want a different one.

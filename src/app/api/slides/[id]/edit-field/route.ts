@@ -8,6 +8,7 @@ import { readField, writeField, type EditableField } from "@/lib/slides/content-
 import { readCompositionField, writeCompositionField } from "@/lib/slides/composition-path";
 import { parseSlideDoc, renderSlideDoc, slideDocTitle, type SlideDoc } from "@/lib/slides/document";
 import { sanitizeHtml, wrapSlideHtml } from "@/lib/sanitize";
+import { AI_EDIT_RULE, consumeAuthenticatedRequest } from "@/lib/rate-limit";
 
 // ============================================
 // POST /api/slides/[id]/edit-field
@@ -57,7 +58,19 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (!slide) return fail("Slide not found.", 404);
 
     // Only the course's instructor may edit its slides.
-    await requireLessonOwner(slide.lessonId);
+    const { user } = await requireLessonOwner(slide.lessonId);
+    const limited = consumeAuthenticatedRequest(
+      request.headers,
+      user.id,
+      "ai:slide-edit",
+      AI_EDIT_RULE,
+    );
+    if (!limited.allowed) {
+      return fail(
+        `Too many AI edits. Try again in ${limited.retryAfterSeconds} seconds.`,
+        429,
+      );
+    }
 
     const body = (await request.json()) as EditRequest;
     if (!body?.path || !body?.instruction?.trim()) {

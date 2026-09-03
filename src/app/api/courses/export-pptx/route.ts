@@ -114,13 +114,6 @@ export async function POST(request: NextRequest) {
       if (readable.some((allowed) => !allowed)) {
         return NextResponse.json({ error: "Slides not found" }, { status: 404 });
       }
-      const lessonId = lessonIds[0];
-      if (lessonId) {
-        const lesson = await db.lesson.findUnique({
-          where: { id: lessonId },
-          select: { outlineJson: true },
-        });
-      }
     }
 
     const { slides, skipped } = toDeckSlides(rows);

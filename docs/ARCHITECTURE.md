@@ -179,8 +179,8 @@ question is answerable from its lesson are different jobs.
 | `platform-help`        | `claude-sonnet-5` | Short factual answers about using the product, waited on directly like the tutor                             | `MODEL_PLATFORM_HELP`      |
 
 The ids are passed to the gateway verbatim, so they have to be ids it lists;
-the defaults assume it sells Anthropic's models. Running all eleven on one
-model is a supported choice — set the eleven variables and the registry defers
+the defaults assume it sells Anthropic's models. Running all eight on one
+model is a supported choice — set the eight variables and the registry defers
 to them.
 The split is here because most of these calls do not need the strongest model
 and every one of them is billed.
@@ -505,25 +505,27 @@ enrolments and progress.
 ```bash
 npm run lint          # eslint, zero warnings
 npx tsc --noEmit      # zero errors
-npm run verify        # 61 checks + layout coverage + parity + deck check
+npm run verify        # 69 static checks + data integrity + layout/export checks
 npm run build         # production build
 ```
 
-`npm run verify` runs four scripts in order and stops at the first failure.
-None of them need an API key or a database:
+`npm run verify` runs five scripts in order and stops at the first failure.
+None needs an API key. The data-integrity check creates a disposable SQLite
+database and removes it when finished:
 
-| Script                | Asks                                                                     |
-| --------------------- | ------------------------------------------------------------------------ |
-| `verify.mts`          | 61 checks — the invariants below                                         |
-| `layout-coverage.mts` | every layout the model may choose actually renders                       |
-| `parity.mts`          | the web view and the PPTX export say the same thing                      |
-| `deck-check.mts`      | an exported `.pptx` really contains the shapes, text and icons it should |
+| Script                     | Asks                                                                     |
+| -------------------------- | ------------------------------------------------------------------------ |
+| `verify.mts`               | 69 checks — the static invariants below                                  |
+| `data-integrity-check.mts` | quiz regeneration and concurrent question ordering against SQLite        |
+| `layout-coverage.mts`      | every layout the model may choose actually renders                       |
+| `parity.mts`               | the web view and the PPTX export say the same thing                      |
+| `deck-check.mts`           | an exported `.pptx` really contains the shapes, text and icons it should |
 
 `verify.mts` covers, in order: outline repair and the shape of a deck; text
 fitting and the template's own values; field addressing and the sanitiser; the
 layout registry; the AI task registry (every task names a model and an
-override, they are not all the same model, the vision task is on a multimodal
-model); the assistants' lesson boundary; quiz grounding in Latin and CJK text,
+override, they are not all the same model, and no registered task claims an
+unsupported multimodal path); the assistants' lesson boundary; quiz grounding in Latin and CJK text,
 repair, and the instructor's question count; and the import path — the XML
 reader, a real `.pptx` with its geometry and colour, a screened-back shape, a
 hidden slide staying out, and a file that is not a presentation being refused

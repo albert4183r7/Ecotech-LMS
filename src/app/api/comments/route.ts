@@ -96,6 +96,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Course not found" }, { status: 404 });
     }
 
+    if (lessonId) {
+      const lesson = await db.lesson.findFirst({ where: { id: lessonId, courseId } });
+      if (!lesson) {
+        return NextResponse.json({ success: false, error: "Lesson not found" }, { status: 404 });
+      }
+    }
+
     // Validate userId exists
     const user = await db.user.findUnique({ where: { id: userId } });
     if (!user) {
@@ -111,6 +118,15 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           { success: false, error: "Parent comment not found" },
           { status: 404 },
+        );
+      }
+      if (
+        parentComment.courseId !== courseId ||
+        (parentComment.lessonId ?? null) !== (lessonId ?? null)
+      ) {
+        return NextResponse.json(
+          { success: false, error: "Parent comment belongs to a different discussion" },
+          { status: 400 },
         );
       }
     }

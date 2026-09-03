@@ -1,7 +1,7 @@
-import { renderSlideContent } from "/home/user/Ecotech-LMS/src/lib/slides/render";
-import type { SlideContent } from "/home/user/Ecotech-LMS/src/lib/slides/content-schema";
-import { sanitizeHtml, wrapSlideHtml } from "/home/user/Ecotech-LMS/src/lib/sanitize";
-import { renderSlide, closeRenderer } from "/home/user/Ecotech-LMS/src/lib/render/slide-renderer";
+import { renderSlideContent } from "../src/lib/slides/render";
+import type { SlideContent } from "../src/lib/slides/content-schema";
+import { sanitizeHtml, wrapSlideHtml } from "../src/lib/sanitize";
+import { renderSlide, closeRenderer } from "../src/lib/render/slide-renderer";
 import { writeFileSync } from "node:fs";
 
 const OUT = process.env.OUT!;

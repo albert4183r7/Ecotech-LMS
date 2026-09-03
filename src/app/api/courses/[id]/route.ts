@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { unlink } from "node:fs/promises";
+import { rm, unlink } from "node:fs/promises";
 import path from "node:path";
 import { db } from "@/lib/db";
 import { requireCourseOwner, requireUser, AuthorizationError } from "@/lib/session";
@@ -169,6 +169,16 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       );
     }
 
+    if (status === "published") {
+      const lessonCount = await db.lesson.count({ where: { courseId: id } });
+      if (lessonCount === 0) {
+        return NextResponse.json(
+          { success: false, error: "Add at least one lesson before publishing this course" },
+          { status: 400 },
+        );
+      }
+    }
+
     const updated = await db.course.update({
       where: { id },
       data: {
@@ -199,12 +209,14 @@ function collectUploadedFiles(course: {
       const outline = JSON.parse(lesson.outlineJson) as {
         referenceFileUrls?: unknown;
         referenceSources?: { file?: unknown }[];
+        source?: { file?: unknown };
       };
       const candidates = [
         ...(Array.isArray(outline.referenceFileUrls) ? outline.referenceFileUrls : []),
         ...(Array.isArray(outline.referenceSources)
           ? outline.referenceSources.map((s) => s?.file)
           : []),
+        outline.source?.file,
       ];
       for (const value of candidates) {
         if (typeof value === "string" && value.startsWith("/uploads/")) urls.add(value);
@@ -253,6 +265,14 @@ export async function DELETE(
 
     const lessonIds = course.lessons.map((l) => l.id);
     const files = collectUploadedFiles(course);
+    // A document may intentionally be reused by several courses. Only a URL
+    // no other course references is orphaned by this deletion.
+    const otherCourses = await db.course.findMany({
+      where: { id: { not: id } },
+      select: { coverImage: true, lessons: { select: { outlineJson: true } } },
+    });
+    const stillReferenced = new Set(otherCourses.flatMap(collectUploadedFiles));
+    const orphanedFiles = files.filter((file) => !stillReferenced.has(file));
 
     // One transaction: either the whole course goes or none of it does, so a
     // failure part-way cannot leave a course with its lessons already removed.
@@ -265,17 +285,28 @@ export async function DELETE(
 
     // Files are reclaimed only once the database change has committed, so a
     // rolled-back delete never destroys a document the course still needs.
-    const uploadRoot = path.join(process.cwd(), "public");
-    for (const url of files) {
-      const filePath = path.join(uploadRoot, url.replace(/^\//, ""));
-      if (!path.normalize(filePath).startsWith(path.join(uploadRoot, "uploads"))) continue;
+    const publicRoot = path.resolve(process.cwd(), "public");
+    const uploadsRoot = `${path.resolve(publicRoot, "uploads")}${path.sep}`;
+    const decksRoot = `${path.resolve(publicRoot, "uploads", "decks")}${path.sep}`;
+    for (const url of orphanedFiles) {
+      const filePath = path.resolve(publicRoot, url.replace(/^\//, ""));
+      if (!filePath.startsWith(uploadsRoot)) continue;
+      if (filePath.startsWith(decksRoot)) {
+        // The source deck and every extracted image share one generated upload
+        // directory, so removing the directory reclaims the complete import.
+        const deckDir = path.dirname(filePath);
+        if (`${deckDir}${path.sep}`.startsWith(decksRoot)) {
+          await rm(deckDir, { recursive: true, force: true }).catch(() => undefined);
+        }
+        continue;
+      }
       await unlink(filePath).catch(() => {
         // A file already gone is the desired state; nothing to report.
       });
     }
 
     console.log(
-      `[courses.DELETE] removed "${course.title}" (${lessonIds.length} lesson(s), ${files.length} file(s))`,
+      `[courses.DELETE] removed "${course.title}" (${lessonIds.length} lesson(s), ${orphanedFiles.length} file(s))`,
     );
     return ok({ id, deleted: true });
   });

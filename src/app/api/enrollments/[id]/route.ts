@@ -21,7 +21,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     // The enrolment must be the caller's own.
     const existing = await db.enrollment.findUnique({
       where: { id },
-      select: { userId: true },
+      select: { userId: true, courseId: true, status: true },
     });
     if (!existing || existing.userId !== actingUserId) {
       return NextResponse.json({ success: false, error: "Enrollment not found" }, { status: 404 });
@@ -31,7 +31,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const { status } = body;
 
     // Validate status
-    const validStatuses = ["in_progress", "completed", "dropped"];
+    // Completion is derived from lesson progress by /api/progress. Accepting
+    // "completed" here would be a second self-certification path.
+    const validStatuses = ["in_progress", "dropped"];
     if (status && !validStatuses.includes(status)) {
       return NextResponse.json(
         { success: false, error: `Invalid status. Must be one of: ${validStatuses.join(", ")}` },
@@ -39,33 +41,38 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       );
     }
 
-    const enrollment = await db.enrollment.findUnique({ where: { id } });
-
-    if (!enrollment) {
-      return NextResponse.json({ success: false, error: "Enrollment not found" }, { status: 404 });
-    }
-
     const updateData: Record<string, unknown> = {};
     if (status) {
       updateData.status = status;
-      if (status === "completed") {
-        updateData.completedAt = new Date();
-      }
+      updateData.completedAt = null;
     }
 
-    const updated = await db.enrollment.update({
-      where: { id },
-      data: updateData,
-      include: {
-        course: {
-          include: {
-            category: true,
-            _count: {
-              select: { lessons: true },
+    const updated = await db.$transaction(async (tx) => {
+      const row = await tx.enrollment.update({
+        where: { id },
+        data: updateData,
+        include: {
+          course: {
+            include: {
+              category: true,
+              _count: {
+                select: { lessons: true },
+              },
             },
           },
         },
-      },
+      });
+
+      if (status && status !== existing.status) {
+        const studentCount = await tx.enrollment.count({
+          where: { courseId: existing.courseId, status: { not: "dropped" } },
+        });
+        await tx.course.update({
+          where: { id: existing.courseId },
+          data: { studentCount },
+        });
+      }
+      return row;
     });
 
     return NextResponse.json({ success: true, data: updated });

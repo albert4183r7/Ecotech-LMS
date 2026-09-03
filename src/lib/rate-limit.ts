@@ -107,3 +107,37 @@ export const LOGIN_IP_RULE: RateLimitRule = { limit: 20, windowMs: 10 * 60_000 }
 
 /** Attempts per account. Tight: nobody needs ten guesses at their own password. */
 export const LOGIN_ACCOUNT_RULE: RateLimitRule = { limit: 6, windowMs: 10 * 60_000 };
+
+/** High-cost jobs: an outline, deck, quiz, or imported-deck quiz. */
+export const AI_GENERATION_RULE: RateLimitRule = { limit: 12, windowMs: 60 * 60_000 };
+
+/** Small, local model edits. */
+export const AI_EDIT_RULE: RateLimitRule = { limit: 30, windowMs: 60 * 60_000 };
+
+/** Interactive tutoring/help. */
+export const AI_CHAT_RULE: RateLimitRule = { limit: 40, windowMs: 10 * 60_000 };
+
+/**
+ * Consume both a per-account and a much wider per-address allowance.
+ *
+ * Authentication makes the account key authoritative. The address key still
+ * prevents creating or rotating accounts from turning one machine into an
+ * unlimited caller, while its 10x allowance is friendly to shared campuses.
+ */
+export function consumeAuthenticatedRequest(
+  headers: Headers,
+  userId: string,
+  scope: string,
+  rule: RateLimitRule,
+): RateLimitResult {
+  const byUser = consume(`${scope}:user:${userId}`, rule);
+  const byIp = consume(`${scope}:ip:${clientIp(headers)}`, {
+    limit: rule.limit * 10,
+    windowMs: rule.windowMs,
+  });
+  return {
+    allowed: byUser.allowed && byIp.allowed,
+    remaining: Math.min(byUser.remaining, byIp.remaining),
+    retryAfterSeconds: Math.max(byUser.retryAfterSeconds, byIp.retryAfterSeconds),
+  };
+}

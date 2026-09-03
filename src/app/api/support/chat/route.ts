@@ -6,6 +6,7 @@ import {
   MAX_HISTORY_TURNS,
   MAX_QUESTION_CHARS,
 } from "@/lib/assistant/platform-help";
+import { AI_CHAT_RULE, consumeAuthenticatedRequest } from "@/lib/rate-limit";
 
 // ============================================
 // POST /api/support/chat
@@ -33,7 +34,19 @@ const AskSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    await requireUser();
+    const user = await requireUser();
+    const limited = consumeAuthenticatedRequest(
+      request.headers,
+      user.id,
+      "ai:support-chat",
+      AI_CHAT_RULE,
+    );
+    if (!limited.allowed) {
+      return NextResponse.json(
+        { success: false, error: "Too many help requests. Please wait and try again." },
+        { status: 429, headers: { "Retry-After": String(limited.retryAfterSeconds) } },
+      );
+    }
 
     const parsed = AskSchema.safeParse(await request.json());
     if (!parsed.success) {

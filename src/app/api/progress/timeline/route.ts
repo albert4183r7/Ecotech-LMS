@@ -87,6 +87,7 @@ export async function GET(request: NextRequest) {
           include: {
             lessons: {
               orderBy: { order: "asc" },
+              include: { _count: { select: { slides: true } } },
             },
           },
         },
@@ -130,8 +131,9 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      const totalPages = 1; // TODO: derive from slide count later
-      const progressPct = totalPages > 0 ? Math.round((currentPage / totalPages) * 100) : 0;
+      const totalPages = lesson._count.slides;
+      const progressPct =
+        totalPages > 0 ? Math.min(100, Math.round((currentPage / totalPages) * 100)) : 0;
       // Estimate ~2 min per page
       const timeEstimateMinutes = Math.max(2, totalPages * 2);
 

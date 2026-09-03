@@ -7,7 +7,7 @@ export async function GET() {
       include: {
         _count: {
           select: {
-            courses: true,
+            courses: { where: { status: "published" } },
           },
         },
       },

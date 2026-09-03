@@ -5,6 +5,7 @@ import { handleRoute, ok, fail } from "@/lib/api-response";
 import { resolveQuizAccess, toQuizView } from "@/lib/quiz/access";
 import { AuthorizationError } from "@/lib/session";
 import { OPTIONS_PER_QUESTION } from "@/lib/quiz/schema";
+import { appendManualQuestion } from "@/lib/quiz/questions";
 
 // ============================================
 // POST /api/quizzes/[id]/questions
@@ -60,25 +61,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return fail("Every answer choice must be different.", 400);
     }
 
-    await db.question.create({
-      data: {
-        quizId: quiz.id,
-        prompt: draft.prompt,
-        explanation: draft.explanation || null,
-        // Written by hand, so there is no lesson sentence to cite. Left null
-        // rather than invented: the quote is what makes a generated question
-        // auditable, and a fabricated one would make it look audited.
-        sourceQuote: null,
-        order: quiz.questions.length,
-        options: {
-          create: draft.options.map((option, index) => ({
-            text: option.text,
-            isCorrect: option.isCorrect,
-            order: index,
-          })),
-        },
-      },
-    });
+    await appendManualQuestion(quiz.id, draft);
 
     const updated = await db.quiz.findUnique({
       where: { id: quiz.id },

@@ -73,14 +73,26 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       /** Every lesson of the course, in order, including this one. */
       lessons: courseLessons,
       template: { id: template.id, label: template.label },
-      sections: lesson.sections.map((section) => ({
-        id: section.id,
-        title: section.title,
-        summary: section.summary,
-        subtopics: JSON.parse(section.subtopics) as string[],
-        slideBudget: section.slideBudget,
-        order: section.order,
-      })),
+      sections: lesson.sections.map((section) => {
+        let subtopics: string[] = [];
+        try {
+          const parsed: unknown = JSON.parse(section.subtopics);
+          if (Array.isArray(parsed)) {
+            subtopics = parsed.filter((item): item is string => typeof item === "string");
+          }
+        } catch {
+          // One legacy malformed row must not make the whole lesson
+          // unpreviewable; the section remains visible with no subtopics.
+        }
+        return {
+          id: section.id,
+          title: section.title,
+          summary: section.summary,
+          subtopics,
+          slideBudget: section.slideBudget,
+          order: section.order,
+        };
+      }),
       slides: lesson.slides.map((slide) => ({
         id: slide.id,
         title: slide.title,

@@ -14,6 +14,7 @@ import {
   PresentationPlanSchema,
   balancePlan,
   buildSlideSlots,
+  MAX_SECTIONS,
 } from "../src/lib/presentation-plan";
 import { draftToContent } from "../src/lib/slides/draft";
 import { SLIDE_CRAFT, SLIDE_EXEMPLARS, PLAN_EXEMPLAR } from "../src/lib/slides/craft";
@@ -216,6 +217,52 @@ add("a plan with too few sections is split rather than padded", () => {
     // Short deck: no contents slide, because there is nothing to list.
     slots.map((s) => s.role).join() === "cover,content,content,closing"
   );
+});
+
+add("the outline schema accepts every teaching section a 30-slide deck requires", () => {
+  const section = (index: number) => ({
+    title: `Section ${index}`,
+    claim: `Section ${index} makes a specific claim about the subject`,
+    vehicle: `Worked example number ${index}`,
+    summary: `The audience can apply the idea taught in section ${index}.`,
+    subtopics: [`Specific point ${index}A`, `Specific point ${index}B`],
+    slideBudget: 1,
+  });
+  const parsed = PresentationPlanSchema.safeParse({
+    title: "A complete thirty-slide plan",
+    subtitle: "Every teaching slide has its own section",
+    audience: "Practitioners who need to apply the subject in their daily work",
+    thesis: "Each distinct mechanism needs a distinct teaching slide to be learned",
+    outcomes: ["Identify each mechanism correctly", "Apply each mechanism in a worked case"],
+    sections: Array.from({ length: MAX_SECTIONS }, (_, index) => section(index + 1)),
+  });
+  return parsed.success;
+});
+
+add("an outline that cannot fill the requested deck fails instead of silently shrinking", () => {
+  const parsed = PresentationPlanSchema.parse({
+    title: "An underfilled plan",
+    subtitle: "Not enough distinct material",
+    audience: "Practitioners who need to apply the subject in their daily work",
+    thesis: "A short response must not masquerade as the requested full presentation",
+    outcomes: ["Recognise the shortfall clearly", "Regenerate before content is persisted"],
+    sections: [
+      {
+        title: "Only section",
+        claim: "This is the only distinct claim the model returned",
+        vehicle: "One worked example",
+        summary: "There is not enough distinct content to fill the requested deck.",
+        subtopics: ["First specific point", "Second specific point"],
+        slideBudget: 1,
+      },
+    ],
+  });
+  try {
+    balancePlan(parsed, 8);
+    return false;
+  } catch {
+    return true;
+  }
 });
 
 add("the craft guide reaches the writer, and the plan exemplar the planner", () => {

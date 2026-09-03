@@ -1,10 +1,10 @@
 // The deck and the web slide must be the same slide. Both renderers consume
 // resolveSlide, so parity is checked at that seam: same layout, same boxes,
 // same fitted type sizes, same fractional positions.
-import { resolveSlide } from "/home/user/Ecotech-LMS/src/lib/slides/resolve";
-import { renderSlideContent } from "/home/user/Ecotech-LMS/src/lib/slides/render";
-import { sanitizeHtml } from "/home/user/Ecotech-LMS/src/lib/sanitize";
-import type { SlideContent } from "/home/user/Ecotech-LMS/src/lib/slides/content-schema";
+import { resolveSlide } from "../src/lib/slides/resolve";
+import { renderSlideContent } from "../src/lib/slides/render";
+import { sanitizeHtml } from "../src/lib/sanitize";
+import type { SlideContent } from "../src/lib/slides/content-schema";
 
 const samples: SlideContent[] = [
   {

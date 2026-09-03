@@ -1,7 +1,7 @@
 // ============================================
 // AI tasks and the model each one runs on
 //
-// The project makes ten distinct kinds of model call, and they do not want the
+// The project makes eight distinct kinds of model call, and they do not want the
 // same model. Planning a lesson outline and judging whether a quiz question is
 // grounded are different jobs: one needs reasoning over a long reference
 // document, the other is close to classification and wants to be cheap. Naming
@@ -46,7 +46,7 @@ interface TaskModel {
  * carries the tasks whose output is long, tightly constrained, or a critique
  * worth reading, and a cheaper, faster one carries the short decidable jobs
  * and the conversation a student waits on. Running everything on one model is
- * a supported choice — set the ten variables and it works — but most of these
+ * a supported choice — set the eight variables and it works — but most of these
  * calls do not need the largest model, and here they are billed.
  */
 export const TASK_MODELS: Record<AiTask, TaskModel> = {

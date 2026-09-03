@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { rm } from "node:fs/promises";
+import path from "node:path";
 import { db } from "@/lib/db";
 import { requireLessonOwner, requireLessonReader, AuthorizationError } from "@/lib/session";
 import { handleRoute, ok, fail } from "@/lib/api-response";
@@ -110,6 +112,22 @@ export async function DELETE(
     const lesson = await db.lesson.findUnique({ where: { id } });
     if (!lesson) return fail("Lesson not found.", 404);
 
+    let importedDeckDir: string | null = null;
+    try {
+      const source = JSON.parse(lesson.outlineJson ?? "{}") as { source?: { file?: unknown } };
+      if (typeof source.source?.file === "string") {
+        const publicRoot = path.resolve(process.cwd(), "public");
+        const decksRoot = `${path.resolve(publicRoot, "uploads", "decks")}${path.sep}`;
+        const sourcePath = path.resolve(publicRoot, source.source.file.replace(/^\//, ""));
+        const candidate = path.dirname(sourcePath);
+        if (sourcePath.startsWith(decksRoot) && `${candidate}${path.sep}`.startsWith(decksRoot)) {
+          importedDeckDir = candidate;
+        }
+      }
+    } catch {
+      // A malformed legacy outline has no safe file path to reclaim.
+    }
+
     // Sections, slides and the quiz are cascade-deleted by their relations;
     // agent runs are SetNull and would otherwise point at a lesson that has
     // gone, so they are removed with it.
@@ -117,6 +135,10 @@ export async function DELETE(
       await tx.agentRun.deleteMany({ where: { lessonId: id } });
       await tx.lesson.delete({ where: { id } });
     });
+
+    if (importedDeckDir) {
+      await rm(importedDeckDir, { recursive: true, force: true }).catch(() => undefined);
+    }
 
     return ok({ id });
   });

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser, AuthorizationError } from "@/lib/session";
 import { contentMatchesExtension } from "@/lib/file-type";
 import sharp from "sharp";
-import { writeFile } from "fs/promises";
+import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import { randomUUID } from "crypto";
 
@@ -112,8 +112,9 @@ export async function POST(req: NextRequest) {
   try {
     // Writing files to the server needs a signed-in user; this endpoint was
     // open to anyone who could reach it.
+    let userId: string;
     try {
-      await requireUser();
+      userId = (await requireUser()).id;
     } catch (error) {
       if (error instanceof AuthorizationError) {
         return NextResponse.json(
@@ -199,11 +200,16 @@ export async function POST(req: NextRequest) {
     // The stored name is generated, never derived from what was uploaded, so
     // nothing the caller chose reaches the filesystem.
     const uniqueName = `${randomUUID()}${storedExt}`;
-    const filePath = path.join(UPLOAD_DIR, subDir, uniqueName);
+    // Ownership is encoded in the directory, so a later reference request can
+    // prove the document belongs to the signed-in instructor without trusting
+    // an arbitrary public path from the client.
+    const ownedDir = path.join(UPLOAD_DIR, subDir, userId);
+    await mkdir(ownedDir, { recursive: true });
+    const filePath = path.join(ownedDir, uniqueName);
 
     await writeFile(filePath, data);
 
-    const url = `/uploads/${subDir}/${uniqueName}`;
+    const url = `/uploads/${subDir}/${userId}/${uniqueName}`;
 
     if (type === "cover") {
       return NextResponse.json({

@@ -2,9 +2,9 @@
 // layout that shows all of its items. A layout claiming to support a type
 // whose field names it does not address renders blank, which is how the
 // architecture slides were empty.
-import { resolveSlide } from "/home/user/Ecotech-LMS/src/lib/slides/resolve";
-import { itemCountOf } from "/home/user/Ecotech-LMS/src/lib/slides/layout-select";
-import type { SlideContent } from "/home/user/Ecotech-LMS/src/lib/slides/content-schema";
+import { resolveSlide } from "../src/lib/slides/resolve";
+import { itemCountOf } from "../src/lib/slides/layout-select";
+import type { SlideContent } from "../src/lib/slides/content-schema";
 
 const P = (n: number, f: (i: number) => unknown) => Array.from({ length: n }, (_, i) => f(i));
 const build = (type: SlideContent["type"], n: number): SlideContent => {

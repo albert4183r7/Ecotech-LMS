@@ -136,7 +136,8 @@ export function CreateCoursePage() {
     saving,
     courseId,
   } = course;
-  const handleSave = () => course.publishCourse(workflow.generatingLessonId !== null);
+  const handleSave = () =>
+    course.publishCourse(workflow.generatingLessonId !== null, workflow.outlineLessons.length);
 
   const {
     modalOpen,

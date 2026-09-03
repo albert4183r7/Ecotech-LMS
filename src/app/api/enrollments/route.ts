@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
         progresses: {
           include: {
             lesson: {
-              select: { id: true, title: true },
+              select: { id: true, title: true, courseId: true },
             },
           },
         },
@@ -70,7 +70,9 @@ export async function GET(request: NextRequest) {
 
     const formattedEnrollments = enrollments.map((enrollment) => {
       const totalLessons = enrollment.course._count.lessons;
-      const completedLessons = enrollment.progresses.filter((p) => p.completed).length;
+      const completedLessons = enrollment.progresses.filter(
+        (p) => p.completed && p.lesson.courseId === enrollment.courseId,
+      ).length;
       const totalProgress =
         totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
 
@@ -140,9 +142,18 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if course exists
-    const course = await db.course.findUnique({ where: { id: courseId } });
-    if (!course) {
+    const course = await db.course.findUnique({
+      where: { id: courseId },
+      select: { id: true, status: true, creatorId: true },
+    });
+    if (!course || course.status !== "published") {
       return NextResponse.json({ success: false, error: "Course not found" }, { status: 404 });
+    }
+    if (course.creatorId === userId) {
+      return NextResponse.json(
+        { success: false, error: "You cannot enroll in your own course" },
+        { status: 403 },
+      );
     }
 
     // Check if already enrolled
@@ -159,29 +170,34 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create enrollment
-    const enrollment = await db.enrollment.create({
-      data: {
-        userId,
-        courseId,
-        status: "in_progress",
-      },
-      include: {
-        course: {
-          include: {
-            category: true,
-            _count: {
-              select: { lessons: true },
+    // The row and its denormalised counter are one change: a failure cannot
+    // leave the count ahead of the actual enrolments.
+    const enrollment = await db.$transaction(async (tx) => {
+      const created = await tx.enrollment.create({
+        data: {
+          userId,
+          courseId,
+          status: "in_progress",
+        },
+        include: {
+          course: {
+            include: {
+              category: true,
+              _count: {
+                select: { lessons: true },
+              },
             },
           },
         },
-      },
-    });
-
-    // Increment student count on course
-    await db.course.update({
-      where: { id: courseId },
-      data: { studentCount: { increment: 1 } },
+      });
+      const studentCount = await tx.enrollment.count({
+        where: { courseId, status: { not: "dropped" } },
+      });
+      await tx.course.update({
+        where: { id: courseId },
+        data: { studentCount },
+      });
+      return created;
     });
 
     return NextResponse.json({ success: true, data: enrollment }, { status: 201 });

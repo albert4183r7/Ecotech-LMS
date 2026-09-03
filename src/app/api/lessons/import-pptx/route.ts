@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
-import { mkdir, writeFile } from "node:fs/promises";
+import { after, NextRequest, NextResponse } from "next/server";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import sharp from "sharp";
@@ -8,6 +8,7 @@ import { AuthorizationError, requireCourseOwner } from "@/lib/session";
 import { sanitizeHtml, wrapSlideHtml } from "@/lib/sanitize";
 import { importPptx } from "@/lib/slides/import/pptx";
 import { generateAndSaveQuiz } from "@/lib/quiz/persist";
+import { AI_GENERATION_RULE, consumeAuthenticatedRequest } from "@/lib/rate-limit";
 
 // ============================================
 // POST /api/lessons/import-pptx
@@ -72,8 +73,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Importing writes a lesson into somebody's course, so the caller owns it.
+    let ownerId: string;
     try {
-      await requireCourseOwner(courseId);
+      ownerId = (await requireCourseOwner(courseId)).id;
     } catch (error) {
       if (error instanceof AuthorizationError) {
         return NextResponse.json(
@@ -82,6 +84,21 @@ export async function POST(request: NextRequest) {
         );
       }
       throw error;
+    }
+
+    if (askedForQuiz) {
+      const limited = consumeAuthenticatedRequest(
+        request.headers,
+        ownerId,
+        "ai:import-quiz",
+        AI_GENERATION_RULE,
+      );
+      if (!limited.allowed) {
+        return NextResponse.json(
+          { success: false, error: "Too many quiz generations. Please try again later." },
+          { status: 429, headers: { "Retry-After": String(limited.retryAfterSeconds) } },
+        );
+      }
     }
 
     if (!file.name.toLowerCase().endsWith(".pptx")) {
@@ -121,12 +138,14 @@ export async function POST(request: NextRequest) {
         },
       });
     } catch (error) {
+      await rm(dir, { recursive: true, force: true }).catch(() => undefined);
       const message =
         error instanceof Error ? error.message : "That file could not be read as a presentation.";
       return NextResponse.json({ success: false, error: message }, { status: 400 });
     }
 
     if (deck.slides.length > MAX_SLIDES) {
+      await rm(dir, { recursive: true, force: true }).catch(() => undefined);
       return NextResponse.json(
         {
           success: false,
@@ -137,6 +156,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (deck.slides.length === 0) {
+      await rm(dir, { recursive: true, force: true }).catch(() => undefined);
       return NextResponse.json(
         {
           success: false,
@@ -195,10 +215,12 @@ export async function POST(request: NextRequest) {
         create: { lessonId: lesson.id, title: "Quiz", status: "DRAFT", error: null },
         update: { status: "DRAFT", error: null },
       });
-      generateAndSaveQuiz(lesson.id, {
-        questionCount:
-          Number.isFinite(askedQuestions) && askedQuestions > 0 ? askedQuestions : null,
-      }).catch((error) => console.error(`[import-pptx] quiz for ${lesson.id} failed:`, error));
+      after(() =>
+        generateAndSaveQuiz(lesson.id, {
+          questionCount:
+            Number.isFinite(askedQuestions) && askedQuestions > 0 ? askedQuestions : null,
+        }).catch((error) => console.error(`[import-pptx] quiz for ${lesson.id} failed:`, error)),
+      );
     }
 
     console.log(

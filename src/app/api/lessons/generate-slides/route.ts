@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireLessonOwner, AuthorizationError } from "@/lib/session";
 import { sanitizeHtml, wrapSlideHtml } from "@/lib/sanitize";
@@ -11,6 +11,7 @@ import { parseSlideDoc, slideDocText } from "@/lib/slides/document";
 import type { SlideBrief } from "@/lib/slides/generate";
 import { generateAndSaveQuiz } from "@/lib/quiz/persist";
 import { runQualityGate } from "@/lib/agent/quality-gate";
+import { AI_GENERATION_RULE, consumeAuthenticatedRequest } from "@/lib/rate-limit";
 
 // ============================================
 // POST /api/lessons/generate-slides   — phase two
@@ -79,6 +80,7 @@ interface StoredOutlinePlan {
   keyTerms?: string[];
   /** How many quiz questions the instructor asked for, when they said. */
   quizQuestionCount?: number;
+  hasContents?: boolean;
 }
 
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
@@ -97,7 +99,11 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   });
 }
 
-async function generateAllSlides(lessonId: string, languageOverride?: string): Promise<void> {
+async function generateAllSlides(
+  lessonId: string,
+  languageOverride?: string,
+  claimedSlideIds?: string[],
+): Promise<void> {
   const lesson = await db.lesson.findUnique({
     where: { id: lessonId },
     include: {
@@ -123,7 +129,10 @@ async function generateAllSlides(lessonId: string, languageOverride?: string): P
   // The template the lesson was planned with. Resolved from the stored outline
   // so every re-render of a slide keeps the look it was generated with.
   const deck = lesson.slides;
-  const pending = deck.filter((s) => isRetryable(s.status, s.updatedAt));
+  const claimed = claimedSlideIds ? new Set(claimedSlideIds) : null;
+  const pending = claimed
+    ? deck.filter((slide) => claimed.has(slide.id))
+    : deck.filter((s) => isRetryable(s.status, s.updatedAt));
 
   if (pending.length === 0) {
     console.log(`[generate-slides] lesson ${lessonId}: nothing pending`);
@@ -154,7 +163,7 @@ async function generateAllSlides(lessonId: string, languageOverride?: string): P
   const roleAt = (position: number): SlideBrief["role"] =>
     position === 0
       ? "cover"
-      : position === 1 && deck.length >= CONTENTS_FROM
+      : position === 1 && (plan.hasContents ?? deck.length >= CONTENTS_FROM)
         ? "contents"
         : position === deck.length - 1
           ? "closing"
@@ -200,7 +209,9 @@ async function generateAllSlides(lessonId: string, languageOverride?: string): P
     const label = `${position + 1}/${deck.length}`;
     const section = slide.sectionId ? sectionById.get(slide.sectionId) : undefined;
     const sectionIndex = section ? section.order : 0;
-    const owned = deck.filter((s) => s.sectionId === slide.sectionId);
+    const owned = deck.filter(
+      (s) => s.sectionId === slide.sectionId && roleAt(deck.indexOf(s)) === "content",
+    );
     const positionInSection = Math.max(1, owned.findIndex((s) => s.id === slide.id) + 1);
 
     const role = roleAt(position);
@@ -330,7 +341,13 @@ async function generateAllSlides(lessonId: string, languageOverride?: string): P
   // whether anything was still coming. A quiz row in its DRAFT state says so:
   // it is the state the schema already defines for a quiz that is not yet
   // answerable, and every reader of a quiz requires READY before showing it.
-  if (ready.length > 0) {
+  const completeDeck = ready.length === finished.length && finished.length > 0;
+  const quizBefore = await db.quiz.findUnique({
+    where: { lessonId },
+    select: { id: true, status: true, _count: { select: { questions: true } } },
+  });
+
+  if (!completeDeck && !quizBefore) {
     await db.quiz
       .upsert({
         where: { lessonId },
@@ -348,7 +365,8 @@ async function generateAllSlides(lessonId: string, languageOverride?: string): P
   // quiz. The gate decides only what is wrong and how to say it better; it
   // never chooses what happens next. Bounded passes, and a failure to evaluate
   // leaves the slides as they are rather than failing the lesson.
-  if (ready.length > 0) {
+  let reviewBlocked = false;
+  if (completeDeck) {
     try {
       const gate = await runQualityGate({
         lessonId,
@@ -362,6 +380,53 @@ async function generateAllSlides(lessonId: string, languageOverride?: string): P
           ` after ${gate.passes.length} pass(es), ${revised} slide(s) revised` +
           (gate.remaining.length ? `, ${gate.remaining.length} finding(s) outstanding` : ""),
       );
+
+      // READY means the slide passed both rendering and the content gate. Any
+      // outstanding slide-level blocker is retryable and must remain visible
+      // to progress polling instead of being buried in a log line.
+      let blockedOrders = [
+        ...new Set(
+          gate.remaining
+            .map((finding) => finding.slidePosition - 1)
+            .filter((order) => order >= 0 && order < finished.length),
+        ),
+      ];
+      if (!gate.passed && gate.passes.length > 0 && blockedOrders.length === 0) {
+        // A lesson-wide blocker (position 0), or a score below the pass floor,
+        // has no single row to blame. Keep every teaching slide retryable so
+        // the deck cannot report ready while the critic says it failed.
+        blockedOrders = finished
+          .map((_, order) => order)
+          .filter((order) => roleAt(order) === "content");
+      }
+      if (blockedOrders.length) {
+        reviewBlocked = true;
+        await db.slide.updateMany({
+          where: { lessonId, order: { in: blockedOrders } },
+          data: { status: "ERROR" },
+        });
+      }
+
+      // Keep the review auditable and visible through the existing outline
+      // payload, even when the evaluator itself was unavailable.
+      const stored = lesson.outlineJson ? JSON.parse(lesson.outlineJson) : {};
+      await db.lesson.update({
+        where: { id: lessonId },
+        data: {
+          outlineJson: JSON.stringify({
+            ...stored,
+            qualityReview: {
+              passed: gate.passed,
+              passes: gate.passes.length,
+              remainingFindings: gate.remaining.map((finding) => ({
+                slidePosition: finding.slidePosition,
+                problem: finding.problem,
+                fix: finding.fix,
+              })),
+            },
+          }),
+        },
+      });
     } catch (error) {
       console.warn(
         `[generate-slides] lesson ${lessonId}: review skipped —`,
@@ -376,17 +441,29 @@ async function generateAllSlides(lessonId: string, languageOverride?: string): P
   // to be grounded in what the lesson actually says, which is not known until
   // the slides exist. A lesson with no ready slides has nothing to quiz on, so
   // the attempt is skipped rather than failed.
-  if (ready.length > 0) {
-    const result = await generateAndSaveQuiz(lessonId, {
-      questionCount: plan.quizQuestionCount,
-    });
-    if (result.status === "ERROR") {
-      // Recorded on the quiz row, so the instructor sees it and can retry
-      // without regenerating slides that came out fine.
-      console.warn(`[generate-slides] lesson ${lessonId}: quiz not generated — ${result.error}`);
+  if (completeDeck && !reviewBlocked) {
+    // A retry of one failed slide on a live lesson must not rewrite a READY
+    // quiz (or delete its question-level answer detail). Outline regeneration
+    // explicitly marks the quiz DRAFT, which is the signal to rebuild it.
+    if (quizBefore?.status === "READY" && quizBefore._count.questions > 0) {
+      console.log(`[generate-slides] lesson ${lessonId}: keeping existing READY quiz`);
+    } else {
+      await db.quiz.upsert({
+        where: { lessonId },
+        create: { lessonId, title: "Quiz", status: "DRAFT", error: null },
+        update: { status: "DRAFT", error: null },
+      });
+      const result = await generateAndSaveQuiz(lessonId, {
+        questionCount: plan.quizQuestionCount,
+      });
+      if (result.status === "ERROR") {
+        console.warn(`[generate-slides] lesson ${lessonId}: quiz not generated — ${result.error}`);
+      }
     }
   } else {
-    console.warn(`[generate-slides] lesson ${lessonId}: no ready slides, skipping quiz`);
+    console.warn(
+      `[generate-slides] lesson ${lessonId}: deck is incomplete or review-blocked, skipping quiz`,
+    );
   }
 
   console.log(`[generate-slides] lesson ${lessonId} finished`);
@@ -401,8 +478,9 @@ export async function POST(request: NextRequest) {
 
     // Generation is expensive and writes to the instructor's lesson, so the
     // caller has to own it.
+    let ownerId: string;
     try {
-      await requireLessonOwner(body.lessonId);
+      ownerId = (await requireLessonOwner(body.lessonId)).user.id;
     } catch (error) {
       if (error instanceof AuthorizationError) {
         return NextResponse.json(
@@ -411,6 +489,19 @@ export async function POST(request: NextRequest) {
         );
       }
       throw error;
+    }
+
+    const limited = consumeAuthenticatedRequest(
+      request.headers,
+      ownerId,
+      "ai:slides",
+      AI_GENERATION_RULE,
+    );
+    if (!limited.allowed) {
+      return NextResponse.json(
+        { success: false, error: "Too many slide generations. Please try again later." },
+        { status: 429, headers: { "Retry-After": String(limited.retryAfterSeconds) } },
+      );
     }
 
     const lesson = await db.lesson.findUnique({
@@ -429,8 +520,31 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    generateAllSlides(body.lessonId, body.language).catch((err) =>
-      console.error("[generate-slides] background generation failed:", err),
+    // Claim rows before returning. A second request sees GENERATING and cannot
+    // schedule a second full run in the gap before background work starts.
+    const claimedIds = await db.$transaction(async (tx) => {
+      const ids: string[] = [];
+      for (const slide of retryable) {
+        const claimed = await tx.slide.updateMany({
+          where: { id: slide.id, status: slide.status, updatedAt: slide.updatedAt },
+          data: { status: "GENERATING" },
+        });
+        if (claimed.count === 1) ids.push(slide.id);
+      }
+      return ids;
+    });
+
+    if (claimedIds.length === 0) {
+      return NextResponse.json(
+        { success: false, error: "Slide generation is already running" },
+        { status: 409 },
+      );
+    }
+
+    after(() =>
+      generateAllSlides(body.lessonId, body.language, claimedIds).catch((err) =>
+        console.error("[generate-slides] background generation failed:", err),
+      ),
     );
 
     return NextResponse.json({
@@ -438,7 +552,7 @@ export async function POST(request: NextRequest) {
       data: {
         lessonId: body.lessonId,
         totalSlides: lesson.slides.length,
-        pending: retryable.length,
+        pending: claimedIds.length,
         status: "generating",
       },
     });

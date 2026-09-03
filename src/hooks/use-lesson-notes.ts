@@ -15,6 +15,15 @@ export interface LessonNote {
   createdAt?: string;
 }
 
+interface NoteResponse extends Omit<LessonNote, "bookmarked"> {
+  isBookmarked?: boolean;
+  bookmarked?: boolean;
+}
+
+function toLessonNote(note: NoteResponse): LessonNote {
+  return { ...note, bookmarked: note.isBookmarked ?? note.bookmarked ?? false };
+}
+
 interface UseLessonNotesArgs {
   userId: string;
   courseId: string | undefined;
@@ -44,7 +53,7 @@ export function useLessonNotes({
       );
       if (!res.ok) return;
       const json = await res.json();
-      if (json.success && Array.isArray(json.data)) setNotes(json.data);
+      if (json.success && Array.isArray(json.data)) setNotes(json.data.map(toLessonNote));
     } catch {
       // Notes are supplementary; a failed load should not disrupt the lesson.
     }
@@ -72,7 +81,7 @@ export function useLessonNotes({
       if (!res.ok) return;
       const json = await res.json();
       if (json.success && json.data) {
-        setNotes((prev) => [...prev, json.data]);
+        setNotes((prev) => [...prev, toLessonNote(json.data)]);
         setNewNoteContent("");
         setTimeout(() => notesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
       }
@@ -94,11 +103,28 @@ export function useLessonNotes({
     }
   }, []);
 
-  const toggleBookmark = useCallback((noteId: string) => {
-    setNotes((prev) =>
-      prev.map((n) => (n.id === noteId ? { ...n, bookmarked: !n.bookmarked } : n)),
-    );
-  }, []);
+  const toggleBookmark = useCallback(async (noteId: string) => {
+    const current = notes.find((note) => note.id === noteId);
+    if (!current) return;
+    const bookmarked = !current.bookmarked;
+    setNotes((prev) => prev.map((n) => (n.id === noteId ? { ...n, bookmarked } : n)));
+    try {
+      const res = await fetch("/api/notes", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: noteId, isBookmarked: bookmarked }),
+      });
+      if (!res.ok) throw new Error("bookmark update failed");
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error || "bookmark update failed");
+      setNotes((prev) => prev.map((n) => (n.id === noteId ? toLessonNote(json.data) : n)));
+    } catch {
+      setNotes((prev) =>
+        prev.map((n) => (n.id === noteId ? { ...n, bookmarked: current.bookmarked } : n)),
+      );
+      toast.error("Failed to update bookmark");
+    }
+  }, [notes]);
 
   return {
     notes,

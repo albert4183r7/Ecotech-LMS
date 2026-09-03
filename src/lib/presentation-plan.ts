@@ -15,6 +15,8 @@ import { z } from "zod/v4";
 
 export const MIN_SLIDES = 3;
 export const MAX_SLIDES = 30;
+/** At 30 slides, cover + contents + closing leave 27 teaching slides. */
+export const MAX_SECTIONS = MAX_SLIDES - 3;
 
 export const PlannedSectionSchema = z.object({
   title: z.string().min(3).max(90).describe("What this part of the presentation covers"),
@@ -124,7 +126,9 @@ export const PresentationPlanSchema = z.object({
     .max(MAX_SLIDES)
     .optional()
     .describe("How many slides this subject really needs to be taught properly"),
-  sections: z.array(PlannedSectionSchema).min(1).max(12),
+  // The prompt asks for one section per teaching slide. Capping this at 12
+  // contradicted every request above 15 slides and rejected a correct answer.
+  sections: z.array(PlannedSectionSchema).min(1).max(MAX_SECTIONS),
 });
 
 export type PlannedSection = z.infer<typeof PlannedSectionSchema>;
@@ -366,7 +370,7 @@ function splitSection(section: PlannedSection): [PlannedSection, PlannedSection]
 
 /** A section can only be split if both halves still have points to teach. */
 function splittable(section: PlannedSection): boolean {
-  return section.subtopics.length >= 4;
+  return section.subtopics.length >= 2;
 }
 
 /**
@@ -418,6 +422,13 @@ export function balancePlan(plan: PresentationPlan, requested: number): Balanced
     const [a, b] = splitSection(sections[index]);
     adjustments.push(`Split "${sections[index].title}" so each slide teaches its own points`);
     sections.splice(index, 1, a, b);
+  }
+
+  if (sections.length !== sectionTarget) {
+    throw new Error(
+      `The outline returned ${plan.sections.length} section(s) and cannot be expanded into ` +
+        `${sectionTarget} distinct teaching slides without duplicating content. Please generate it again.`,
+    );
   }
 
   // 3. One section, one slide. The cover, the contents and the closing are the

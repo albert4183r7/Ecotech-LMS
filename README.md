@@ -169,10 +169,10 @@ silent fallback.
 | `ECOAPI_API_KEY`           | —                              | The gateway's key. Required                        |
 | `ECOAPI_BASE_URL`          | `https://www.ecoapi.ai/api/v1` | The gateway's OpenAI-compatible endpoint           |
 | `CLAUDE_MAX_TOKENS`        | `16000`                        | Ceiling for one generation                         |
-| `MODEL_*` (eleven of them) | see below                      | Move one AI task to a different model              |
+| `MODEL_*` (eight of them)  | see below                      | Move one AI task to a different model              |
 | `CHROMIUM_EXECUTABLE_PATH` | unset                          | System Chromium for the renderer                   |
 
-**One model per task.** The project makes eleven distinct kinds of model call and
+**One model per task.** The project makes eight distinct kinds of model call and
 they do not want the same model — planning an outline and judging whether a quiz
 question is grounded are different jobs. Each names its own, and each has a
 `MODEL_*` override. The table, with the reasoning for every choice, is in
@@ -230,12 +230,12 @@ git merge claude/ai-agent-architecture-mo8v7d
 verbatim, so they have to be ids it lists. The defaults assume it serves
 Anthropic's models:
 
-|                   | Tasks                                                                                                                     |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `claude-opus-5`   | outline planning, slide authoring, slide HTML, quiz authoring, content evaluation, visual evaluation, the agent tool loop |
-| `claude-sonnet-5` | single-field edits, the quiz grounding judge, the study assistant, platform help                                          |
+|                   | Tasks                                                                            |
+| ----------------- | -------------------------------------------------------------------------------- |
+| `claude-opus-5`   | outline planning, slide authoring, quiz authoring, content evaluation            |
+| `claude-sonnet-5` | single-field edits, the quiz grounding judge, the study assistant, platform help |
 
-Running everything on one model is a supported choice: set the eleven `MODEL_*`
+Running everything on one model is a supported choice: set the eight `MODEL_*`
 variables and the registry defers to them. The split is there because most of
 these calls do not need the largest model and all of them are billed — the
 grounding judge alone runs once per question.
@@ -302,7 +302,7 @@ src/
 ├── hooks/              frontend logic behind the screens
 ├── lib/
 │   ├── ai/             every model call, and which model runs which task
-│   ├── agent/          tool registry, runtime, evaluators, quality gate
+│   ├── agent/          quality gate and its two evaluators
 │   ├── assistant/      the study assistant and platform help, and their limits
 │   ├── quiz/           generation, grounding, access, scoring
 │   ├── slides/         the two slide models, both renderers, the exporter

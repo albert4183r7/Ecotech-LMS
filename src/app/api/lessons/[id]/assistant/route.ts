@@ -7,6 +7,7 @@ import {
   MAX_HISTORY_TURNS,
   MAX_QUESTION_CHARS,
 } from "@/lib/assistant/lesson-tutor";
+import { AI_CHAT_RULE, consumeAuthenticatedRequest } from "@/lib/rate-limit";
 
 // ============================================
 // POST /api/lessons/[id]/assistant
@@ -42,7 +43,19 @@ const AskSchema = z.object({
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
-    await requireLessonReader(id);
+    const { user } = await requireLessonReader(id);
+    const limited = consumeAuthenticatedRequest(
+      request.headers,
+      user.id,
+      "ai:lesson-chat",
+      AI_CHAT_RULE,
+    );
+    if (!limited.allowed) {
+      return NextResponse.json(
+        { success: false, error: "Too many assistant requests. Please wait and try again." },
+        { status: 429, headers: { "Retry-After": String(limited.retryAfterSeconds) } },
+      );
+    }
 
     const parsed = AskSchema.safeParse(await request.json());
     if (!parsed.success) {

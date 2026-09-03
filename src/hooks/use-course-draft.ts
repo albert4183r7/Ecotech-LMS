@@ -257,7 +257,7 @@ export function useCourseDraft({ coverImage, setCoverImage }: UseCourseDraftOpti
    * know it in order to refuse.
    */
   const publishCourse = useCallback(
-    async (isGenerating: boolean) => {
+    async (isGenerating: boolean, lessonCount: number) => {
       if (!title.trim()) {
         toast.error("Course title is required");
         return;
@@ -266,6 +266,11 @@ export function useCourseDraft({ coverImage, setCoverImage }: UseCourseDraftOpti
       // Check if any lesson is still generating
       if (isGenerating) {
         toast.error("Please wait for slide generation to finish");
+        return;
+      }
+
+      if (lessonCount === 0) {
+        toast.error("Please add at least one lesson before publishing");
         return;
       }
 
