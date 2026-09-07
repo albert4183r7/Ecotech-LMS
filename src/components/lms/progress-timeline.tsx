@@ -145,6 +145,7 @@ export function ProgressTimeline({
           courseTitle: course.title,
           lessonId: lesson.id,
           lessonTitle: lesson.title,
+          language: json.data.language ?? "english",
           slides: json.success ? json.data.slides : [],
           allLessonIds: lessons.map((s) => s.id),
         }),

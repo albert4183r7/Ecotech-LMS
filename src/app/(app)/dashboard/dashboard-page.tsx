@@ -25,6 +25,7 @@ import { useUserStore, useCourseStore } from "@/stores/lms-store";
 import { DeleteCourseDialog } from "@/components/lms/delete-course-dialog";
 import { useNavigation } from "@/hooks/use-navigation";
 import { cn } from "@/lib/utils";
+import { RiskInsightsPanel } from "@/components/lms/risk-insights-panel";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -381,6 +382,8 @@ export function DashboardPage() {
             />
           </div>
 
+          <RiskInsightsPanel />
+
           {/* ---- Quick Actions ---- */}
           <div className="content-reveal-delay-1 content-reveal flex flex-wrap gap-3">
             <Button
@@ -692,7 +695,7 @@ export function DashboardPage() {
                     <p className="text-muted-foreground text-[11px] font-semibold tracking-wider uppercase">
                       Most Popular
                     </p>
-                    {courses
+                    {[...courses]
                       .sort((a, b) => (b.studentCount || 0) - (a.studentCount || 0))
                       .slice(0, 5)
                       .map((course, index) => (

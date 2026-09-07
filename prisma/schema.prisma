@@ -11,24 +11,27 @@ datasource db {
 // User model for LMS
 // ============================================
 model User {
-  id         String   @id @default(cuid())
-  email      String   @unique
-  password   String
-  name       String?
-  avatar     String?
-  role       String   @default("student") // student, instructor
-  department String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id          String    @id @default(cuid())
+  email       String    @unique
+  password    String
+  name        String?
+  avatar      String?
+  role        String    @default("student") // student, instructor
+  department  String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  lastLoginAt DateTime?
 
-  enrollments    Enrollment[]
-  favorites      Favorite[]
-  quizAttempts   QuizAttempt[]
-  createdCourses Course[]       @relation("CourseCreator")
-  comments       Comment[]
-  notes          Note[]
-  ratings        Rating[]
-  notifications  Notification[]
+  enrollments      Enrollment[]
+  favorites        Favorite[]
+  quizAttempts     QuizAttempt[]
+  createdCourses   Course[]          @relation("CourseCreator")
+  comments         Comment[]
+  notes            Note[]
+  ratings          Rating[]
+  notifications    Notification[]
+  learningEvents   LearningEvent[]
+  masteryQuestions MasteryQuestion[]
 }
 
 // ============================================
@@ -60,16 +63,18 @@ model Course {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  categoryId  String?
-  category    Category?    @relation(fields: [categoryId], references: [id])
-  creatorId   String?
-  creator     User?        @relation("CourseCreator", fields: [creatorId], references: [id])
-  lessons     Lesson[]
-  enrollments Enrollment[]
-  favorites   Favorite[]
-  comments    Comment[]
-  notes       Note[]
-  ratings     Rating[]
+  categoryId       String?
+  category         Category?         @relation(fields: [categoryId], references: [id])
+  creatorId        String?
+  creator          User?             @relation("CourseCreator", fields: [creatorId], references: [id])
+  lessons          Lesson[]
+  enrollments      Enrollment[]
+  favorites        Favorite[]
+  comments         Comment[]
+  notes            Note[]
+  ratings          Rating[]
+  learningEvents   LearningEvent[]
+  masteryQuestions MasteryQuestion[]
 }
 
 // ============================================
@@ -83,15 +88,17 @@ model Lesson {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  courseId   String
-  course     Course     @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  slides     Slide[]
-  sections   Section[]
-  quiz       Quiz?
-  agentRuns  AgentRun[]
-  progresses Progress[]
-  comments   Comment[]
-  notes      Note[]
+  courseId         String
+  course           Course            @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  slides           Slide[]
+  sections         Section[]
+  quiz             Quiz?
+  agentRuns        AgentRun[]
+  progresses       Progress[]
+  comments         Comment[]
+  notes            Note[]
+  learningEvents   LearningEvent[]
+  masteryQuestions MasteryQuestion[]
 }
 
 // ============================================
@@ -114,8 +121,9 @@ model Slide {
   lesson   Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
 
   // A section owns several slides.
-  sectionId String?
-  section   Section? @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+  sectionId      String?
+  section        Section?        @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+  learningEvents LearningEvent[]
 
   @@unique([lessonId, order])
   @@index([sectionId])
@@ -157,8 +165,9 @@ model Enrollment {
   courseId String
   course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
 
-  progresses   Progress[]
-  quizAttempts QuizAttempt[]
+  progresses     Progress[]
+  quizAttempts   QuizAttempt[]
+  riskAssessment RiskAssessment?
 
   @@unique([userId, courseId])
 }
@@ -459,4 +468,95 @@ model StudentAnswer {
   selectedOption   Option? @relation(fields: [selectedOptionId], references: [id], onDelete: SetNull)
 
   @@unique([attemptId, questionId])
+}
+
+// ============================================
+// Student-only adaptive practice
+//
+// Mastery Sprint questions belong to one learner and one course. They are
+// deliberately separate from instructor-authored quizzes: a practice answer
+// never changes a formal quiz score, and the private answer index is never
+// sent before the learner answers.
+// ============================================
+
+model MasteryQuestion {
+  id                 String    @id @default(cuid())
+  prompt             String
+  optionsJson        String
+  correctOptionIndex Int
+  explanation        String?
+  sourceQuote        String?
+  topic              String?
+  fingerprint        String
+  timesShown         Int       @default(0)
+  wrongCount         Int       @default(0)
+  mastered           Boolean   @default(false)
+  lastShownAt        DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  userId   String
+  user     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courseId String
+  course   Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  lessonId String?
+  lesson   Lesson? @relation(fields: [lessonId], references: [id], onDelete: SetNull)
+
+  responses MasteryResponse[]
+
+  @@unique([userId, courseId, fingerprint])
+  @@index([userId, courseId, mastered])
+}
+
+model MasteryResponse {
+  id                  String   @id @default(cuid())
+  selectedOptionIndex Int
+  isCorrect           Boolean
+  answeredAt          DateTime @default(now())
+
+  questionId String
+  question   MasteryQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([questionId, answeredAt])
+}
+
+// ============================================
+// Learning telemetry and early-warning snapshots
+// ============================================
+
+model LearningEvent {
+  id              String   @id @default(cuid())
+  type            String
+  durationSeconds Int      @default(0)
+  metadata        String   @default("{}")
+  createdAt       DateTime @default(now())
+
+  userId   String
+  user     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courseId String
+  course   Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  lessonId String?
+  lesson   Lesson? @relation(fields: [lessonId], references: [id], onDelete: SetNull)
+  slideId  String?
+  slide    Slide?  @relation(fields: [slideId], references: [id], onDelete: SetNull)
+
+  @@index([userId, courseId, createdAt])
+  @@index([courseId, type, createdAt])
+}
+
+model RiskAssessment {
+  id             String   @id @default(cuid())
+  riskScore      Int
+  riskLevel      String
+  summary        String
+  recommendation String
+  signalsJson    String   @default("[]")
+  modelKey       String
+  assessedAt     DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  enrollmentId String     @unique
+  enrollment   Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+
+  @@index([riskLevel, assessedAt])
 }

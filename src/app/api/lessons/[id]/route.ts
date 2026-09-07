@@ -5,6 +5,8 @@ import { db } from "@/lib/db";
 import { requireLessonOwner, requireLessonReader, AuthorizationError } from "@/lib/session";
 import { handleRoute, ok, fail } from "@/lib/api-response";
 import { ensureCanvasDocument } from "@/lib/sanitize";
+import { parseSlideDoc, slideDocText } from "@/lib/slides/document";
+import { extractSlideText } from "@/lib/slides/text";
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -19,6 +21,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const lesson = await db.lesson.findUnique({
       where: { id },
       include: {
+        course: { select: { language: true } },
         slides: {
           orderBy: { order: "asc" },
         },
@@ -34,12 +37,23 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ success: false, error: "Lesson not found" }, { status: 404 });
     }
 
+    let lessonLanguage = lesson.course.language;
+    try {
+      const planned = JSON.parse(lesson.outlineJson ?? "{}") as { language?: unknown };
+      if (typeof planned.language === "string" && planned.language.trim()) {
+        lessonLanguage = planned.language;
+      }
+    } catch {
+      // Legacy outlines may not be JSON; the course language remains valid.
+    }
+
     const formattedLesson = {
       id: lesson.id,
       title: lesson.title,
       order: lesson.order,
       outlineJson: lesson.outlineJson,
       courseId: lesson.courseId,
+      language: lessonLanguage,
       slides: lesson.slides.map((slide) => ({
         id: slide.id,
         title: slide.title,
@@ -48,6 +62,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         // into an iframe, and it should not be the only thing standing
         // between a stored document and the browser.
         htmlBody: ensureCanvasDocument(slide.htmlBody, slide.title),
+        narrationText: (() => {
+          const doc = parseSlideDoc(slide.contentJson);
+          return (doc ? slideDocText(doc) : extractSlideText(slide.htmlBody)).trim();
+        })(),
         status: slide.status,
         order: slide.order,
         lessonId: slide.lessonId,

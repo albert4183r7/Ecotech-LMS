@@ -5,6 +5,7 @@ import { requireLessonOwner } from "@/lib/session";
 import { resolveQuizAccess, toQuizView } from "@/lib/quiz/access";
 import { generateAndSaveQuiz } from "@/lib/quiz/persist";
 import { AI_GENERATION_RULE, consumeAuthenticatedRequest } from "@/lib/rate-limit";
+import { normaliseQuizDifficulty, type QuizDifficulty } from "@/lib/quiz/schema";
 
 // ============================================
 // /api/lessons/[id]/quiz
@@ -42,14 +43,37 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     // How many questions, when the instructor asked for a number. Regenerating
     // is where they most often want a different one.
-    const body = (await request.json().catch(() => null)) as { questionCount?: number } | null;
+    const body = (await request.json().catch(() => null)) as {
+      questionCount?: number;
+      difficulty?: QuizDifficulty;
+    } | null;
 
-    const ready = await db.slide.count({ where: { lessonId: id, status: "READY" } });
+    const [ready, lesson] = await Promise.all([
+      db.slide.count({ where: { lessonId: id, status: "READY" } }),
+      db.lesson.findUnique({ where: { id }, select: { outlineJson: true } }),
+    ]);
     if (ready === 0) {
       return fail("Generate the lesson's slides before generating its quiz.", 400);
     }
 
-    const result = await generateAndSaveQuiz(id, { questionCount: body?.questionCount });
+    let outline: Record<string, unknown> = {};
+    try {
+      outline = JSON.parse(lesson?.outlineJson ?? "{}");
+    } catch {
+      outline = {};
+    }
+    const difficulty = normaliseQuizDifficulty(body?.difficulty ?? outline.quizDifficulty);
+    if (lesson) {
+      await db.lesson.update({
+        where: { id },
+        data: { outlineJson: JSON.stringify({ ...outline, quizDifficulty: difficulty }) },
+      });
+    }
+
+    const result = await generateAndSaveQuiz(id, {
+      questionCount: body?.questionCount,
+      difficulty,
+    });
     if (result.status === "ERROR") {
       return fail(result.error ?? "Quiz generation failed.", 502);
     }

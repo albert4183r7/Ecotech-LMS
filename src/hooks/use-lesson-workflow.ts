@@ -12,6 +12,7 @@ import type {
 import { MAX_LESSONS, toLessonDraft } from "@/components/lms/create-course/model";
 import type { LoadedLessons } from "@/hooks/use-course-draft";
 import type { ReferenceFile } from "@/hooks/use-course-uploads";
+import { DEFAULT_QUIZ_DIFFICULTY, type QuizDifficulty } from "@/lib/quiz/schema";
 
 // ============================================
 // The lesson workflow behind the Create Course page
@@ -78,6 +79,8 @@ export function useLessonWorkflow({
   const [outlineSlideCount, setOutlineSlideCount] = useState(DEFAULT_SLIDE_COUNT);
   /** How many quiz questions the lesson should get. */
   const [outlineQuestionCount, setOutlineQuestionCount] = useState(DEFAULT_QUIZ_QUESTIONS);
+  const [outlineQuizDifficulty, setOutlineQuizDifficulty] =
+    useState<QuizDifficulty>(DEFAULT_QUIZ_DIFFICULTY);
   const [outlineLanguage, setOutlineLanguage] = useState(language);
   const [outlineGenerating, setOutlineGenerating] = useState(false);
   const [editingOutlineLesson, setEditingOutlineLesson] = useState<string | null>(null);
@@ -162,6 +165,7 @@ export function useLessonWorkflow({
     setOutlineTopic("");
     setOutlineSlideCount(DEFAULT_SLIDE_COUNT);
     setOutlineLanguage(language);
+    setOutlineQuizDifficulty(DEFAULT_QUIZ_DIFFICULTY);
     setOutlineGenerating(false);
     setEditingOutlineLesson(null);
     setOutlineEditingSlides([]);
@@ -193,6 +197,7 @@ export function useLessonWorkflow({
           topic: outlineTopic.trim(),
           slideCount: outlineSlideCount,
           quizQuestionCount: outlineQuestionCount,
+          quizDifficulty: outlineQuizDifficulty,
           language: outlineLanguage,
           referenceFileUrls:
             referenceFiles.length > 0 ? referenceFiles.map((f) => f.url) : undefined,
@@ -226,6 +231,8 @@ export function useLessonWorkflow({
   }, [
     outlineTopic,
     outlineSlideCount,
+    outlineQuestionCount,
+    outlineQuizDifficulty,
     outlineLanguage,
     referenceFiles,
     ensureCourseSaved,
@@ -325,6 +332,7 @@ export function useLessonWorkflow({
           topic: outlineTopic.trim(),
           slideCount: outlineSlideCount,
           quizQuestionCount: outlineQuestionCount,
+          quizDifficulty: outlineQuizDifficulty,
           language: outlineLanguage,
           existingLessonId: editingOutlineLesson,
           referenceFileUrls:
@@ -667,6 +675,8 @@ export function useLessonWorkflow({
     setOutlineSlideCount,
     outlineQuestionCount,
     setOutlineQuestionCount,
+    outlineQuizDifficulty,
+    setOutlineQuizDifficulty,
     outlineLanguage,
     setOutlineLanguage,
     outlineGenerating,

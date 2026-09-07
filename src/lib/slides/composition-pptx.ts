@@ -76,6 +76,25 @@ function inches(t: SlideTemplate, el: ResolvedElement): Frame {
   };
 }
 
+/** Rasterise a composition's icons before slides are added in deck order. */
+export async function prepareCompositionAssets(
+  composition: SlideComposition,
+  template: SlideTemplate,
+): Promise<void> {
+  const { elements } = resolveComposition(composition, template);
+  await Promise.all(
+    elements.map(async (el) => {
+      const e = el.element;
+      const frame = inches(template, el);
+      if (e.kind === "chip" && e.icon) {
+        await iconPng(e.icon, ink(template, el.ink ?? "iconInk"), frame.w * 0.55, el.text ?? "");
+      } else if (e.kind === "icon") {
+        await iconPng(e.icon, ink(template, el.ink ?? "iconInk"), Math.min(frame.w, frame.h));
+      }
+    }),
+  );
+}
+
 /**
  * Draw one composition onto a new PowerPoint slide.
  *

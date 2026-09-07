@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireUser, AuthorizationError } from "@/lib/session";
 import { authFailure } from "@/lib/api-response";
+import { refreshRiskSnapshot } from "@/lib/analytics/risk";
 
 export async function GET(request: NextRequest) {
   try {
@@ -23,9 +24,9 @@ export async function GET(request: NextRequest) {
 
     const enrollment = await db.enrollment.findUnique({
       where: { id: enrollmentId },
-      select: { userId: true, courseId: true },
+      select: { userId: true, courseId: true, status: true },
     });
-    if (!enrollment || enrollment.userId !== actingUserId) {
+    if (!enrollment || enrollment.userId !== actingUserId || enrollment.status === "dropped") {
       return NextResponse.json({ success: false, error: "Enrollment not found" }, { status: 404 });
     }
 
@@ -82,9 +83,9 @@ export async function POST(request: NextRequest) {
     // learner's progress by guessing an id.
     const enrollment = await db.enrollment.findUnique({
       where: { id: enrollmentId },
-      select: { userId: true, courseId: true },
+      select: { userId: true, courseId: true, status: true },
     });
-    if (!enrollment || enrollment.userId !== actingUserId) {
+    if (!enrollment || enrollment.userId !== actingUserId || enrollment.status === "dropped") {
       return NextResponse.json({ success: false, error: "Enrollment not found" }, { status: 404 });
     }
 
@@ -168,6 +169,10 @@ export async function POST(request: NextRequest) {
         data: { completedAt: new Date() },
       });
     }
+
+    await refreshRiskSnapshot(enrollmentId).catch((error) =>
+      console.error("[risk] progress-triggered refresh failed:", error),
+    );
 
     return NextResponse.json({
       success: true,

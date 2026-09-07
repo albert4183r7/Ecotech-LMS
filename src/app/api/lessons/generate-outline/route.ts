@@ -15,13 +15,15 @@ import {
   type PresentationPlan,
 } from "@/lib/presentation-plan";
 import { DEFAULT_STYLE } from "@/lib/slide-styles";
-import { MAX_QUIZ_QUESTIONS, MIN_QUIZ_QUESTIONS } from "@/lib/quiz/schema";
+import {
+  MAX_QUIZ_QUESTIONS,
+  MIN_QUIZ_QUESTIONS,
+  normaliseQuizDifficulty,
+  type QuizDifficulty,
+} from "@/lib/quiz/schema";
 import { PLAN_EXEMPLAR } from "@/lib/slides/craft";
 import { extractTextFromFiles, selectRelevantSections } from "@/lib/extract-doc";
-import {
-  AI_GENERATION_RULE,
-  consumeAuthenticatedRequest,
-} from "@/lib/rate-limit";
+import { AI_GENERATION_RULE, consumeAuthenticatedRequest } from "@/lib/rate-limit";
 
 // ============================================
 // POST /api/lessons/generate-outline   — phase one
@@ -38,6 +40,7 @@ interface GenerateOutlineRequest {
   slideCount: number;
   /** How many quiz questions to write, when the instructor named a number. */
   quizQuestionCount?: number;
+  quizDifficulty?: QuizDifficulty;
   language?: string;
   existingLessonId?: string;
   referenceFileUrls?: string[];
@@ -185,7 +188,7 @@ THE COURSE THIS BELONGS TO: ${course.title}${
 LANGUAGE: write everything in ${language}.
 ${
   reference
-    ? `\nSOURCE MATERIAL — this is the substance of the presentation, not background reading:\n<reference>\n${reference}\n</reference>\n\nThe sections must come out of this document. Name the specific concepts, terms,\nfigures and examples it actually uses. A plan that would read the same without\nthis document has failed. Where the document and general knowledge disagree,\nthe document wins. Do not introduce major topics it never mentions.\n`
+    ? `\nSOURCE MATERIAL — this may be a syllabus, module, deck, or other learning material, and is the substance of the presentation rather than background reading:\n<reference>\n${reference}\n</reference>\n\nIf it is a syllabus, preserve its learning outcomes, required topics, sequence, and assessment expectations while turning the relevant part into teachable slides. For every source type, the sections must come out of the document. Name the specific concepts, terms, figures and examples it actually uses. A plan that would read the same without this document has failed. Where the document and general knowledge disagree, the document wins. Do not introduce major topics it never mentions.\n`
     : "\nNo source material was supplied. Plan from established knowledge of the subject. You may name the subject's real tools, methods and terms; do not promise figures or study findings you cannot support.\n"
 }
 You are planning TRAINING MATERIAL: something an instructor will stand in front
@@ -300,6 +303,7 @@ export async function POST(request: NextRequest) {
       topic,
       slideCount,
       quizQuestionCount,
+      quizDifficulty,
       language = "english",
       existingLessonId,
     } = body;
@@ -353,13 +357,19 @@ export async function POST(request: NextRequest) {
     // for an audience. It used to be read only to check the course existed,
     // so a lesson inside "AI Adoption for Sales Teams" was planned as though
     // the topic line were the only thing known about it.
-    const course = await db.course.findUnique({
-      where: { id: courseId },
-      include: {
-        category: { select: { name: true } },
-        lessons: { select: { id: true, title: true }, orderBy: { order: "asc" } },
-      },
-    });
+    // Reference parsing and course lookup do not depend on one another. Start
+    // both after authorisation so uploaded files do not add their full latency
+    // in front of the planner call.
+    const [course, loadedReference] = await Promise.all([
+      db.course.findUnique({
+        where: { id: courseId },
+        include: {
+          category: { select: { name: true } },
+          lessons: { select: { id: true, title: true }, orderBy: { order: "asc" } },
+        },
+      }),
+      loadReference(body.referenceFileUrls, topic, ownerId),
+    ]);
     if (!course) {
       return NextResponse.json({ success: false, error: "Course not found" }, { status: 404 });
     }
@@ -369,7 +379,7 @@ export async function POST(request: NextRequest) {
       sources,
       failures: referenceFailures,
       files: referenceFileUrls,
-    } = await loadReference(body.referenceFileUrls, topic, ownerId);
+    } = loadedReference;
     // Record what the plan is actually grounded in. Silence here previously
     // hid a reference that had failed to parse.
     if (body.referenceFileUrls?.length) {
@@ -437,7 +447,8 @@ export async function POST(request: NextRequest) {
     try {
       balanced = balancePlan(plan, requestedSlides);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "The outline could not fit the slide count";
+      const message =
+        error instanceof Error ? error.message : "The outline could not fit the slide count";
       return NextResponse.json({ success: false, error: message }, { status: 502 });
     }
 
@@ -468,6 +479,7 @@ export async function POST(request: NextRequest) {
               Math.min(MAX_QUIZ_QUESTIONS, Math.round(quizQuestionCount)),
             )
           : undefined,
+      quizDifficulty: normaliseQuizDifficulty(quizDifficulty),
       language,
       title: balanced.title,
       subtitle: balanced.subtitle,
@@ -510,7 +522,10 @@ export async function POST(request: NextRequest) {
         // The old quiz describes slides that are about to disappear. Retire
         // its questions and mark it pending, but keep the Quiz row so attempts
         // and their recorded scores survive regeneration.
-        const quiz = await tx.quiz.findUnique({ where: { lessonId: lesson.id }, select: { id: true } });
+        const quiz = await tx.quiz.findUnique({
+          where: { lessonId: lesson.id },
+          select: { id: true },
+        });
         if (quiz) {
           await tx.question.deleteMany({ where: { quizId: quiz.id } });
           await tx.quiz.update({
@@ -581,6 +596,7 @@ export async function POST(request: NextRequest) {
         thesis: balanced.thesis,
         misconception: balanced.misconception,
         keyTerms: balanced.keyTerms,
+        quizDifficulty: outlineData.quizDifficulty,
         outcomes: balanced.outcomes,
         // Surfaced so a reference that could not be read is visible rather
         // than silently ignored.

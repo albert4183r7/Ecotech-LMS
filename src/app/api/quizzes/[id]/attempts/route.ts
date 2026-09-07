@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { handleRoute, ok, fail } from "@/lib/api-response";
 import { resolveQuizAccess } from "@/lib/quiz/access";
+import { refreshRiskSnapshot } from "@/lib/analytics/risk";
 
 // ============================================
 // POST /api/quizzes/[id]/attempts
@@ -91,6 +92,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       });
       return created;
     });
+
+    if (enrollmentId) {
+      await refreshRiskSnapshot(enrollmentId).catch((error) =>
+        console.error("[risk] quiz-triggered refresh failed:", error),
+      );
+    }
 
     // The full result, including the correct answers — which is exactly what
     // the learner is now entitled to see, having submitted.

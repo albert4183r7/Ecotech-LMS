@@ -92,6 +92,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    await db.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
+
     // A legitimate user who mistyped twice should not stay rationed once they
     // get it right.
     reset(`login:account:${account}`);

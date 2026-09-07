@@ -1,6 +1,6 @@
 import { z } from "zod/v4";
 import { generateStructuredJSON } from "@/lib/ai";
-import type { DraftQuestion } from "./schema";
+import { DEFAULT_QUIZ_DIFFICULTY, type DraftQuestion, type QuizDifficulty } from "./schema";
 import type { LessonSource } from "./lesson-source";
 
 // ============================================
@@ -98,7 +98,11 @@ function normalise(text: string): string {
  * the question was written from something else, which is the exact failure the
  * grounding requirement is about.
  */
-export function checkMechanically(question: DraftQuestion, source: LessonSource): string | null {
+export function checkMechanically(
+  question: DraftQuestion,
+  source: LessonSource,
+  difficulty: QuizDifficulty = DEFAULT_QUIZ_DIFFICULTY,
+): string | null {
   const correct = question.options.filter((o) => o.isCorrect);
   if (correct.length !== 1) {
     return `has ${correct.length} correct options; exactly one option must be correct`;
@@ -130,7 +134,7 @@ export function checkMechanically(question: DraftQuestion, source: LessonSource)
 
   // The answer has to be findable in the lesson, not merely the question.
   const answerTerms = [...terms(correct[0].text)];
-  if (answerTerms.length > 0) {
+  if (difficulty !== "hard" && answerTerms.length > 0) {
     const sourceTerms = terms(source.text);
     const known = answerTerms.filter((t) => sourceTerms.has(t)).length;
     if (known / answerTerms.length < 0.34) {
@@ -161,12 +165,23 @@ const JudgementSchema = z.object({
       introducesOutsideFacts: z
         .boolean()
         .describe("Does it rely on anything the lesson never states?"),
+      difficultyMatches: z
+        .boolean()
+        .describe("Does the question meet the requested recall, application, or inference level?"),
       problem: z.string().max(300).optional().describe("What is wrong, when something is"),
     }),
   ),
 });
 
-const JUDGE_SYSTEM = `You check quiz questions against the lesson they claim to come from.
+function judgeSystem(difficulty: QuizDifficulty): string {
+  const standard =
+    difficulty === "easy"
+      ? "Easy: a direct recall question whose answer is explicitly stated is appropriate."
+      : difficulty === "medium"
+        ? "Medium: require comparison, consequence, or straightforward application; reject pure copy-and-paste recall."
+        : "Hard: require an implication, synthesis of multiple lesson ideas, diagnosis, trade-off, or a new use case. Reject any question answerable by locating one matching phrase or definition.";
+
+  return `You check quiz questions against the lesson they claim to come from.
 
 The lesson text you are given is the entire world. Anything not in it does not
 exist for this purpose, however true it may be generally — a question that
@@ -178,14 +193,19 @@ Judge each question on its own:
 - distractorsClearlyWrong: the other options contradict the lesson or are absent
   from it. Plausible is good; ambiguously also-correct is not.
 - introducesOutsideFacts: it depends on something the lesson never says.
+- difficultyMatches: ${standard}
 
-Be strict. Passing a question that cannot be answered from the lesson is worse
-than failing a sound one.`;
+For a hard question, support can be inferential: the correct option does not
+need to be a sentence copied from the lesson, but every premise needed to infer
+it must be there. Be strict. Passing a question that cannot be answered from
+the lesson is worse than failing a sound one.`;
+}
 
 /** Ask the model to judge each question against the lesson. */
 export async function judgeAgainstLesson(
   questions: DraftQuestion[],
   source: LessonSource,
+  difficulty: QuizDifficulty = DEFAULT_QUIZ_DIFFICULTY,
 ): Promise<QuestionVerdict[]> {
   if (questions.length === 0) return [];
 
@@ -214,7 +234,7 @@ Return one verdict per question, using the index shown in brackets.`;
   try {
     const result = await generateStructuredJSON(prompt, JudgementSchema, {
       task: "quiz-grounding-judge",
-      systemInstruction: JUDGE_SYSTEM,
+      systemInstruction: judgeSystem(difficulty),
       temperature: 0.1,
     });
 
@@ -235,6 +255,9 @@ Return one verdict per question, using the index shown in brackets.`;
         problems.push("its incorrect options are not clearly wrong according to the lesson");
       }
       if (verdict.introducesOutsideFacts) problems.push("relies on facts outside the lesson");
+      if (!verdict.difficultyMatches) {
+        problems.push(`does not meet the requested ${difficulty} difficulty standard`);
+      }
 
       if (problems.length === 0) return { index, ok: true };
       return {
@@ -259,9 +282,10 @@ Return one verdict per question, using the index shown in brackets.`;
 export async function validateQuestions(
   questions: DraftQuestion[],
   source: LessonSource,
+  difficulty: QuizDifficulty = DEFAULT_QUIZ_DIFFICULTY,
 ): Promise<QuestionVerdict[]> {
   const mechanical = questions.map((question, index) => {
-    const problem = checkMechanically(question, source);
+    const problem = checkMechanically(question, source, difficulty);
     return problem ? { index, ok: false, reason: problem } : { index, ok: true };
   });
 
@@ -272,6 +296,7 @@ export async function validateQuestions(
   const judged = await judgeAgainstLesson(
     survivorIndexes.map((i) => questions[i]),
     source,
+    difficulty,
   );
 
   const verdicts = [...mechanical];

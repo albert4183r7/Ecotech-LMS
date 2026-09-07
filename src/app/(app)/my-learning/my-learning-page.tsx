@@ -26,7 +26,18 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { toast } from "sonner";
 import { CourseCard } from "@/components/lms/course-card";
 import { useMyLearningStore, useUserStore } from "@/stores/lms-store";
 import { useNavigation } from "@/hooks/use-navigation";
@@ -230,6 +241,8 @@ export function MyLearningPage() {
   const [loadingStats, setLoadingStats] = useState(true);
   const [loadingEnrollments, setLoadingEnrollments] = useState(true);
   const [loadingFavorites, setLoadingFavorites] = useState(true);
+  const [leaving, setLeaving] = useState<EnrollmentItem | null>(null);
+  const [leavePending, setLeavePending] = useState(false);
 
   const fetchStats = useCallback(async () => {
     setLoadingStats(true);
@@ -302,6 +315,33 @@ export function MyLearningPage() {
     },
     [currentUserId, favorites, fetchFavorites],
   );
+
+  const handleLeaveCourse = useCallback(async () => {
+    if (!leaving || leavePending) return;
+    setLeavePending(true);
+    try {
+      const res = await fetch(`/api/enrollments/${leaving.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "dropped" }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.error || "Could not leave course");
+      setEnrollmentsState((current) => current.filter((item) => item.id !== leaving.id));
+      setEnrollments(
+        enrollments
+          .filter((item) => item.id !== leaving.id)
+          .map((item) => enrollmentToCourseItem(item)),
+      );
+      toast.success(`Left ${leaving.course.title}. You can rejoin from the course catalog.`);
+      setLeaving(null);
+      void fetchStats();
+    } catch (caught) {
+      toast.error(caught instanceof Error ? caught.message : "Could not leave course");
+    } finally {
+      setLeavePending(false);
+    }
+  }, [enrollments, fetchStats, leavePending, leaving, setEnrollments]);
 
   useEffect(() => {
     fetchStats();
@@ -463,7 +503,11 @@ export function MyLearningPage() {
           ) : (
             <div className="space-y-4">
               {inProgressList.map((enrollment) => (
-                <CourseProgressCard key={enrollment.id} enrollment={enrollment} />
+                <CourseProgressCard
+                  key={enrollment.id}
+                  enrollment={enrollment}
+                  onLeave={setLeaving}
+                />
               ))}
             </div>
           )}
@@ -508,6 +552,32 @@ export function MyLearningPage() {
           )}
         </TabsContent>
       </Tabs>
+
+      <AlertDialog open={Boolean(leaving)} onOpenChange={(open) => !open && setLeaving(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Leave this course?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {leaving
+                ? `“${leaving.course.title}” will be removed from My Learning. Your progress and quiz history will be kept if you rejoin later.`
+                : "Your saved progress will be kept."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={leavePending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={leavePending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={(event) => {
+                event.preventDefault();
+                void handleLeaveCourse();
+              }}
+            >
+              {leavePending ? "Leaving…" : "Leave course"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -25,6 +25,7 @@ export interface LessonSource {
   lessonTitle: string;
   courseId: string;
   courseTitle: string;
+  language: string;
   /** Everything the lesson teaches, slide by slide, as plain text. */
   text: string;
   slides: LessonSourceSlide[];
@@ -45,7 +46,8 @@ export async function loadLessonSource(lessonId: string): Promise<LessonSource |
       id: true,
       title: true,
       courseId: true,
-      course: { select: { title: true } },
+      outlineJson: true,
+      course: { select: { title: true, language: true } },
       slides: {
         where: { status: "READY" },
         orderBy: { order: "asc" },
@@ -67,11 +69,22 @@ export async function loadLessonSource(lessonId: string): Promise<LessonSource |
 
   if (slides.length === 0) return null;
 
+  let language = lesson.course.language;
+  try {
+    const outline = JSON.parse(lesson.outlineJson ?? "{}") as { language?: unknown };
+    if (typeof outline.language === "string" && outline.language.trim()) {
+      language = outline.language;
+    }
+  } catch {
+    // Uploaded/legacy lessons use the course language.
+  }
+
   return {
     lessonId: lesson.id,
     lessonTitle: lesson.title,
     courseId: lesson.courseId,
     courseTitle: lesson.course.title,
+    language,
     text: slides.map((s) => `--- Slide ${s.number}: ${s.title} ---\n${s.text}`).join("\n\n"),
     slides,
     slideCount: lesson.slides.length,

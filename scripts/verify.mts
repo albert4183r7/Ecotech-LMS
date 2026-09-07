@@ -28,6 +28,7 @@ import {
   questionCountFor,
   MIN_QUIZ_QUESTIONS,
   MAX_QUIZ_QUESTIONS,
+  normaliseQuizDifficulty,
 } from "../src/lib/quiz/schema";
 import * as templateModule from "../src/lib/slides/template";
 import { SLIDE_TEMPLATE } from "../src/lib/slides/template";
@@ -40,13 +41,9 @@ import {
   MAX_LESSON_CHARS,
 } from "../src/lib/assistant/lesson-tutor";
 import type { LessonSource } from "../src/lib/quiz/lesson-source";
-import {
-  TASK_MODELS,
-  modelFor,
-  isMultimodal,
-  type AiTask,
-} from "../src/lib/ai/models";
+import { TASK_MODELS, modelFor, isMultimodal, type AiTask } from "../src/lib/ai/models";
 import { throwFriendlyError } from "../src/lib/ai/provider";
+import { parseJsonResponse } from "../src/lib/ai/structured";
 import { safeFileName } from "../src/lib/download";
 import type { SlideContent } from "../src/lib/slides/content-schema";
 import {
@@ -68,6 +65,8 @@ import PptxGenJS from "pptxgenjs";
 import JSZip from "jszip";
 import { importPptx } from "../src/lib/slides/import/pptx";
 import { parseXml, find, findAll, textOf } from "../src/lib/slides/import/xml";
+import { quizCandidateCount } from "../src/lib/quiz/generate";
+import { courseAssistantPath, viewFromPathname } from "../src/lib/routes";
 
 const checks: [string, () => boolean | Promise<boolean>][] = [];
 const add = (n: string, f: () => boolean | Promise<boolean>) => checks.push([n, f]);
@@ -674,6 +673,31 @@ add(
       source,
     ) !== null,
 );
+add("quiz difficulty accepts only the three supported levels", () => {
+  return (
+    normaliseQuizDifficulty("easy") === "easy" &&
+    normaliseQuizDifficulty("medium") === "medium" &&
+    normaliseQuizDifficulty("hard") === "hard" &&
+    normaliseQuizDifficulty("expert") === "medium"
+  );
+});
+add("hard questions may express an inference instead of copying answer terms", () => {
+  const inferred = {
+    prompt: "What should the team do after the check exposes a missed goal?",
+    options: [
+      opt("Revise the plan and run another iteration", true),
+      opt("Archive the result immediately"),
+      opt("Remove the goal"),
+      opt("Skip evaluation next time"),
+    ],
+    sourceQuote:
+      "The check stage scores the result against the goal before the next iteration begins",
+  };
+  return (
+    checkMechanically(inferred, source, "medium") !== null &&
+    checkMechanically(inferred, source, "hard") === null
+  );
+});
 // A lesson written in Chinese, which is where the old term extraction gave up:
 // it split on anything outside a-z0-9, so a Chinese lesson produced no terms at
 // all and its quotes could not be compared to it.
@@ -732,6 +756,93 @@ add("the instructor's question count is honoured, and clamped", () => {
     // No number given: scaled to the lesson, as before.
     questionCountFor(10) === 6
   );
+});
+
+add("quiz generation keeps a bounded reserve for grounded replacements", () => {
+  return (
+    quizCandidateCount(2) === 3 &&
+    quizCandidateCount(10) === 12 &&
+    quizCandidateCount(MAX_QUIZ_QUESTIONS) === MAX_QUIZ_QUESTIONS
+  );
+});
+
+add("quality review findings cannot relabel generated slides as failures", () => {
+  const route = readFileSync("src/app/api/lessons/generate-slides/route.ts", "utf8");
+  const reviewStage = route
+    .split("// ---- Review what was generated")[1]
+    ?.split("// ---- The quiz is part of generating a lesson")[0];
+  return (
+    Boolean(reviewStage) &&
+    !/status:\s*["']ERROR["']/.test(reviewStage ?? "") &&
+    /if \(completeDeck\) \{/.test(route)
+  );
+});
+
+add("large AI surfaces have dedicated routes instead of filling primary pages", () => {
+  const coursePage = readFileSync(
+    "src/app/(app)/courses/[courseId]/course-detail-page.tsx",
+    "utf8",
+  );
+  const riskPanel = readFileSync("src/components/lms/risk-insights-panel.tsx", "utf8");
+  return (
+    courseAssistantPath("course-1") === "/courses/course-1/assistant" &&
+    viewFromPathname("/courses/course-1/assistant") === "course-detail" &&
+    !/<CourseAssistant[\s>]/.test(coursePage) &&
+    riskPanel.includes('href="/analytics"') &&
+    riskPanel.includes("slice(0, 5)")
+  );
+});
+
+add("mastery sprint is a multi-course workspace, not inline course content", () => {
+  const coursePage = readFileSync(
+    "src/app/(app)/courses/[courseId]/course-detail-page.tsx",
+    "utf8",
+  );
+  const sprint = readFileSync("src/components/lms/mastery-sprint.tsx", "utf8");
+  const sprintPage = readFileSync("src/app/(app)/mastery-sprint/mastery-sprint-page.tsx", "utf8");
+  const api = readFileSync("src/app/api/mastery-sprint/route.ts", "utf8");
+  return (
+    viewFromPathname("/mastery-sprint") === "mastery-sprint" &&
+    !/<MasterySprint[\s>]/.test(coursePage) &&
+    !/Mastery sprint/i.test(coursePage) &&
+    sprintPage.includes('fetch("/api/enrollments")') &&
+    sprint.includes("courseIds: selectedIds") &&
+    sprint.includes("Choose your sprint courses") &&
+    api.includes("courseId: { in: courseIds }")
+  );
+});
+
+add("leaving a course revokes learning access while preserving a rejoin path", () => {
+  const enrollments = readFileSync("src/app/api/enrollments/route.ts", "utf8");
+  const session = readFileSync("src/lib/session.ts", "utf8");
+  const quizAccess = readFileSync("src/lib/quiz/access.ts", "utf8");
+  const learning = readFileSync("src/app/(app)/my-learning/my-learning-page.tsx", "utf8");
+  return (
+    enrollments.includes('existing.status !== "dropped"') &&
+    enrollments.includes('status: "in_progress", enrolledAt: new Date()') &&
+    session.includes('enrollment.status === "dropped"') &&
+    quizAccess.includes('enrollment.status === "dropped"') &&
+    learning.includes('body: JSON.stringify({ status: "dropped" })') &&
+    learning.includes("Your progress and quiz history will be kept")
+  );
+});
+
+add("completed courses expose the existing completion certificate", () => {
+  const cards = readFileSync("src/components/lms/my-learning/course-cards.tsx", "utf8");
+  return (
+    cards.includes("import { CertificateModal }") &&
+    cards.includes("<CertificateModal") &&
+    cards.includes("completionDate={enrollment.completedAt}")
+  );
+});
+
+add("structured JSON is recovered locally from harmless gateway prose", () => {
+  const parsed = parseJsonResponse(
+    'status: complete\n{"value":"a } inside a string"}\nfinished',
+  ) as {
+    value?: string;
+  };
+  return parsed.value === "a } inside a string";
 });
 
 add("a quiz of more than eight questions still validates", () => {
@@ -1004,6 +1115,28 @@ add("ink that cannot be read on what it sits on is corrected", () => {
     (band.ink === "featureHeading" || band.ink === "onAccent") &&
     (chip.ink === "heading" || chip.ink === "iconInk") &&
     warnings.some((w) => w.includes("unreadable"))
+  );
+});
+
+add("a deterministic contrast correction does not trigger model recomposition", () => {
+  const candidate: SlideComposition = {
+    elements: [
+      { kind: "band", x: 0.045, y: 0.79, w: 0.91, h: 0.08, fill: "gradient" },
+      {
+        kind: "text",
+        x: 0.07,
+        y: 0.805,
+        w: 0.86,
+        h: 0.05,
+        text: "The renderer applies a readable ink",
+        role: "heading",
+        ink: "heading",
+      },
+    ],
+  };
+  const resolved = resolveComposition(candidate);
+  return (
+    resolved.faults.recoloured === 1 && reviewComposition(candidate, resolved.warnings).length === 0
   );
 });
 

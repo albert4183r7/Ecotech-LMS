@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
     }
 
     const enrollments = await db.enrollment.findMany({
-      where: { userId },
+      where: { userId, status: { not: "dropped" } },
       include: {
         course: {
           include: {
@@ -163,7 +163,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    if (existing) {
+    if (existing && existing.status !== "dropped") {
       return NextResponse.json(
         { success: false, error: "Already enrolled in this course" },
         { status: 409 },
@@ -173,23 +173,24 @@ export async function POST(request: NextRequest) {
     // The row and its denormalised counter are one change: a failure cannot
     // leave the count ahead of the actual enrolments.
     const enrollment = await db.$transaction(async (tx) => {
-      const created = await tx.enrollment.create({
-        data: {
-          userId,
-          courseId,
-          status: "in_progress",
-        },
-        include: {
-          course: {
+      const created = existing
+        ? await tx.enrollment.update({
+            where: { id: existing.id },
+            data: { status: "in_progress", enrolledAt: new Date(), completedAt: null },
             include: {
-              category: true,
-              _count: {
-                select: { lessons: true },
+              course: {
+                include: { category: true, _count: { select: { lessons: true } } },
               },
             },
-          },
-        },
-      });
+          })
+        : await tx.enrollment.create({
+            data: { userId, courseId, status: "in_progress" },
+            include: {
+              course: {
+                include: { category: true, _count: { select: { lessons: true } } },
+              },
+            },
+          });
       const studentCount = await tx.enrollment.count({
         where: { courseId, status: { not: "dropped" } },
       });

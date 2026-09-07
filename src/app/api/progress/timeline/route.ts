@@ -100,7 +100,7 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    if (!enrollment) {
+    if (!enrollment || enrollment.status === "dropped") {
       return NextResponse.json(
         { success: false, error: "Not enrolled in this course" },
         { status: 404 },

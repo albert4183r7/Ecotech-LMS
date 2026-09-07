@@ -18,6 +18,8 @@ import {
   FileDown,
   Pencil,
   Trash2,
+  Sparkles,
+  Bot,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -43,7 +45,7 @@ import type { CourseItem, LessonItem, ClassroomState } from "@/types/lms";
 import { buildClassroomState } from "@/lib/classroom";
 import { safeFileName, triggerDownload } from "@/lib/download";
 import { usePptxDownload } from "@/hooks/use-pptx-download";
-import { lessonPreviewPath } from "@/lib/routes";
+import { courseAssistantPath, lessonPreviewPath } from "@/lib/routes";
 import { useRouter } from "next/navigation";
 
 type LessonProgress = {
@@ -77,6 +79,7 @@ export function CourseDetailPage() {
   const [ratingCount, setRatingCount] = useState(0);
   const [downloadingPptx, setDownloadingPptx] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [generatingMissingQuizzes, setGeneratingMissingQuizzes] = useState(false);
   const { setEditingCourseId } = useCourseStore();
   const router = useRouter();
   // One deck per lesson; the course-wide button below zips these same files.
@@ -298,6 +301,7 @@ export function CourseDetailPage() {
           courseTitle: course.title,
           lessonId: lesson.id,
           lessonTitle: lesson.title,
+          language: json.data.language ?? course.language ?? "english",
           slides: json.success ? json.data.slides : [],
           allLessonIds: course.lessons.map((s) => s.id),
         }),
@@ -393,6 +397,37 @@ export function CourseDetailPage() {
 
   const totalLessons = course.lessons.length;
   const estimatedMinutes = Math.max(5, Math.round(totalLessons * 1.5));
+  const missingQuizLessons = course.lessons.filter(
+    (lesson) => lesson.hasGeneratedContent && lesson.quiz?.status !== "READY",
+  );
+
+  const generateMissingQuizzes = async () => {
+    if (generatingMissingQuizzes || missingQuizLessons.length === 0) return;
+    setGeneratingMissingQuizzes(true);
+    try {
+      const response = await fetch(`/api/courses/${course.id}/quizzes/generate-missing`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lessonIds: missingQuizLessons.map((lesson) => lesson.id) }),
+      });
+      const json = await response.json();
+      if (!response.ok || !json.success) throw new Error(json.error || "Quiz generation failed.");
+      const failed = json.data.failed?.length ?? 0;
+      if (failed)
+        toast.warning(
+          `Generated ${json.data.generated}; ${failed} lesson quiz${failed === 1 ? "" : "zes"} still need attention.`,
+        );
+      else
+        toast.success(
+          `Generated ${json.data.generated} missing quiz${json.data.generated === 1 ? "" : "zes"}.`,
+        );
+      await fetchCourse();
+    } catch (caught) {
+      toast.error(caught instanceof Error ? caught.message : "Quiz generation failed.");
+    } finally {
+      setGeneratingMissingQuizzes(false);
+    }
+  };
 
   /** Get progress info for a lesson */
   const getLessonProgress = (lessonId: string) => {
@@ -592,6 +627,18 @@ export function CourseDetailPage() {
           {course.lessons.length > 1 ? "Download all lessons" : "Download as PPT"}
         </Button>
 
+        {(course.isOwner || course.isEnrolled) && course.lessons.length > 0 && (
+          <Button
+            variant="outline"
+            size="lg"
+            className="gap-2 px-5 py-6 text-sm font-medium"
+            onClick={() => router.push(courseAssistantPath(course.id))}
+          >
+            <Bot className="h-4 w-4" />
+            Ask course AI
+          </Button>
+        )}
+
         {/* Start / Continue Learning Button - Prominent (students only) */}
         {currentRole === "student" ? (
           <Button
@@ -660,13 +707,30 @@ export function CourseDetailPage() {
           A single course-wide button produced one bundle and left the reader
           to work out which file was which lesson. */}
       <section>
-        <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-foreground text-xl font-bold">Curriculum</h2>
-          {course.lessons.length > 0 && (
+          {course.isOwner && missingQuizLessons.length > 0 ? (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2 border-violet-300 text-violet-700 hover:bg-violet-500/10 dark:border-violet-800 dark:text-violet-300"
+              onClick={() => void generateMissingQuizzes()}
+              disabled={generatingMissingQuizzes}
+            >
+              {generatingMissingQuizzes ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Sparkles className="h-4 w-4" />
+              )}
+              {generatingMissingQuizzes
+                ? "Generating quizzes…"
+                : `Generate ${missingQuizLessons.length} missing ${missingQuizLessons.length === 1 ? "quiz" : "quizzes"}`}
+            </Button>
+          ) : course.lessons.length > 0 ? (
             <p className="text-muted-foreground text-xs">
               Every lesson downloads as its own .pptx file.
             </p>
-          )}
+          ) : null}
         </div>
 
         {course.lessons.length === 0 ? (

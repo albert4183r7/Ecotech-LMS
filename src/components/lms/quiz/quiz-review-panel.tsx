@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   AlertTriangle,
   Check,
@@ -19,6 +19,14 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { DEFAULT_QUIZ_DIFFICULTY, type QuizDifficulty } from "@/lib/quiz/schema";
 
 // ============================================
 // Quiz review
@@ -53,6 +61,7 @@ export interface QuizPreview {
   title: string;
   status: string;
   error: string | null;
+  difficulty: QuizDifficulty;
   questions: QuizPreviewQuestion[];
 }
 
@@ -79,12 +88,23 @@ export function QuizReviewPanel({ lessonId, quiz, onChanged }: QuizReviewPanelPr
   const [adding, setAdding] = useState<NewQuestion | null>(null);
   const [savingNew, setSavingNew] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
+  const [difficulty, setDifficulty] = useState<QuizDifficulty>(
+    quiz?.difficulty ?? DEFAULT_QUIZ_DIFFICULTY,
+  );
+
+  useEffect(() => {
+    setDifficulty(quiz?.difficulty ?? DEFAULT_QUIZ_DIFFICULTY);
+  }, [quiz?.difficulty]);
 
   const regenerate = useCallback(async () => {
     if (regenerating) return;
     setRegenerating(true);
     try {
-      const res = await fetch(`/api/lessons/${lessonId}/quiz`, { method: "POST" });
+      const res = await fetch(`/api/lessons/${lessonId}/quiz`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ difficulty }),
+      });
       const json = await res.json();
       if (!res.ok || !json.success) {
         toast.error(json.error || "Quiz generation failed.");
@@ -111,7 +131,7 @@ export function QuizReviewPanel({ lessonId, quiz, onChanged }: QuizReviewPanelPr
     } finally {
       setRegenerating(false);
     }
-  }, [lessonId, regenerating, onChanged]);
+  }, [lessonId, difficulty, regenerating, onChanged]);
 
   const startEdit = (question: QuizPreviewQuestion) => {
     setEditingId(question.id);
@@ -249,14 +269,30 @@ export function QuizReviewPanel({ lessonId, quiz, onChanged }: QuizReviewPanelPr
           {quiz?.error ??
             "A quiz is normally generated with the lesson. You can generate it here without regenerating the slides."}
         </p>
-        <Button className="mt-4 gap-2" onClick={regenerate} disabled={regenerating}>
-          {regenerating ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <RefreshCw className="h-4 w-4" />
-          )}
-          {regenerating ? "Generating…" : "Generate quiz"}
-        </Button>
+        <div className="mx-auto mt-4 flex max-w-md flex-wrap items-center justify-center gap-2">
+          <Select
+            value={difficulty}
+            onValueChange={(value) => setDifficulty(value as QuizDifficulty)}
+            disabled={regenerating}
+          >
+            <SelectTrigger className="h-9 w-[11.5rem]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="easy">Easy · recall</SelectItem>
+              <SelectItem value="medium">Medium · apply</SelectItem>
+              <SelectItem value="hard">Hard · infer & use cases</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button className="gap-2" onClick={regenerate} disabled={regenerating}>
+            {regenerating ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4" />
+            )}
+            {regenerating ? "Generating…" : "Generate quiz"}
+          </Button>
+        </div>
       </div>
     );
   }
@@ -271,6 +307,20 @@ export function QuizReviewPanel({ lessonId, quiz, onChanged }: QuizReviewPanelPr
             this lesson only
           </p>
         </div>
+        <Select
+          value={difficulty}
+          onValueChange={(value) => setDifficulty(value as QuizDifficulty)}
+          disabled={regenerating}
+        >
+          <SelectTrigger className="h-9 w-[11.5rem]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="easy">Easy · recall</SelectItem>
+            <SelectItem value="medium">Medium · apply</SelectItem>
+            <SelectItem value="hard">Hard · infer & use cases</SelectItem>
+          </SelectContent>
+        </Select>
         <Button
           variant="outline"
           size="sm"

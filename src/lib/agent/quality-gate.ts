@@ -63,6 +63,30 @@ interface SlideRow {
   sectionId: string | null;
 }
 
+const REVISION_CONCURRENCY = Math.max(
+  1,
+  Number(process.env.SLIDE_REVISION_CONCURRENCY ?? process.env.SLIDE_CONCURRENCY ?? 3),
+);
+
+/** Map independent revisions concurrently while keeping report order stable. */
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  worker: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let cursor = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(limit, items.length) }, async () => {
+      while (cursor < items.length) {
+        const index = cursor++;
+        results[index] = await worker(items[index]);
+      }
+    }),
+  );
+  return results;
+}
+
 async function snapshot(
   lessonId: string,
   options: GateOptions,
@@ -258,27 +282,40 @@ export async function runQualityGate(options: GateOptions): Promise<GateReport> 
     }
 
     const byPosition = new Map(taken.rows.map((row) => [row.order + 1, row]));
-    for (const [position, findings] of blocking) {
+    const revisions = [...blocking].flatMap(([position, findings]) => {
       const row = byPosition.get(position);
-      if (!row) continue;
-      try {
-        await reviseSlide({
-          lessonId: options.lessonId,
-          row,
-          findings,
-          deckSize: taken.rows.length,
-          language,
-          referenceText: options.referenceText,
-          lessonTitle: taken.title,
-          kind: parseSlideDoc(row.contentJson)?.kind ?? "composition",
-        });
-        report.revisedSlides.push(position);
-      } catch (error) {
-        report.revisionErrors.push(
-          `slide ${position}: ${error instanceof Error ? error.message : "revision failed"}`,
-        );
-      }
-    }
+      return row ? [{ position, findings, row }] : [];
+    });
+    const revisionResults = await mapWithConcurrency(
+      revisions,
+      REVISION_CONCURRENCY,
+      async ({ position, findings, row }) => {
+        try {
+          await reviseSlide({
+            lessonId: options.lessonId,
+            row,
+            findings,
+            deckSize: taken.rows.length,
+            language,
+            referenceText: options.referenceText,
+            lessonTitle: taken.title,
+            kind: parseSlideDoc(row.contentJson)?.kind ?? "composition",
+          });
+          return { position, error: null };
+        } catch (error) {
+          return {
+            position,
+            error: `slide ${position}: ${error instanceof Error ? error.message : "revision failed"}`,
+          };
+        }
+      },
+    );
+    report.revisedSlides.push(
+      ...revisionResults.filter((result) => !result.error).map((result) => result.position),
+    );
+    report.revisionErrors.push(
+      ...revisionResults.flatMap((result) => (result.error ? [result.error] : [])),
+    );
 
     reports.push(report);
   }

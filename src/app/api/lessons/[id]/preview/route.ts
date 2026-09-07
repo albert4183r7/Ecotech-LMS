@@ -4,6 +4,7 @@ import { handleRoute, ok } from "@/lib/api-response";
 import { requireLessonOwner } from "@/lib/session";
 import { SLIDE_TEMPLATE } from "@/lib/slides/template";
 import { ensureCanvasDocument } from "@/lib/sanitize";
+import { normaliseQuizDifficulty } from "@/lib/quiz/schema";
 
 // ============================================
 // GET /api/lessons/[id]/preview
@@ -53,16 +54,16 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     // An uploaded deck was never planned, so it has no outline — what it has
     // is where it came from, and the screen says so rather than telling the
     // instructor to regenerate a lesson nobody generated.
-    const source = (() => {
-      try {
-        const parsed = JSON.parse(lesson.outlineJson ?? "{}") as {
-          source?: { kind?: string; originalName?: string; file?: string };
-        };
-        return parsed.source?.kind ? parsed.source : null;
-      } catch {
-        return null;
-      }
-    })();
+    let outline: {
+      source?: { kind?: string; originalName?: string; file?: string };
+      quizDifficulty?: unknown;
+    } = {};
+    try {
+      outline = JSON.parse(lesson.outlineJson ?? "{}");
+    } catch {
+      outline = {};
+    }
+    const source = outline.source?.kind ? outline.source : null;
 
     return ok({
       id: lesson.id,
@@ -112,6 +113,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
             title: lesson.quiz.title,
             status: lesson.quiz.status,
             error: lesson.quiz.error,
+            difficulty: normaliseQuizDifficulty(outline.quizDifficulty),
             questions: lesson.quiz.questions.map((question) => ({
               id: question.id,
               prompt: question.prompt,

@@ -148,6 +148,8 @@ export function CreateCoursePage() {
     setOutlineSlideCount,
     outlineQuestionCount,
     setOutlineQuestionCount,
+    outlineQuizDifficulty,
+    setOutlineQuizDifficulty,
     outlineLanguage,
     setOutlineLanguage,
     outlineGenerating,
@@ -337,6 +339,10 @@ export function CreateCoursePage() {
                     </Label>
                   </div>
                 </RadioGroup>
+                <p className="text-muted-foreground text-xs">
+                  Chinese is supported for generated slides, quizzes, and lesson narration. This
+                  controls course content; the LMS navigation remains in English.
+                </p>
               </div>
 
               <Separator />
@@ -435,6 +441,7 @@ export function CreateCoursePage() {
                         setOutlineEditingSlides(ol.slides);
                         setOutlineTopic(ol.topic);
                         setOutlineSlideCount(ol.slides.length);
+                        setOutlineQuizDifficulty(ol.quizDifficulty ?? "medium");
                         setModalOpen(true);
                       }}
                       onUpdateSlideTitle={(slideId, newTitle) =>
@@ -517,7 +524,7 @@ export function CreateCoursePage() {
 
             {/* Slide count and quiz length, side by side: both are "how much of
                 this do I want", and both are the instructor's call. */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-4 sm:grid-cols-3">
               <div className="space-y-2">
                 <Label className="text-sm font-medium">Slide Count</Label>
                 <div className="flex items-center gap-2">
@@ -590,6 +597,33 @@ export function CreateCoursePage() {
                   </button>
                 </div>
               </div>
+
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Quiz Difficulty</Label>
+                <Select
+                  value={outlineQuizDifficulty}
+                  onValueChange={(value) =>
+                    setOutlineQuizDifficulty(value as "easy" | "medium" | "hard")
+                  }
+                  disabled={outlineGenerating}
+                >
+                  <SelectTrigger className="h-9 w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="easy">Easy · recall</SelectItem>
+                    <SelectItem value="medium">Medium · apply</SelectItem>
+                    <SelectItem value="hard">Hard · infer & use cases</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-muted-foreground text-[11px]">
+                  {outlineQuizDifficulty === "hard"
+                    ? "Answers require understanding implications or applying the lesson to a case."
+                    : outlineQuizDifficulty === "easy"
+                      ? "Answers are stated directly in the lesson."
+                      : "Answers require comparing or applying ideas from the lesson."}
+                </p>
+              </div>
             </div>
 
             {/* Language + Reference Docs row */}
@@ -628,12 +662,14 @@ export function CreateCoursePage() {
                 </Select>
               </div>
 
-              {/* Reference Documents */}
+              {/* A syllabus is a first-class source: the same extraction path
+                  reads it, while the planner preserves its learning outcomes,
+                  required topics, sequence, and assessment expectations. */}
               <div className="space-y-2">
                 <Label className="text-sm font-medium">
                   <span className="inline-flex items-center gap-1.5">
                     <Paperclip className="h-3.5 w-3.5" />
-                    Reference Documents
+                    Syllabus &amp; Reference Materials
                   </span>
                   <span className="text-muted-foreground ml-1.5 text-xs font-normal">
                     (optional)
@@ -661,7 +697,7 @@ export function CreateCoursePage() {
                   {docUploading ? "Uploading..." : "Upload Documents"}
                 </button>
                 <p className="text-muted-foreground text-[10px]">
-                  PDF, DOCX, PPTX, TXT, CSV, XLSX, MD, RTF
+                  Syllabus, module, deck, or notes · PDF, DOCX, PPTX, TXT, CSV, XLSX, MD, RTF
                 </p>
               </div>
             </div>

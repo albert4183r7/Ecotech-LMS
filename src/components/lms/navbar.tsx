@@ -23,6 +23,7 @@ import {
   Search,
   LogOut,
   LayoutDashboard,
+  Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -49,6 +50,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Home", icon: <Home className="h-4 w-4" />, view: "home" },
   { label: "Courses", icon: <BookOpen className="h-4 w-4" />, view: "courses" },
   { label: "Learning Progress", icon: <GraduationCap className="h-4 w-4" />, view: "my-learning" },
+  { label: "Mastery Sprint", icon: <Zap className="h-4 w-4" />, view: "mastery-sprint" },
   { label: "Quiz", icon: <ListChecks className="h-4 w-4" />, view: "quizzes" },
   { label: "Profile", icon: <User className="h-4 w-4" />, view: "profile" },
 ];
@@ -64,6 +66,8 @@ function getViewLabel(view: ViewName): string {
       return "Courses";
     case "my-learning":
       return "Learning Progress";
+    case "mastery-sprint":
+      return "Mastery Sprint";
     case "quizzes":
       return "Quiz";
     case "profile":
@@ -500,6 +504,7 @@ export function Navbar() {
   const visibleNavItems = NAV_ITEMS.filter((item) => {
     // Instructors cannot access Learning Progress (my-learning)
     if (item.view === "my-learning" && currentRole === "instructor") return false;
+    if (item.view === "mastery-sprint" && currentRole === "instructor") return false;
     return true;
   }).concat(currentRole === "instructor" ? [dashboardItem] : []);
 

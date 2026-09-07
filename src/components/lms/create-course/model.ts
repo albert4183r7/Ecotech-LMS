@@ -3,6 +3,7 @@ import type {
   OutlineLessonDraft,
   OutlineSlideDraft,
 } from "@/components/lms/create-course/outline-lesson-card";
+import type { QuizDifficulty } from "@/lib/quiz/schema";
 
 // ============================================
 // Create Course — shared model
@@ -43,6 +44,7 @@ export function toLessonDraft(
     thesis?: string;
     misconception?: string;
     keyTerms?: string[];
+    quizDifficulty?: QuizDifficulty;
     /** Set when the lesson came from an uploaded deck rather than a plan. */
     uploaded?: boolean;
   },
@@ -86,6 +88,7 @@ export function toLessonDraft(
       thesis: lessonData.thesis,
       misconception: lessonData.misconception,
       keyTerms: lessonData.keyTerms,
+      quizDifficulty: lessonData.quizDifficulty,
       language: meta.language,
       style: meta.style,
       topic: meta.topic,

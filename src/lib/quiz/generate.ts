@@ -1,11 +1,14 @@
 import { generateStructuredJSON } from "@/lib/ai";
 import {
   DraftQuizSchema,
+  MAX_QUIZ_QUESTIONS,
   OPTIONS_PER_QUESTION,
   questionCountFor,
   repairQuiz,
   type DraftQuestion,
   type DraftQuiz,
+  type QuizDifficulty,
+  DEFAULT_QUIZ_DIFFICULTY,
 } from "./schema";
 import { validateQuestions, type QuestionVerdict } from "./validator";
 import type { LessonSource } from "./lesson-source";
@@ -32,18 +35,29 @@ import type { LessonSource } from "./lesson-source";
  */
 const MAX_REVISION_PASSES = 3;
 
+/**
+ * A small reserve is cheaper than a second authoring round when one candidate
+ * fails grounding. Every reserve question passes the same mechanical and model
+ * checks, and only the requested number is saved.
+ */
+export function quizCandidateCount(target: number): number {
+  const reserve = Math.max(1, Math.min(3, Math.ceil(target * 0.2)));
+  return Math.min(MAX_QUIZ_QUESTIONS, target + reserve);
+}
+
 const SYSTEM = `You write multiple-choice questions from a single lesson.
 
-THE LESSON IS THE ONLY SOURCE. Everything you ask about must be stated in the
-lesson text you are given. You may not use anything you know about the subject
-from elsewhere, however certain you are of it — a learner who read this lesson
-and nothing else must be able to answer every question.
+THE LESSON IS THE ONLY SOURCE. Every fact or premise needed to answer must be
+supported by the lesson text you are given. You may not use anything you know
+about the subject from elsewhere, however certain you are of it — a learner
+who read this lesson and nothing else must be able to answer every question.
 
 Each question needs:
 - prompt: what is being asked, answerable from the lesson alone.
 - options: exactly ${OPTIONS_PER_QUESTION} choices, exactly one correct.
-- sourceQuote: the sentence from the lesson that supports the correct answer,
-  quoted from it. If you cannot quote the lesson, you cannot ask the question.
+- sourceQuote: the sentence from the lesson that supplies the key evidence for
+  the correct answer, quoted from it. If you cannot quote supporting evidence,
+  you cannot ask the question.
 - explanation: why the correct answer is correct, in one or two sentences.
 
 Rules for the wrong options:
@@ -56,7 +70,21 @@ Cover different parts of the lesson rather than asking the same thing several
 ways, and vary what you ask for: a definition, a consequence, an ordering, a
 distinction the lesson draws.`;
 
-function buildPrompt(source: LessonSource, count: number): string {
+const DIFFICULTY_RULES: Record<QuizDifficulty, string> = {
+  easy: `EASY STANDARD:
+- Test direct recall or recognition. The answer should be stated clearly on one slide.
+- Prefer vocabulary, explicit steps, and distinctions the lesson names directly.`,
+  medium: `MEDIUM STANDARD:
+- Test understanding, not transcription: compare ideas, identify a consequence, or apply one idea to a straightforward situation.
+- The lesson must still make the answer reasonably direct, without outside knowledge.`,
+  hard: `HARD STANDARD:
+- A learner must infer the answer from the lesson, combine ideas from different parts of it, diagnose a situation, or apply its principles to a new use case.
+- Do not ask for a definition, a copied phrase, or a fact discoverable by searching one slide for the same words as the correct option.
+- The correct option may be a new conclusion, but every premise needed to reach it must be in the lesson. No outside facts.
+- Prefer realistic scenarios where the learner chooses an action, predicts an outcome, identifies a failure mode, or explains a trade-off.`,
+};
+
+function buildPrompt(source: LessonSource, count: number, difficulty: QuizDifficulty): string {
   return `LESSON: ${source.lessonTitle}
 
 <lesson>
@@ -64,7 +92,10 @@ ${source.text}
 </lesson>
 
 Write ${count} multiple-choice questions covering this lesson.
-Give the quiz a title naming what it covers.`;
+Give the quiz a title naming what it covers.
+Write the title, prompts, choices, and explanations in ${source.language}.
+
+${DIFFICULTY_RULES[difficulty]}`;
 }
 
 function buildRevisionPrompt(
@@ -72,6 +103,7 @@ function buildRevisionPrompt(
   rejected: { question: DraftQuestion; reason: string }[],
   keep: DraftQuestion[],
   wanted: number,
+  difficulty: QuizDifficulty,
 ): string {
   const problems = rejected.length
     ? `${rejected.length} question(s) were rejected for not being grounded in this lesson:\n\n` +
@@ -99,7 +131,10 @@ ${problems}${kept}
 Write ${wanted} more question(s) on this lesson${
     rejected.length ? ", not repeating the mistakes above" : ""
   }. Every one must quote the lesson in sourceQuote, and must ask about
-something the accepted questions do not already cover.`;
+something the accepted questions do not already cover.
+Write every prompt, choice, and explanation in ${source.language}.
+
+${DIFFICULTY_RULES[difficulty]}`;
 }
 
 export interface QuizGenerationReport {
@@ -121,24 +156,33 @@ export interface QuizGenerationReport {
  */
 export async function generateQuiz(
   source: LessonSource,
-  options: { questionCount?: number | null } = {},
+  options: {
+    questionCount?: number | null;
+    difficulty?: QuizDifficulty;
+  } = {},
 ): Promise<QuizGenerationReport> {
   const target = questionCountFor(source.slideCount, options.questionCount);
+  const initialCandidates = quizCandidateCount(target);
+  const difficulty = options.difficulty ?? DEFAULT_QUIZ_DIFFICULTY;
   /** What the previous round could not ground, so the next one is told why. */
   let lastFailed: { question: DraftQuestion; reason: string }[] = [];
 
-  const draft = await generateStructuredJSON(buildPrompt(source, target), DraftQuizSchema, {
-    task: "quiz-authoring",
-    repair: repairQuiz,
-    systemInstruction: SYSTEM,
-    temperature: 0.5,
-  });
+  const draft = await generateStructuredJSON(
+    buildPrompt(source, initialCandidates, difficulty),
+    DraftQuizSchema,
+    {
+      task: "quiz-authoring",
+      repair: repairQuiz,
+      systemInstruction: SYSTEM,
+      temperature: 0.5,
+    },
+  );
 
   const accepted: DraftQuestion[] = [];
   /** Prompts already accepted, so a repeat never counts toward the target. */
   const seen = new Set<string>();
   const key = (q: DraftQuestion) => q.prompt.toLowerCase().replace(/\s+/g, " ").trim();
-  let pending = draft.questions.slice(0, target);
+  let pending = draft.questions.slice(0, initialCandidates);
   let passes = 0;
   const dropped: { prompt: string; reason: string }[] = [];
 
@@ -151,7 +195,7 @@ export async function generateQuiz(
     passes++;
 
     if (pending.length > 0) {
-      const verdicts: QuestionVerdict[] = await validateQuestions(pending, source);
+      const verdicts: QuestionVerdict[] = await validateQuestions(pending, source, difficulty);
       const failed: { question: DraftQuestion; reason: string }[] = [];
       verdicts.forEach((verdict, index) => {
         const question = pending[index];
@@ -194,7 +238,7 @@ export async function generateQuiz(
 
     try {
       const revision = await generateStructuredJSON(
-        buildRevisionPrompt(source, lastFailed, accepted, missing),
+        buildRevisionPrompt(source, lastFailed, accepted, missing, difficulty),
         DraftQuizSchema,
         {
           task: "quiz-authoring",

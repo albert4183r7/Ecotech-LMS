@@ -9,6 +9,7 @@ export type ViewName =
   | "dashboard"
   | "courses"
   | "my-learning"
+  | "mastery-sprint"
   | "profile"
   | "course-detail"
   | "classroom"
@@ -42,6 +43,8 @@ export interface LessonItem {
   courseId: string;
   createdAt: string;
   updatedAt: string;
+  quiz?: { id: string; status: string; questionCount: number } | null;
+  hasGeneratedContent?: boolean;
 }
 
 /** Slide within a lesson */
@@ -123,6 +126,8 @@ export interface ClassroomSlide {
   title: string;
   htmlBody: string; // Full HTML document for iframe srcDoc
   order: number;
+  /** The slide's explanation as plain text, spoken by the lesson player. */
+  narrationText: string;
 }
 
 export interface ClassroomState {
@@ -130,6 +135,7 @@ export interface ClassroomState {
   courseTitle: string;
   lessonId: string;
   lessonTitle: string;
+  language: string;
   // Every slide in the lesson. The classroom previously held only the first
   // slide's HTML, so a lesson of any length displayed a single slide.
   slides: ClassroomSlide[];

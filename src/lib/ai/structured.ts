@@ -38,6 +38,49 @@ export function stripFences(raw: string): string {
     .trim();
 }
 
+/**
+ * Parse the first complete JSON object in a response.
+ *
+ * Some OpenAI-compatible gateways occasionally prepend a short status line or
+ * append whitespace/prose even when JSON mode is requested. Retrying the model
+ * for bytes we can discard locally adds latency without improving the answer.
+ * The schema validation below still decides whether the recovered object is
+ * acceptable.
+ */
+export function parseJsonResponse(raw: string): unknown {
+  const clean = stripFences(raw);
+  try {
+    return JSON.parse(clean);
+  } catch {
+    let start = -1;
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+
+    for (let i = 0; i < clean.length; i++) {
+      const char = clean[i];
+      if (inString) {
+        if (escaped) escaped = false;
+        else if (char === "\\") escaped = true;
+        else if (char === '"') inString = false;
+        continue;
+      }
+      if (char === '"') {
+        inString = true;
+        continue;
+      }
+      if (char === "{") {
+        if (depth === 0) start = i;
+        depth++;
+      } else if (char === "}" && depth > 0) {
+        depth--;
+        if (depth === 0 && start >= 0) return JSON.parse(clean.slice(start, i + 1));
+      }
+    }
+    throw new SyntaxError("response did not contain a complete JSON object");
+  }
+}
+
 export interface StructuredOptions {
   /** Which model runs this. See ./models.ts for the per-task choices. */
   task: AiTask;
@@ -170,7 +213,7 @@ export async function generateStructuredJSON<T>(
 
     let parsed: unknown;
     try {
-      parsed = JSON.parse(stripFences(rawContent));
+      parsed = parseJsonResponse(rawContent);
     } catch {
       lastError = new Error(
         `[LLM Error] generateStructuredJSON — invalid JSON. Raw response:\n${rawContent.slice(0, 500)}`,

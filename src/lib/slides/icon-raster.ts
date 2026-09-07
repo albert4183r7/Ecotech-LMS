@@ -15,7 +15,7 @@ import { resolveIcon } from "./icons";
 // handful of glyphs over and over.
 // ============================================
 
-const cache = new Map<string, string>();
+const cache = new Map<string, Promise<string | null>>();
 
 /** The drawn size in inches → pixels, at the density a projector deserves. */
 function pixelsFor(widthIn: number): number {
@@ -44,16 +44,20 @@ export async function iconPng(
     `fill="none" stroke="#${colourHex}" stroke-width="2" stroke-linecap="round" ` +
     `stroke-linejoin="round">${resolveIcon(name, context)}</svg>`;
 
-  try {
-    const png = await sharp(Buffer.from(svg)).png().toBuffer();
-    const data = `image/png;base64,${png.toString("base64")}`;
-    cache.set(key, data);
-    return data;
-  } catch (error) {
-    console.warn(
-      `[icon-raster] could not rasterise "${name}":`,
-      error instanceof Error ? error.message : error,
-    );
-    return null;
-  }
+  const raster = sharp(Buffer.from(svg))
+    .png()
+    .toBuffer()
+    .then((png) => `image/png;base64,${png.toString("base64")}`)
+    .catch((error) => {
+      cache.delete(key);
+      console.warn(
+        `[icon-raster] could not rasterise "${name}":`,
+        error instanceof Error ? error.message : error,
+      );
+      return null;
+    });
+  // Cache the in-flight work, not only its result, so parallel deck preparation
+  // rasterises a repeated glyph once.
+  cache.set(key, raster);
+  return raster;
 }

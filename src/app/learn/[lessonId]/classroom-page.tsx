@@ -21,6 +21,10 @@ import {
   FileDown,
   Wand2,
   Pencil,
+  Volume2,
+  Pause,
+  Play,
+  Square,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -67,6 +71,22 @@ const ZOOM_STEP = 25;
 const SLIDE_NATURAL_WIDTH = SLIDE_WIDTH;
 const SLIDE_NATURAL_HEIGHT = SLIDE_HEIGHT;
 
+const SPEECH_LOCALES: Record<string, string> = {
+  chinese: "zh-CN",
+  english: "en-US",
+  spanish: "es-ES",
+  french: "fr-FR",
+  german: "de-DE",
+  japanese: "ja-JP",
+  korean: "ko-KR",
+  indonesian: "id-ID",
+  malay: "ms-MY",
+  portuguese: "pt-BR",
+  arabic: "ar-SA",
+  thai: "th-TH",
+  vietnamese: "vi-VN",
+};
+
 export function ClassroomPage() {
   const { goBack } = useNavigation();
   const router = useRouter();
@@ -79,8 +99,12 @@ export function ClassroomPage() {
     error: classroomError,
   } = useClassroomState(routeLessonId);
   const userId = useUserStore((s) => s.currentUserId);
+  const currentRole = useUserStore((s) => s.currentRole);
   const [localState, setLocalState] = useState<ClassroomState | null>(null);
   const [zoom, setZoom] = useState(100);
+  const [speechSupported, setSpeechSupported] = useState(false);
+  const [autoNarrating, setAutoNarrating] = useState(false);
+  const [narrationState, setNarrationState] = useState<"idle" | "playing" | "paused">("idle");
   // Set once the learner touches a zoom control, so an automatic fit never
   // overrides a deliberate choice on the next resize.
   const zoomIsUserChosenRef = useRef(false);
@@ -287,6 +311,130 @@ export function ClassroomPage() {
   // htmlBody now goes through here.
   const currentSlide = localState?.slides[localState.currentSlideIndex] ?? null;
 
+  // A dwell event is closed when the learner changes slide, leaves the
+  // lesson, or closes the tab. The server clamps and validates it, and rejects
+  // instructor views so previewing a deck cannot pollute student analytics.
+  useEffect(() => {
+    if (currentRole !== "student" || !localState || !currentSlide) return;
+    const startedAt = Date.now();
+    const courseId = localState.courseId;
+    const lessonId = localState.lessonId;
+    const slideId = currentSlide.id;
+    return () => {
+      const durationSeconds = Math.min(1800, Math.round((Date.now() - startedAt) / 1000));
+      if (durationSeconds < 1) return;
+      const payload = JSON.stringify({
+        type: "SLIDE_VIEW",
+        courseId,
+        lessonId,
+        slideId,
+        durationSeconds,
+      });
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon(
+          "/api/analytics/events",
+          new Blob([payload], { type: "application/json" }),
+        );
+      } else {
+        void fetch("/api/analytics/events", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: payload,
+          keepalive: true,
+        });
+      }
+    };
+  }, [currentRole, localState?.courseId, localState?.lessonId, currentSlide?.id]);
+
+  // ─── Slide-deck narration (browser TTS) ─────────────────────
+  // The deck remains visual, while the semantic explanation behind each
+  // slide is spoken. This also works for imported PowerPoints because the
+  // lesson endpoint extracts their visible text as a narration fallback.
+  useEffect(() => {
+    setSpeechSupported(
+      typeof window !== "undefined" &&
+        "speechSynthesis" in window &&
+        "SpeechSynthesisUtterance" in window,
+    );
+    return () => window.speechSynthesis?.cancel();
+  }, []);
+
+  const stopNarration = useCallback(() => {
+    setAutoNarrating(false);
+    setNarrationState("idle");
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
+  }, []);
+
+  const toggleNarration = useCallback(() => {
+    if (!speechSupported) return;
+    if (narrationState === "playing") {
+      window.speechSynthesis.pause();
+      setNarrationState("paused");
+      return;
+    }
+    if (narrationState === "paused") {
+      window.speechSynthesis.resume();
+      setNarrationState("playing");
+      return;
+    }
+    setAutoNarrating(true);
+  }, [speechSupported, narrationState]);
+
+  useEffect(() => {
+    if (!autoNarrating || !localState || !currentSlide || !speechSupported) return;
+    const text = currentSlide.narrationText.trim();
+    if (!text) {
+      setAutoNarrating(false);
+      setNarrationState("idle");
+      return;
+    }
+
+    const synth = window.speechSynthesis;
+    synth.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    const locale = SPEECH_LOCALES[localState.language.toLowerCase()] ?? localState.language;
+    utterance.lang = locale;
+    utterance.rate = 0.95;
+    const prefix = locale.toLowerCase().split("-")[0];
+    const voice = synth
+      .getVoices()
+      .find((candidate) => candidate.lang.toLowerCase().startsWith(prefix));
+    if (voice) utterance.voice = voice;
+
+    let cancelled = false;
+    utterance.onstart = () => !cancelled && setNarrationState("playing");
+    utterance.onerror = () => {
+      if (cancelled) return;
+      setAutoNarrating(false);
+      setNarrationState("idle");
+    };
+    utterance.onend = () => {
+      if (cancelled) return;
+      setNarrationState("idle");
+      setLocalState((state) => {
+        if (!state || state.currentSlideIndex >= state.slides.length - 1) {
+          setAutoNarrating(false);
+          return state;
+        }
+        return { ...state, currentSlideIndex: state.currentSlideIndex + 1 };
+      });
+    };
+    synth.speak(utterance);
+
+    return () => {
+      cancelled = true;
+      synth.cancel();
+    };
+  }, [
+    autoNarrating,
+    speechSupported,
+    currentSlide?.id,
+    currentSlide?.narrationText,
+    localState?.language,
+  ]);
+
   /** Step through slides; at either end, move to the neighbouring lesson. */
   const goPrev = useCallback(() => {
     if (!localState) return;
@@ -307,10 +455,7 @@ export function ClassroomPage() {
       );
       return;
     }
-    if (
-      localState.slides.length === 1 &&
-      !completedLessonsRef.current.has(localState.lessonId)
-    ) {
+    if (localState.slides.length === 1 && !completedLessonsRef.current.has(localState.lessonId)) {
       completedLessonsRef.current.add(localState.lessonId);
       void markLessonCompleted(localState.lessonId, 1);
     }
@@ -860,6 +1005,59 @@ export function ClassroomPage() {
               </TooltipTrigger>
               <TooltipContent>Download this lesson as PPT</TooltipContent>
             </Tooltip>
+
+            <Separator orientation="vertical" className="mx-1 h-5" />
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant={narrationState === "idle" ? "ghost" : "secondary"}
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={toggleNarration}
+                  disabled={!speechSupported || !currentSlide?.narrationText.trim()}
+                  aria-label={
+                    narrationState === "playing"
+                      ? "Pause narration"
+                      : narrationState === "paused"
+                        ? "Resume narration"
+                        : "Play slide narration"
+                  }
+                >
+                  {narrationState === "playing" ? (
+                    <Pause className="h-4 w-4" />
+                  ) : (
+                    <Play className="h-4 w-4" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {speechSupported
+                  ? narrationState === "playing"
+                    ? "Pause explanation"
+                    : "Play explanation with TTS"
+                  : "TTS is not supported by this browser"}
+              </TooltipContent>
+            </Tooltip>
+            {narrationState !== "idle" && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={stopNarration}
+                    aria-label="Stop narration"
+                  >
+                    <Square className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Stop explanation</TooltipContent>
+              </Tooltip>
+            )}
+            <span className="text-muted-foreground hidden text-xs xl:inline">
+              <Volume2 className="mr-1 inline h-3.5 w-3.5" />
+              Narration
+            </span>
           </div>
 
           {/* Navigation Buttons */}

@@ -15,6 +15,16 @@ export const OPTIONS_PER_QUESTION = 4;
 export const MIN_QUIZ_QUESTIONS = 2;
 export const MAX_QUIZ_QUESTIONS = 15;
 
+/** How directly a learner can retrieve an answer from the lesson. */
+export const QuizDifficultySchema = z.enum(["easy", "medium", "hard"]);
+export type QuizDifficulty = z.infer<typeof QuizDifficultySchema>;
+export const DEFAULT_QUIZ_DIFFICULTY: QuizDifficulty = "medium";
+
+export function normaliseQuizDifficulty(value: unknown): QuizDifficulty {
+  const parsed = QuizDifficultySchema.safeParse(value);
+  return parsed.success ? parsed.data : DEFAULT_QUIZ_DIFFICULTY;
+}
+
 export const DraftOptionSchema = z.object({
   text: z.string().min(1).max(200).describe("One answer choice"),
   isCorrect: z.boolean().describe("Exactly one option per question is true"),

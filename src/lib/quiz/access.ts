@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { AuthorizationError, requireUser, type SessionUser } from "@/lib/session";
+import { normaliseQuizDifficulty, type QuizDifficulty } from "./schema";
 
 // ============================================
 // Quiz access
@@ -37,6 +38,7 @@ export interface QuizView {
   lessonTitle: string;
   courseId: string;
   questionCount: number;
+  difficulty: QuizDifficulty;
   questions: QuizQuestionView[];
 }
 
@@ -47,7 +49,9 @@ export async function loadQuiz(where: { quizId?: string; lessonId?: string }) {
   return db.quiz.findFirst({
     where: where.quizId ? { id: where.quizId } : { lessonId: where.lessonId },
     include: {
-      lesson: { select: { id: true, title: true, courseId: true, order: true } },
+      lesson: {
+        select: { id: true, title: true, courseId: true, order: true, outlineJson: true },
+      },
       questions: {
         orderBy: { order: "asc" },
         include: { options: { orderBy: { order: "asc" } } },
@@ -58,6 +62,12 @@ export async function loadQuiz(where: { quizId?: string; lessonId?: string }) {
 
 /** Shape a quiz for its audience. `reveal` gates everything answer-bearing. */
 export function toQuizView(quiz: QuizWithRelations, reveal: boolean): QuizView {
+  let storedDifficulty: unknown;
+  try {
+    storedDifficulty = JSON.parse(quiz.lesson.outlineJson ?? "{}").quizDifficulty;
+  } catch {
+    storedDifficulty = undefined;
+  }
   return {
     id: quiz.id,
     title: quiz.title,
@@ -67,6 +77,7 @@ export function toQuizView(quiz: QuizWithRelations, reveal: boolean): QuizView {
     lessonTitle: quiz.lesson.title,
     courseId: quiz.lesson.courseId,
     questionCount: quiz.questions.length,
+    difficulty: normaliseQuizDifficulty(storedDifficulty),
     questions: quiz.questions.map((question) => ({
       id: question.id,
       prompt: question.prompt,
@@ -129,9 +140,9 @@ export async function resolveQuizAccess(where: {
 
   const enrollment = await db.enrollment.findUnique({
     where: { userId_courseId: { userId: user.id, courseId: quiz.lesson.courseId } },
-    select: { id: true },
+    select: { id: true, status: true },
   });
-  if (!enrollment) {
+  if (!enrollment || enrollment.status === "dropped") {
     throw new AuthorizationError("You are not enrolled in this course.", 403);
   }
 

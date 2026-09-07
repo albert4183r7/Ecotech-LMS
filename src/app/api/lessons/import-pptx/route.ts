@@ -9,6 +9,7 @@ import { sanitizeHtml, wrapSlideHtml } from "@/lib/sanitize";
 import { importPptx } from "@/lib/slides/import/pptx";
 import { generateAndSaveQuiz } from "@/lib/quiz/persist";
 import { AI_GENERATION_RULE, consumeAuthenticatedRequest } from "@/lib/rate-limit";
+import { normaliseQuizDifficulty } from "@/lib/quiz/schema";
 
 // ============================================
 // POST /api/lessons/import-pptx
@@ -63,6 +64,7 @@ export async function POST(request: NextRequest) {
     const file = form.get("file");
     const askedForQuiz = String(form.get("generateQuiz") ?? "") === "true";
     const askedQuestions = Number(form.get("questionCount") ?? "");
+    const quizDifficulty = normaliseQuizDifficulty(form.get("quizDifficulty"));
     const givenTitle = String(form.get("title") ?? "").trim();
 
     if (!courseId || !(file instanceof File)) {
@@ -191,6 +193,7 @@ export async function POST(request: NextRequest) {
           slideCount: deck.slides.length,
           hiddenSlides: deck.hidden,
           warnings,
+          quizDifficulty,
         }),
       },
     });
@@ -219,6 +222,7 @@ export async function POST(request: NextRequest) {
         generateAndSaveQuiz(lesson.id, {
           questionCount:
             Number.isFinite(askedQuestions) && askedQuestions > 0 ? askedQuestions : null,
+          difficulty: quizDifficulty,
         }).catch((error) => console.error(`[import-pptx] quiz for ${lesson.id} failed:`, error)),
       );
     }

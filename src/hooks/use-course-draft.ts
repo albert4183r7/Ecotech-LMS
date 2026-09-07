@@ -186,6 +186,7 @@ export function useCourseDraft({ coverImage, setCoverImage }: UseCourseDraftOpti
                   thesis: parsedOutline?.thesis,
                   misconception: parsedOutline?.misconception,
                   keyTerms: parsedOutline?.keyTerms,
+                  quizDifficulty: parsedOutline?.quizDifficulty,
                   // An uploaded deck has no plan behind it; the card reads
                   // this and offers the preview rather than an outline.
                   uploaded: parsedOutline?.source?.kind === "upload",

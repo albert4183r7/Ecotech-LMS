@@ -17,8 +17,10 @@ import {
   Trash2,
   Trophy,
   User,
+  LogOut,
 } from "lucide-react";
 import { useState } from "react";
+import { CertificateModal } from "@/components/lms/certificate-modal";
 
 export interface EnrollmentCourse {
   id: string;
@@ -90,8 +92,14 @@ export function formatLastAccessed(dateStr: string): string {
 /* ------------------------------------------------------------------ */
 /*  Stats Dashboard Card                                              */
 /* ------------------------------------------------------------------ */
-export function CourseProgressCard({ enrollment }: { enrollment: EnrollmentItem }) {
-  const { openCourseDetail, navigateTo } = useNavigation();
+export function CourseProgressCard({
+  enrollment,
+  onLeave,
+}: {
+  enrollment: EnrollmentItem;
+  onLeave?: (enrollment: EnrollmentItem) => void;
+}) {
+  const { openCourseDetail } = useNavigation();
 
   const handleResume = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -202,6 +210,20 @@ export function CourseProgressCard({ enrollment }: { enrollment: EnrollmentItem 
                 <Eye className="h-3.5 w-3.5" />
                 View Details
               </Button>
+              {onLeave && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="text-muted-foreground hover:text-destructive ml-auto gap-1.5"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onLeave(enrollment);
+                  }}
+                >
+                  <LogOut className="h-3.5 w-3.5" />
+                  Leave course
+                </Button>
+              )}
             </div>
           </div>
         </div>
@@ -223,125 +245,152 @@ export function CompletedCourseCard({
   const { openCourseDetail } = useNavigation();
   const [hoverRating, setHoverRating] = useState(0);
   const [selectedRating, setSelectedRating] = useState(0);
+  const [certificateOpen, setCertificateOpen] = useState(false);
 
   const handleCardClick = () => {
     openCourseDetail(enrollment.course.id);
   };
 
   return (
-    <Card
-      className="lms-card-hover card-shine border-border/50 cursor-pointer overflow-hidden"
-      onClick={handleCardClick}
-    >
-      <CardContent className="p-0">
-        <div className="flex flex-col sm:flex-row">
-          {/* Cover Image */}
-          <div className="relative h-40 w-full shrink-0 overflow-hidden sm:h-auto sm:min-h-[180px] sm:w-56">
-            {enrollment.course.coverImage ? (
-              <img
-                src={enrollment.course.coverImage}
-                alt={enrollment.course.title}
-                className="h-full w-full object-cover"
-              />
-            ) : (
-              <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-emerald-600 to-teal-500">
-                <CheckCircle className="h-14 w-14 text-white/30" />
+    <>
+      <Card
+        className="lms-card-hover card-shine border-border/50 cursor-pointer overflow-hidden"
+        onClick={handleCardClick}
+      >
+        <CardContent className="p-0">
+          <div className="flex flex-col sm:flex-row">
+            {/* Cover Image */}
+            <div className="relative h-40 w-full shrink-0 overflow-hidden sm:h-auto sm:min-h-[180px] sm:w-56">
+              {enrollment.course.coverImage ? (
+                <img
+                  src={enrollment.course.coverImage}
+                  alt={enrollment.course.title}
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-emerald-600 to-teal-500">
+                  <CheckCircle className="h-14 w-14 text-white/30" />
+                </div>
+              )}
+              {/* Completed overlay */}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
+              {/* Confetti decoration */}
+              <div className="absolute top-3 right-3 flex h-8 w-8 items-center justify-center rounded-full bg-amber-400/90 shadow-lg">
+                <Trophy className="h-4 w-4 text-white" />
               </div>
-            )}
-            {/* Completed overlay */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
-            {/* Confetti decoration */}
-            <div className="absolute top-3 right-3 flex h-8 w-8 items-center justify-center rounded-full bg-amber-400/90 shadow-lg">
-              <Trophy className="h-4 w-4 text-white" />
+              <div className="absolute bottom-3 left-3">
+                <span className="flex items-center gap-1 rounded-md bg-emerald-500/90 px-2 py-0.5 text-[10px] font-bold text-white backdrop-blur-sm">
+                  <CheckCircle className="h-3 w-3" />
+                  COMPLETED
+                </span>
+              </div>
             </div>
-            <div className="absolute bottom-3 left-3">
-              <span className="flex items-center gap-1 rounded-md bg-emerald-500/90 px-2 py-0.5 text-[10px] font-bold text-white backdrop-blur-sm">
-                <CheckCircle className="h-3 w-3" />
-                COMPLETED
-              </span>
-            </div>
-          </div>
 
-          {/* Content */}
-          <div className="relative flex flex-1 flex-col justify-between gap-3 p-5">
-            <div>
-              {/* Category & Completion Date */}
-              <div className="mb-2 flex flex-wrap items-center gap-2">
-                {enrollment.course.category && (
-                  <Badge variant="secondary" className="px-1.5 py-0 text-[10px]">
-                    {enrollment.course.category.name}
-                  </Badge>
-                )}
-                {enrollment.completedAt && (
-                  <span className="text-muted-foreground text-[11px]">
-                    Completed {formatDate(enrollment.completedAt)}
-                  </span>
-                )}
-              </div>
-
-              {/* Title with checkmark */}
-              <div className="flex items-start gap-2">
-                <h4 className="text-foreground text-base leading-snug font-bold">
-                  {enrollment.course.title}
-                </h4>
-              </div>
-
-              {/* Star Rating */}
-              <div className="mt-2 flex items-center gap-2">
-                <span className="text-muted-foreground text-[11px] font-medium">Rate Course:</span>
-                <div className="flex items-center gap-0.5">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <button
-                      key={star}
-                      type="button"
-                      className="transition-transform hover:scale-110"
-                      onMouseEnter={() => setHoverRating(star)}
-                      onMouseLeave={() => setHoverRating(0)}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedRating(star);
-                      }}
-                    >
-                      <Star
-                        className={`h-4 w-4 transition-colors ${
-                          star <= (hoverRating || selectedRating)
-                            ? "fill-amber-400 text-amber-400"
-                            : "text-muted-foreground/30"
-                        }`}
-                      />
-                    </button>
-                  ))}
-                  {selectedRating > 0 && (
-                    <span className="ml-1 text-[10px] font-medium text-amber-500">
-                      {selectedRating}/5
+            {/* Content */}
+            <div className="relative flex flex-1 flex-col justify-between gap-3 p-5">
+              <div>
+                {/* Category & Completion Date */}
+                <div className="mb-2 flex flex-wrap items-center gap-2">
+                  {enrollment.course.category && (
+                    <Badge variant="secondary" className="px-1.5 py-0 text-[10px]">
+                      {enrollment.course.category.name}
+                    </Badge>
+                  )}
+                  {enrollment.completedAt && (
+                    <span className="text-muted-foreground text-[11px]">
+                      Completed {formatDate(enrollment.completedAt)}
                     </span>
                   )}
                 </div>
+
+                {/* Title with checkmark */}
+                <div className="flex items-start gap-2">
+                  <h4 className="text-foreground text-base leading-snug font-bold">
+                    {enrollment.course.title}
+                  </h4>
+                </div>
+
+                {/* Star Rating */}
+                <div className="mt-2 flex items-center gap-2">
+                  <span className="text-muted-foreground text-[11px] font-medium">
+                    Rate Course:
+                  </span>
+                  <div className="flex items-center gap-0.5">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={star}
+                        type="button"
+                        className="transition-transform hover:scale-110"
+                        onMouseEnter={() => setHoverRating(star)}
+                        onMouseLeave={() => setHoverRating(0)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedRating(star);
+                        }}
+                      >
+                        <Star
+                          className={`h-4 w-4 transition-colors ${
+                            star <= (hoverRating || selectedRating)
+                              ? "fill-amber-400 text-amber-400"
+                              : "text-muted-foreground/30"
+                          }`}
+                        />
+                      </button>
+                    ))}
+                    {selectedRating > 0 && (
+                      <span className="ml-1 text-[10px] font-medium text-amber-500">
+                        {selectedRating}/5
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Full progress bar */}
+                <Progress value={100} className="mt-3 h-1.5 [&>div]:bg-emerald-500" />
               </div>
 
-              {/* Full progress bar */}
-              <Progress value={100} className="mt-3 h-1.5 [&>div]:bg-emerald-500" />
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex flex-wrap items-center gap-2 pt-1">
-              <Button
-                size="sm"
-                variant="outline"
-                className="gap-1.5 font-medium"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  openCourseDetail(enrollment.course.id);
-                }}
-              >
-                <MessageSquare className="h-3.5 w-3.5" />
-                Review Course
-              </Button>
+              {/* Action Buttons */}
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5 font-medium"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openCourseDetail(enrollment.course.id);
+                  }}
+                >
+                  <MessageSquare className="h-3.5 w-3.5" />
+                  Review Course
+                </Button>
+                {enrollment.completedAt && (
+                  <Button
+                    size="sm"
+                    className="gap-1.5 bg-emerald-600 text-white hover:bg-emerald-700"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setCertificateOpen(true);
+                    }}
+                  >
+                    <Trophy className="h-3.5 w-3.5" />
+                    Certificate
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+      {enrollment.completedAt && (
+        <CertificateModal
+          open={certificateOpen}
+          onOpenChange={setCertificateOpen}
+          userName={userName}
+          courseName={enrollment.course.title}
+          completionDate={enrollment.completedAt}
+        />
+      )}
+    </>
   );
 }
 

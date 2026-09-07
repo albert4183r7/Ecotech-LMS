@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { AuthorizationError, mayReadLesson, requireUser } from "@/lib/session";
 import { parseSlideDoc, type SlideDoc } from "@/lib/slides/document";
 import { addContentSlide, applyTemplateLayout } from "@/lib/slides/pptx";
-import { addCompositionSlide } from "@/lib/slides/composition-pptx";
+import { addCompositionSlide, prepareCompositionAssets } from "@/lib/slides/composition-pptx";
 import { applyGradients } from "@/lib/slides/pptx-gradient";
 import { SLIDE_TEMPLATE } from "@/lib/slides/template";
 import { safeFileName } from "@/lib/download";
@@ -141,8 +141,18 @@ export async function POST(request: NextRequest) {
     // The template numbers its own pages; the deck name is document metadata,
     // not slide furniture.
     const allWarnings: string[] = [];
+    // Adding slides stays sequential to preserve deck order, but icon
+    // rasterisation is independent. Warm every composition's assets together
+    // so export time is not the sum of each slide's Sharp work.
+    await Promise.all(
+      slides.flatMap((slide) =>
+        slide.doc.kind === "composition"
+          ? [prepareCompositionAssets(slide.doc.composition, template)]
+          : [],
+      ),
+    );
     // Sequential, because slide order is the order they are added — and
-    // because a composed slide awaits its rasterised icons.
+    // prepared assets are now served from the shared cache.
     for (const [index, slide] of slides.entries()) {
       const { warnings } =
         slide.doc.kind === "composition"

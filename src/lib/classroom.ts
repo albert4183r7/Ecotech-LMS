@@ -17,6 +17,7 @@ interface RawSlide {
   title?: string;
   htmlBody?: string;
   order?: number;
+  narrationText?: string;
 }
 
 /**
@@ -34,6 +35,7 @@ export function toClassroomSlides(raw: unknown): ClassroomSlide[] {
       title: slide.title ?? "",
       htmlBody: slide.htmlBody as string,
       order: typeof slide.order === "number" ? slide.order : index,
+      narrationText: slide.narrationText?.trim() || slide.title || "",
     }))
     .sort((a, b) => a.order - b.order);
 }
@@ -43,6 +45,7 @@ export interface BuildClassroomStateParams {
   courseTitle: string;
   lessonId: string;
   lessonTitle: string;
+  language: string;
   /** Raw slides from the lesson endpoint. */
   slides: unknown;
   allLessonIds: string[];
@@ -57,10 +60,19 @@ export function buildClassroomState(params: BuildClassroomStateParams): Classroo
     courseTitle: params.courseTitle,
     lessonId: params.lessonId,
     lessonTitle: params.lessonTitle,
+    language: params.language,
     slides:
       slides.length > 0
         ? slides
-        : [{ id: "", title: params.lessonTitle, htmlBody: EMPTY_SLIDE_HTML, order: 0 }],
+        : [
+            {
+              id: "",
+              title: params.lessonTitle,
+              htmlBody: EMPTY_SLIDE_HTML,
+              narrationText: params.lessonTitle,
+              order: 0,
+            },
+          ],
     currentSlideIndex: 0,
     allLessonIds: params.allLessonIds,
     currentLessonIndex: Math.max(0, params.allLessonIds.indexOf(params.lessonId)),

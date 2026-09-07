@@ -110,7 +110,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const updated = await db.quiz.findUnique({
       where: { id: quiz.id },
       include: {
-        lesson: { select: { id: true, title: true, courseId: true, order: true } },
+        lesson: {
+          select: { id: true, title: true, courseId: true, order: true, outlineJson: true },
+        },
         questions: {
           orderBy: { order: "asc" },
           include: { options: { orderBy: { order: "asc" } } },

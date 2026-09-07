@@ -14,6 +14,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
+import type { QuizDifficulty } from "@/lib/quiz/schema";
 
 export interface OutlineSlideDraft {
   id: string;
@@ -79,6 +80,7 @@ export interface OutlineLessonDraft {
   thesis?: string;
   misconception?: string;
   keyTerms?: string[];
+  quizDifficulty?: QuizDifficulty;
   language: string;
   style: string;
   /**

@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { generateQuiz } from "./generate";
 import { loadLessonSource } from "./lesson-source";
+import type { QuizDifficulty } from "./schema";
 
 // ============================================
 // Quiz persistence
@@ -102,7 +103,7 @@ export async function saveGeneratedQuiz(
  */
 export async function generateAndSaveQuiz(
   lessonId: string,
-  options: { questionCount?: number | null } = {},
+  options: { questionCount?: number | null; difficulty?: QuizDifficulty } = {},
 ): Promise<QuizResult> {
   const source = await loadLessonSource(lessonId);
   if (!source) {
@@ -112,7 +113,10 @@ export async function generateAndSaveQuiz(
   }
 
   try {
-    const report = await generateQuiz(source, { questionCount: options.questionCount });
+    const report = await generateQuiz(source, {
+      questionCount: options.questionCount,
+      difficulty: options.difficulty,
+    });
 
     if (report.quiz.questions.length < MIN_QUESTIONS) {
       const error =

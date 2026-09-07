@@ -12,6 +12,7 @@ import type { SlideBrief } from "@/lib/slides/generate";
 import { generateAndSaveQuiz } from "@/lib/quiz/persist";
 import { runQualityGate } from "@/lib/agent/quality-gate";
 import { AI_GENERATION_RULE, consumeAuthenticatedRequest } from "@/lib/rate-limit";
+import { normaliseQuizDifficulty, type QuizDifficulty } from "@/lib/quiz/schema";
 
 // ============================================
 // POST /api/lessons/generate-slides   — phase two
@@ -20,8 +21,6 @@ import { AI_GENERATION_RULE, consumeAuthenticatedRequest } from "@/lib/rate-limi
 // the source of truth: every section is generated, in order, and the slide
 // count is whatever the plan allocated. Nothing is re-planned here.
 // ============================================
-
-const SLIDE_TIMEOUT_MS = 120_000;
 
 /**
  * Slides written at once.
@@ -80,23 +79,8 @@ interface StoredOutlinePlan {
   keyTerms?: string[];
   /** How many quiz questions the instructor asked for, when they said. */
   quizQuestionCount?: number;
+  quizDifficulty?: QuizDifficulty;
   hasContents?: boolean;
-}
-
-function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms / 1000}s`)), ms);
-    promise.then(
-      (v) => {
-        clearTimeout(timer);
-        resolve(v);
-      },
-      (e) => {
-        clearTimeout(timer);
-        reject(e);
-      },
-    );
-  });
 }
 
 async function generateAllSlides(
@@ -266,11 +250,10 @@ async function generateAllSlides(
         // size — every one of those is a role that resolves to the template's
         // own value — so an arrangement can be anything and the deck is still
         // the Ecotech deck.
-        const composition = await withTimeout(
-          generateSlideComposition(brief),
-          SLIDE_TIMEOUT_MS,
-          `slide ${label}`,
-        );
+        // The provider owns the request timeout. A second, shorter wrapper here
+        // used to reject without cancelling the stream, then launch a duplicate
+        // attempt while the original model call was still consuming capacity.
+        const composition = await generateSlideComposition(brief);
 
         const html = sanitizeHtml(renderComposition(composition, { slideNumber: position + 1 }));
         if (!html.trim()) throw new Error("rendered slide was empty after sanitising");
@@ -333,30 +316,39 @@ async function generateAllSlides(
     );
   }
 
-  // ---- Mark the lesson as still in progress ----
+  // ---- Record whether a quiz is pending or was skipped ----
   //
   // Review and quiz generation run here, after the last slide has reported
   // READY, and take about as long as the slides did. Nothing recorded that,
   // so a page watching the lesson saw a finished deck and no way to tell
-  // whether anything was still coming. A quiz row in its DRAFT state says so:
-  // it is the state the schema already defines for a quiz that is not yet
-  // answerable, and every reader of a quiz requires READY before showing it.
+  // whether anything was still coming. A quiz row in its DRAFT state says so.
+  // When slides fail, ERROR settles that stage instead; leaving DRAFT behind
+  // makes progress polling wait forever for a quiz this run will never start.
   const completeDeck = ready.length === finished.length && finished.length > 0;
   const quizBefore = await db.quiz.findUnique({
     where: { lessonId },
     select: { id: true, status: true, _count: { select: { questions: true } } },
   });
 
-  if (!completeDeck && !quizBefore) {
+  const settleSkippedQuiz = async (error: string) => {
     await db.quiz
       .upsert({
         where: { lessonId },
-        create: { lessonId, title: "Quiz", status: "DRAFT", error: null },
-        update: { status: "DRAFT", error: null },
+        create: { lessonId, title: "Quiz", status: "ERROR", error },
+        update: { status: "ERROR", error },
       })
       .catch((error) => {
-        console.warn(`[generate-slides] lesson ${lessonId}: could not mark quiz pending —`, error);
+        console.warn(
+          `[generate-slides] lesson ${lessonId}: could not settle skipped quiz —`,
+          error,
+        );
       });
+  };
+
+  if (!completeDeck && quizBefore?.status !== "READY") {
+    await settleSkippedQuiz(
+      `Quiz generation skipped because ${finished.length - ready.length} of ${finished.length} slides failed.`,
+    );
   }
 
   // ---- Review what was generated, and revise what fails ----
@@ -365,7 +357,6 @@ async function generateAllSlides(
   // quiz. The gate decides only what is wrong and how to say it better; it
   // never chooses what happens next. Bounded passes, and a failure to evaluate
   // leaves the slides as they are rather than failing the lesson.
-  let reviewBlocked = false;
   if (completeDeck) {
     try {
       const gate = await runQualityGate({
@@ -381,34 +372,11 @@ async function generateAllSlides(
           (gate.remaining.length ? `, ${gate.remaining.length} finding(s) outstanding` : ""),
       );
 
-      // READY means the slide passed both rendering and the content gate. Any
-      // outstanding slide-level blocker is retryable and must remain visible
-      // to progress polling instead of being buried in a log line.
-      let blockedOrders = [
-        ...new Set(
-          gate.remaining
-            .map((finding) => finding.slidePosition - 1)
-            .filter((order) => order >= 0 && order < finished.length),
-        ),
-      ];
-      if (!gate.passed && gate.passes.length > 0 && blockedOrders.length === 0) {
-        // A lesson-wide blocker (position 0), or a score below the pass floor,
-        // has no single row to blame. Keep every teaching slide retryable so
-        // the deck cannot report ready while the critic says it failed.
-        blockedOrders = finished
-          .map((_, order) => order)
-          .filter((order) => roleAt(order) === "content");
-      }
-      if (blockedOrders.length) {
-        reviewBlocked = true;
-        await db.slide.updateMany({
-          where: { lessonId, order: { in: blockedOrders } },
-          data: { status: "ERROR" },
-        });
-      }
-
       // Keep the review auditable and visible through the existing outline
-      // payload, even when the evaluator itself was unavailable.
+      // payload. READY describes whether generation produced a renderable
+      // slide; it must not be overwritten by a critic's advisory finding.
+      // Conflating those states hid valid content, made progress report false
+      // generation failures, and starved the quiz of most of its source.
       const stored = lesson.outlineJson ? JSON.parse(lesson.outlineJson) : {};
       await db.lesson.update({
         where: { id: lessonId },
@@ -441,7 +409,7 @@ async function generateAllSlides(
   // to be grounded in what the lesson actually says, which is not known until
   // the slides exist. A lesson with no ready slides has nothing to quiz on, so
   // the attempt is skipped rather than failed.
-  if (completeDeck && !reviewBlocked) {
+  if (completeDeck) {
     // A retry of one failed slide on a live lesson must not rewrite a READY
     // quiz (or delete its question-level answer detail). Outline regeneration
     // explicitly marks the quiz DRAFT, which is the signal to rebuild it.
@@ -455,15 +423,14 @@ async function generateAllSlides(
       });
       const result = await generateAndSaveQuiz(lessonId, {
         questionCount: plan.quizQuestionCount,
+        difficulty: normaliseQuizDifficulty(plan.quizDifficulty),
       });
       if (result.status === "ERROR") {
         console.warn(`[generate-slides] lesson ${lessonId}: quiz not generated — ${result.error}`);
       }
     }
   } else {
-    console.warn(
-      `[generate-slides] lesson ${lessonId}: deck is incomplete or review-blocked, skipping quiz`,
-    );
+    console.warn(`[generate-slides] lesson ${lessonId}: deck is incomplete, skipping quiz`);
   }
 
   console.log(`[generate-slides] lesson ${lessonId} finished`);

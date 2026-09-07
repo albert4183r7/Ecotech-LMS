@@ -1,7 +1,7 @@
 // ============================================
 // AI tasks and the model each one runs on
 //
-// The project makes eight distinct kinds of model call, and they do not want the
+// The project makes distinct kinds of model call, and they do not want the
 // same model. Planning a lesson outline and judging whether a quiz question is
 // grounded are different jobs: one needs reasoning over a long reference
 // document, the other is close to classification and wants to be cheap. Naming
@@ -22,6 +22,9 @@ export type AiTask =
   | "quiz-grounding-judge"
   | "content-evaluation"
   | "lesson-tutor"
+  | "course-tutor"
+  | "mastery-question"
+  | "risk-analysis"
   | "platform-help";
 
 interface TaskModel {
@@ -46,7 +49,7 @@ interface TaskModel {
  * carries the tasks whose output is long, tightly constrained, or a critique
  * worth reading, and a cheaper, faster one carries the short decidable jobs
  * and the conversation a student waits on. Running everything on one model is
- * a supported choice — set the eight variables and it works — but most of these
+ * a supported choice — set the task variables and it works — but most of these
  * calls do not need the largest model, and here they are billed.
  */
 export const TASK_MODELS: Record<AiTask, TaskModel> = {
@@ -112,6 +115,27 @@ export const TASK_MODELS: Record<AiTask, TaskModel> = {
       "Answers the student's questions about the lesson they have open, streaming. " +
       "The one task a person waits on directly, so responsiveness outweighs the " +
       "extra quality of the stronger model on what is a short, grounded answer.",
+  },
+  "course-tutor": {
+    model: "claude-sonnet-5",
+    envVar: "MODEL_COURSE_TUTOR",
+    rationale:
+      "Retrieves and explains material across all lessons in one course. It is an " +
+      "interactive, grounded answer where low latency matters more than long-form generation.",
+  },
+  "mastery-question": {
+    model: "claude-sonnet-5",
+    envVar: "MODEL_MASTERY_QUESTION",
+    rationale:
+      "Writes a small batch of novel, course-grounded practice questions while avoiding " +
+      "the learner's prior prompts. The output is short and schema-constrained.",
+  },
+  "risk-analysis": {
+    model: "claude-sonnet-5",
+    envVar: "MODEL_RISK_ANALYSIS",
+    rationale:
+      "Turns transactional learning signals into concise risk explanations and remedial " +
+      "recommendations. Deterministic scoring supplies the probability; the model interprets it.",
   },
 };
 

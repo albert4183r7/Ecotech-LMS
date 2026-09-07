@@ -26,6 +26,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
           include: {
             sections: { orderBy: { order: "asc" } },
             slides: { orderBy: { order: "asc" } },
+            quiz: { select: { id: true, status: true, _count: { select: { questions: true } } } },
           },
         },
         _count: {
@@ -54,7 +55,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       db.enrollment.findUnique({ where: { userId_courseId: { userId, courseId: id } } }),
       db.favorite.findUnique({ where: { userId_courseId: { userId, courseId: id } } }),
     ]);
-    const isEnrolled = !!enrollment;
+    const isEnrolled = !!enrollment && enrollment.status !== "dropped";
     const isFavorited = !!favorite;
 
     // The syllabus — lesson and slide titles — is what the course page is for,
@@ -120,20 +121,29 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
         })),
         createdAt: lesson.createdAt,
         updatedAt: lesson.updatedAt,
+        quiz: lesson.quiz
+          ? {
+              id: lesson.quiz.id,
+              status: lesson.quiz.status,
+              questionCount: lesson.quiz._count.questions,
+            }
+          : null,
+        hasGeneratedContent: lesson.slides.some((slide) => slide.status === "READY"),
       })),
       enrollmentsCount: course._count.enrollments,
       favoritesCount: course._count.favorites,
       isEnrolled,
       isFavorited,
       isOwner,
-      enrollment: enrollment
-        ? {
-            id: enrollment.id,
-            status: enrollment.status,
-            enrolledAt: enrollment.enrolledAt,
-            completedAt: enrollment.completedAt,
-          }
-        : null,
+      enrollment:
+        isEnrolled && enrollment
+          ? {
+              id: enrollment.id,
+              status: enrollment.status,
+              enrolledAt: enrollment.enrolledAt,
+              completedAt: enrollment.completedAt,
+            }
+          : null,
     };
 
     return NextResponse.json({ success: true, data: formattedCourse });

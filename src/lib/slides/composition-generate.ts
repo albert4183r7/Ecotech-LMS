@@ -205,7 +205,11 @@ const BLOCK_CEILING = 6;
 
 /** What the measurement objects to, in the words the composer needs back. */
 export function reviewComposition(composition: SlideComposition, warnings: string[]): string[] {
-  const faults = [...warnings];
+  // Contrast corrections are already applied by resolveComposition and both
+  // renderers consume that resolved ink. Asking the model to redraw the whole
+  // slide cannot improve the repaired result, so do not spend a second authoring
+  // call on warnings that have already been fully resolved.
+  const faults = warnings.filter((warning) => !warning.includes("colour was corrected"));
 
   const words = composition.elements.reduce(
     (n, el) => n + (el.kind === "text" ? el.text.trim().split(/\s+/).filter(Boolean).length : 0),

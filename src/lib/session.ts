@@ -167,6 +167,30 @@ export async function requireCourseOwner(courseId: string): Promise<SessionUser>
   return user;
 }
 
+/** The signed-in user may read a complete course knowledge base when they own
+ * it, or when they are enrolled in its published version. */
+export async function requireCourseReader(
+  courseId: string,
+): Promise<{ user: SessionUser; isOwner: boolean }> {
+  const user = await requireUser();
+  const course = await db.course.findUnique({
+    where: { id: courseId },
+    select: { creatorId: true, status: true },
+  });
+  if (!course) throw new AuthorizationError("Course not found.", 404);
+  if (course.creatorId === user.id) return { user, isOwner: true };
+  if (course.status !== "published") throw new AuthorizationError("Course not found.", 404);
+
+  const enrollment = await db.enrollment.findUnique({
+    where: { userId_courseId: { userId: user.id, courseId } },
+    select: { id: true, status: true },
+  });
+  if (!enrollment || enrollment.status === "dropped") {
+    throw new AuthorizationError("Course not found.", 404);
+  }
+  return { user, isOwner: false };
+}
+
 /** The signed-in user, who must own the course this lesson belongs to. */
 export async function requireLessonOwner(
   lessonId: string,
@@ -200,9 +224,9 @@ export async function mayReadLesson(lessonId: string, userId: string): Promise<b
 
   const enrollment = await db.enrollment.findUnique({
     where: { userId_courseId: { userId, courseId: lesson.courseId } },
-    select: { id: true },
+    select: { id: true, status: true },
   });
-  return Boolean(enrollment);
+  return Boolean(enrollment && enrollment.status !== "dropped");
 }
 
 /**

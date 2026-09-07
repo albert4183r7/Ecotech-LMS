@@ -194,22 +194,31 @@ export async function extractTextFromFiles(filePaths: string[]): Promise<{
   sources: { file: string; charCount: number }[];
   failures: { file: string; reason: string }[];
 }> {
+  // Files are independent. Reading them together preserves input order through
+  // Promise.all while avoiding one slow PDF blocking every file behind it.
+  const extracted = await Promise.all(
+    filePaths.map(async (filePath) => {
+      const fileName = path.basename(filePath);
+      try {
+        const text = await extractTextFromFile(filePath);
+        return { fileName, text };
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : String(error);
+        console.error(`[extract-doc] ${fileName} could not be read: ${reason}`);
+        return { fileName, text: "", reason };
+      }
+    }),
+  );
+
   const sources: { file: string; charCount: number }[] = [];
   const failures: { file: string; reason: string }[] = [];
   const parts: string[] = [];
 
-  for (const filePath of filePaths) {
-    const fileName = path.basename(filePath);
-    let text = "";
-    try {
-      text = await extractTextFromFile(filePath);
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error);
-      console.error(`[extract-doc] ${fileName} could not be read: ${reason}`);
+  for (const { fileName, text, reason } of extracted) {
+    if (reason) {
       failures.push({ file: fileName, reason });
       continue;
     }
-
     if (text.trim().length === 0) {
       // An empty result is a failure too: a scanned PDF with no text layer
       // looks identical to a successful read of nothing.
